@@ -162,6 +162,46 @@ explicitly restore visibility and input eligibility under the existing rules.
 A zero-width or zero-height item is still an item and participates in gaps.
 Empty rows and rows with only one active item never consume a column gap.
 
+## Paint and input order
+
+The selected non-positioned profile follows the [flex-item painting rule](https://drafts.csswg.org/css-flexbox-1/#painting):
+actual flex items participate where inline blocks would paint. The native engine
+resolves `Frame::paint_roles` as `PaintRole::Ordinary` or `PaintRole::FlexItem`.
+A generated box is an item when its nearest generated parent is a `FlexRow`;
+boxless `Contents` ancestors pass that relationship through. The document root,
+contents wrappers and display-none nodes are always ordinary. A nested row can
+itself be an item while also making its own generated children items.
+
+Painting uses bounded root and item scopes. Within each scope, the root and
+ordinary descendants paint in depth-first source-tree order. Actual item
+subtrees are deferred, then each deferred item scope completes in source order
+before the next one begins. This lets an overflowing item cover a later ordinary
+block outside its row, while a later sibling item still covers an earlier item's
+nested row descendants. Ordinary descendants inside an item paint above that
+item's own background. Flat input need only be parent-before-child; numeric node
+order does not replace source-tree traversal.
+
+The painter consumes one shared iterative plan forward, and the hit tester
+consumes it in reverse. Each entry retains the intersections of its original
+ancestors' padding clips, including empty intersections, even when its scope is
+deferred. A node's own descendant clip does not clip its own border. Document
+scrolling applies to the same final geometry and clip coordinates in both
+consumers. Scope order changes neither layout rectangles nor scroll extents.
+
+Visibility, pointer eligibility and caller targetability remain per-node filters;
+they do not change scope membership. Hidden items can still contain explicitly
+visible descendants. Transparent paint does not remove a hit target, and an
+untargetable item does not suppress an eligible descendant. `Display::None`
+continues to prune an entire subtree. `Style::relative_offset` remains a geometry
+translation and does not create CSS positioned-element paint behavior.
+
+This is not general CSS stacking: there is no `z-index`, `order`, positioned
+out-of-scope descendant handling, opacity grouping or arbitrary stacking context.
+It covers the resolved non-positioned block/row profile described here. Consumers
+reject missing role entries and impossible item roles on the root, a contents
+wrapper or an absent box. Hit testing validates every box and all role metadata
+before selecting a target, including for an off-viewport query.
+
 ## Explicit admission limits
 
 `LayoutError::UnsupportedFlexItemWidth { node }` rejects an active row item whose
@@ -175,7 +215,7 @@ display-none subtrees have no row-item sizing obligations.
 
 Flexible growth/shrinkage, stretching, baseline alignment, per-item alignment
 overrides, line distribution, other main-axis distributions, reverse directions,
-reordering and percentage gaps are outside this profile. The public enum names the
+item reordering and percentage gaps are outside this profile. The public enum names the
 specific resolved row profile instead of implying that arbitrary `display:flex`
 declarations are supported. All row settings are ignored by other display modes.
 
@@ -197,10 +237,19 @@ paint/input/semantic behavior and final projection overflow.
 nowrap sizing, the one-line wrap distinction, per-item safe overflow, fractional
 and zero-height cases, nested axes and percentage references, hidden policies,
 semantic reflow, vertical scrolled clipping and projected-coordinate limits.
+`tests/flex_paint_order.rs` asserts literal pixels and topmost targets for an
+item overflowing onto a following block, nested scope atomicity, ordinary
+subtrees, boxless and hidden nodes, transparent and untargetable boxes, inherited
+and empty clips, own borders, document scrolling and relative offsets.
+`tests/flex_paint_metadata.rs` checks generated-parent role resolution and display
+changes, malformed roles and late geometry before hit selection, and admitted
+node/depth boundaries on a 2 MiB native stack.
 
 Both row-item discovery and nested layout use heap-owned work lists. The final
 alignment projection visits every input node once and uses the already-bounded
-parent-before-child order. The existing 4,096-node and depth-64 bounds remain in force, with just-past-limit
+parent-before-child order. Paint planning also uses heap-owned work lists; each
+node is visited a bounded number of times, with linear time and storage. The
+existing 4,096-node and depth-64 bounds remain in force, with just-past-limit
 errors and admitted nested rows exercised on a 2 MiB native stack. All dimension,
 cursor and actual gap arithmetic is checked. A row never shrinks, truncates or
 silently rounds a value to make the operation succeed.

@@ -1,7 +1,9 @@
 //! Bounded, headless RGB diagnostic painting of already-laid-out block boxes.
 //!
-//! The caller provides geometry and colors. No fonts, CSS paint semantics,
-//! HTML parsing, window backend, GPU or filesystem access are involved.
+//! The caller provides resolved geometry, paint roles and colors. Ordinary
+//! blocks and selected non-positioned flex-item scopes share one bounded plan.
+//! No fonts, general CSS stacking, HTML parsing, window backend, GPU or
+//! filesystem access are involved.
 
 use crate::paint_order::{PaintTree, TraversalError, validate_box};
 use crate::{Frame, MAX_BLOCKS, MAX_VIEWPORT, Rect};
@@ -231,11 +233,13 @@ fn paint_box(
     Ok(())
 }
 
-/// Fill already-calculated boxes in depth-first tree order with viewport clipping.
+/// Fill already-calculated boxes in shared paint order with viewport clipping.
 ///
-/// Active display:contents wrappers contribute no paint box, but their
-/// children remain in depth-first paint order with the inherited ancestor
-/// clip. Transparent/absent paints leave earlier pixels intact. Resolved hidden
+/// Ordinary boxes use depth-first tree order within the root or current item
+/// scope. Actual flex-item subtrees are deferred, then completed in source
+/// order before the next item scope. Active display:contents wrappers contribute
+/// no paint box; descendants retain their generated-box roles and ancestor clip.
+/// Transparent/absent paints leave earlier pixels intact. Resolved hidden
 /// elements suppress their own paint, not the paint of an explicitly visible
 /// descendant; sibling flow and box geometry are unaffected.
 /// Overflowing children can draw beyond their parents' borders unless the

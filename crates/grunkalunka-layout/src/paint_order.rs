@@ -1,7 +1,7 @@
 //! Shared bounded tree validation, paint order and original-ancestry clips.
 //! Eligibility and rendering remain the responsibility of each consumer.
 
-use crate::{Frame, MAX_DEPTH, Rect};
+use crate::{Frame, MAX_DEPTH, PaintRole, Rect};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TraversalError {
@@ -83,6 +83,16 @@ impl PaintTree {
             }
             children[parent].push(node);
         }
+        if frame.paint_roles.len() != frame.boxes.len() {
+            return Err(TraversalError::NodeCountMismatch);
+        }
+        for (node, role) in frame.paint_roles.iter().enumerate() {
+            if *role == PaintRole::FlexItem
+                && (node == 0 || frame.contents[node] || frame.boxes[node].is_none())
+            {
+                return Err(TraversalError::InvalidBox { node });
+            }
+        }
         Ok(Self { children })
     }
 
@@ -96,44 +106,59 @@ impl PaintTree {
         mut before_node: impl FnMut(usize) -> Result<(), TraversalError>,
     ) -> Result<Vec<PaintEntry>, TraversalError> {
         let mut order = Vec::with_capacity(frame.boxes.len());
-        let mut pending = vec![PaintEntry {
+        let mut scopes = vec![PaintEntry {
             node: 0,
             ancestor_clip: None,
         }];
-        while let Some(entry) = pending.pop() {
-            let node = entry.node;
-            before_node(node)?;
-            let Some(geometry) = frame.boxes[node] else {
-                if frame.contents[node] {
-                    for &child in self.children[node].iter().rev() {
-                        pending.push(PaintEntry {
-                            node: child,
-                            ..entry
-                        });
-                    }
+        let mut pending = Vec::new();
+        let mut deferred = Vec::new();
+        while let Some(scope) = scopes.pop() {
+            pending.push(scope);
+            while let Some(entry) = pending.pop() {
+                let node = entry.node;
+                if node != scope.node && frame.paint_roles[node] == PaintRole::FlexItem {
+                    // Stop at an item root. Its complete subtree belongs to a
+                    // later scope, with clips from the original ancestry.
+                    deferred.push(entry);
+                    continue;
                 }
-                continue;
-            };
-            order.push(entry);
-            // A node's own clip affects its descendants, not its own border.
-            // Empty intersections remain active so descendants cannot escape.
-            let ancestor_clip = if frame.clip_descendants[node] {
-                Some(if let Some(ancestor) = entry.ancestor_clip {
-                    ancestor
-                        .intersection(geometry.padding)
-                        .ok_or(TraversalError::Overflow)?
+                before_node(node)?;
+                let Some(geometry) = frame.boxes[node] else {
+                    if frame.contents[node] {
+                        for &child in self.children[node].iter().rev() {
+                            pending.push(PaintEntry {
+                                node: child,
+                                ..entry
+                            });
+                        }
+                    }
+                    continue;
+                };
+                order.push(entry);
+                // A node's own clip affects descendants, not its own border.
+                // Empty intersections remain active so they cannot escape.
+                let ancestor_clip = if frame.clip_descendants[node] {
+                    Some(if let Some(ancestor) = entry.ancestor_clip {
+                        ancestor
+                            .intersection(geometry.padding)
+                            .ok_or(TraversalError::Overflow)?
+                    } else {
+                        geometry.padding
+                    })
                 } else {
-                    geometry.padding
-                })
-            } else {
-                entry.ancestor_clip
-            };
-            for &child in self.children[node].iter().rev() {
-                pending.push(PaintEntry {
-                    node: child,
-                    ancestor_clip,
-                });
+                    entry.ancestor_clip
+                };
+                for &child in self.children[node].iter().rev() {
+                    pending.push(PaintEntry {
+                        node: child,
+                        ancestor_clip,
+                    });
+                }
             }
+            // LIFO scope roots preserve source order and finish every nested
+            // item scope before the enclosing item's next sibling. A single
+            // FIFO of deferred items would break this subtree atomicity.
+            scopes.extend(deferred.drain(..).rev());
         }
         Ok(order)
     }

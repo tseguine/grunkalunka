@@ -330,6 +330,16 @@ pub struct BoxGeometry {
     pub content: Rect,
 }
 
+/// Resolved paint participation for the selected non-positioned box profile.
+/// Actual flex items form deferred subtree scopes; this does not represent
+/// CSS positioned descendants, z-index or general stacking contexts.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PaintRole {
+    #[default]
+    Ordinary,
+    FlexItem,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Frame {
     /// None represents display:none and its descendants.
@@ -338,6 +348,10 @@ pub struct Frame {
     /// descendants still participate in layout, painting and input.
     /// Inactive descendants of display:none are not marked boxless.
     pub contents: Vec<bool>,
+    /// Generated-box paint roles, resolved through boxless source ancestors.
+    /// Root, contents and display-none nodes are always ordinary. Visibility,
+    /// pointer eligibility and geometric offsets do not change these roles.
+    pub paint_roles: Vec<PaintRole>,
     /// Computed inherited visibility per node; independent of layout box
     /// existence. Explicit visible descendants can override hidden ancestors.
     pub visibility: Vec<bool>,
@@ -1175,6 +1189,12 @@ pub fn layout(
     // Nodes beneath display:none remain absent and cannot revive children.
     let mut active = vec![true; blocks.len()];
     let mut contents = vec![false; blocks.len()];
+    let mut paint_roles = vec![PaintRole::Ordinary; blocks.len()];
+    // Whether this source node's generated children belong to a row. Contents
+    // wrappers forward the nearest generated parent's formatting context;
+    // an intervening ordinary box starts a different context.
+    let mut flex_children = vec![false; blocks.len()];
+    flex_children[0] = blocks[0].style.display == Display::FlexRow;
     active[0] = blocks[0].style.display != Display::None;
     contents[0] = blocks[0].style.display == Display::Contents;
     let clip_descendants: Vec<bool> = blocks
@@ -1193,6 +1213,16 @@ pub fn layout(
         depths[node] = depths[parent] + 1;
         active[node] = active[parent] && block.style.display != Display::None;
         contents[node] = active[node] && block.style.display == Display::Contents;
+        if active[node] {
+            if contents[node] {
+                flex_children[node] = flex_children[parent];
+            } else {
+                if flex_children[parent] {
+                    paint_roles[node] = PaintRole::FlexItem;
+                }
+                flex_children[node] = block.style.display == Display::FlexRow;
+            }
+        }
         visibility[node] = block.style.visibility.resolve(visibility[parent]);
         pointer_events[node] = block.style.pointer_events.resolve(pointer_events[parent]);
         if depths[node] > MAX_DEPTH {
@@ -1208,6 +1238,7 @@ pub fn layout(
         frame: Frame {
             boxes: vec![None; blocks.len()],
             contents,
+            paint_roles,
             visibility,
             pointer_events,
             clip_descendants,

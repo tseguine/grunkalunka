@@ -1,8 +1,9 @@
 //! Bounded, shell-independent hit testing for already-laid-out block boxes.
 //!
-//! Parent-first, child-over-parent hit order mirrors the toy RGB painter's
-//! depth-first traversal. This does NOT implement CSS pointer-events,
-//! stacking contexts, arbitrary clipping paths, transforms, or browser event dispatch.
+//! Reverse shared paint order includes ordinary block traversal and selected
+//! non-positioned flex-item scopes. Resolved visibility/pointer eligibility,
+//! padding clips and document scrolling are supported; general CSS stacking,
+//! arbitrary clipping paths, transforms and browser event dispatch are not.
 
 use crate::paint_order::{PaintTree, TraversalError, validate_box};
 use crate::{Frame, MAX_BLOCKS, MAX_VIEWPORT, Rect};
@@ -63,15 +64,16 @@ fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {
 /// Return the topmost caller-targetable element at one viewport coordinate.
 ///
 /// Active display:contents wrappers have no hit box of their own, but their
-/// children remain in depth-first hit order and inherit ancestor clips.
+/// children retain their generated-box paint roles and ancestor clips.
 /// The selected toy hit region is each visible element's border rectangle:
 /// margins are excluded; overflow children can receive hits beyond parents.
 /// Hidden elements are skipped without changing layout; descendants explicitly
 /// overridden to visible can still be targeted. Descendant padding-box clips
 /// restrict each target through every clipping ancestor.
-/// Children cover parents and later siblings cover earlier siblings, following
-/// the RGB painter's depth-first tree traversal even if a flat input is not
-/// preorder. A targetable element may be visually transparent. Independent
+/// Selection reverses the RGB painter's shared plan: ordinary boxes follow
+/// tree order within a scope, and actual flex-item subtrees form deferred
+/// scopes completed in source order. Flat input need not be preorder.
+/// A targetable element may be visually transparent. Independent
 /// caller input policy cannot override resolved inherited visibility or
 /// pointer-events:none. An explicitly auto descendant of a none ancestor can
 /// receive a hit; the parent does not become a hit target.
