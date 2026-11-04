@@ -44,12 +44,58 @@ Empty documents show `No headings.` and denied documents retain their denial
 message.
 
 `--report` retains the `A1FRAME1` layout report, including the actual control
-label and geometry. `--ppm` emits native RGB pixels using the existing bitmap
-text service. A control hit identifies intent only; the application must still
-invoke its compiled source handler, validate the service result and publish a
-successfully painted next frame before changing session state.
+label and document-space geometry. `--ppm` emits native RGB pixels using the
+existing bitmap text service. A control hit identifies intent only; the
+application must still invoke its compiled source handler, validate the service
+result and publish a successfully painted next frame before changing session
+state.
+
+## Native viewport
+
+Both scene protocols accept an optional trailing `--scroll-y U32` on `--report`,
+`--ppm`, `--hit X Y` and `--view`. Omission means zero and preserves the previous
+report, pixels and hit behavior. The viewport remains 320 by 160 pixels. The
+native document extent includes all admitted visible heading rows, even when
+they extend below the initial viewport; collapsed, empty and denied scenes fit
+the viewport.
+
+The offset must be an unsigned 32-bit decimal no greater than
+`scroll_height - 160`. The native executable rejects invalid arguments and
+out-of-range offsets before writing output; callers that want clamping must
+apply it in their owned session. `--report` keeps its document coordinates at
+every valid offset. `--ppm` translates and clips native backgrounds and bitmap
+ink together. `--hit X Y` takes viewport coordinates and applies the same
+translation before testing the native boxes. Points outside the viewport remain
+misses.
+
+`--view` emits one newline-terminated line containing exactly seven
+tab-separated fields:
+
+| Field | Contract |
+| --- | --- |
+| Tag | `A1VIEW1` |
+| Width | `320` |
+| Height | `160` |
+| Scroll height | Native document extent, at least 160 |
+| Scroll Y | Validated requested offset, or zero when omitted |
+| Control X | Viewport X coordinate, or `none` |
+| Control Y | Viewport Y coordinate, or `none` |
+
+The two control coordinates are present together only for an enabled,
+currently visible `A1SCENE2` title. Native layout intersects the title's border
+box with the viewport, chooses a point inside that intersection and verifies it
+with native hit testing. A partially clipped control retains a usable point,
+including when only one pixel row remains visible; an offscreen title has
+`none` in both fields. Legacy scenes and denied or empty documents also return
+`none`. This metadata lets the host target a visible control without guessing
+its location. It does not grant document or UI authority and does not replace
+the application's action validation.
 
 The existing `tests/applications/note-preview.test.mjs` suite exercises both
-protocols, control boundaries, inert denied/empty scenes, native pixels and
-contradictory-state rejection through the real executable. Its existing
-canonical check and A1 impact dependencies cover this addition.
+protocols, control boundaries, inert denied/empty scenes, native pixels,
+scrolled glyph/background and hit agreement, the final row of a 64-heading
+outline, partial/offscreen controls, invalid offsets and contradictory-state
+rejection through the real executable. The scrolling cases use explicit private
+scene fixtures; the existing real Markdown/WIT integration remains separate.
+The suite's existing canonical check and A1 impact dependencies cover this
+addition.
