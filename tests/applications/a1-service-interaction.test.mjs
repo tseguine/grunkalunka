@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test, { after, before } from 'node:test';
-import { loadNoteDocument } from '../../examples/note-preview/run.mjs';
+import { loadNoteDocument, loadNoteDocumentSync } from '../../examples/note-preview/run.mjs';
 import { prepareSelectedNoteScene } from '../../examples/note-preview/scene.mjs';
 import { activateNoteHeadingWithService, compileUiService, paintNoteScene } from '../../examples/note-preview/service-interaction.mjs';
 import { createNoteSession } from '../../examples/note-preview/session.mjs';
@@ -444,6 +444,192 @@ test('session validates requests before native execution and bounds all pointer 
   assert.equal(active.activate({ x: 24, y: 40 }).sequence, 2, 'heading rows are inert in a session');
   assert.throws(() => active.activate({ x: 0, y: 0 }), /event limit/);
   assert.equal(active.snapshot().eventsProcessed, 2);
+});
+
+test('owned reload reads the same real WIT note and preserves the lifetime input budget',
+  { timeout: 180_000 }, async () => {
+    const note = join(scratch, 'reload.md');
+    await writeFile(note, longDocument.sourceBytes);
+    let loads = 0;
+    const active = session({ document: longDocument, maxEvents: 8,
+      reloadDocument: () => {
+        loads++;
+        return loadNoteDocumentSync({ profile: 'granted', note });
+      } });
+    active.scrollTo(16);
+    const original = active.snapshot();
+    await writeFile(note, Array.from({ length: 64 }, (_, i) =>
+      '# Updated ' + (i + 1)).join('\n') + '\n');
+    const replaced = active.reload();
+    assert.deepEqual([replaced.sequence, replaced.status, replaced.changed], [2, 'ok', true]);
+    const updated = active.snapshot();
+    assert.match(updated.scene.html, />Updated 64<\/li>/);
+    assert.deepEqual([updated.visibleCount, updated.scrollY, updated.maxScrollY],
+      [64, 16, original.maxScrollY]);
+    assert.notDeepEqual(updated.pixels, original.pixels);
+
+    await writeFile(note, '# Fresh\nbody A\n');
+    assert.equal(active.reload().sequence, 3);
+    const shortened = active.snapshot();
+    assert.deepEqual([shortened.visibleCount, shortened.scrollY, shortened.maxScrollY], [1, 0, 0]);
+    assert.match(shortened.scene.html, />Fresh<\/li>/);
+    const collapsed = active.activate(shortened.controlPoint);
+    assert.deepEqual([collapsed.sequence, collapsed.service.permittedCount, collapsed.expanded],
+      [4, 1, 0], 'the retained component receives the replacement heading count');
+    assert.equal(active.activate(active.snapshot().controlPoint).sequence, 5);
+    const reopened = active.snapshot();
+
+    // A same-length body edit leaves every heading record and pixel unchanged.
+    await writeFile(note, '# Fresh\nbody B\n');
+    const bodyEdit = active.reload();
+    assert.deepEqual([bodyEdit.sequence, bodyEdit.changed], [6, true]);
+    assert.deepEqual(bodyEdit.pixels, reopened.pixels);
+    assert.deepEqual(active.snapshot().scene, reopened.scene);
+    const unchanged = active.reload();
+    assert.deepEqual([unchanged.sequence, unchanged.status, unchanged.changed], [7, 'ok', false]);
+    assert.equal(active.scrollTo(0).sequence, 8);
+    assert.throws(() => active.reload(), /event limit/);
+    assert.equal(loads, 4, 'past-limit reloads cannot read the selected note');
+    assert.equal(active.snapshot().eventsProcessed, 8);
+  });
+
+test('owned reload preserves expansion preference through empty documents', () => {
+  const empty = { profile: 'granted', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 1 };
+  let replacement = empty;
+  const active = session({ reloadDocument: () => replacement });
+  const initial = active.snapshot();
+  assert.equal(active.reload().changed, true);
+  assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
+    active.snapshot().controlPoint, active.snapshot().maxScrollY], [0, 0, null, 0]);
+  assert.match(active.snapshot().scene.html, /No headings/);
+  replacement = document;
+  active.reload();
+  assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 2 });
+  active.activate(pointer);
+  replacement = empty;
+  active.reload();
+  replacement = longDocument;
+  active.reload();
+  assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
+    active.snapshot().maxScrollY], [0, 0, 0], 'an explicit collapse survives empty and nonempty reloads');
+  assert.equal(active.activate(active.snapshot().controlPoint).service.permittedCount, 64);
+  assert.equal(active.snapshot().visibleCount, 64);
+
+  for (const expanded of [0, 1]) {
+    const initiallyEmpty = session({ document: empty, expanded, reloadDocument: () => document });
+    initiallyEmpty.reload();
+    assert.equal(initiallyEmpty.snapshot().expanded, expanded);
+  }
+});
+
+test('owned reload rejects missing configuration and gates loading on both original grants', () => {
+  const denied = { profile: 'denied', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 0 };
+  const unconfigured = session();
+  const initial = unconfigured.snapshot();
+  assert.throws(() => unconfigured.reload(), { code: 'A1_RELOAD_UNAVAILABLE' });
+  assert.deepEqual(unconfigured.snapshot(), initial);
+  for (const reloadDocument of [null, 1, 'not a loader']) {
+    assert.throws(() => session({ executable: join(scratch, 'must-not-execute'), reloadDocument }),
+      /Invalid A1 session arguments/);
+  }
+  for (const options of [{ document: denied }, { uiProfile: 'denied' }]) {
+    let loads = 0;
+    const active = session({ ...options, maxEvents: 2, reloadDocument: () => {
+      loads++;
+      throw new Error('denied reload must not read');
+    } });
+    const before = active.snapshot();
+    const result = active.reload();
+    assert.deepEqual([result.sequence, result.status, result.changed], [1, 'denied', false]);
+    result.pixels.fill(0);
+    assert.deepEqual(active.snapshot(), { ...before, eventsProcessed: 1 });
+    assert.equal(active.scrollTo(0).sequence, 2);
+    assert.throws(() => active.reload(), /event limit/);
+    assert.equal(loads, 0);
+  }
+});
+
+test('owned reload consumes failed reads and invalid replacements without changing committed state', () => {
+  const cases = [
+    [() => { throw new Error('injected document read failure'); }, /injected document read failure/],
+    [() => ({ profile: 'denied', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 0 }),
+      /original grant/],
+    [() => ({ ...document, sourceBytes: Buffer.from([0xff]) }), TypeError],
+    [() => ({ ...document, headings: [{ ...document.headings[0], end: 9000 }] }), RangeError],
+    [() => Promise.resolve(document), /bounded authorized A1 document/],
+  ];
+  let load;
+  let loads = 0;
+  const active = session({ maxEvents: cases.length + 1, reloadDocument: () => {
+    loads++;
+    return load();
+  } });
+  const before = active.snapshot();
+  for (const [index, [candidate, error]] of cases.entries()) {
+    load = candidate;
+    assert.throws(() => active.reload(), error);
+    assert.deepEqual(active.snapshot(), { ...before, eventsProcessed: index + 1 });
+  }
+  load = () => document;
+  assert.deepEqual([active.reload().changed, active.snapshot().eventsProcessed], [false, 6]);
+  assert.throws(() => active.reload(), /event limit/);
+  assert.equal(loads, 6);
+});
+
+test('owned reload compares normalized heading records and owns every published buffer', () => {
+  const replacement = { ...document, sourceBytes: Buffer.from(document.sourceBytes),
+    headings: document.headings.map(heading => ({ ...heading })), ignoredMetadata: 'caller-owned' };
+  const active = session({ reloadDocument: () => replacement });
+  assert.equal(active.reload().changed, false, 'unretained caller metadata is not document content');
+  // This explicit projection fixture isolates the heading-record comparison;
+  // ordinary reload tests above obtain their records from the real WIT guest.
+  replacement.headings[0].text = 'Updated projection';
+  const result = active.reload();
+  assert.equal(result.changed, true);
+  assert.match(active.snapshot().scene.html, /Updated projection/);
+  const retained = active.snapshot();
+  replacement.sourceBytes.fill(0);
+  replacement.headings[0].text = 'changed after publication';
+  replacement.headings.length = 0;
+  replacement.profile = 'denied';
+  result.pixels.fill(0);
+  const exposed = active.snapshot();
+  exposed.scene.input.fill(0);
+  exposed.pixels.fill(0);
+  exposed.controlPoint.x = 319;
+  assert.deepEqual(active.snapshot(), retained);
+  assert.equal(active.activate(retained.controlPoint).service.permittedCount, 2);
+  active.activate(active.snapshot().controlPoint);
+  assert.match(active.snapshot().scene.html, /Updated projection/);
+});
+
+test('failed native reload inspection or paint preserves document, count, viewport and pixels', t => {
+  for (const phase of ['--view', '--ppm']) {
+    const active = session({ document: longDocument, reloadDocument: () => document });
+    active.scrollTo(16);
+    const before = active.snapshot();
+    const actualSpawn = childProcess.spawnSync;
+    const intercepted = t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+      if (command === executable && args[0] === phase) {
+        return { error: new Error('injected reload frame failure') };
+      }
+      return actualSpawn(command, args, options);
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => active.reload(), /injected reload frame failure/);
+    } finally {
+      intercepted.mock.restore();
+      syncBuiltinESMExports();
+    }
+    assert.deepEqual(active.snapshot(), { ...before, eventsProcessed: 2 });
+    const collapsed = active.activate(before.controlPoint);
+    assert.equal(collapsed.service.permittedCount, 64, 'failed reload retains the previous document');
+    assert.equal(active.reload().changed, true);
+    assert.equal(active.snapshot().expanded, 0, 'successful reload preserves the committed collapse');
+    assert.equal(active.activate(active.snapshot().controlPoint).service.permittedCount, 2);
+    assert.match(active.snapshot().scene.html, />Root<\/li>/);
+  }
 });
 
 test('owned scrolling exposes the long outline and keeps native control targeting coherent', () => {

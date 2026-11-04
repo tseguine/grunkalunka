@@ -1,5 +1,5 @@
 // Private A1 host session: retain one authorized document and committed view
-// between pointer inputs. Each source-service activation still uses a fresh
+// between pointer, scroll and reload inputs. Each source-service activation still uses a fresh
 // component Store; this does not retain guest globals or establish a public UI ABI.
 import { spawnSync } from 'node:child_process';
 import { prepareSelectedNoteScene } from './scene.mjs';
@@ -81,18 +81,20 @@ function hitControl(executable, scene, x, y, scrollY) {
 
 export function createNoteSession({
   executable, serviceExecutable, component, document, expanded = 1,
-  uiProfile = 'granted', maxEvents = MAX_EVENTS,
+  uiProfile = 'granted', maxEvents = MAX_EVENTS, reloadDocument,
 }) {
   if (![executable, serviceExecutable].every(value =>
     typeof value === 'string' && value.length > 0 && !value.includes('\0')) ||
       ![0, 1].includes(expanded) || !['granted', 'denied'].includes(uiProfile) ||
-      !Number.isSafeInteger(maxEvents) || maxEvents < 1 || maxEvents > MAX_EVENTS) {
+      !Number.isSafeInteger(maxEvents) || maxEvents < 1 || maxEvents > MAX_EVENTS ||
+      (reloadDocument !== undefined && typeof reloadDocument !== 'function')) {
     throw new TypeError('Invalid A1 session arguments');
   }
   const payload = ownComponent(component);
-  const owned = ownDocument(document);
-  const count = owned.headings.length;
-  let currentExpanded = owned.profile === 'granted' && count > 0 && expanded === 1 ? 1 : 0;
+  let owned = ownDocument(document);
+  const documentProfile = owned.profile;
+  let preferredExpanded = expanded;
+  let currentExpanded = owned.profile === 'granted' && owned.headings.length > 0 ? preferredExpanded : 0;
   let currentScene = sessionScene(owned, currentExpanded);
   let currentViewport = inspectNoteViewport(executable, currentScene);
   let currentPixels = paintNoteScene(executable, currentScene);
@@ -130,6 +132,41 @@ export function createNoteSession({
       beforeScrollY, scrollY: currentViewport.scrollY, pixels: Buffer.from(currentPixels) };
   }
 
+  function reload() {
+    if (reloadDocument === undefined) {
+      const error = new Error('A1 session reload is unavailable');
+      error.code = 'A1_RELOAD_UNAVAILABLE';
+      throw error;
+    }
+    const sequence = nextAttempt();
+    if (documentProfile !== 'granted' || uiProfile !== 'granted') {
+      return { sequence, status: 'denied', changed: false, pixels: Buffer.from(currentPixels) };
+    }
+    // The fixed trusted loader runs only after authority and lifetime admission.
+    // Its failures consume the attempt without replacing any committed state.
+    const nextOwned = ownDocument(reloadDocument());
+    if (nextOwned.profile !== documentProfile) {
+      throw new Error('Reloaded A1 document profile differs from the original grant');
+    }
+    const nextExpanded = nextOwned.headings.length > 0 ? preferredExpanded : 0;
+    const nextScene = sessionScene(nextOwned, nextExpanded);
+    const topViewport = inspectNoteViewport(executable, nextScene);
+    const nextY = Math.min(currentViewport.scrollY, topViewport.maxScrollY);
+    const nextViewport = nextY === 0 ? topViewport :
+      inspectNoteViewport(executable, nextScene, nextY);
+    const nextPixels = paintNoteScene(executable, nextScene, nextY);
+    const changed = !owned.sourceBytes.equals(nextOwned.sourceBytes) ||
+      JSON.stringify(owned.headings) !== JSON.stringify(nextOwned.headings);
+    // Publish the owned document and its complete native view together. Empty
+    // documents normalize visible expansion without discarding the preference.
+    owned = nextOwned;
+    currentExpanded = nextExpanded;
+    currentScene = nextScene;
+    currentViewport = nextViewport;
+    currentPixels = nextPixels;
+    return { sequence, status: 'ok', changed, pixels: Buffer.from(currentPixels) };
+  }
+
   function activate({ x, y }) {
     if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
         x < 0 || y < 0 || x > 0xffffffff || y > 0xffffffff) {
@@ -145,6 +182,7 @@ export function createNoteSession({
     let service = null;
     let activated = false;
     if (target !== null) {
+      const count = owned.headings.length;
       if (owned.profile !== 'granted' || count === 0) {
         throw new Error('Native A1 toggle disagrees with document authority');
       }
@@ -161,6 +199,7 @@ export function createNoteSession({
         // Commit only after the native frame succeeds. A service failure, trap
         // or failed paint leaves the preceding successful scene intact.
         currentExpanded = nextExpanded;
+        preferredExpanded = nextExpanded;
         currentScene = nextScene;
         currentViewport = nextViewport;
         currentPixels = nextPixels;
@@ -173,5 +212,5 @@ export function createNoteSession({
       pixels: Buffer.from(currentPixels), service };
   }
 
-  return Object.freeze({ snapshot, activate, scrollTo });
+  return Object.freeze({ snapshot, activate, scrollTo, reload });
 }
