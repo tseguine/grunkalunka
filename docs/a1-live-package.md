@@ -38,6 +38,13 @@ documented live options, including `--profile denied`, `--ui-profile denied`,
 `--collapsed` and `--port`; it does not require replay event or output files.
 Grant decisions and note paths remain explicit launch inputs.
 
+After editing the selected file externally, use **Reload note** to update the
+view in the same session. Reload reopens that startup-selected path; it accepts
+no replacement path or uploaded contents from the browser. An empty note can
+be reloaded after headings are added. Reloads share the existing pointer/scroll
+queue and lifetime input budget, and a read or native failure preserves the
+previous document and frame for a later explicit retry.
+
 Packaging normally compiles the checked-in `activate.js` once. To retain an
 already-built component, pass `--component ./handler.component.wasm` to the
 **package command**. Its exact bytes are copied. The packaged entry rejects a
@@ -46,6 +53,8 @@ Runtime execution needs no Cargo command, source checkout, source handler file
 or recompilation. An unrelated `CARGO_TARGET_DIR` does not replace the copied
 native hosts. The action executable still contains its development compile mode;
 the packaged live entry uses its run mode.
+Reload also retains the verified component bytes and explicit copied native
+target. It invokes neither a source compiler nor a developer build command.
 
 ## Payload and verification
 
@@ -84,10 +93,11 @@ The ordinary canonical live application suite launches the packaged entry as a
 real child process from an unrelated directory, using an absolute Node path,
 an invalid developer build target and no build tools on `PATH`. It requests
 native frames, collapses and reopens a long outline through HTTP, scrolls to its
-bottom and back to the original pixels, checks retained component identity and
-copied browser assets, and verifies the single launch receipt and process
-shutdown. Scrolling uses the existing verified payload without another module
-or executable. A separate custom-component case uses the programmatic entry and
+bottom and back to the original pixels, edits the external note and reloads its
+new native frame through the same URL/token, checks retained component identity
+and copied browser assets, and verifies the single launch receipt and process
+shutdown. Scrolling and reloading use the existing verified payload without
+another module or executable. A separate custom-component case uses the programmatic entry and
 demonstrates source-selected unchanged view state.
 
 Corruption cases fail before live app import or missing-note access, and manifest

@@ -8,7 +8,6 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAsyncNoteSession } from './async-session.mjs';
 import { livePage, liveStyles } from './live-page.mjs';
-import { loadNoteDocument } from './run.mjs';
 import { readBoundedSessionInput } from './session-run.mjs';
 import { compileUiService } from './service-interaction.mjs';
 
@@ -59,8 +58,8 @@ function inputError(status, message) {
   return Object.assign(new Error(message), { status });
 }
 
-function readInput(request, scroll) {
-  const label = scroll ? 'Scroll' : 'Pointer';
+function readInput(request, kind) {
+  const label = kind === 'reload' ? 'Reload' : kind === 'scroll' ? 'Scroll' : 'Pointer';
   const length = request.headers['content-length'];
   if (length !== undefined && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BODY)) {
     return Promise.reject(inputError(413, label + ' input exceeds 128 bytes.'));
@@ -96,7 +95,10 @@ function readInput(request, scroll) {
         if (value === null || typeof value !== 'object' || Array.isArray(value)) {
           throw new Error('Invalid input');
         }
-        if (scroll) {
+        if (kind === 'reload') {
+          if (Object.keys(value).length !== 0) throw new Error('Invalid reload request');
+          finish(null, {});
+        } else if (kind === 'scroll') {
           if (Object.keys(value).length !== 1 || !Object.hasOwn(value, 'y') ||
               !Number.isSafeInteger(value.y) || value.y < 0 || value.y > 0xffffffff) {
             throw new Error('Invalid scroll position');
@@ -111,8 +113,9 @@ function readInput(request, scroll) {
           finish(null, { x: value.x, y: value.y });
         }
       } catch {
-        finish(inputError(400, scroll ? 'Expected one bounded scroll position.'
-          : 'Expected one pointer inside the native frame.'));
+        finish(inputError(400, kind === 'reload' ? 'Expected an empty reload request.'
+          : kind === 'scroll' ? 'Expected one bounded scroll position.'
+            : 'Expected one pointer inside the native frame.'));
       }
     };
     const timer = setTimeout(() => finish(inputError(408, label + ' input timed out.')), 5_000);
@@ -166,12 +169,12 @@ export async function startLiveNote({
   if (!component.subarray(0, COMPONENT_HEADER.length).equals(COMPONENT_HEADER)) {
     throw new TypeError('Expected bounded A1 component bytes');
   }
-  const document = await loadNoteDocument({ profile, note: selectedNote, binaryTarget: selectedTarget });
   const client = await readFile(new URL('./live-client.mjs', import.meta.url));
   const session = await createAsyncNoteSession({
     executable: native(selectedTarget, 'a1_note_scene'),
     serviceExecutable: native(selectedTarget, 'a1_ui_action'),
-    document, component, expanded, uiProfile, maxEvents, maxPending,
+    documentSource: { profile, note: selectedNote, binaryTarget: selectedTarget },
+    component, expanded, uiProfile, maxEvents, maxPending,
   });
   const token = randomBytes(32).toString('base64url');
   let authority;
@@ -192,11 +195,12 @@ export async function startLiveNote({
     const controlPoint = snapshot.controlPoint === null ? null
       : { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y };
     return {
-      schemaVersion: 2, width: 320, height: 160, sequence: snapshot.eventsProcessed,
+      schemaVersion: 3, width: 320, height: 160, sequence: snapshot.eventsProcessed,
       expanded: snapshot.expanded, visibleCount: snapshot.visibleCount,
       scrollY: snapshot.scrollY, maxScrollY: snapshot.maxScrollY, controlPoint,
       canActivate: permitted && controlPoint !== null,
       canScroll: permitted && snapshot.maxScrollY > 0,
+      canReload: permitted,
       remainingEvents,
       pixels: snapshot.pixels.subarray(PPM_HEADER.length).toString('base64'),
     };
@@ -240,7 +244,7 @@ export async function startLiveNote({
         return;
       }
       if (!((path === '/frame' && request.method === 'GET') ||
-          ((path === '/input' || path === '/scroll') && request.method === 'POST'))) {
+          (['/input', '/scroll', '/reload'].includes(path) && request.method === 'POST'))) {
         send(response, 404, { error: 'Unknown application route.' });
         return;
       }
@@ -262,14 +266,17 @@ export async function startLiveNote({
         send(response, 415, { error: 'Input requires application/json.' });
         return;
       }
-      const scroll = path === '/scroll';
-      const input = await readInput(request, scroll);
+      const kind = path.slice(1);
+      const input = await readInput(request, kind);
       try {
-        const action = scroll ? await session.scrollTo(input.y) : await session.activate(input);
-        if (scroll ? action.status !== 'ok' : action.service !== null && action.service.status !== 'ok') {
+        const action = kind === 'reload' ? await session.reload()
+          : kind === 'scroll' ? await session.scrollTo(input.y) : await session.activate(input);
+        if (kind === 'input' ? action.service !== null && action.service.status !== 'ok'
+          : action.status !== 'ok') {
           send(response, 409, {
-            error: scroll ? 'Scrolling is unavailable in this session. The last committed frame is still displayed.'
-              : 'The action was rejected. The last committed frame is still displayed.',
+            error: kind === 'reload' ? 'Reloading is unavailable in this session. The previous view is still displayed.'
+              : kind === 'scroll' ? 'Scrolling is unavailable in this session. The last committed frame is still displayed.'
+                : 'The action was rejected. The last committed frame is still displayed.',
             frame: frame(),
           });
           return;
@@ -282,7 +289,8 @@ export async function startLiveNote({
         const message = error.code === 'A1_QUEUE_FULL' ? 'The input queue is full. Try again.' :
           error.code === 'A1_EVENT_LIMIT' ? 'This session has reached its input limit.' :
             status === 503 ? 'This session is closed.' :
-              'The action failed. The last committed frame is still displayed.';
+              kind === 'reload' ? 'The note could not be reloaded. The previous view is still displayed.'
+                : 'The action failed. The last committed frame is still displayed.';
         send(response, status, { error: message, frame: frame() });
       }
     } catch (error) {

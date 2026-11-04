@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -63,7 +63,14 @@ async function application(t, options = {}) {
   };
   return { app, token, headers, frame,
     input: (value, extra) => post('/input', value, extra),
-    scroll: (value, extra) => post('/scroll', value, extra) };
+    scroll: (value, extra) => post('/scroll', value, extra),
+    reload: (value = {}, extra) => post('/reload', value, extra) };
+}
+
+async function fetchStatus(url, options) {
+  const response = await fetch(url, options);
+  await response.arrayBuffer();
+  return response.status;
 }
 
 function rawRequest(url, { headers = {}, body, incomplete = false } = {}) {
@@ -108,7 +115,8 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     const initial = await frame();
     assert.deepEqual([initial.schemaVersion, initial.width, initial.height, initial.sequence,
       initial.expanded, initial.visibleCount, initial.canActivate, initial.remainingEvents],
-    [2, 320, 160, 0, 1, 2, true, 4]);
+    [3, 320, 160, 0, 1, 2, true, 4]);
+    assert.equal(initial.canReload, true);
     assert.deepEqual([initial.scrollY, initial.maxScrollY, initial.canScroll], [0, 0, false]);
     assert.ok(initial.controlPoint.x >= 0 && initial.controlPoint.x < 320);
     assert.ok(initial.controlPoint.y >= 0 && initial.controlPoint.y < 160);
@@ -124,16 +132,16 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     assert.ok(!html.includes('Live Root'));
     assert.ok(!html.includes(note));
     for (const path of ['/client.mjs', '/style.css']) {
-      assert.equal((await fetch(app.origin + path)).status, 200);
+      assert.equal(await fetchStatus(app.origin + path), 200);
     }
     for (const path of ['/note.md', '/manifest.json', '/frame?token=' + token,
-      '/%2e%2e/Cargo.toml', '/input', '/scroll']) {
-      assert.equal((await fetch(app.origin + path, { headers })).status, 404);
+      '/%2e%2e/Cargo.toml', '/input', '/scroll', '/reload', '/reload?note=other.md']) {
+      assert.equal(await fetchStatus(app.origin + path, { headers }), 404);
     }
-    assert.equal((await fetch(app.origin + '/frame')).status, 403);
-    assert.equal((await fetch(app.origin + '/frame', {
+    assert.equal(await fetchStatus(app.origin + '/frame'), 403);
+    assert.equal(await fetchStatus(app.origin + '/frame', {
       headers: { ...headers, Origin: 'https://foreign.example' },
-    })).status, 403);
+    }), 403);
     assert.equal((await rawRequest(app.origin + '/frame', {
       headers: { ...headers, Host: 'foreign.example' },
     })).status, 403);
@@ -187,7 +195,7 @@ test('live scrolling traverses native long notes with shared authority, ordering
       { note: longNote, maxEvents: 8 });
     const initial = await frame();
     assert.deepEqual([initial.schemaVersion, initial.sequence, initial.scrollY,
-      initial.visibleCount, initial.canActivate, initial.canScroll], [2, 0, 0, 24, true, true]);
+      initial.visibleCount, initial.canActivate, initial.canScroll], [3, 0, 0, 24, true, true]);
     assert.ok(initial.maxScrollY > initial.height);
     assert.ok(initial.controlPoint.y > 0);
 
@@ -263,12 +271,154 @@ test('live scrolling traverses native long notes with shared authority, ordering
     assert.equal(await readFile(longNote, 'utf8'), longSource);
   });
 
+test('live reload keeps one selected note and shared session through content, scroll and empty transitions',
+  { timeout: 180_000 }, async t => {
+    const editable = join(scratch, 'same selected reload note.md');
+    await writeFile(editable, '# Initial Root\n## Initial Child\n');
+    const { frame, input, scroll, reload } = await application(t, { note: editable, maxEvents: 10 });
+    const initial = await frame();
+    const unchanged = await reload();
+    assert.equal(unchanged.status, 200);
+    assert.deepEqual([unchanged.body.sequence, unchanged.body.remainingEvents, unchanged.body.pixels],
+      [1, 9, initial.pixels], 'a same-byte reload consumes one attempt without replacing the session');
+
+    const replacement = join(scratch, 'atomic replacement.md');
+    await writeFile(replacement, longSource);
+    await rename(replacement, editable);
+    const updated = await reload();
+    assert.equal(updated.status, 200);
+    assert.deepEqual([updated.body.sequence, updated.body.expanded, updated.body.visibleCount], [2, 1, 24]);
+    assert.notEqual(updated.body.pixels, initial.pixels);
+    assert.ok(updated.body.maxScrollY > 160);
+    const bottom = await scroll({ y: 0xffffffff });
+    assert.equal(bottom.status, 200);
+    assert.deepEqual([bottom.body.sequence, bottom.body.scrollY, bottom.body.controlPoint,
+      bottom.body.canActivate, bottom.body.canReload], [3, updated.body.maxScrollY, null, false, true]);
+
+    const shorter = Array.from({ length: 8 }, (_, index) => '# Shorter ' + index + '\n').join('');
+    await writeFile(editable, shorter);
+    const clamped = await reload();
+    assert.equal(clamped.status, 200);
+    assert.deepEqual([clamped.body.sequence, clamped.body.visibleCount, clamped.body.expanded], [4, 8, 1]);
+    assert.ok(clamped.body.maxScrollY < updated.body.maxScrollY);
+    assert.equal(clamped.body.scrollY, clamped.body.maxScrollY);
+
+    await writeFile(editable, '');
+    const empty = await reload();
+    assert.equal(empty.status, 200);
+    assert.deepEqual([empty.body.sequence, empty.body.expanded, empty.body.visibleCount,
+      empty.body.scrollY, empty.body.maxScrollY, empty.body.controlPoint,
+      empty.body.canActivate, empty.body.canScroll, empty.body.canReload],
+    [5, 0, 0, 0, 0, null, false, false, true]);
+    await writeFile(editable, '# Reappeared\n');
+    const reappeared = await reload();
+    assert.equal(reappeared.status, 200);
+    assert.deepEqual([reappeared.body.sequence, reappeared.body.expanded,
+      reappeared.body.visibleCount, reappeared.body.scrollY], [6, 1, 1, 0]);
+    const collapsed = await input(reappeared.body.controlPoint);
+    assert.equal(collapsed.status, 200);
+    assert.deepEqual([collapsed.body.sequence, collapsed.body.expanded], [7, 0]);
+
+    await writeFile(editable, '');
+    const emptyCollapsed = await reload();
+    assert.equal(emptyCollapsed.status, 200);
+    assert.deepEqual([emptyCollapsed.body.sequence, emptyCollapsed.body.expanded,
+      emptyCollapsed.body.controlPoint, emptyCollapsed.body.canReload], [8, 0, null, true]);
+    const restoredSource = '# Saved Root\n## Saved Child\n';
+    await writeFile(editable, restoredSource);
+    const restored = await reload();
+    assert.equal(restored.status, 200);
+    assert.deepEqual([restored.body.sequence, restored.body.expanded, restored.body.visibleCount,
+      restored.body.canActivate, restored.body.canReload], [9, 0, 0, true, true]);
+    const last = await input(restored.body.controlPoint);
+    assert.equal(last.status, 200);
+    assert.deepEqual([last.body.sequence, last.body.expanded, last.body.visibleCount,
+      last.body.remainingEvents, last.body.canActivate, last.body.canScroll, last.body.canReload],
+    [10, 1, 2, 0, false, false, false]);
+    for (const exhausted of [await reload(), await scroll({ y: 0 }), await input(last.body.controlPoint)]) {
+      assert.equal(exhausted.status, 429);
+      assert.deepEqual(exhausted.body.frame, last.body);
+    }
+    assert.equal(await readFile(editable, 'utf8'), restoredSource);
+  });
+
+test('live reload rejects uploaded state and retains its native view across invalid note files',
+  { timeout: 120_000 }, async t => {
+    const editable = join(scratch, 'reload failure note.md');
+    await writeFile(editable, '# Retained Root\n');
+    const { app, token, headers, frame, reload } = await application(t, { note: editable, maxEvents: 12 });
+    const initial = await frame();
+    assert.equal((await reload({}, { headers: { 'Content-Type': 'application/json' } })).status, 403);
+    for (const forbidden of [{ Origin: 'https://foreign.example' }, { Host: 'foreign.example' }]) {
+      const rejected = await rawRequest(app.origin + '/reload', {
+        headers: { ...headers, ...forbidden, 'Content-Type': 'application/json', 'Content-Length': '20' },
+        body: '{', incomplete: true,
+      });
+      assert.equal(rejected.status, 403);
+    }
+    assert.equal((await reload({}, {
+      headers: { ...headers, 'Content-Type': 'text/plain' },
+    })).status, 415);
+    for (const value of [null, [], '', '{}', { y: 0 }, { note: note }, { path: note },
+      { source: '# Uploaded' }, { profile: 'granted' }, { uiProfile: 'granted' }, { component: 'other.wasm' }]) {
+      assert.equal((await reload(value)).status, 400);
+    }
+    assert.equal((await reload({}, { body: '' })).status, 400);
+    assert.equal((await reload({}, { body: 'x'.repeat(129) })).status, 413);
+    assert.equal((await reload({}, { body: Buffer.from([0xff]) })).status, 400);
+    assert.equal((await rawRequest(app.origin + '/reload', {
+      headers: { ...headers, 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' },
+      body: 'x'.repeat(129),
+    })).status, 413);
+    const timeout = await rawRequest(app.origin + '/reload', {
+      headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': '20' },
+      body: '{', incomplete: true,
+    });
+    assert.equal(timeout.status, 408);
+    await pipelinedInput(app.origin, token, '/reload', {});
+    assert.deepEqual(await frame(), initial, 'rejected reload transports never enter the native queue');
+
+    const invalidFiles = [
+      { name: 'removed', prepare: () => rm(editable) },
+      { name: 'oversized', prepare: () => writeFile(editable, Buffer.alloc(4097, 97)) },
+      { name: 'invalid UTF-8', prepare: () => writeFile(editable, Buffer.from([0xff])) },
+      { name: 'directory', prepare: async () => { await rm(editable); await mkdir(editable); } },
+    ];
+    if (process.platform !== 'win32') invalidFiles.push({ name: 'FIFO', prepare: async () => {
+      await rm(editable, { recursive: true });
+      const made = spawnSync('mkfifo', [editable], { shell: false, timeout: 5000 });
+      assert.equal(made.status, 0, made.stderr?.toString('utf8'));
+    } });
+    let sequence = 0;
+    for (const invalid of invalidFiles) {
+      await invalid.prepare();
+      const failed = await reload();
+      sequence++;
+      assert.equal(failed.status, 500, invalid.name);
+      assert.match(failed.body.error, /could not be reloaded.*previous view/);
+      assert.ok(!failed.body.error.includes(editable) && !failed.body.error.includes(target));
+      assert.deepEqual(failed.body.frame,
+        { ...initial, sequence, remainingEvents: 12 - sequence }, invalid.name);
+      assert.deepEqual(await frame(), failed.body.frame);
+    }
+    await rm(editable, { recursive: true, force: true });
+    const recoveredSource = '# Recovered Root\n## Recovered Child\n';
+    await writeFile(editable, recoveredSource);
+    const recovered = await reload();
+    assert.equal(recovered.status, 200);
+    assert.deepEqual([recovered.body.sequence, recovered.body.expanded, recovered.body.visibleCount,
+      recovered.body.canReload, recovered.body.remainingEvents], [sequence + 1, 1, 2, true, 11 - sequence]);
+    assert.notEqual(recovered.body.pixels, initial.pixels);
+    assert.equal(await readFile(editable, 'utf8'), recoveredSource);
+  });
+
 test('live document and UI grants remain independent and denied paths are never opened',
   { timeout: 180_000 }, async t => {
     const denied = await application(t, { profile: 'denied', note: join(scratch, 'missing-secret.md') });
     const hidden = await denied.frame();
     assert.deepEqual([hidden.visibleCount, hidden.expanded, hidden.canActivate,
       hidden.scrollY, hidden.maxScrollY, hidden.canScroll, hidden.controlPoint], [0, 0, false, 0, 0, false, null]);
+    assert.equal(hidden.canReload, false);
     const hiddenInput = await denied.input({ x: 24, y: 16 });
     assert.equal(hiddenInput.status, 200);
     assert.deepEqual([hiddenInput.body.sequence, hiddenInput.body.pixels], [1, hidden.pixels]);
@@ -276,12 +426,18 @@ test('live document and UI grants remain independent and denied paths are never 
     assert.equal(hiddenScroll.status, 409);
     assert.deepEqual([hiddenScroll.body.frame.sequence, hiddenScroll.body.frame.scrollY,
       hiddenScroll.body.frame.pixels], [2, 0, hidden.pixels]);
+    const hiddenReload = await denied.reload();
+    assert.equal(hiddenReload.status, 409);
+    assert.deepEqual([hiddenReload.body.frame.sequence, hiddenReload.body.frame.pixels], [3, hidden.pixels]);
     assert.ok(!JSON.stringify(hidden).includes('missing-secret'));
 
-    const readOnly = await application(t, { uiProfile: 'denied', note: longNote });
+    const readOnlyNote = join(scratch, 'read-only-reload.md');
+    await writeFile(readOnlyNote, longSource);
+    const readOnly = await application(t, { uiProfile: 'denied', note: readOnlyNote });
     const visible = await readOnly.frame();
     assert.deepEqual([visible.visibleCount, visible.expanded, visible.canActivate,
       visible.scrollY, visible.canScroll], [24, 1, false, 0, false]);
+    assert.equal(visible.canReload, false);
     assert.ok(visible.maxScrollY > visible.height);
     const rejected = await readOnly.input({ x: 24, y: 16 });
     assert.equal(rejected.status, 409);
@@ -292,6 +448,11 @@ test('live document and UI grants remain independent and denied paths are never 
     assert.match(rejectedScroll.body.error, /Scrolling is unavailable/);
     assert.deepEqual([rejectedScroll.body.frame.sequence, rejectedScroll.body.frame.scrollY,
       rejectedScroll.body.frame.pixels], [2, 0, visible.pixels]);
+    await rm(readOnlyNote);
+    const rejectedReload = await readOnly.reload();
+    assert.equal(rejectedReload.status, 409, 'UI denial prevents opening the now-missing note');
+    assert.match(rejectedReload.body.error, /Reloading is unavailable/);
+    assert.deepEqual([rejectedReload.body.frame.sequence, rejectedReload.body.frame.pixels], [3, visible.pixels]);
   });
 
 test('live controlled service rejection is observable without losing the authorized view',
@@ -459,7 +620,8 @@ function packagedClient(url) {
   }
   return { origin, headers, frame,
     input: (point = { x: 24, y: 16 }) => post('/input', point),
-    scroll: y => post('/scroll', { y }) };
+    scroll: y => post('/scroll', { y }),
+    reload: () => post('/reload', {}) };
 }
 
 test('detached live bundle runs its retained component and native frames outside the checkout',
@@ -490,7 +652,7 @@ test('detached live bundle runs its retained component and native frames outside
     const client = packagedClient(detached.url);
     const initial = await client.frame();
     assert.deepEqual([initial.schemaVersion, initial.sequence, initial.expanded, initial.visibleCount,
-      initial.scrollY, initial.canScroll], [2, 0, 1, 24, 0, true]);
+      initial.scrollY, initial.canScroll], [3, 0, 1, 24, 0, true]);
     assert.ok(initial.maxScrollY > initial.height);
     assert.equal(Buffer.from(initial.pixels, 'base64').length, 320 * 160 * 3);
     const asset = await fetch(client.origin + '/client.mjs');
@@ -510,8 +672,16 @@ test('detached live bundle runs its retained component and native frames outside
     const top = await client.scroll(0);
     assert.deepEqual([top.sequence, top.scrollY, top.controlPoint, top.pixels],
       [4, 0, initial.controlPoint, initial.pixels]);
+    const edited = '# Detached Edit\n## Newly Saved Heading\n';
+    await writeFile(detachedNote, edited);
+    const reloaded = await client.reload();
+    assert.deepEqual([reloaded.sequence, reloaded.expanded, reloaded.visibleCount,
+      reloaded.scrollY, reloaded.canReload], [5, 1, 2, 0, true]);
+    assert.notEqual(reloaded.pixels, initial.pixels);
+    assert.equal(reloaded.maxScrollY, 0);
+    assert.equal(reloaded.remainingEvents, initial.remainingEvents - 5);
     assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), retainedComponent);
-    assert.equal(await readFile(detachedNote, 'utf8'), longSource);
+    assert.equal(await readFile(detachedNote, 'utf8'), edited);
 
     const manifestBytes = await readFile(join(bundle, 'manifest.json'));
     await assert.rejects(packageNoteSession({ out: bundle, live: true }), /already exists/);

@@ -43,7 +43,7 @@ export function decodeLiveFrame(frame) {
     Number.isSafeInteger(point.x) && point.x >= 0 && point.x < WIDTH &&
     Number.isSafeInteger(point.y) && point.y >= 0 && point.y < HEIGHT);
   if (frame === null || typeof frame !== 'object' || Array.isArray(frame) ||
-      frame.schemaVersion !== 2 || frame.width !== WIDTH || frame.height !== HEIGHT ||
+      frame.schemaVersion !== 3 || frame.width !== WIDTH || frame.height !== HEIGHT ||
       !Number.isSafeInteger(frame.sequence) || frame.sequence < 0 || frame.sequence > 256 ||
       ![0, 1].includes(frame.expanded) ||
       !Number.isSafeInteger(frame.visibleCount) || frame.visibleCount < 0 || frame.visibleCount > 64 ||
@@ -53,10 +53,12 @@ export function decodeLiveFrame(frame) {
       !Number.isSafeInteger(frame.maxScrollY) || frame.maxScrollY < 0 || frame.maxScrollY > 0xffffffff ||
       frame.scrollY > frame.maxScrollY || !validPoint ||
       typeof frame.canActivate !== 'boolean' || typeof frame.canScroll !== 'boolean' ||
+      typeof frame.canReload !== 'boolean' ||
       !Number.isSafeInteger(frame.remainingEvents) || frame.remainingEvents < 0 ||
       frame.sequence + frame.remainingEvents < 1 || frame.sequence + frame.remainingEvents > 256 ||
       (frame.canActivate && (point === null || frame.remainingEvents === 0)) ||
       (frame.canScroll && (frame.maxScrollY === 0 || frame.remainingEvents === 0)) ||
+      (frame.canReload && frame.remainingEvents === 0) ||
       typeof frame.pixels !== 'string' || frame.pixels.length !== BASE64_LENGTH ||
       /[^A-Za-z0-9+/]/.test(frame.pixels)) {
     throw new TypeError('Invalid A1 live frame');
@@ -72,7 +74,8 @@ export function decodeLiveFrame(frame) {
   }
   return { sequence: frame.sequence, expanded: frame.expanded,
     visibleCount: frame.visibleCount, canActivate: frame.canActivate,
-    canScroll: frame.canScroll, scrollY: frame.scrollY, maxScrollY: frame.maxScrollY,
+    canScroll: frame.canScroll, canReload: frame.canReload,
+    scrollY: frame.scrollY, maxScrollY: frame.maxScrollY,
     controlPoint: point === null ? null : { x: point.x, y: point.y },
     remainingEvents: frame.remainingEvents, rgba };
 }
@@ -133,12 +136,14 @@ async function readReply(response) {
 export function startLiveClient({ window, document, fetch = window.fetch.bind(window) }) {
   const canvas = document.getElementById('note-frame');
   const status = document.getElementById('session-status');
+  const reloadButton = document.getElementById('reload-note');
   const context = canvas.getContext('2d', { alpha: false });
   let current = null;
   let busy = true;
   let connected = false;
   let disposed = false;
   let requestAbort = null;
+  let activeKind = null;
   let activeScrollTarget = null;
   let pendingScroll = null;
   let wheelRemainder = 0;
@@ -155,6 +160,8 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
       : current?.canScroll ? 'Scrollable note outline' : 'Note outline view');
     if (current?.canActivate) canvas.setAttribute('aria-expanded', String(current.expanded === 1));
     else canvas.removeAttribute('aria-expanded');
+    reloadButton.disabled = !connected || busy || !current?.canReload || current.remainingEvents === 0;
+    reloadButton.setAttribute('aria-busy', String(activeKind === 'reload'));
   }
 
   function paint(value) {
@@ -168,10 +175,11 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
 
   function describeFrame() {
     if (current.remainingEvents === 0) return 'Session input limit reached. Start a new session to continue.';
-    if (!current.canActivate && !current.canScroll) {
+    if (!current.canActivate && !current.canScroll && !current.canReload) {
       return 'View only. Outline controls are unavailable in this session.';
     }
-    if (!current.expanded) return 'Outline collapsed.';
+    if (!current.expanded) return current.controlPoint === null && current.canReload
+      ? 'No headings. Edit the note and reload to update this view.' : 'Outline collapsed.';
     const position = current.maxScrollY === 0 ? '' : current.scrollY === 0
       ? ' At the top.' : current.scrollY === current.maxScrollY ? ' At the end.'
         : ' ' + Math.round(current.scrollY / current.maxScrollY * 100) + '% through the outline.';
@@ -221,25 +229,30 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
 
   async function perform(kind, input) {
     busy = true;
+    activeKind = kind;
     activeScrollTarget = kind === 'scroll' ? input.y : null;
     if (kind !== 'scroll') wheelRemainder = 0;
-    status.textContent = kind === 'scroll' ? 'Scrolling outline…' : 'Updating outline…';
+    if (kind === 'reload') pendingScroll = null;
+    status.textContent = kind === 'reload' ? 'Reloading note…'
+      : kind === 'scroll' ? 'Scrolling outline…' : 'Updating outline…';
     updateControl();
     let succeeded = false;
     try {
-      const result = await request(kind === 'scroll' ? '/scroll' : '/input', input);
+      const result = await request('/' + kind, input);
       if (!disposed) {
         succeeded = result.ok;
-        status.textContent = result.message ?? describeFrame();
+        status.textContent = result.message ??
+          (kind === 'reload' ? 'Note reloaded. ' : '') + describeFrame();
       }
     } catch (error) {
       if (!disposed) failed(error);
     } finally {
       requestAbort = null;
+      activeKind = null;
       activeScrollTarget = null;
       busy = false;
       // A coalesced target is never an automatic retry of failed/uncertain work.
-      if (!succeeded) {
+      if (!succeeded || kind === 'reload') {
         pendingScroll = null;
         wheelRemainder = 0;
       }
@@ -253,6 +266,11 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   function activate(input) {
     if (disposed || busy || !connected || !current?.canActivate || current.remainingEvents === 0) return;
     return perform('input', input);
+  }
+
+  function reload() {
+    if (disposed || busy || !connected || !current?.canReload || current.remainingEvents === 0) return;
+    return perform('reload', {});
   }
 
   function mayScroll() {
@@ -273,7 +291,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   }
 
   function scrollTo(y) {
-    if (!mayScroll()) return;
+    if (!mayScroll() || activeKind === 'reload') return;
     // One in-flight request and at most one bounded coalesced target.
     pendingScroll = Math.max(0, Math.min(current.maxScrollY, y));
     flushScroll();
@@ -284,6 +302,8 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     const delta = wheelDeltaToNative(event, canvas.getBoundingClientRect());
     if (delta === null) return;
     event.preventDefault();
+    // Movement against the preceding document must not survive a reload.
+    if (activeKind === 'reload') return;
     const desired = Math.max(0, Math.min(current.maxScrollY,
       scrollBase() + delta + wheelRemainder));
     const target = Math.round(desired);
@@ -304,6 +324,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
       if (!mayScroll()) return;
       event.preventDefault();
+      if (activeKind === 'reload') return;
       wheelRemainder = 0;
       const base = scrollBase();
       const target = event.key === 'Home' ? 0 : event.key === 'End' ? current.maxScrollY
@@ -322,6 +343,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   canvas.addEventListener('click', pointer);
   canvas.addEventListener('keydown', keyboard);
   canvas.addEventListener('wheel', wheel, { passive: false });
+  reloadButton.addEventListener('click', reload);
   updateControl();
   const ready = (async () => {
     if (!token || !context) {
@@ -355,6 +377,8 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     canvas.removeEventListener('click', pointer);
     canvas.removeEventListener('keydown', keyboard);
     canvas.removeEventListener('wheel', wheel);
+    reloadButton.removeEventListener('click', reload);
+    updateControl();
   }
 
   return Object.freeze({ ready, dispose });
