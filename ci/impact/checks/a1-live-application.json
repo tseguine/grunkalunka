@@ -1,0 +1,16 @@
+{
+  "id": "check:a1-live-application",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/applications/a1-live-client.test.mjs",
+    "tests/applications/a1-live-run.test.mjs"
+  ],
+  "dependsOn": [
+    "test:a1-note-preview"
+  ],
+  "paths": [
+    "tests/applications/a1-live-client.test.mjs",
+    "tests/applications/a1-live-run.test.mjs"
+  ]
+}

@@ -1,7 +1,7 @@
 // A1-only runnable host. Source and capabilities remain explicit; the guest
 // receives only in-memory bytes, never a filesystem or ambient Node binding.
 import { spawnSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { constants, realpathSync } from 'node:fs';
 import { open, lstat, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,8 +45,11 @@ export function parseArguments(args) {
 
 async function boundedNote(path, profile) {
   if (profile === 'denied') return Buffer.alloc(0); // No filesystem metadata/access at all.
-  const handle = await open(path, 'r');
+  // Opening a FIFO for reading would otherwise wait indefinitely before we can
+  // check its type. Denial above still performs no filesystem operation.
+  const handle = await open(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
   try {
+    if (!(await handle.stat()).isFile()) throw new TypeError('Markdown note must be a regular file');
     const buffer = Buffer.alloc(MAX_NOTE + 1);
     let length = 0;
     while (length < buffer.length) {
