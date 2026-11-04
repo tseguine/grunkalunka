@@ -438,6 +438,18 @@ pub(crate) fn general_mutable_bindings(
                             mutable.insert(symbol);
                         }
                     }
+                    for (identifier, _) in binding_patterns::object_leaves(&local.id) {
+                        if let Some(symbol) = identifier.symbol_id.get() {
+                            // A selected field uses the managed carrier and has
+                            // no standalone source initializer proving Number.
+                            // Closure kind planning supplies its managed facts;
+                            // registration here also retains later let writes.
+                            definitions.insert(symbol, None);
+                            if declaration.kind == VariableDeclarationKind::Let {
+                                mutable.insert(symbol);
+                            }
+                        }
+                    }
                 }
             }
             AstKind::FormalParameter(parameter) => {

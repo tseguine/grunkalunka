@@ -326,6 +326,11 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         active: declarations::ActiveDeclarationValue<'n, 'a>,
     },
+    /// The original object RHS is evaluated once before any field is selected.
+    ObjectBindingSource {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        binding: binding_patterns::ObjectBinding<'n, 'a>,
+    },
     /// Completed metadata resumes its next declarator on the main loop,
     /// including consecutive factories with no arguments to suspend on.
     AdvanceDeclaration {
@@ -555,6 +560,7 @@ impl Frame<'_, '_> {
             Self::ForInitializer { depth, .. } => *depth,
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
+            Self::ObjectBindingSource { sequence, .. } => sequence.depth,
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::MaterializedDeclaration { sequence, .. } => sequence.depth,

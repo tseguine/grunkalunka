@@ -165,7 +165,7 @@ fn number_consumer<'e, 'a>(
     Ok(())
 }
 
-fn member_key(
+pub(in crate::lower) fn member_key(
     node: &impl GetSpan,
     key: Vec<u16>,
     array: bool,

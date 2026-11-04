@@ -8,6 +8,7 @@ use super::*;
 pub(super) enum DeclarationInitializer<'n, 'a> {
     Complete,
     Value(DeclarationValue<'n, 'a>),
+    Object(binding_patterns::ObjectBinding<'n, 'a>),
     CheckClosure {
         local: &'n VariableDeclarator<'a>,
         closure: closures::LocalClosure,
@@ -83,7 +84,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         {
             return Err(unsupported(
                 declaration,
-                "initialized const or let identifiers are required",
+                "const or let local declarations are required",
             ));
         }
         Ok(())
@@ -99,21 +100,24 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mutable: bool,
         region: &mut Region,
     ) -> Result<DeclarationInitializer<'n, 'a>, String> {
-        if self.source_charging && self.local_count >= 128 {
-            return Err(unsupported(local, "at most 128 source locals are admitted"));
-        }
-        if self.source_charging {
-            self.local_count += 1;
-        }
         if local.definite {
             return Err(unsupported(
                 local,
                 "definite-assignment assertions are not admitted",
             ));
         }
+        if let BindingPattern::ObjectPattern(pattern) = &local.id {
+            return self
+                .prepare_object_binding(local, pattern, mutable)
+                .map(DeclarationInitializer::Object);
+        }
         let BindingPattern::BindingIdentifier(_) = &local.id else {
-            return Err(unsupported(local, "local destructuring is not admitted"));
+            return Err(unsupported(
+                local,
+                "local array binding patterns are not yet admitted",
+            ));
         };
+        self.charge_declaration_bindings(local, 1)?;
         if !mutable && let Some(initializer) = local.init.as_ref() {
             if let Some(closure) = self.closure_target(initializer, 0) {
                 return self.publish_declaration_closure(local, false, closure, region);
@@ -131,6 +135,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             }
         }
         self.prepare_declaration_value_initializer(local, mutable, region)
+    }
+
+    pub(super) fn charge_declaration_bindings(
+        &mut self,
+        node: &impl GetSpan,
+        count: usize,
+    ) -> Result<(), String> {
+        if self.source_charging {
+            if count > 128_usize.saturating_sub(self.local_count) {
+                return Err(unsupported(node, "at most 128 source locals are admitted"));
+            }
+            self.local_count += count;
+        }
+        Ok(())
     }
 
     /// Metadata selection has completed, including any successful checking

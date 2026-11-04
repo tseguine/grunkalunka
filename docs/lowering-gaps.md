@@ -31,6 +31,14 @@ The executable frontier contains 34 curated reference cases in
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
 
+Flat [object binding declarations](object-binding-patterns.md) now execute over
+proven managed objects. The exact `gap-local-destructure` source remains a valid
+rejection fixture because its subsequent `x+b` expression needs numeric
+consumption of the boxed selected field. Its diagnostic now identifies that
+remaining boundary; the original source and independent numeric oracle are
+unchanged. Array-pattern and `var` fixtures likewise retain their sources and
+match their current, more specific declaration diagnostics.
+
 | Area | Exact fixture IDs |
 | --- | --- |
 | Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |

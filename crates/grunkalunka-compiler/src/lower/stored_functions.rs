@@ -27,6 +27,10 @@ enum Rule {
     Call(NodeId, Vec<NodeId>, Option<NodeId>),
     StringConcat(NodeId, NodeId),
 }
+enum Definition {
+    Value(SymbolId, NodeId),
+    Member(SymbolId, NodeId, Key),
+}
 struct FunctionFlow {
     parameters: Vec<SymbolId>,
     returns: Vec<NodeId>,
@@ -280,9 +284,22 @@ impl Fields {
                         && let Some(symbol) = name.symbol_id.get()
                     {
                         if let Some(initializer) = &declaration.init {
-                            definitions.push((symbol, initializer.node_id()));
+                            definitions.push(Definition::Value(symbol, initializer.node_id()));
                         } else {
                             bindings.entry(symbol).or_default().insert(Origin::Other);
+                        }
+                    }
+                    if let Some(initializer) = &declaration.init {
+                        for (name, property) in binding_patterns::object_leaves(&declaration.id) {
+                            if let Some(symbol) = name.symbol_id.get()
+                                && let Some(key) = binding_patterns::key(property)
+                            {
+                                definitions.push(Definition::Member(
+                                    symbol,
+                                    initializer.node_id(),
+                                    key,
+                                ));
+                            }
                         }
                     }
                     None
@@ -346,7 +363,7 @@ impl Fields {
                         .and_then(|target| target_identifier(target, 0).ok().flatten())
                         && let Some(target) = symbol(name, semantic)
                     {
-                        definitions.push((target, a.right.node_id()));
+                        definitions.push(Definition::Value(target, a.right.node_id()));
                         Some(Rule::Symbol(target))
                     } else {
                         values.insert(id, BTreeSet::from([Origin::Other]));
@@ -357,7 +374,7 @@ impl Fields {
                     match a.left.as_simple_assignment_target() {
                         Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(name)) => {
                             if let Some(symbol) = symbol(name, semantic) {
-                                definitions.push((symbol, a.right.node_id()));
+                                definitions.push(Definition::Value(symbol, a.right.node_id()));
                             }
                         }
                         Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => writes.push((
@@ -407,9 +424,43 @@ impl Fields {
         let mut index_deletes = BTreeSet::new();
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
+            // Binding patterns select the same source alternatives as an own
+            // member read. In particular, alias writes and unknown fields must
+            // not disappear merely because the result has a new local name.
+            let member = |receiver: &NodeId, key: &Key| {
+                let mut found = Alternatives::new();
+                for origin in get(receiver) {
+                    if let Origin::Object(object)
+                    | Origin::NullObject(object)
+                    | Origin::Array(object) = origin
+                    {
+                        match fields.get(&object).and_then(|own| own.get(key)) {
+                            Some(Some(value)) => found.extend(get(value)),
+                            _ => {
+                                found.insert(Origin::Other);
+                            }
+                        }
+                        if let Some(written) = field_writes.get(&(object, key.clone())) {
+                            found.extend(written);
+                        }
+                        if let Some(written) = wildcard_writes.get(&object) {
+                            found.extend(written);
+                        }
+                        if index_deletes.contains(&object) && mutations::array_index(key) {
+                            found.insert(Origin::Other);
+                        }
+                    } else {
+                        found.insert(Origin::Other);
+                    }
+                }
+                found
+            };
             let mut symbol_additions = definitions
                 .iter()
-                .map(|(symbol, id)| (*symbol, get(id)))
+                .map(|definition| match definition {
+                    Definition::Value(symbol, id) => (*symbol, get(id)),
+                    Definition::Member(symbol, receiver, key) => (*symbol, member(receiver, key)),
+                })
                 .collect::<Vec<_>>();
             let mut additions = Vec::new();
             for (id, rule) in &rules {
@@ -468,34 +519,7 @@ impl Fields {
                         }
                         found
                     }
-                    Rule::Member(receiver, key) => {
-                        let mut found = Alternatives::new();
-                        for origin in get(receiver) {
-                            if let Origin::Object(object)
-                            | Origin::NullObject(object)
-                            | Origin::Array(object) = origin
-                            {
-                                match fields.get(&object).and_then(|own| own.get(key)) {
-                                    Some(Some(value)) => found.extend(get(value)),
-                                    _ => {
-                                        found.insert(Origin::Other);
-                                    }
-                                }
-                                if let Some(written) = field_writes.get(&(object, key.clone())) {
-                                    found.extend(written);
-                                }
-                                if let Some(written) = wildcard_writes.get(&object) {
-                                    found.extend(written);
-                                }
-                                if index_deletes.contains(&object) && mutations::array_index(key) {
-                                    found.insert(Origin::Other);
-                                }
-                            } else {
-                                found.insert(Origin::Other);
-                            }
-                        }
-                        found
-                    }
+                    Rule::Member(receiver, key) => member(receiver, key),
                 };
                 additions.push((*id, found));
             }

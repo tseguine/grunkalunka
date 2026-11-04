@@ -266,6 +266,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 value.expect("declaration initializer value"),
                 cursor,
             ),
+            Frame::ObjectBindingSource { sequence, binding } => self.resume_object_binding_source(
+                sequence,
+                binding,
+                output_region,
+                value.expect("object binding source"),
+                cursor,
+            ),
             Frame::MaterializedDeclaration {
                 mut sequence,
                 local,
@@ -517,6 +524,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::EvaluateFactoryValue { .. }
             | Frame::DeclarationValue { .. }
+            | Frame::ObjectBindingSource { .. }
             | Frame::CheckedDeclarationClosure { .. }
             | Frame::MaterializedDeclaration { .. }
             | Frame::ReturnValue { .. }

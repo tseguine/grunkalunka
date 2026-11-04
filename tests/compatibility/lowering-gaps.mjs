@@ -6,7 +6,7 @@ const unary = 'only unary +, - and ~ are admitted';
 const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 const topLevel = 'exactly one exported function is admitted';
-const declaration = 'initialized const or let identifiers are required';
+const declaration = 'const or let local declarations are required';
 const ordinaryParameters = 'exactly two ordinary numeric parameters are admitted';
 const plainFunction = 'expected a plain, synchronous function named run';
 
@@ -55,7 +55,11 @@ add('var', 'bindings', 'var x=a; return x+b;', 6, declaration);
 add('var-hoisting', 'bindings', 'const before = x === undefined ? 1 : 0; var x=a; return before;', 1, reference,
   { prerequisites: ['undefined values', 'var bindings'] });
 add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'General bindings require a primitive value position');
-add('local-destructure', 'bindings', 'const {x}={x:a}; return x+b;', 6, 'local destructuring is not admitted', { prerequisites: ['object values'] });
+// The flat object binding is admitted; its selected field remains boxed, so
+// this exact reference still requires a Number consumer for managed values.
+add('local-destructure', 'bindings', 'const {x}={x:a}; return x+b;', 6,
+  `${expression}: managed value requires an identity or managed storage position`,
+  { prerequisites: ['numeric consumption of managed field values'] });
 add('destructuring-write', 'bindings', 'let x=a; [x]=[b]; return x;', 2, 'assignment target must be an initialized identifier', { prerequisites: ['array values'] });
 add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators are not admitted',
   { source: 'export function run(a=4,b=2) { return a+b; }', args: [] });
