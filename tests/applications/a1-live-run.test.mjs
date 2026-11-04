@@ -182,8 +182,26 @@ test('live document and UI grants remain independent and denied paths are never 
     const visible = await readOnly.frame();
     assert.deepEqual([visible.visibleCount, visible.expanded, visible.canActivate], [2, 1, false]);
     const rejected = await readOnly.input({ x: 24, y: 16 });
-    assert.equal(rejected.status, 200);
-    assert.deepEqual([rejected.body.sequence, rejected.body.pixels], [1, visible.pixels]);
+    assert.equal(rejected.status, 409);
+    assert.match(rejected.body.error, /action was rejected/);
+    assert.deepEqual([rejected.body.frame.sequence, rejected.body.frame.pixels], [1, visible.pixels]);
+  });
+
+test('live controlled service rejection is observable without losing the authorized view',
+  { timeout: 120_000 }, async t => {
+    const invalidCount = compileUiService({ executable: service,
+      source: 'import { selectVisible } from "grunkalunka:a1/ui";\n' +
+        'export function run(a,b) { return selectVisible(0,b+1); }' });
+    const { frame, input } = await application(t, { componentWasm: invalidCount });
+    const initial = await frame();
+    const rejected = await input({ x: 24, y: 16 });
+    assert.equal(rejected.status, 409);
+    assert.match(rejected.body.error, /action was rejected/);
+    assert.deepEqual([rejected.body.frame.sequence, rejected.body.frame.expanded,
+      rejected.body.frame.canActivate, rejected.body.frame.pixels], [1, 1, true, initial.pixels]);
+    const later = await input({ x: 0, y: 0 });
+    assert.equal(later.status, 200, 'service rejection does not revoke transport authority');
+    assert.deepEqual([later.body.sequence, later.body.pixels], [2, initial.pixels]);
   });
 
 test('live action failure returns the last committed frame with the consumed attempt',

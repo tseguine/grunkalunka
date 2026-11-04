@@ -247,7 +247,14 @@ export async function startLiveNote({
       }
       const pointer = await readPointer(request);
       try {
-        await session.activate(pointer);
+        const action = await session.activate(pointer);
+        if (action.service !== null && action.service.status !== 'ok') {
+          send(response, 409, {
+            error: 'The action was rejected. The last committed frame is still displayed.',
+            frame: frame(),
+          });
+          return;
+        }
         send(response, 200, frame());
       } catch (error) {
         const status = ['A1_QUEUE_FULL', 'A1_EVENT_LIMIT'].includes(error.code) ? 429 :

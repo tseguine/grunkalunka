@@ -59,6 +59,10 @@ snapshot. Transport uncertainty disables further input until reconnecting, so
 an unknown outcome is not automatically retried. Worker termination disables
 the session; it does not silently create a replacement state.
 
+Controlled service rejections, including UI denial or an invalid requested
+heading count, return an explicit action error with the preserved frame. They
+do not revoke the independent transport token or become a successful repaint.
+
 Closing stops the HTTP listener and existing connections before awaiting worker
 termination. An already-running synchronous native subprocess may finish under
 its existing timeout before that termination completes. This is bounded shutdown,
