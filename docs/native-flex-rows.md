@@ -6,8 +6,8 @@ geometry, semantic text anchors, RGB painter, clipping, hit tester and document
 scroll projection. Application hosts and compiler interfaces do not change.
 
 The selected profile corresponds to a horizontal row with nonflexing items,
-optional greedy wrapping and start alignment. It does not implement general CSS flex
-layout, intrinsic width measurement, an HTML/CSS parser or a cascade.
+optional greedy wrapping, selected main-axis alignment and start cross-axis
+alignment. It does not implement general CSS flex layout, intrinsic width measurement, an HTML/CSS parser or a cascade.
 
 ## Sizing and placement
 
@@ -18,6 +18,7 @@ layout, intrinsic width measurement, an HTML/CSS parser or a cascade.
 | Item width bounds and edges | Existing min/max widths, content/border-box sizing, fixed or integral-percentage margins and padding apply before placement. |
 | Item height | Existing intrinsic, explicit or definite-percentage height; no cross-axis stretching. |
 | `Style::column_gap` | Nonnegative integer pixels between successive active items. Default zero; no leading or trailing gap. |
+| `Style::justify_content` | `FlexJustify::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` use each line's remaining content width. |
 | `Style::flex_wrap` | `FlexWrap::NoWrap` by default; `Wrap` greedily collects lines against the row's content width. |
 | `Style::row_gap` | Nonnegative integer pixels between actual lines. Default zero; unused for a single line. |
 | Row auto height | The sum of line heights and intervening row gaps, subject to the existing intrinsic-height minimum and explicit height bounds. Each line uses its maximum normal-flow item margin-box height. |
@@ -74,6 +75,43 @@ its descendants are laid out there. Natural item heights flow back through
 the existing iterative continuation; no repeated subtree layout or recursive
 measurement is needed to choose a line.
 
+## Main-axis alignment
+
+This subset follows the selected [flexbox main-axis packing rules](https://drafts.csswg.org/css-flexbox-1/#justify-content-property)
+and explicit [safe overflow alignment](https://drafts.csswg.org/css-align-3/#overflow-values).
+The engine's exact-integer admission remains narrower than browser CSS geometry.
+
+`Style::justify_content` chooses placement independently for each completed
+line. It uses the row's full content width minus the normal-flow outer widths
+of the items and the existing between-item column gaps. Alignment never changes
+item widths, percentage references, greedy line collection or source order.
+
+| Mode | Selected behavior |
+| --- | --- |
+| `FlexJustify::Start` | Keep the line at the content start. |
+| `FlexJustify::SafeEnd` | Put all nonnegative remaining space before the line. |
+| `FlexJustify::SafeCenter` | Put half the nonnegative remaining space before the line. An odd remainder is rejected. |
+| `FlexJustify::SpaceBetween` | Add an equal share of remaining space to every existing between-item gap. With at most one item, use start placement. |
+
+Safe end and center fall back to start when a line overflows. Space-between
+also falls back to start on overflow; it does not squeeze or replace a declared
+gap. Empty lines require no alignment calculation. Zero-width and visibility-
+hidden items still participate, including in the space-between divisor.
+
+`LayoutError::FractionalFlexJustify { node }` identifies the row whose selected
+center offset or space-between share needs fractional CSS pixels. Overflow
+fallback happens before that check, so an overflowing line does not fail merely
+because the negative remainder is odd. Positive fractional values are rejected
+without rounding.
+
+The engine records per-item alignment offsets after each line is measured.
+A final parent-before-child pass accumulates these offsets through the original
+source tree, moves all four rectangles of every box once, and computes document
+scroll extents from the projected geometry. Existing relative offsets are
+already present in the measured boxes and are not applied a second time.
+Nested rows and boxless ancestors therefore share the same final positions
+with semantic anchors, the painter and hit testing, without subtree relayout.
+
 ## Boxless and hidden nodes
 
 Active `Display::Contents` wrappers are flattened into the row's item sequence.
@@ -100,8 +138,8 @@ margins on row items. Ordinary block auto margins and auto margins on a row
 container in a block context keep their existing behavior. Boxless wrappers and
 display-none subtrees have no row-item sizing obligations.
 
-Flexible growth/shrinkage, cross-axis stretching, baseline alignment,
-main-axis free-space distribution, reverse directions, reordering and
+Flexible growth/shrinkage, cross-axis item alignment or stretching, baseline
+alignment, other main-axis distributions, reverse directions, reordering and
 percentage gaps are outside this profile. The public enum names the
 specific resolved row profile instead of implying that arbitrary `display:flex`
 declarations are supported. All row settings are ignored by other display modes.
@@ -116,8 +154,14 @@ semantic text anchors. Browser captures do not supply these expectations.
 `tests/flex_wrap.rs` separately checks exact fits, line maxima, zero-width and
 oversized items, nested wrapping, hidden/boxless nodes, toggling and resizing,
 semantic reflow, scrolled clipping and discarded-versus-actual gap overflow.
+`tests/flex_justify.rs` covers each main-axis mode with literal margin, border,
+padding and content rectangles, per-line distribution, integral percentages,
+safe overflow and fractional rejection, nested/boxless inheritance, shared
+paint/input/semantic behavior and final projection overflow.
 
-Both row-item discovery and nested layout use heap-owned work lists. The
+Both row-item discovery and nested layout use heap-owned work lists. The final
+alignment projection visits every input node once and uses the already-bounded
+parent-before-child order. The
 existing 4,096-node and depth-64 bounds remain in force, with just-past-limit
 errors and admitted nested rows exercised on a 2 MiB native stack. All dimension,
 cursor and actual gap arithmetic is checked. A row never shrinks, truncates or

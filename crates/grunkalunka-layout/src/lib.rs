@@ -47,7 +47,7 @@ pub enum Display {
     #[default]
     Block,
     /// A selected horizontal formatting context with nonflexing, explicitly
-    /// sized items and start alignment. This is not general CSS flex layout.
+    /// sized items and selected alignment. This is not general CSS flex layout.
     FlexRow,
     /// Remove the element's own box while laying out its children directly
     /// in the containing block's normal flow.
@@ -62,6 +62,18 @@ pub enum FlexWrap {
     #[default]
     NoWrap,
     Wrap,
+}
+
+/// Main-axis placement within each nonflexing row line. Safe positions fall
+/// back to start when the line overflows; fractional offsets are rejected.
+/// Other display modes ignore this setting.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FlexJustify {
+    #[default]
+    Start,
+    SafeEnd,
+    SafeCenter,
+    SpaceBetween,
 }
 
 /// Already-resolved visibility declaration. Children inherit unless explicitly
@@ -212,6 +224,7 @@ pub enum HeightBound {
 pub struct Style {
     pub display: Display,
     pub flex_wrap: FlexWrap,
+    pub justify_content: FlexJustify,
     /// Integer CSS-pixel space between active `FlexRow` items. Ignored by
     /// other display modes; no leading or trailing gap is added.
     pub column_gap: u32,
@@ -367,6 +380,10 @@ pub enum LayoutError {
     UnsupportedFlexItemAutoMargins {
         node: usize,
     },
+    /// This row's selected main-axis alignment requires fractional CSS pixels.
+    FractionalFlexJustify {
+        node: usize,
+    },
     Overflow,
 }
 
@@ -397,6 +414,9 @@ fn whole_percent(
 struct Engine<'a> {
     nodes: &'a [Block],
     children: Vec<Vec<usize>>,
+    // Per-item alignment is accumulated after line measurement, then inherited
+    // once in parent-before-child order without laying out any subtree again.
+    alignment_offsets: Vec<RelativeOffset>,
     frame: Frame,
 }
 
@@ -453,6 +473,7 @@ struct FlowSize {
 
 struct RowFlow {
     items: Vec<usize>,
+    line_start: usize,
     next_x: u32,
     line_y: u32,
     line_height: u32,
@@ -498,6 +519,84 @@ impl PlaceFrame {
 }
 
 impl Engine<'_> {
+    fn justify_line(
+        &mut self,
+        node: usize,
+        prepared: &PreparedBox,
+        row: &RowFlow,
+        line_end: usize,
+    ) -> Result<(), LayoutError> {
+        let items = &row.items[row.line_start..line_end];
+        if items.is_empty() {
+            return Ok(());
+        }
+        let free = prepared
+            .content_width
+            .saturating_sub(row.next_x - prepared.content_x);
+        let (leading, between) = match self.nodes[node].style.justify_content {
+            FlexJustify::Start => (0, 0),
+            FlexJustify::SafeEnd => (free, 0),
+            FlexJustify::SafeCenter => {
+                if !free.is_multiple_of(2) {
+                    return Err(LayoutError::FractionalFlexJustify { node });
+                }
+                (free / 2, 0)
+            }
+            FlexJustify::SpaceBetween if items.len() > 1 => {
+                let spaces = u32::try_from(items.len() - 1).map_err(|_| LayoutError::Overflow)?;
+                if !free.is_multiple_of(spaces) {
+                    return Err(LayoutError::FractionalFlexJustify { node });
+                }
+                (0, free / spaces)
+            }
+            FlexJustify::SpaceBetween => (0, 0),
+        };
+        for (index, &item) in items.iter().enumerate() {
+            let index = u32::try_from(index).map_err(|_| LayoutError::Overflow)?;
+            let distributed = between.checked_mul(index).ok_or(LayoutError::Overflow)?;
+            self.alignment_offsets[item].x = add(leading, distributed)?;
+        }
+        Ok(())
+    }
+
+    // Geometry is initially laid out at start positions. Every alignment
+    // offset is nonnegative and does not affect flow sizes or line collection.
+    // A single topological projection moves complete subtrees, including those
+    // reached through boxless wrappers, and computes final scroll extents.
+    fn project_alignment(&mut self) -> Result<(), LayoutError> {
+        self.frame.scroll_width = self.frame.viewport_width;
+        self.frame.scroll_height = self.frame.viewport_height;
+        for (node, block) in self.nodes.iter().enumerate() {
+            let inherited = block
+                .parent
+                .map(|parent| self.alignment_offsets[parent])
+                .unwrap_or_default();
+            let offset = &mut self.alignment_offsets[node];
+            offset.x = add(offset.x, inherited.x)?;
+            offset.y = add(offset.y, inherited.y)?;
+            if let Some(geometry) = &mut self.frame.boxes[node] {
+                for rect in [
+                    &mut geometry.margin,
+                    &mut geometry.border,
+                    &mut geometry.padding,
+                    &mut geometry.content,
+                ] {
+                    rect.x = add(rect.x, offset.x)?;
+                    rect.y = add(rect.y, offset.y)?;
+                }
+                self.frame.scroll_width = self
+                    .frame
+                    .scroll_width
+                    .max(geometry.margin.right().ok_or(LayoutError::Overflow)?);
+                self.frame.scroll_height = self
+                    .frame
+                    .scroll_height
+                    .max(geometry.margin.bottom().ok_or(LayoutError::Overflow)?);
+            }
+        }
+        Ok(())
+    }
+
     // Flatten only boxless wrappers, preserving tree order even when source
     // indices are parent-before-child rather than depth-first preorder. Hidden
     // subtrees contribute neither row items nor gaps. Original parent indices
@@ -575,6 +674,7 @@ impl Engine<'_> {
                         if self.nodes[current.node].style.display == Display::FlexRow {
                             current.row = Some(RowFlow {
                                 items: self.row_items(current.node),
+                                line_start: 0,
                                 next_x: prepared.content_x,
                                 line_y: prepared.content_y,
                                 line_height: 0,
@@ -630,6 +730,8 @@ impl Engine<'_> {
                         && row.has_items
                         && candidate_width > u64::from(container.content_width)
                     {
+                        self.justify_line(current.node, &container, row, current.next_child)?;
+                        row.line_start = current.next_child;
                         row.line_y = add(add(row.line_y, row.line_height)?, style.row_gap)?;
                         row.next_x = container.content_x;
                         row.line_height = 0;
@@ -652,6 +754,14 @@ impl Engine<'_> {
                 child_frame.prepared = prepared;
                 pending.push(child_frame);
             } else {
+                if let Some(row) = &current.row {
+                    self.justify_line(
+                        current.node,
+                        &current.prepared.expect("entered row box"),
+                        row,
+                        current.next_child,
+                    )?;
+                }
                 let size = if current.contents {
                     // Row contexts flatten these wrappers before placement;
                     // a vertical parent consumes only their accumulated height.
@@ -947,7 +1057,7 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// fixed/integral-percentage-width nonflexing rows with start alignment,
+/// fixed/integral-percentage-width nonflexing rows with safe main-axis alignment,
 /// optional greedy wrapping and integer gaps,
 /// display:none, boxless display:contents, inherited visibility, resolved
 /// pointer-events input policy, optional padding-box descendant clipping,
@@ -1027,6 +1137,7 @@ pub fn layout(
     let mut engine = Engine {
         nodes: blocks,
         children,
+        alignment_offsets: vec![RelativeOffset::default(); blocks.len()],
         frame: Frame {
             boxes: vec![None; blocks.len()],
             contents,
@@ -1040,6 +1151,7 @@ pub fn layout(
         },
     };
     engine.place(0, 0, 0, viewport_width, Some(viewport_height))?;
+    engine.project_alignment()?;
     Ok(engine.frame)
 }
 
