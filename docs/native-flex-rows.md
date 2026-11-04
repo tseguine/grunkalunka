@@ -5,8 +5,8 @@ context for simple horizontal arrangements. It shares the existing block
 geometry, semantic text anchors, RGB painter, clipping, hit tester and document
 scroll projection. Application hosts and compiler interfaces do not change.
 
-The selected profile corresponds to a horizontal, single-line row with
-nonflexing items and start alignment. It does not implement general CSS flex
+The selected profile corresponds to a horizontal row with nonflexing items,
+optional greedy wrapping and start alignment. It does not implement general CSS flex
 layout, intrinsic width measurement, an HTML/CSS parser or a cascade.
 
 ## Sizing and placement
@@ -18,14 +18,16 @@ layout, intrinsic width measurement, an HTML/CSS parser or a cascade.
 | Item width bounds and edges | Existing min/max widths, content/border-box sizing, fixed or integral-percentage margins and padding apply before placement. |
 | Item height | Existing intrinsic, explicit or definite-percentage height; no cross-axis stretching. |
 | `Style::column_gap` | Nonnegative integer pixels between successive active items. Default zero; no leading or trailing gap. |
-| Row auto height | The maximum normal-flow margin-box height of its items, subject to the existing intrinsic-height minimum and explicit height bounds. |
+| `Style::flex_wrap` | `FlexWrap::NoWrap` by default; `Wrap` greedily collects lines against the row's content width. |
+| `Style::row_gap` | Nonnegative integer pixels between actual lines. Default zero; unused for a single line. |
+| Row auto height | The sum of line heights and intervening row gaps, subject to the existing intrinsic-height minimum and explicit height bounds. Each line uses its maximum normal-flow item margin-box height. |
 | Overflow | Items retain their widths; their boxes may overflow the container and contribute to document scroll extents. |
 
 Items are placed by their outer margin boxes in source-tree order. A following
 block starts after the row's own used margin-box height, rather than after the
 sum of its item heights. Every row item retains its own formatting context:
 a block item stacks its children vertically, while a nested `FlexRow` lays out
-its children horizontally.
+its children horizontally with its own wrapping and gap settings.
 
 Width, margin and padding percentages use the **original full row content
 width**, including top and bottom percentage edges. They do not use remaining
@@ -43,6 +45,34 @@ automatic minimum sizing.
 normal-flow sizing. It does not change the horizontal slot consumed by that
 item, the row's natural height, or any following sibling's flow position.
 Positive visual overflow still contributes to document scroll extents.
+
+## Line collection
+
+With `FlexWrap::Wrap`, the next item joins the current line when its outer
+width plus the intervening column gap fits the remaining content width.
+Exact fits stay on the current line. Otherwise a nonempty line is finished,
+and the new line starts at the row's content x coordinate below the preceding
+line's tallest outer item plus `row_gap`.
+
+The first item always starts a line, even when it is wider than the container;
+there is no empty leading line and no shrinking to force a fit. A zero-width
+item still counts as an item. It can join an exactly filled line when the
+column gap is zero, while a positive gap can move it to the following line.
+Zero-height lines remain actual lines, so a later line still consumes its
+intervening row gap.
+
+Only actual between-item and between-line gaps become coordinates. In
+particular, line-fit comparison uses wider arithmetic before adding a column
+gap: an enormous gap that causes a line break is discarded at that break,
+not reported as a coordinate overflow. An actual overflowing coordinate or
+row gap still returns `LayoutError::Overflow`. A single line ignores `row_gap`;
+an empty row consumes neither kind of gap.
+
+Each item's width, edges, bounds and height reference are resolved once before
+line collection. Its prepared box is then positioned at the chosen slot and
+its descendants are laid out there. Natural item heights flow back through
+the existing iterative continuation; no repeated subtree layout or recursive
+measurement is needed to choose a line.
 
 ## Boxless and hidden nodes
 
@@ -70,11 +100,11 @@ margins on row items. Ordinary block auto margins and auto margins on a row
 container in a block context keep their existing behavior. Boxless wrappers and
 display-none subtrees have no row-item sizing obligations.
 
-Flexible growth/shrinkage, wrapping, cross-axis stretching, baseline alignment,
+Flexible growth/shrinkage, cross-axis stretching, baseline alignment,
 main-axis free-space distribution, reverse directions, reordering and
-percentage gaps are outside this initial profile. The public enum names the
+percentage gaps are outside this profile. The public enum names the
 specific resolved row profile instead of implying that arbitrary `display:flex`
-declarations are supported. `column_gap` is ignored by other display modes.
+declarations are supported. All row settings are ignored by other display modes.
 
 ## Verification and cost boundaries
 
@@ -83,6 +113,9 @@ outer sizes, percentages, bounds, box sizing, boxless tree order, nested
 formatting contexts and zero-sized items. It separately checks selected pixels,
 topmost hits, document-scroll projection, padding clips, inherited policies and
 semantic text anchors. Browser captures do not supply these expectations.
+`tests/flex_wrap.rs` separately checks exact fits, line maxima, zero-width and
+oversized items, nested wrapping, hidden/boxless nodes, toggling and resizing,
+semantic reflow, scrolled clipping and discarded-versus-actual gap overflow.
 
 Both row-item discovery and nested layout use heap-owned work lists. The
 existing 4,096-node and depth-64 bounds remain in force, with just-past-limit
