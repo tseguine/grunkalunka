@@ -50,8 +50,9 @@ pattern size.
 ## Admission limits
 
 This slice covers declarations with identifier leaves and optional defaults. Nested
-patterns, rest properties, array patterns, destructuring assignment and
-parameter patterns remain separate work. Dynamic property names and primitive
+patterns, rest properties, destructuring assignment and parameter patterns
+remain separate work. Flat [array declarations](array-binding-patterns.md) have
+their own source-proven array admission. Dynamic property names and primitive
 RHS coercion are also outside this slice.
 
 Ordinary objects retain the existing intrinsic-prototype-key guard. Proven

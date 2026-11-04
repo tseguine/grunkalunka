@@ -36,8 +36,13 @@ proven managed objects. The exact `gap-local-destructure` source remains a valid
 rejection fixture because its subsequent `x+b` expression needs numeric
 consumption of the boxed selected field. Its diagnostic now identifies that
 remaining boundary; the original source and independent numeric oracle are
-unchanged. Array-pattern and `var` fixtures likewise retain their sources and
-match their current, more specific declaration diagnostics.
+unchanged. Flat array patterns now admit identifier leaves, holes and empty
+patterns over proven managed arrays. The original `for-destructure` and
+`declarators-later-destructure` sources use numeric parameters as their RHS, so
+they remain rejected with the source-proven managed-array diagnostic. Their
+sources and inventory hashes remain unchanged. Array defaults, nested/rest
+patterns and general iterators remain outside this slice; `var` fixtures retain
+their specific declaration diagnostic.
 
 | Area | Exact fixture IDs |
 | --- | --- |

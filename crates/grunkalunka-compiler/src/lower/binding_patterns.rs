@@ -1,7 +1,7 @@
-//! Flat object binding plans borrow the original source and select each own
-//! field in order. Origins prove receiver kinds; annotations never do.
+//! Flat binding plans borrow the original source and select each own field or
+//! array position in order. Origins prove receiver kinds; annotations never do.
 use super::*;
-use oxc_ast::ast::{BindingIdentifier, BindingProperty, ObjectPattern, PropertyKey};
+use oxc_ast::ast::{ArrayPattern, BindingIdentifier, BindingProperty, ObjectPattern, PropertyKey};
 
 /// Original-source leaves for representation and origin planning. This is not
 /// admission: the declaration path still checks the entire pattern and RHS.
@@ -16,6 +16,30 @@ pub(super) fn object_leaves<'n, 'a>(
         .into_iter()
         .flat_map(|object| object.properties.iter())
         .filter_map(|property| leaf(&property.value).map(|(identifier, _)| (identifier, property)))
+}
+
+pub(super) fn array_leaves<'n, 'a>(
+    pattern: &'n BindingPattern<'a>,
+) -> impl Iterator<Item = (usize, &'n BindingIdentifier<'a>, &'n BindingPattern<'a>)> {
+    let array = match pattern {
+        BindingPattern::ArrayPattern(array) => Some(array),
+        _ => None,
+    };
+    array
+        .into_iter()
+        .flat_map(|array| array.elements.iter().enumerate())
+        .filter_map(|(index, element)| {
+            let pattern = element.as_ref()?;
+            leaf(pattern).map(|(identifier, _)| (index, identifier, pattern))
+        })
+}
+
+pub(super) fn leaves<'n, 'a>(
+    pattern: &'n BindingPattern<'a>,
+) -> impl Iterator<Item = &'n BindingIdentifier<'a>> {
+    object_leaves(pattern)
+        .map(|(identifier, _)| identifier)
+        .chain(array_leaves(pattern).map(|(_, identifier, _)| identifier))
 }
 
 fn leaf<'n, 'a>(
@@ -56,7 +80,69 @@ pub(super) struct ObjectBinding<'n, 'a> {
     pub(super) mutable: bool,
 }
 
+pub(super) struct ElementBinding<'n, 'a> {
+    pub(super) identifier: &'n BindingIdentifier<'a>,
+    pub(super) index: u32,
+}
+
+pub(super) struct ArrayBinding<'n, 'a> {
+    pub(super) source: &'n Expression<'a>,
+    pub(super) elements: std::vec::IntoIter<ElementBinding<'n, 'a>>,
+    pub(super) mutable: bool,
+}
+
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    pub(super) fn prepare_array_binding<'n, 'a>(
+        &mut self,
+        local: &'n VariableDeclarator<'a>,
+        pattern: &'n ArrayPattern<'a>,
+        mutable: bool,
+    ) -> Result<ArrayBinding<'n, 'a>, String> {
+        if pattern.rest.is_some() {
+            return Err(unsupported(
+                pattern,
+                "array rest bindings are not yet admitted",
+            ));
+        }
+        let source = local
+            .init
+            .as_ref()
+            .ok_or_else(|| unsupported(local, "array binding patterns require an initializer"))?;
+        let ty = self.managed_source_type(source, 0);
+        if ty != Some(Type::ManagedArray)
+            && !(ty == Some(Type::ManagedValue)
+                && self.stored.container(source.node_id()) == Some(Type::ManagedArray))
+        {
+            return Err(unsupported(
+                source,
+                "array bindings require a source-proven managed array",
+            ));
+        }
+        u32::try_from(pattern.elements.len())
+            .map_err(|_| unsupported(pattern, "array binding length exceeds u32"))?;
+        let count = pattern.elements.iter().flatten().count();
+        self.charge_declaration_bindings(pattern, count)?;
+        let mut elements = Vec::with_capacity(count);
+        for (index, element) in pattern.elements.iter().enumerate() {
+            let Some(element) = element else { continue };
+            let BindingPattern::BindingIdentifier(identifier) = element else {
+                return Err(unsupported(
+                    element,
+                    "array bindings currently require identifier leaves",
+                ));
+            };
+            elements.push(ElementBinding {
+                identifier,
+                index: index as u32,
+            });
+        }
+        Ok(ArrayBinding {
+            source,
+            elements: elements.into_iter(),
+            mutable,
+        })
+    }
+
     pub(super) fn prepare_object_binding<'n, 'a>(
         &mut self,
         local: &'n VariableDeclarator<'a>,

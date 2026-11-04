@@ -9,6 +9,7 @@ pub(super) enum DeclarationInitializer<'n, 'a> {
     Complete,
     Value(DeclarationValue<'n, 'a>),
     Object(binding_patterns::ObjectBinding<'n, 'a>),
+    Array(binding_patterns::ArrayBinding<'n, 'a>),
     CheckClosure {
         local: &'n VariableDeclarator<'a>,
         closure: closures::LocalClosure,
@@ -110,6 +111,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             return self
                 .prepare_object_binding(local, pattern, mutable)
                 .map(DeclarationInitializer::Object);
+        }
+        if let BindingPattern::ArrayPattern(pattern) = &local.id {
+            return self
+                .prepare_array_binding(local, pattern, mutable)
+                .map(DeclarationInitializer::Array);
         }
         let BindingPattern::BindingIdentifier(_) = &local.id else {
             return Err(unsupported(

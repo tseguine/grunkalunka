@@ -307,6 +307,16 @@ impl Fields {
                                 ));
                             }
                         }
+                        for (index, name, _) in binding_patterns::array_leaves(&declaration.id) {
+                            if let Some(symbol) = name.symbol_id.get() {
+                                definitions.push(Definition::Member(
+                                    symbol,
+                                    initializer.node_id(),
+                                    index.to_string().encode_utf16().collect(),
+                                    None,
+                                ));
+                            }
+                        }
                     }
                     None
                 }

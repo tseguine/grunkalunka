@@ -333,6 +333,11 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         binding: binding_patterns::ObjectBinding<'n, 'a>,
     },
+    /// The intrinsic array RHS is saved before any indexed binding is published.
+    ArrayBindingSource {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        binding: binding_patterns::ArrayBinding<'n, 'a>,
+    },
     /// A lazy default owns its parent output and saved object until the
     /// expression completes; later properties have not been read yet.
     ObjectBindingDefault {
@@ -569,6 +574,7 @@ impl Frame<'_, '_> {
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ObjectBindingSource { sequence, .. } => sequence.depth,
+            Self::ArrayBindingSource { sequence, .. } => sequence.depth,
             Self::ObjectBindingDefault { sequence, .. } => sequence.depth,
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,

@@ -146,6 +146,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 });
                 Ok(())
             }
+            declarations::DeclarationInitializer::Array(binding) => {
+                let source = binding.source;
+                cursor
+                    .pending
+                    .push(Frame::ArrayBindingSource { sequence, binding });
+                cursor.next = Some(Next::Expression {
+                    source,
+                    output,
+                    depth: 0,
+                    mode: evaluate::Mode::Array,
+                });
+                Ok(())
+            }
         }
     }
 

@@ -159,7 +159,14 @@ field is read. They retain the original RHS object across source rebinding and
 supported suspension, preserve earlier-binding visibility, and stop on abrupt
 completion. Unknown field origins remain conservative even with a default.
 
-Nested/array patterns and iteration remain follow-on slices. This
+Flat array declarations now provide the corresponding list extraction with
+identifier leaves, elisions and empty patterns. They evaluate a proven managed
+array once, preserve source order and retain the existing managed-value,
+capture and source-local-budget boundaries. See
+[array binding declarations](array-binding-patterns.md) for the intrinsic
+iterator scope and differential coverage.
+
+Array defaults, nested patterns and `for...of` remain follow-on slices. This
 compiler work does not alter the concurrent A1 application's session, native
 view, service or packaging interfaces.
 

@@ -1,5 +1,5 @@
-//! Object fields are selected only after the preceding binding (and any lazy
-//! default) completes. Every continuation retains the originally evaluated RHS.
+//! Fields and array elements are selected only after the preceding binding
+//! completes. Every continuation retains the originally evaluated RHS.
 use super::*;
 use oxc_ast::ast::BindingIdentifier;
 
@@ -13,6 +13,43 @@ pub(super) struct DefaultBinding<'n, 'a> {
 }
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    pub(super) fn resume_array_binding_source<'n>(
+        &mut self,
+        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
+        binding: binding_patterns::ArrayBinding<'n, 'ast>,
+        mut output: Region,
+        array: ValueId,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        // Only the intrinsic iterator of a source-proven managed array is
+        // admitted. Without defaults there are no source effects between steps;
+        // direct own reads also produce Undefined for holes and exhausted steps.
+        // Elisions need no value read or generated operation in this slice.
+        for element in binding.elements {
+            let selected = self.value(Type::ManagedValue);
+            Self::push(
+                &mut output,
+                element.identifier,
+                Op::ManagedArrayGetOwn {
+                    result: selected,
+                    array,
+                    key: element.index.to_string().encode_utf16().collect(),
+                },
+            );
+            self.publish_pattern_binding(
+                element.identifier,
+                &mut output,
+                selected,
+                binding.mutable,
+            )?;
+        }
+        sequence.index += 1;
+        self.advance_declaration(sequence, output, cursor)
+    }
+
     pub(super) fn resume_object_binding_source<'n>(
         &mut self,
         mut sequence: Box<DeclarationSequence<'n, 'ast>>,
@@ -86,7 +123,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 });
                 return Ok(());
             }
-            self.publish_object_binding(field.identifier, &mut output, selected, binding.mutable)?;
+            self.publish_pattern_binding(field.identifier, &mut output, selected, binding.mutable)?;
         }
         sequence.index += 1;
         self.advance_declaration(sequence, output, cursor)
@@ -125,11 +162,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 alternate,
             },
         );
-        self.publish_object_binding(identifier, &mut output, result, binding.mutable)?;
+        self.publish_pattern_binding(identifier, &mut output, result, binding.mutable)?;
         self.resume_object_binding_source(sequence, binding, output, object, cursor)
     }
 
-    fn publish_object_binding(
+    fn publish_pattern_binding(
         &mut self,
         identifier: &BindingIdentifier<'_>,
         output: &mut Region,

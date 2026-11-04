@@ -714,7 +714,7 @@
     {
       "id": "destructuring",
       "kind": "open-requirement",
-      "assessment": "Flat local const/let object binding patterns over proven managed objects now execute with ordered own-property reads and lazy identifier-leaf defaults. The exact gap-local-destructure source still requires numeric consumption of its boxed selected field. Array, nested, rest, parameter and assignment patterns and primitive RHS coercion remain separate requirements; rejection of these sources does not establish support for them.",
+      "assessment": "Flat local const/let object binding patterns over proven managed objects execute with ordered own-property reads and lazy identifier-leaf defaults. Flat local array patterns over proven managed arrays admit identifier leaves, holes and empty patterns. The exact gap-local-destructure source still requires numeric consumption of its boxed selected field; for-destructure and declarators-later-destructure still require an iterable RHS instead of their original numeric parameters. Array defaults, nested, rest, parameter and assignment patterns, general iterators and primitive RHS coercion remain separate requirements; rejection of these sources does not establish support for them.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-destructuring-assignment",

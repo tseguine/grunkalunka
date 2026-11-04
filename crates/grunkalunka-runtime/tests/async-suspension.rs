@@ -13,6 +13,9 @@ mod managed_values;
 #[path = "async-suspension/binding_patterns.rs"]
 mod binding_patterns;
 
+#[path = "async-suspension/array_bindings.rs"]
+mod array_bindings;
+
 #[path = "async-suspension/managed_closures.rs"]
 mod managed_closures;
 
