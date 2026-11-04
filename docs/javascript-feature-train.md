@@ -144,6 +144,20 @@ position arguments. Everyday bindings/iteration and synchronous source errors
 remain the broader next feature families; completing every String builtin is
 not a prerequisite.
 
+## Everyday object bindings
+
+Flat local object binding declarations now extract source-owned record fields
+through the existing managed property lane. Shorthand, renaming and literal
+keys preserve one initializer evaluation and ordered lexical initialization.
+Selected String/container facts remain available to helpers and captures;
+source annotations do not prove those kinds. See
+[the binding contract](object-binding-patterns.md) and the managed binding and
+suspension suites for the admitted surface and its limits.
+
+Defaults, nested/array patterns and iteration remain follow-on slices. This
+compiler work does not alter the concurrent A1 application's session, native
+view, service or packaging interfaces.
+
 ## A1 scope and existing evidence
 
 The separate A1 application stack, [#477](https://github.com/tseguine/grunkalunka/pull/477)

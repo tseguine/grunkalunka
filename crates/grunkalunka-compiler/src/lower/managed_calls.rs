@@ -20,6 +20,31 @@ enum Kind {
 }
 type Kinds = BTreeSet<Kind>;
 
+fn managed_value_kinds() -> Kinds {
+    [
+        Kind::Primitive,
+        Kind::GeneralPrimitive,
+        Kind::Object,
+        Kind::Array,
+        Kind::String,
+    ]
+    .into()
+}
+
+fn seed_object_bindings(pattern: &BindingPattern<'_>, bindings: &mut BTreeMap<SymbolId, Kinds>) {
+    // Each selected field uses the boxed property-value lane, even when this
+    // source currently supplies a Number. Precise String/container provenance
+    // remains in Fields; it must not silently change a local's representation.
+    for (identifier, _) in binding_patterns::object_leaves(pattern) {
+        if let Some(symbol) = identifier.symbol_id.get() {
+            bindings
+                .entry(symbol)
+                .or_default()
+                .extend(managed_value_kinds());
+        }
+    }
+}
+
 fn managed_type(kinds: &Kinds) -> Option<Type> {
     (kinds.contains(&Kind::Object) || kinds.contains(&Kind::Array) || kinds.contains(&Kind::String))
         .then_some(if kinds.len() == 1 && kinds.contains(&Kind::Object) {
@@ -80,14 +105,7 @@ fn kinds(
             Task::ArrayElement(fallback) => {
                 let receiver = values.pop().expect("array element receiver source kinds");
                 values.push(if receiver.contains(&Kind::Array) {
-                    [
-                        Kind::Primitive,
-                        Kind::GeneralPrimitive,
-                        Kind::Object,
-                        Kind::Array,
-                        Kind::String,
-                    ]
-                    .into()
+                    managed_value_kinds()
                 } else {
                     fallback
                 });
@@ -394,6 +412,7 @@ pub(crate) fn infer(
                     bindings.entry(symbol).or_default();
                     definitions.push((symbol, v.init.as_ref()));
                 }
+                seed_object_bindings(&v.id, &mut bindings);
             }
             AstKind::AssignmentExpression(a) => {
                 if let Some(identifier) = a
@@ -597,14 +616,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         match ty {
             Type::ManagedObject => [Kind::Object].into(),
             Type::ManagedArray => [Kind::Array].into(),
-            Type::ManagedValue => [
-                Kind::Primitive,
-                Kind::GeneralPrimitive,
-                Kind::Object,
-                Kind::Array,
-                Kind::String,
-            ]
-            .into(),
+            Type::ManagedValue => managed_value_kinds(),
             Type::General => [Kind::Primitive, Kind::GeneralPrimitive].into(),
             _ => [Kind::Primitive].into(),
         }
@@ -615,6 +627,9 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         bindings.entry(*symbol).or_default();
     }
     for node in semantic.nodes().iter() {
+        if let AstKind::VariableDeclarator(declaration) = node.kind() {
+            seed_object_bindings(&declaration.id, &mut bindings);
+        }
         let AstKind::Function(f) = node.kind() else {
             continue;
         };

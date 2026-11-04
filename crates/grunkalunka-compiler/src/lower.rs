@@ -21,6 +21,7 @@ mod array_at;
 mod array_mutations;
 mod async_values;
 mod awaited;
+mod binding_patterns;
 mod block_results;
 mod callbacks;
 mod closures;
@@ -690,17 +691,38 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let BindingPattern::BindingIdentifier(identifier) = &local.id else {
             unreachable!("declaration local was checked before evaluation");
         };
+        self.commit_binding_value(
+            local,
+            identifier.symbol_id.get().ok_or("missing local binding")?,
+            region,
+            ty,
+            value,
+            mutable,
+        )
+    }
+
+    /// Publish one initialized lexical binding. Pattern leaves use the same
+    /// slots and capture cells as ordinary identifier declarations.
+    pub(super) fn commit_binding_value(
+        &mut self,
+        node: &impl GetSpan,
+        symbol: SymbolId,
+        region: &mut Region,
+        ty: Type,
+        value: ValueId,
+        mutable: bool,
+    ) -> Result<(), String> {
         let slot = SlotId(self.slots.len());
         self.slots.push(Slot {
             ty,
             owner: region.id,
             mutable,
             parameter: false,
-            span: local.span(),
+            span: node.span(),
         });
-        Self::push(region, local, Op::Initialize { slot, value });
+        Self::push(region, node, Op::Initialize { slot, value });
         self.bindings.push(NumericBinding {
-            symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
+            symbol,
             slot,
             mutable,
         });
