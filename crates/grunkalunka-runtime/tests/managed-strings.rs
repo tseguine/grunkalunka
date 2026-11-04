@@ -3,6 +3,105 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn string_ends_with_clamps_endpoints_and_matches_utf16_units() {
+    for body in [
+        "const s='abcabc';return (s.endsWith('abc',a)?100:0)+(s.endsWith('bc',b)?10:0)+(s.endsWith('b',a+1.75)?1:0);",
+        "return 'abc'.endsWith('bc')&&'abc'.endsWith('bc',undefined)&&!'abc'.endsWith('bc',NaN)&&'abc'.endsWith('',NaN)?1:0;",
+        "return 'abc'.endsWith('c',Infinity)&&'abc'.endsWith('c',4294967296)&&'abc'.endsWith('c',1e300)&&!'abc'.endsWith('a',-Infinity)&&!'abc'.endsWith('a',-0.75)?1:0;",
+        "return 'abcabc'.endsWith('bc',3.9)&&'abcabc'.endsWith('b',2.9)&&!'abcabc'.endsWith('bc',2.9)&&!'abcabc'.endsWith('abc',-3)?1:0;",
+        "return (''.endsWith('',a)?100:0)+('abc'.endsWith('',b)?10:0)+(''.endsWith('a',a)?1:0);",
+        "return !'abc'.endsWith('abcd')&&!'abc'.endsWith('bc',1)&&!'abc'.endsWith('a')&&'abcabc'.endsWith('abc',3)&&'abc'.endsWith('abc')?1:0;",
+        r"const s='\0A\u{1f600}\ud800e\u0301';return s.endsWith('\ud83d',3)&&s.endsWith('\ude00',4)&&s.endsWith('\ud800',5)&&s.endsWith('\0',1)&&s.endsWith('e\u0301')&&!s.endsWith('\u00e9')?1:0;",
+        r"return ('\ud800x\udfff'.endsWith('\udfff',a)?10:0)+('\u{1f600}'.endsWith('\ude00',b+1)?1:0);",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_ends_with_keeps_defaults_argument_effects_and_operand_snapshots() {
+    for body in [
+        "let n=0;const found=(n=1,'abc').endsWith((n=n*10+2,'bc'),(n=n*10+3,3),(n=n*10+4,{}));return found?n:-1;",
+        "let n=0;const found='abc'.endsWith((n=1,'bc'),void(n=n*10+2),(n=n*10+3,null));return found?n:-1;",
+        "let s='abc';const found=s['endsWith']((s='changed','bc'));return found&&s==='changed'?1:0;",
+        "let needle='bc';const found='abc'.endsWith(needle,(needle='missing',3));return found&&needle==='missing'?1:0;",
+        "let s='abc';let needle='bc';const found=s.endsWith(needle,3,(s='changed',needle='missing'));return found&&s==='changed'&&needle==='missing'?1:0;",
+        "const undefined=2;return 'abc'.endsWith('b',undefined)&&!'abc'.endsWith('c',undefined)?1:0;",
+        "let n=0;'abc'.endsWith((n=1,'bc'),(n=n*10+2,3),(n=n*10+3));return n;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_ends_with_composes_booleans_helpers_and_ordinary_method_names() {
+    for source in [
+        "function suffix(s,n){return s.endsWith(n);}export function run(a,b){return suffix('Heading: Notes','Notes')&&!suffix('Heading: Notes','Other')?1:0;}",
+        "function text(){return 'abc';}export function run(a,b){const needle={text:'bc'};const matches=()=>text().endsWith(needle.text);return matches()?1:0;}",
+        "export function run(a,b){const found='abc'.endsWith('bc');const box={found};let flag=found;flag='abc'.endsWith('ab');return box.found===true&&found!==1&&flag===false?1:0;}",
+        "export function run(a,b){const label=(' Notes '+'!').slice(0,-1).trim();return label.endsWith('tes')?label.length:0;}",
+        "export function run(a,b){const o={endsWith:(x,y)=>x+y};return o.endsWith(a,b);}",
+        "function text(x){return 'ordinary';}export function run(a,b){const o={endsWith:text};return o.endsWith(a).length;}",
+        "export function run(a,b){const o={endsWith:x=>x>0};return o.endsWith(a)?1:0;}",
+    ] {
+        compare_sources(
+            source,
+            &source.replace("run(a,b)", "run(a: number,b: number)"),
+        );
+    }
+    let js = "export function run(a,b){const s='abc';return s.endsWith('bc',a)?1:0;}";
+    let ts = "export function run(a: number,b: number){const s: number='abc';return (s as boolean).endsWith('bc' as never,a as unknown)?1:0;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_ends_with_rejects_unproven_strings_and_unrepresented_coercions() {
+    for body in [
+        "return 'abc'.endsWith()?1:0;",
+        "return 'abc'.endsWith(undefined)?1:0;",
+        "return 'abc'.endsWith(a)?1:0;",
+        "return 'abc'.endsWith(/c/)?1:0;",
+        "return 'abc'.endsWith('c','3')?1:0;",
+        "return 'abc'.endsWith('c',null)?1:0;",
+        "return 'abc'.endsWith('c',true)?1:0;",
+        "const s=a?'abc':null;return s.endsWith('c')?1:0;",
+        "const needle=a?'c':null;return 'abc'.endsWith(needle)?1:0;",
+        "let needle='c';const matches=()=> 'abc'.endsWith(needle);needle=a;return matches()?1:0;",
+        "const xs=['abc'];return xs.at(0).endsWith('c')?1:0;",
+        "const xs=['c'];return 'abc'.endsWith(xs.at(0))?1:0;",
+        "const s='abc';return s?.endsWith('c')?1:0;",
+        "const s='abc';return s.endsWith?.('c')?1:0;",
+        "return 'abc'.endsWith.call('abc','c')?1:0;",
+        "return 'abc'.endsWith(...['c'])?1:0;",
+        "const key='endsWith';return 'abc'[key]('c')?1:0;",
+        "return 'abc'.endsWith('c').length;",
+        "return 'abc'.endsWith('c');",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    assert!(
+        grunkalunka_compiler::compile(
+            "export function run(a: number,b: number){const s: string=a;return (s as string).endsWith('c')?1:0;}",
+            true,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn string_trim_uses_ecmascript_whitespace_and_line_terminators() {
     for body in [
         r"const ws='\t\v\f \u00a0\ufeff\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\n\r\u2028\u2029';const s=ws+'Heading'+ws;return s.trim()==='Heading'&&s.trimStart()==='Heading'+ws&&s.trimEnd()===ws+'Heading'?1:0;",

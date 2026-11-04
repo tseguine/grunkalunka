@@ -131,7 +131,9 @@ the independent A1 application acceptance below.
 text using the same managed String lane. They preserve exact UTF-16 contents,
 JavaScript whitespace rules and ordered surplus-argument effects, including
 suspension. See [the method contract](managed-string-methods.md) for admission
-limits and differential coverage. This compiler/runtime slice is independent
+limits and differential coverage. `endsWith` extends the search family with an
+optional ending position, preserving the distinction between omitted/undefined
+and explicit NaN endpoints. This compiler/runtime slice is independent
 of the concurrent A1 persistent-session and reversible-toggle application work.
 
 ## A1 scope and existing evidence

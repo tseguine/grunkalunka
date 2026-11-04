@@ -65,8 +65,9 @@
   struct.new $gc_value)
 
 ;; Exact code-unit comparison; no allocation, coercion, or normalization.
+;; Private modes: 0=startsWith, 1=includes, 2=endsWith.
 (func $gc_string_search (param $value (ref null $gc_value))
-  (param $needle (ref null $gc_value)) (param $position f64) (param $includes i32)
+  (param $needle (ref null $gc_value)) (param $position f64) (param $mode i32)
   (result i32)
   (local $source (ref null $gc_key)) (local $search (ref null $gc_key))
   (local $length i32) (local $count i32) (local $start i32)
@@ -76,6 +77,13 @@
   local.get $length f64.convert_i32_u local.get $position i32.const 0
   call $gc_string_position local.set $start
   local.get $count i32.eqz if i32.const 1 return end
+  local.get $mode i32.const 2 i32.eq
+  if
+    ;; An endsWith position bounds the suffix end, not its start. Check before
+    ;; subtraction so a longer needle cannot wrap into a valid array offset.
+    local.get $count local.get $start i32.gt_u if i32.const 0 return end
+    local.get $start local.get $count i32.sub local.set $start
+  end
   ;; Subtract after clamping, before adding offsets, to avoid Wasm32 overflow.
   local.get $count local.get $length local.get $start i32.sub i32.gt_u
   if i32.const 0 return end
@@ -92,7 +100,7 @@
       end
       i32.const 1 return
     end
-    local.get $includes i32.eqz
+    local.get $mode i32.const 1 i32.ne
     local.get $start local.get $last i32.eq i32.or
     if i32.const 0 return end
     local.get $start i32.const 1 i32.add local.set $start

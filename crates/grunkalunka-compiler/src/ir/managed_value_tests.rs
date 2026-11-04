@@ -1000,7 +1000,7 @@ fn string_search_requires_managed_operands_number_position_and_predicate_result(
         input,
         search,
         position,
-        includes,
+        kind,
     } = function.body.operations[index].kind
     else {
         unreachable!()
@@ -1020,7 +1020,7 @@ fn string_search_requires_managed_operands_number_position_and_predicate_result(
             input,
             search,
             position,
-            includes,
+            kind,
         };
         assert!(verify_module(&module).is_err());
     }
