@@ -632,6 +632,300 @@ test('failed native reload inspection or paint preserves document, count, viewpo
   }
 });
 
+test('owned note selection reads fixed real WIT notes and shares the lifetime input budget',
+  { timeout: 180_000 }, async () => {
+    const notes = [join(scratch, 'selection-a.md'), join(scratch, 'selection-b.md')];
+    await writeFile(notes[0], document.sourceBytes);
+    await writeFile(notes[1], longDocument.sourceBytes);
+    const loads = [];
+    const active = session({ maxEvents: 8,
+      noteSelection: { labels: ['Short note', 'Long note'], selectedId: 0, load: id => {
+        loads.push(id);
+        return loadNoteDocumentSync({ profile: 'granted', note: notes[id], binaryTarget: target });
+      } } });
+    const initial = active.snapshot();
+    assert.deepEqual(initial.noteChoices, [{ id: 0, label: 'Short note' }, { id: 1, label: 'Long note' }]);
+    assert.equal(initial.selectedNoteId, 0);
+    assert.deepEqual(loads, [], 'construction retains the supplied initial document without loading');
+
+    const selected = active.selectNote(1);
+    assert.deepEqual([selected.sequence, selected.status, selected.changed], [1, 'ok', true]);
+    assert.deepEqual([active.snapshot().selectedNoteId, active.snapshot().visibleCount,
+      active.snapshot().scrollY], [1, 64, 0]);
+    assert.match(active.snapshot().scene.html, />Heading 64<\/li>/);
+    const collapsed = active.activate(active.snapshot().controlPoint);
+    assert.deepEqual([collapsed.sequence, collapsed.service.permittedCount, collapsed.expanded],
+      [2, 64, 0], 'source actions receive the selected document heading count');
+    assert.equal(active.activate(active.snapshot().controlPoint).sequence, 3);
+    const repeated = active.selectNote(1);
+    assert.deepEqual([repeated.sequence, repeated.status, repeated.changed], [4, 'ok', false]);
+    assert.deepEqual(loads, [1], 'selecting the committed ID does not reload it');
+    assert.equal(active.scrollTo(16).sequence, 5);
+    const refreshed = active.reload();
+    assert.deepEqual([refreshed.sequence, refreshed.changed, active.snapshot().scrollY], [6, false, 16]);
+    assert.equal(active.selectNote(0).sequence, 7);
+    assert.deepEqual([active.snapshot().selectedNoteId, active.snapshot().visibleCount,
+      active.snapshot().scrollY], [0, 2, 0], 'switching notes starts at the top');
+    assert.deepEqual(active.snapshot().pixels, initial.pixels);
+    const shortAction = active.activate(active.snapshot().controlPoint);
+    assert.deepEqual([shortAction.sequence, shortAction.service.permittedCount], [8, 2]);
+    assert.throws(() => active.selectNote(1), /event limit/);
+    assert.throws(() => active.reload(), /event limit/);
+    assert.deepEqual(loads, [1, 1, 0], 'past-limit inputs cannot read any note');
+  });
+
+test('owned note catalogs validate before native work and copy labels, identity and loader',
+  { timeout: 120_000 }, () => {
+    const absent = join(scratch, 'must-not-execute-for-invalid-catalog');
+    const valid = { labels: ['A', 'B'], selectedId: 0, load: () => document };
+    const invalid = [null, [], {}, { ...valid, labels: [] },
+      { ...valid, labels: Array(9).fill('A') }, { ...valid, labels: new Array(2) },
+      { ...valid, labels: [''] }, { ...valid, labels: ['a'.repeat(257)] },
+      { ...valid, labels: ['é'.repeat(129)] }, { ...valid, labels: ['A\nB'] },
+      { ...valid, labels: ['A\0B'] }, { ...valid, labels: ['A\x7fB'] },
+      { ...valid, labels: [1] }, { ...valid, labels: 'A' },
+      ...[-1, 2, 0.5, NaN, Infinity, '0', undefined].map(selectedId => ({ ...valid, selectedId })),
+      ...[null, 1, 'load'].map(load => ({ ...valid, load }))];
+    for (const noteSelection of invalid) {
+      assert.throws(() => session({ executable: absent, noteSelection }), /Invalid A1 note selection/);
+    }
+    assert.throws(() => session({ executable: absent, noteSelection: valid,
+      reloadDocument: () => document }), /Invalid A1 session arguments/);
+
+    const labels = ['é'.repeat(128), ...Array.from({ length: 7 }, (_, index) => 'Note ' + (index + 1))];
+    const expected = labels.map((label, id) => ({ id, label }));
+    const replacement = { ...document, sourceBytes: Buffer.from(document.sourceBytes),
+      headings: document.headings.map(heading => ({ ...heading })) };
+    const loads = [];
+    const configuration = { labels, selectedId: 7, load: function (id) {
+      assert.equal(this, undefined, 'the loader receives no retained catalog as its receiver');
+      loads.push(id);
+      return replacement;
+    } };
+    const active = session({ noteSelection: configuration });
+    labels.fill('Caller mutation');
+    labels.length = 0;
+    configuration.selectedId = 0;
+    configuration.load = () => { throw new Error('replaced caller loader'); };
+    const initial = active.snapshot();
+    assert.deepEqual(initial.noteChoices, expected);
+    assert.equal(initial.selectedNoteId, 7);
+    const exposed = active.snapshot();
+    exposed.noteChoices[0].label = 'Changed snapshot';
+    exposed.noteChoices[0].id = 7;
+    exposed.noteChoices.length = 0;
+    exposed.selectedNoteId = 0;
+    assert.deepEqual(active.snapshot(), initial);
+
+    const result = active.selectNote(0);
+    assert.deepEqual([result.changed, active.snapshot().selectedNoteId], [true, 0]);
+    assert.deepEqual(loads, [0]);
+    const retained = active.snapshot();
+    replacement.sourceBytes.fill(0);
+    replacement.headings[0].text = 'Mutated selected document';
+    replacement.headings.length = 0;
+    result.pixels.fill(0);
+    assert.deepEqual(active.snapshot(), retained);
+    assert.deepEqual(active.snapshot().noteChoices, expected);
+    assert.equal(active.activate(active.snapshot().controlPoint).service.permittedCount, 2);
+  });
+
+test('owned selection availability and document privacy remain independent of the UI grant',
+  { timeout: 120_000 }, () => {
+    const unconfigured = session();
+    const original = unconfigured.snapshot();
+    assert.deepEqual([original.noteChoices, original.selectedNoteId], [[], null]);
+    assert.throws(() => unconfigured.selectNote(0), { code: 'A1_SELECTION_UNAVAILABLE' });
+    assert.deepEqual(unconfigured.snapshot(), original);
+    const denied = { profile: 'denied', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 0 };
+    for (const options of [{ document: denied }, { uiProfile: 'denied' }]) {
+      let loads = 0;
+      const active = session({ ...options, maxEvents: 3,
+        noteSelection: { labels: ['Private A', 'Private B'], selectedId: 0, load: () => {
+          loads++;
+          throw new Error('denied selection must not load');
+        } } });
+      const initial = active.snapshot();
+      if (options.document === denied) {
+        assert.deepEqual([initial.noteChoices, initial.selectedNoteId], [[], null]);
+      } else {
+        assert.deepEqual(initial.noteChoices, [{ id: 0, label: 'Private A' }, { id: 1, label: 'Private B' }]);
+        assert.equal(initial.selectedNoteId, 0, 'UI denial preserves authorized read-only metadata');
+        assert.match(initial.scene.html, />Root<\/li>/);
+      }
+      for (const [index, operation] of [
+        () => active.selectNote(1), () => active.selectNote(0), () => active.reload(),
+      ].entries()) {
+        const result = operation();
+        assert.deepEqual([result.sequence, result.status, result.changed], [index + 1, 'denied', false]);
+        result.pixels.fill(0);
+        assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: index + 1 });
+      }
+      assert.throws(() => active.selectNote(1), /event limit/);
+      assert.throws(() => active.reload(), /event limit/);
+      assert.equal(loads, 0, 'both grants precede loading and the same-ID no-op');
+    }
+  });
+
+test('owned selection rejects unknown IDs before admission and counts same-ID no-ops', () => {
+  let loads = 0;
+  const active = session({ maxEvents: 2,
+    noteSelection: { labels: ['A', 'B'], selectedId: 0, load: () => {
+      loads++;
+      return document;
+    } } });
+  const initial = active.snapshot();
+  for (const id of [-1, 2, 0.5, NaN, Infinity, '1', null, undefined, {}, 0xffffffff]) {
+    assert.throws(() => active.selectNote(id), /Invalid A1 note ID/);
+    assert.deepEqual(active.snapshot(), initial);
+  }
+  for (const sequence of [1, 2]) {
+    const result = active.selectNote(0);
+    assert.deepEqual([result.sequence, result.status, result.changed], [sequence, 'ok', false]);
+    result.pixels.fill(0);
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: sequence });
+  }
+  assert.throws(() => active.selectNote(1), /event limit/);
+  assert.throws(() => active.reload(), /event limit/);
+  assert.equal(loads, 0);
+});
+
+test('owned selection preserves expansion through empty notes and resets only switched-note scrolling',
+  { timeout: 180_000 }, () => {
+    const empty = { profile: 'granted', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 1 };
+    const notes = [longDocument, empty, document];
+    const active = session({ document: longDocument,
+      noteSelection: { labels: ['Long', 'Empty', 'Short'], selectedId: 0, load: id => notes[id] } });
+    active.scrollTo(16);
+    const scrolled = active.snapshot();
+    assert.equal(active.selectNote(0).changed, false);
+    assert.deepEqual(active.snapshot(), { ...scrolled, eventsProcessed: 2 });
+    active.selectNote(1);
+    const blank = active.snapshot();
+    assert.deepEqual([blank.selectedNoteId, blank.expanded, blank.visibleCount,
+      blank.scrollY, blank.maxScrollY, blank.controlPoint], [1, 0, 0, 0, 0, null]);
+    assert.equal(blank.noteChoices.length, 3, 'an empty note keeps the available catalog');
+    assert.match(blank.scene.html, /No headings/);
+    active.selectNote(0);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
+      active.snapshot().scrollY], [1, 64, 0]);
+    active.scrollTo(16);
+    assert.equal(active.reload().changed, false);
+    assert.equal(active.snapshot().scrollY, 16, 'same-note reload retains its clamped offset');
+
+    active.activate(active.snapshot().controlPoint);
+    active.selectNote(1);
+    active.selectNote(2);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
+      active.snapshot().scrollY], [0, 0, 0], 'a committed collapse survives switching through an empty note');
+    assert.equal(active.activate(active.snapshot().controlPoint).service.permittedCount, 2);
+    active.selectNote(1);
+    active.selectNote(0);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount], [1, 64]);
+
+    for (const expanded of [0, 1]) {
+      const initiallyEmpty = session({ document: empty, expanded,
+        noteSelection: { labels: ['Empty', 'Outline'], selectedId: 0,
+          load: () => document } });
+      initiallyEmpty.selectNote(1);
+      assert.equal(initiallyEmpty.snapshot().expanded, expanded);
+    }
+  });
+
+test('different note IDs commit identity even when their document bytes and pixels match', () => {
+  const notes = [document, document];
+  const loads = [];
+  const active = session({ noteSelection: { labels: ['A', 'B'], selectedId: 0, load: id => {
+    loads.push(id);
+    return notes[id];
+  } } });
+  const initial = active.snapshot();
+  const selected = active.selectNote(1);
+  assert.deepEqual([selected.sequence, selected.status, selected.changed], [1, 'ok', true]);
+  assert.deepEqual(active.snapshot(), { ...initial, selectedNoteId: 1, eventsProcessed: 1 });
+  notes[1] = longDocument;
+  const refreshed = active.reload();
+  assert.deepEqual([refreshed.sequence, refreshed.changed, active.snapshot().selectedNoteId,
+    active.snapshot().visibleCount], [2, true, 1, 64]);
+  assert.deepEqual(loads, [1, 1], 'reload follows committed identity rather than content equality');
+});
+
+test('failed reads and invalid selected documents consume attempts without publishing identity', () => {
+  const cases = [
+    [() => { throw new Error('injected selected-note read failure'); }, /injected selected-note read failure/],
+    [() => ({ profile: 'denied', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 0 }),
+      /original grant/],
+    [() => ({ ...document, sourceBytes: Buffer.from([0xff]) }), TypeError],
+    [() => ({ ...document, headings: [{ ...document.headings[0], end: 9000 }] }), RangeError],
+    [() => ({ ...document, sourceBytes: Buffer.alloc(4097) }), /bounded authorized A1 document/],
+    [() => Promise.resolve(document), /bounded authorized A1 document/],
+  ];
+  let candidate;
+  const loads = [];
+  const active = session({ maxEvents: cases.length + 1,
+    noteSelection: { labels: ['A', 'B'], selectedId: 0, load: id => {
+      loads.push(id);
+      return candidate();
+    } } });
+  const initial = active.snapshot();
+  for (const [index, [load, expected]] of cases.entries()) {
+    candidate = load;
+    assert.throws(() => active.selectNote(1), expected);
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: index + 1 });
+  }
+  candidate = () => longDocument;
+  assert.deepEqual([active.selectNote(1).changed, active.snapshot().selectedNoteId,
+    active.snapshot().visibleCount, active.snapshot().eventsProcessed], [true, 1, 64, 7]);
+  assert.throws(() => active.selectNote(0), /event limit/);
+  assert.throws(() => active.reload(), /event limit/);
+  assert.deepEqual(loads, Array(7).fill(1));
+});
+
+test('failed native selection retains the old reload target, source count and complete frame',
+  { timeout: 180_000 }, async t => {
+    for (const phase of ['--view', '--ppm']) {
+      const note = join(scratch, 'selection-rollback-' + phase.slice(2) + '.md');
+      await writeFile(note, longDocument.sourceBytes);
+      const loads = [];
+      const active = session({ document: longDocument,
+        noteSelection: { labels: ['A', 'B'], selectedId: 0, load: id => {
+          loads.push(id);
+          return id === 0 ?
+            loadNoteDocumentSync({ profile: 'granted', note, binaryTarget: target }) : document;
+        } } });
+      active.scrollTo(16);
+      const before = active.snapshot();
+      const actualSpawn = childProcess.spawnSync;
+      const intercepted = t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+        if (command === executable && args[0] === phase) {
+          return { error: new Error('injected selection frame failure') };
+        }
+        return actualSpawn(command, args, options);
+      });
+      syncBuiltinESMExports();
+      try {
+        assert.throws(() => active.selectNote(1), /injected selection frame failure/);
+      } finally {
+        intercepted.mock.restore();
+        syncBuiltinESMExports();
+      }
+      assert.deepEqual(active.snapshot(), { ...before, eventsProcessed: 2 });
+      const collapsed = active.activate(before.controlPoint);
+      assert.equal(collapsed.service.permittedCount, 64, 'failure retains A and its service count');
+      await writeFile(note, '# Updated A\n## Second\n### Third\n');
+      assert.deepEqual([active.reload().changed, active.snapshot().selectedNoteId,
+        active.snapshot().expanded], [true, 0, 0]);
+      const reopened = active.activate(active.snapshot().controlPoint);
+      assert.equal(reopened.service.permittedCount, 3, 'reload reads modified A after B fails');
+      assert.match(active.snapshot().scene.html, />Updated A<\/li>/);
+      assert.equal(active.selectNote(1).changed, true);
+      assert.deepEqual([active.snapshot().selectedNoteId, active.snapshot().visibleCount,
+        active.snapshot().scrollY], [1, 2, 0]);
+      assert.equal(active.activate(active.snapshot().controlPoint).service.permittedCount, 2);
+      assert.deepEqual(loads, [1, 0, 1]);
+    }
+  });
+
 test('owned scrolling exposes the long outline and keeps native control targeting coherent', () => {
   const active = session({ document: longDocument });
   const initial = active.snapshot();

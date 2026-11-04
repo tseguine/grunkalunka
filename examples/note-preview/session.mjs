@@ -1,6 +1,7 @@
 // Private A1 host session: retain one authorized document and committed view
-// between pointer, scroll and reload inputs. Each source-service activation still uses a fresh
-// component Store; this does not retain guest globals or establish a public UI ABI.
+// between pointer, scroll, reload and note-selection inputs. Each source-service
+// activation uses a fresh component Store; this does not retain guest globals or
+// establish a public UI ABI.
 import { spawnSync } from 'node:child_process';
 import { prepareSelectedNoteScene } from './scene.mjs';
 import { inspectNoteViewport, invokeUiService, paintNoteScene } from './service-interaction.mjs';
@@ -8,6 +9,8 @@ import { inspectNoteViewport, invokeUiService, paintNoteScene } from './service-
 const COMPONENT_HEADER = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
 const MAX_COMPONENT = 4 * 1024 * 1024;
 const MAX_EVENTS = 256;
+const MAX_NOTE_CHOICES = 8;
+const MAX_NOTE_LABEL_BYTES = 256;
 
 function ownComponent(component) {
   if (!(component instanceof Uint8Array) ||
@@ -16,6 +19,30 @@ function ownComponent(component) {
     throw new TypeError('Expected bounded A1 component bytes');
   }
   return Buffer.from(component);
+}
+
+function ownNoteSelection(noteSelection) {
+  if (noteSelection === undefined) return undefined;
+  if (noteSelection === null || typeof noteSelection !== 'object' || Array.isArray(noteSelection)) {
+    throw new TypeError('Invalid A1 note selection');
+  }
+  const { labels, selectedId, load } = noteSelection;
+  const count = Array.isArray(labels) ? labels.length : 0;
+  if (!Number.isSafeInteger(count) || count < 1 || count > MAX_NOTE_CHOICES ||
+      !Number.isSafeInteger(selectedId) || selectedId < 0 || selectedId >= count ||
+      typeof load !== 'function') {
+    throw new TypeError('Invalid A1 note selection');
+  }
+  const copiedLabels = [];
+  for (let id = 0; id < count; id++) {
+    const label = labels[id];
+    if (typeof label !== 'string' || label.length === 0 ||
+        Buffer.byteLength(label, 'utf8') > MAX_NOTE_LABEL_BYTES || /[\u0000-\u001f\u007f]/.test(label)) {
+      throw new TypeError('Invalid A1 note selection label');
+    }
+    copiedLabels.push(label);
+  }
+  return { labels: copiedLabels, selectedId, load };
 }
 
 function ownDocument(document) {
@@ -81,15 +108,19 @@ function hitControl(executable, scene, x, y, scrollY) {
 
 export function createNoteSession({
   executable, serviceExecutable, component, document, expanded = 1,
-  uiProfile = 'granted', maxEvents = MAX_EVENTS, reloadDocument,
+  uiProfile = 'granted', maxEvents = MAX_EVENTS, reloadDocument, noteSelection,
 }) {
   if (![executable, serviceExecutable].every(value =>
     typeof value === 'string' && value.length > 0 && !value.includes('\0')) ||
       ![0, 1].includes(expanded) || !['granted', 'denied'].includes(uiProfile) ||
       !Number.isSafeInteger(maxEvents) || maxEvents < 1 || maxEvents > MAX_EVENTS ||
-      (reloadDocument !== undefined && typeof reloadDocument !== 'function')) {
+      (reloadDocument !== undefined && typeof reloadDocument !== 'function') ||
+      (reloadDocument !== undefined && noteSelection !== undefined)) {
     throw new TypeError('Invalid A1 session arguments');
   }
+  const selection = ownNoteSelection(noteSelection);
+  const loadSelectedNote = selection?.load;
+  let selectedNoteId = selection?.selectedId ?? null;
   const payload = ownComponent(component);
   let owned = ownDocument(document);
   const documentProfile = owned.profile;
@@ -104,7 +135,10 @@ export function createNoteSession({
     return { expanded: currentExpanded, visibleCount: currentScene.visibleCount,
       scene: copyScene(currentScene), pixels: Buffer.from(currentPixels), eventsProcessed,
       scrollY: currentViewport.scrollY, maxScrollY: currentViewport.maxScrollY,
-      controlPoint: currentViewport.controlPoint === null ? null : { ...currentViewport.controlPoint } };
+      controlPoint: currentViewport.controlPoint === null ? null : { ...currentViewport.controlPoint },
+      noteChoices: documentProfile === 'granted' && selection !== undefined ?
+        selection.labels.map((label, id) => ({ id, label })) : [],
+      selectedNoteId: documentProfile === 'granted' ? selectedNoteId : null };
   }
 
   function nextAttempt() {
@@ -132,8 +166,33 @@ export function createNoteSession({
       beforeScrollY, scrollY: currentViewport.scrollY, pixels: Buffer.from(currentPixels) };
   }
 
+  function replaceDocument(nextDocument, nextNoteId, scrollY) {
+    const nextOwned = ownDocument(nextDocument);
+    if (nextOwned.profile !== documentProfile) {
+      throw new Error('Replacement A1 document profile differs from the original grant');
+    }
+    const nextExpanded = nextOwned.headings.length > 0 ? preferredExpanded : 0;
+    const nextScene = sessionScene(nextOwned, nextExpanded);
+    const topViewport = inspectNoteViewport(executable, nextScene);
+    const nextY = Math.min(scrollY, topViewport.maxScrollY);
+    const nextViewport = nextY === 0 ? topViewport :
+      inspectNoteViewport(executable, nextScene, nextY);
+    const nextPixels = paintNoteScene(executable, nextScene, nextY);
+    const changed = !owned.sourceBytes.equals(nextOwned.sourceBytes) ||
+      JSON.stringify(owned.headings) !== JSON.stringify(nextOwned.headings);
+    // The reload target belongs to the same publication as the document and
+    // native view. A failed selection cannot redirect a subsequent reload.
+    owned = nextOwned;
+    selectedNoteId = nextNoteId;
+    currentExpanded = nextExpanded;
+    currentScene = nextScene;
+    currentViewport = nextViewport;
+    currentPixels = nextPixels;
+    return changed;
+  }
+
   function reload() {
-    if (reloadDocument === undefined) {
+    if (reloadDocument === undefined && selection === undefined) {
       const error = new Error('A1 session reload is unavailable');
       error.code = 'A1_RELOAD_UNAVAILABLE';
       throw error;
@@ -142,29 +201,32 @@ export function createNoteSession({
     if (documentProfile !== 'granted' || uiProfile !== 'granted') {
       return { sequence, status: 'denied', changed: false, pixels: Buffer.from(currentPixels) };
     }
-    // The fixed trusted loader runs only after authority and lifetime admission.
-    // Its failures consume the attempt without replacing any committed state.
-    const nextOwned = ownDocument(reloadDocument());
-    if (nextOwned.profile !== documentProfile) {
-      throw new Error('Reloaded A1 document profile differs from the original grant');
-    }
-    const nextExpanded = nextOwned.headings.length > 0 ? preferredExpanded : 0;
-    const nextScene = sessionScene(nextOwned, nextExpanded);
-    const topViewport = inspectNoteViewport(executable, nextScene);
-    const nextY = Math.min(currentViewport.scrollY, topViewport.maxScrollY);
-    const nextViewport = nextY === 0 ? topViewport :
-      inspectNoteViewport(executable, nextScene, nextY);
-    const nextPixels = paintNoteScene(executable, nextScene, nextY);
-    const changed = !owned.sourceBytes.equals(nextOwned.sourceBytes) ||
-      JSON.stringify(owned.headings) !== JSON.stringify(nextOwned.headings);
-    // Publish the owned document and its complete native view together. Empty
-    // documents normalize visible expansion without discarding the preference.
-    owned = nextOwned;
-    currentExpanded = nextExpanded;
-    currentScene = nextScene;
-    currentViewport = nextViewport;
-    currentPixels = nextPixels;
+    // Fixed trusted loaders run only after authority and lifetime admission.
+    const noteId = selectedNoteId;
+    const scrollY = currentViewport.scrollY;
+    const nextDocument = loadSelectedNote === undefined ? reloadDocument() : loadSelectedNote(noteId);
+    const changed = replaceDocument(nextDocument, noteId, scrollY);
     return { sequence, status: 'ok', changed, pixels: Buffer.from(currentPixels) };
+  }
+
+  function selectNote(id) {
+    if (selection === undefined) {
+      const error = new Error('A1 note selection is unavailable');
+      error.code = 'A1_SELECTION_UNAVAILABLE';
+      throw error;
+    }
+    if (!Number.isSafeInteger(id) || id < 0 || id >= selection.labels.length) {
+      throw new TypeError('Invalid A1 note ID');
+    }
+    const sequence = nextAttempt();
+    if (documentProfile !== 'granted' || uiProfile !== 'granted') {
+      return { sequence, status: 'denied', changed: false, pixels: Buffer.from(currentPixels) };
+    }
+    if (id === selectedNoteId) {
+      return { sequence, status: 'ok', changed: false, pixels: Buffer.from(currentPixels) };
+    }
+    replaceDocument(loadSelectedNote(id), id, 0);
+    return { sequence, status: 'ok', changed: true, pixels: Buffer.from(currentPixels) };
   }
 
   function activate({ x, y }) {
@@ -212,5 +274,5 @@ export function createNoteSession({
       pixels: Buffer.from(currentPixels), service };
   }
 
-  return Object.freeze({ snapshot, activate, scrollTo, reload });
+  return Object.freeze({ snapshot, activate, scrollTo, reload, selectNote });
 }
