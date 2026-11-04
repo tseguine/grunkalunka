@@ -894,7 +894,7 @@
     {
       "id": "for-in-of",
       "kind": "open-requirement",
-      "assessment": "for-in/for-of require enumeration or iterator semantics.",
+      "assessment": "Local const/let identifier for-of bindings now iterate over source-proven managed arrays with ordered element selection and fresh lexical bindings. The exact for-of fixture remains rejected because returning its boxed selected element requires numeric consumption in the numeric ABI. for-in, general iterables, for-await-of and the other iteration binding forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements",

@@ -67,6 +67,10 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
                         pending.push(Task::PretestLoop);
                         pending.push(Task::Statement(&loop_.body, depth + 1));
                     }
+                    Statement::ForOfStatement(loop_) => {
+                        pending.push(Task::PretestLoop);
+                        pending.push(Task::Statement(&loop_.body, depth + 1));
+                    }
                     Statement::DoWhileStatement(loop_) => {
                         pending.push(Task::DoLoop);
                         pending.push(Task::Statement(&loop_.body, depth + 1));
