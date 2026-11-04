@@ -1,10 +1,10 @@
-//! Independent resolved input for the fixed-row browser witness. No HTML/CSS
+//! Independent resolved input for the fixed-row/alignment browser witness. No HTML/CSS
 //! parser or browser receipt is used to construct these native boxes or hits.
 
 use grunkalunka_layout::hit_test::{HitNode, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, DescendantClip, Display, Edges, FlexWrap, Frame, Length, Rect, RelativeOffset, Style,
-    layout,
+    Block, DescendantClip, Display, Edges, FlexAlign, FlexJustify, FlexWrap, Frame, Length, Rect,
+    RelativeOffset, Style, layout,
 };
 
 const IDS: [(&str, usize); 6] = [
@@ -26,7 +26,7 @@ const PROBES: [(&str, u32, u32); 9] = [
     ("gap", 95, 30),
     ("outside", 250, 50),
 ];
-const PHASES: [&str; 10] = [
+const PHASES: [&str; 21] = [
     "nowrap",
     "wrap",
     "wide",
@@ -36,6 +36,17 @@ const PHASES: [&str; 10] = [
     "relative",
     "clipped",
     "scrolled",
+    "justifyEnd",
+    "justifyCenter",
+    "spaceBetween",
+    "alignEnd",
+    "alignCenter",
+    "wrapAlign",
+    "wrapSingle",
+    "safeOverflow",
+    "relativeAlign",
+    "clippedAlign",
+    "scrolledAlign",
     "restored",
 ];
 
@@ -138,7 +149,19 @@ fn source() -> [Block; 8] {
 
 fn phase_source(phase: &str) -> ([Block; 8], u32) {
     let mut blocks = source();
-    if phase != "nowrap" && phase != "restored" {
+    if matches!(
+        phase,
+        "wrap"
+            | "wide"
+            | "columnGap"
+            | "rowGap"
+            | "hidden"
+            | "relative"
+            | "clipped"
+            | "scrolled"
+            | "wrapAlign"
+            | "wrapSingle"
+    ) {
         blocks[1].style.flex_wrap = FlexWrap::Wrap;
     }
     match phase {
@@ -151,10 +174,61 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
             blocks[1].style.height = Length::Px(36);
             blocks[1].style.descendant_clip = DescendantClip::PaddingBox;
         }
+        "justifyEnd" | "justifyCenter" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.justify_content = if phase == "justifyEnd" {
+                FlexJustify::SafeEnd
+            } else {
+                FlexJustify::SafeCenter
+            };
+        }
+        "spaceBetween" => {
+            blocks[1].style.width = Length::Px(230);
+            blocks[1].style.justify_content = FlexJustify::SpaceBetween;
+        }
+        "alignEnd" | "alignCenter" | "wrapSingle" | "scrolledAlign" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.height = Length::Px(60);
+            blocks[1].style.align_items = if phase == "alignEnd" || phase == "wrapSingle" {
+                FlexAlign::SafeEnd
+            } else {
+                FlexAlign::SafeCenter
+            };
+        }
+        "wrapAlign" => {
+            blocks[1].style.justify_content = FlexJustify::SpaceBetween;
+            blocks[1].style.align_items = FlexAlign::SafeCenter;
+        }
+        "safeOverflow" => {
+            blocks[1].style.height = Length::Px(20);
+            blocks[1].style.justify_content = FlexJustify::SafeEnd;
+            blocks[1].style.align_items = FlexAlign::SafeEnd;
+        }
+        "relativeAlign" | "clippedAlign" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.justify_content = FlexJustify::SafeCenter;
+            if phase == "relativeAlign" {
+                blocks[1].style.height = Length::Px(60);
+                blocks[1].style.align_items = FlexAlign::SafeCenter;
+                blocks[4].style.relative_offset = RelativeOffset { x: 8, y: 9 };
+            } else {
+                blocks[1].style.width = Length::Px(216);
+                blocks[1].style.height = Length::Px(28);
+                blocks[1].style.align_items = FlexAlign::SafeEnd;
+                blocks[1].style.descendant_clip = DescendantClip::PaddingBox;
+            }
+        }
         "nowrap" | "wrap" | "scrolled" | "restored" => {}
         _ => panic!("unknown native flex phase"),
     }
-    (blocks, if phase == "scrolled" { 10 } else { 0 })
+    (
+        blocks,
+        if matches!(phase, "scrolled" | "scrolledAlign") {
+            10
+        } else {
+            0
+        },
+    )
 }
 
 fn rect(x: u32, y: u32, width: u32, height: u32) -> Option<Rect> {
@@ -168,6 +242,9 @@ fn rect(x: u32, y: u32, width: u32, height: u32) -> Option<Rect> {
 
 // Literal independent geometry, in IDS order. The row's normal-flow outer
 // widths are 64, 64 and 42 pixels; its item heights are 24, 42 and 18 pixels.
+// At width 220, 30 pixels remain after the existing gaps. A nowrap content
+// height of 60 leaves cross-axis spaces of 36, 18 and 42. Wrapped lines keep
+// their intrinsic 42/18 heights even when the host has an explicit height.
 // These expected values are not derived by the engine under test.
 fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
     let mut expected = [
@@ -211,6 +288,77 @@ fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
             expected[3] = None;
             expected[4] = rect(100, 26, 42, 18);
             expected[5] = rect(0, 62, 180, 12);
+        }
+        "justifyEnd" => {
+            expected[0] = rect(20, 20, 232, 54);
+            expected[1] = rect(56, 26, 64, 24);
+            expected[2] = rect(135, 28, 56, 36);
+            expected[3] = rect(138, 31, 25, 8);
+            expected[4] = rect(204, 26, 42, 18);
+        }
+        "justifyCenter" => {
+            expected[0] = rect(20, 20, 232, 54);
+            expected[1] = rect(41, 26, 64, 24);
+            expected[2] = rect(120, 28, 56, 36);
+            expected[3] = rect(123, 31, 25, 8);
+            expected[4] = rect(189, 26, 42, 18);
+        }
+        "spaceBetween" => {
+            expected[0] = rect(20, 20, 242, 54);
+            expected[2] = rect(125, 28, 56, 36);
+            expected[3] = rect(128, 31, 25, 8);
+            expected[4] = rect(214, 26, 42, 18);
+        }
+        "alignEnd" => {
+            expected[0] = rect(20, 20, 232, 72);
+            expected[1] = rect(26, 62, 64, 24);
+            expected[2] = rect(105, 46, 56, 36);
+            expected[3] = rect(108, 49, 25, 8);
+            expected[4] = rect(174, 68, 42, 18);
+            expected[5] = rect(0, 98, 180, 12);
+        }
+        "alignCenter" | "scrolledAlign" => {
+            expected[0] = rect(20, 20, 232, 72);
+            expected[1] = rect(26, 44, 64, 24);
+            expected[2] = rect(105, 37, 56, 36);
+            expected[3] = rect(108, 40, 25, 8);
+            expected[4] = rect(174, 47, 42, 18);
+            expected[5] = rect(0, 98, 180, 12);
+        }
+        "wrapAlign" => {
+            expected[0] = rect(20, 20, 162, 80);
+            expected[1] = rect(26, 35, 64, 24);
+            expected[2] = rect(117, 28, 56, 36);
+            expected[3] = rect(120, 31, 25, 8);
+            expected[4] = rect(26, 76, 42, 18);
+            expected[5] = rect(0, 106, 180, 12);
+        }
+        "wrapSingle" => {
+            expected[0] = rect(20, 20, 232, 72);
+            expected[1] = rect(26, 44, 64, 24);
+            expected[4] = rect(174, 50, 42, 18);
+            expected[5] = rect(0, 98, 180, 12);
+        }
+        "safeOverflow" => {
+            expected[0] = rect(20, 20, 162, 32);
+            expected[4] = rect(174, 28, 42, 18);
+            expected[5] = rect(0, 58, 180, 12);
+        }
+        "relativeAlign" => {
+            expected[0] = rect(20, 20, 232, 72);
+            expected[1] = rect(41, 44, 64, 24);
+            expected[2] = rect(128, 46, 56, 36);
+            expected[3] = rect(131, 49, 25, 8);
+            expected[4] = rect(189, 47, 42, 18);
+            expected[5] = rect(0, 98, 180, 12);
+        }
+        "clippedAlign" => {
+            expected[0] = rect(20, 20, 228, 40);
+            expected[1] = rect(39, 30, 64, 24);
+            expected[2] = rect(118, 28, 56, 36);
+            expected[3] = rect(121, 31, 25, 8);
+            expected[4] = rect(187, 36, 42, 18);
+            expected[5] = rect(0, 66, 180, 12);
         }
         _ => panic!("unknown native flex phase"),
     }
@@ -261,6 +409,136 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
             expected[4] = Some("row-after");
         }
         "clipped" => expected[2] = Some("row-host"),
+        "justifyEnd" => {
+            expected = [
+                Some("row-host"),
+                Some("row-a"),
+                Some("row-b"),
+                Some("row-after"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-a"),
+                Some("row-host"),
+            ]
+        }
+        "justifyCenter" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-after"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-a"),
+                Some("row-host"),
+            ]
+        }
+        "spaceBetween" => {
+            expected = [
+                Some("row-a"),
+                Some("row-host"),
+                Some("row-b"),
+                Some("row-after"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "alignEnd" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-a"),
+                Some("row-b"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "alignCenter" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-b"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "wrapAlign" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-c"),
+                Some("row-b"),
+                Some("row-after"),
+                Some("row-host"),
+                Some("row-host"),
+                None,
+            ]
+        }
+        "wrapSingle" | "scrolledAlign" => {
+            expected = [
+                Some("row-host"),
+                Some("row-inner"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-b"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "safeOverflow" => {
+            expected = [
+                Some("row-a"),
+                Some("row-inner"),
+                Some("row-c"),
+                None,
+                Some("row-after"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                None,
+            ]
+        }
+        "relativeAlign" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "clippedAlign" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                None,
+                None,
+                None,
+                Some("row-host"),
+                Some("row-a"),
+                None,
+            ]
+        }
         _ => panic!("unknown native flex phase"),
     }
     expected
@@ -323,6 +601,7 @@ fn receipt(phase: &str) -> (Frame, String) {
 
 fn main() {
     let mut baseline = None;
+    let mut aligned = None;
     let states = PHASES
         .into_iter()
         .map(|phase| {
@@ -331,6 +610,14 @@ fn main() {
                 baseline = Some(frame);
             } else if phase == "restored" {
                 assert_eq!(baseline.as_ref(), Some(&frame), "full frame restoration");
+            } else if phase == "alignCenter" {
+                aligned = Some(frame);
+            } else if phase == "scrolledAlign" {
+                assert_eq!(
+                    aligned.as_ref(),
+                    Some(&frame),
+                    "aligned scroll preserves full frame"
+                );
             }
             state
         })

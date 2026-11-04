@@ -119,4 +119,41 @@ test('live native/browser parity and independent negative controls',
         { kind: 'hit', path: '$.states.columnGap.hits.gap-wrap', left: 'row-c', right: 'row-host' },
       ]);
     });
+
+    await t.test('real flex justification mutation moves item subtrees and changes five hits', async () => {
+      const original = (await readFile(flexSourceFile)).toString('utf8');
+      const originalRule = '  host.style.justifyContent = "safe flex-end";\n  states.justifyEnd = sample();';
+      const changedRule = '  host.style.justifyContent = "flex-start";\n  states.justifyEnd = sample();';
+      assert.equal(original.split(originalRule).length, 2, 'one reviewed justifyEnd assignment');
+      const mutated = Buffer.from(original.replace(originalRule, changedRule));
+      const directory = join(out, 'flex-justify-sensitivity');
+      await mkdir(directory, { recursive: true });
+      const snapshot = join(directory, 'justify-end-mutation.html');
+      await writeFile(snapshot, mutated, { flag: 'wx', mode: 0o444 });
+      // This changes one phase's real declaration, preserving the independent
+      // native input and every existing phase and source-mutation control.
+      const capture = await collectOne(engine, {
+        browserTypes, playwrightVersion: version, fixturePath: snapshot,
+      });
+      await writeFile(join(directory, 'capture.json'),
+        JSON.stringify(capture, null, 2) + '\n', { flag: 'wx' });
+      const report = compareNativeFlexBridge(flexNative, capture, mutated);
+      await writeFile(join(directory, 'comparison.json'),
+        JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+      assert.equal(report.status, 'different', 'real CSS justification mutation must be detected');
+      assert.equal(report.conformance, 'not-assessed');
+      assert.deepEqual(report.invalid, []);
+      assert.deepEqual(report.incompatible, []);
+      assert.deepEqual(report.differences, [
+        { kind: 'geometry', path: '$.states.justifyEnd.boxes.row-a.x', left: 56, right: 26 },
+        { kind: 'geometry', path: '$.states.justifyEnd.boxes.row-b.x', left: 135, right: 105 },
+        { kind: 'geometry', path: '$.states.justifyEnd.boxes.row-inner.x', left: 138, right: 108 },
+        { kind: 'geometry', path: '$.states.justifyEnd.boxes.row-c.x', left: 204, right: 174 },
+        { kind: 'hit', path: '$.states.justifyEnd.hits.a', left: 'row-host', right: 'row-a' },
+        { kind: 'hit', path: '$.states.justifyEnd.hits.b', left: 'row-a', right: 'row-inner' },
+        { kind: 'hit', path: '$.states.justifyEnd.hits.nowrap', left: 'row-b', right: 'row-c' },
+        { kind: 'hit', path: '$.states.justifyEnd.hits.gap-wrap', left: 'row-host', right: 'row-b' },
+        { kind: 'hit', path: '$.states.justifyEnd.hits.gap', left: 'row-a', right: 'row-host' },
+      ]);
+    });
   });
