@@ -916,7 +916,7 @@
     {
       "id": "exceptions",
       "kind": "open-requirement",
-      "assessment": "Throw/catch/finally need exception values and completion/unwinding semantics.",
+      "assessment": "Locally caught primitive throws execute synchronously. Finally, throws across synchronous calls, uncaught synchronous throws and broader exception values still need completion/unwinding semantics.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-try-statement",
@@ -1221,13 +1221,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d66bca8a6c83f0ca28b4b433da842da4ef8ef0f0adf68da28d24ea738624a6f3",
       "group": "parameters"
-    },
-    {
-      "id": "gap-catch",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "982acc099faf201b17b7567aa5c2df65403c0136b17cc97ba70dc37b85fe79bc",
-      "group": "exceptions"
     },
     {
       "id": "gap-finally-return",

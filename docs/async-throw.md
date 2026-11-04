@@ -31,7 +31,9 @@ Async structural paths may return or throw, while implicit fallthrough remains
 excluded. Existing conservative loop/await path analysis still applies.
 
 `Exit::Throw` carries a visible General or AsyncValue reason in the async profile.
-The verifier rejects scalar, missing or out-of-scope definitions at this exit, and synchronous emission rejects throw IR.
+The verifier rejects scalar, missing or out-of-scope definitions at this exit.
+Synchronous emission separately admits [locally caught primitive throws](synchronous-errors.md);
+an uncaught throw still requires an async completion boundary.
 The coroutine splitter emits a direct copy-and-jump to a handler, or terminal
 protocol status 3 when uncaught. The Rust and JS adapters validate the completion
 encoding, including opt-in Promise references, and settle status 3 immediately. Status 2 retains its separate meaning:
@@ -44,8 +46,10 @@ await can still settle the activation. A 33rd await, malformed protocol, fuel
 exhaustion or Wasm trap stays a terminal host failure and cannot enter a source catch.
 Source-size, statement, local, nesting, graph and fuel limits remain in force.
 
-Synchronous/lifted throw, Strings, heap objects, function reasons and general
-thenable values remain outside this unit. Intrinsic Promise.reject(p) also
+Synchronous throws crossing function boundaries, Strings, heap objects, function
+reasons and general thenable values remain outside this unit. Synchronous helpers
+and lifted closures may handle their own primitive throws locally.
+Intrinsic Promise.reject(p) also
 preserves the raw reason without adoption or handling. This is a bounded exception
 slice, not general JS exception or async conformance.
 
@@ -53,7 +57,7 @@ The maintained async suite compares native JS with Wasmtime and the JS adapter f
 primitive results, Number bits, exact FIFO traces and job counts. Cases cover direct
 and awaited throws, operand effects, nested handlers, loops, captured catch cells,
 all represented reasons and rejection after 32 awaits. Boundary checks retain
-synchronous-profile diagnostics, erased TypeScript behavior, canonical primitive
+uncaught synchronous-profile diagnostics, erased TypeScript behavior, canonical primitive
 encodings on every status at start/resume, and terminal host fuel/job failures.
 
 Combined cases also construct and return higher-order functions through local block

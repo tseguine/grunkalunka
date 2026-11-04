@@ -15,6 +15,11 @@ strict equality and truthiness, with the current numeric/primitive export bounda
 Its documented prototype/coercion/capture restrictions remain explicit. Historical
 primitive-only descriptions below do not imply that this completes object support.
 
+[Synchronous local source errors](synchronous-errors.md) now compose with these
+profiles: a same-function lexical catch receives a primitive throw, including
+inside named helpers and runtime closures. Cross-call throw propagation and
+uncaught synchronous throws remain outside the current return ABI.
+
 Numeric/primitive IR cells retain a fixed `Number`, `Predicate` or `General` type. Source lowering
 keeps Number and immutable Boolean const cells scalar where admitted;
 General const/let cells hold the represented primitive kinds.

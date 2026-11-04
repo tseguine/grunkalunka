@@ -85,6 +85,15 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
                         }
                         pending.push(Task::Sequence(&statement.block.body, depth + 1));
                     }
+                    Statement::TryStatement(statement) => {
+                        if let Some(handler) = &statement.handler {
+                            pending.push(Task::CaughtBy);
+                            pending.push(Task::Sequence(&handler.body.body, depth + 1));
+                            pending.push(Task::Sequence(&statement.block.body, depth + 1));
+                        } else {
+                            values.push(Completion::NORMAL);
+                        }
+                    }
                     _ => values.push(Completion::NORMAL),
                 }
             }
@@ -461,6 +470,18 @@ pub(crate) fn general_mutable_bindings(
                     && let Some(symbol) = identifier.symbol_id.get()
                 {
                     parameters.insert(symbol);
+                    mutable.insert(symbol);
+                }
+            }
+            AstKind::CatchClause(handler) => {
+                if let Some(parameter) = &handler.param
+                    && let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                    && let Some(symbol) = identifier.symbol_id.get()
+                {
+                    // A caught reason has no Number-only initializer proof.
+                    // Include it in storage facts so a not-yet-lowered handler
+                    // cannot make its enclosing arrow look scalar by default.
+                    definitions.insert(symbol, None);
                     mutable.insert(symbol);
                 }
             }

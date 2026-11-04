@@ -334,7 +334,7 @@ enum Frame<'n, 'a> {
     FunctionReturn {
         depth: usize,
     },
-    /// Async source throw produces the original General/AsyncValue reason.
+    /// Source throw produces the original General/AsyncValue reason.
     ThrowValue {
         depth: usize,
     },
@@ -1080,15 +1080,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             } else if let Statement::ThrowStatement(statement) = source {
                                 self.statement_depth = depth;
                                 self.admit_source_statement(source, depth)?;
-                                if !self.allow_await {
+                                if !self.allow_await
+                                    && !source_errors::locally_caught(
+                                        statement.node_id.get(),
+                                        self.semantic,
+                                    )
+                                {
                                     return Err(unsupported(
                                         statement.as_ref(),
                                         "statement is outside the numeric experiment",
                                     ));
                                 }
-                                let mode = if self.promise_parameters.identities
-                                    && self.has_promise_choice(&statement.argument, 0)
-                                {
+                                let promise_reason = self.promise_parameters.identities
+                                    && self.has_promise_choice(&statement.argument, 0);
+                                if promise_reason && !self.allow_await {
+                                    return Err(unsupported(
+                                        &statement.argument,
+                                        "synchronous throw requires a represented primitive reason",
+                                    ));
+                                }
+                                let mode = if promise_reason {
                                     evaluate::Mode::AsyncValue
                                 } else {
                                     evaluate::Mode::General
