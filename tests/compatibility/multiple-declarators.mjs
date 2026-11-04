@@ -32,7 +32,7 @@ const negatives = [
   ['declarators-shadow-self', 'let y=a; { let x=a,y=y; return x; }', reference],
   ['declarators-later-write-before-init', 'let x=(y=a),y=b; return x;', reference],
   ['declarators-write-earlier-const', 'const x=a,y=(x=b); return y;', 'assignment to a const binding is not admitted'],
-  ['declarators-later-destructure', 'let x=a,[y]=b; return x;', 'local destructuring is not admitted'],
+  ['declarators-later-destructure', 'let x=a,[y]=b; return x;', 'local array binding patterns are not yet admitted'],
   ['declarators-later-call', 'let x=a,y=Math.random(); return x;', expression],
   ['declarators-later-definite', 'let x:number=a,y!:number; return x;', 'definite-assignment assertions are not admitted', 'ts'],
   ['declarators-for-forward', 'for(let i=j,j=0;0;) {} return a;', reference],
