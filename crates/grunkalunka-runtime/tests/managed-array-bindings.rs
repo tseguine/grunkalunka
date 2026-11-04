@@ -87,7 +87,6 @@ fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
         "const [x,...rest]=[a,b];return a;",
         "const [[x]]=[[a]];return a;",
         "const [{x}]=[{x:a}];return a;",
-        "const [x=a]=[];return a;",
         "const [x]=a;return a;",
         "const [x]={0:a,length:1};return a;",
         "const [x]='abc';return a;",
@@ -145,6 +144,163 @@ fn array_binding_local_budget_counts_leaves_not_elisions_on_a_small_native_stack
     }
     let source = format!(
         "export function run(a,b){{const [{}value]=[];return value===undefined?1:0;}}",
+        ",".repeat(2048)
+    );
+    for typed in [false, true] {
+        let result = compile_on_small_stack(source.clone(), typed);
+        assert!(result.is_ok(), "{result:?}");
+    }
+}
+
+#[test]
+fn array_binding_defaults_select_only_intrinsic_undefined() {
+    for body in [
+        "let n=0;const [missing=(n=n*10+1,a),explicit=(n=n*10+2,b)]=[,undefined];return n+(missing===a?100:0)+(explicit===b?1000:0);",
+        "let n=0;const [nil=(n=1),flag=(n=2),zero=(n=3),negative=(n=4),nan=(n=5),empty=(n=6)]=[null,false,0,-0,NaN,''];return n+(nil===null?10:0)+(flag===false?100:0)+(zero===0?1000:0)+(negative===0?10000:0)+(nan!==nan?100000:0)+(empty===''?1000000:0);",
+        "const undefined=7;let n=0;const [x=(n=n*10+1,a),y=(n=n*10+2,b)]=[,void 0];return n+(x===a?100:0)+(y===b?1000:0);",
+        "let n=0;const [x=(n=1,b)]=[a];return n+(x===a?10:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_binding_defaults_observe_growth_until_exhaustion_and_advance_elisions() {
+    for body in [
+        "const source=[];const [x=(source[1]=b,a),y=9]=source;return x===a&&y===9&&source[1]===b?1:0;",
+        "const source=[];const [x=(source[1]=b,a),y]=source;return x===a&&y===undefined?1:0;",
+        "const source=[,];const [x=(source[1]=b,a),y=9]=source;return x===a&&y===b?1:0;",
+        "const source=[undefined];const [x=(source[2]=b,a),middle=7,last=9]=source;return x===a&&middle===7&&last===b?1:0;",
+        "const source=[a];const [x=(source[1]=b,1),y=9]=source;return x===a&&y===9&&source.length===1?1:0;",
+        "const source=[,];const [,x=(source[2]=b,a),y=9]=source;return x===a&&y===9?1:0;",
+        "const source=[,];const [x=(source[2]=b,a),,y=9]=source;return x===a&&y===b?1:0;",
+        "const source=[];const [empty,,x=(source[3]=b,a),y=9]=source;return empty===undefined&&x===a&&y===9?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_binding_defaults_distinguish_regrowth_before_and_after_iterator_exhaustion() {
+    for body in [
+        "const source=[undefined,8,9];const [x=(source.length=0,a),y=(source[2]=b,2),z=3]=source;return x===a&&y===2&&z===3&&source[2]===b?1:0;",
+        "const source=[undefined,8,9];const [x=(source.length=0,source[2]=b,a),y=2,z=3]=source;return x===a&&y===2&&z===b?1:0;",
+        "const source=[undefined,8];const [x=(source.pop(),source.pop(),a),y=(source[2]=b,2),z=3]=source;return x===a&&y===2&&z===3?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_binding_defaults_save_the_rhs_and_publish_each_completed_binding() {
+    for body in [
+        "let source=[undefined,a];const old=source;const [x=(source=[b,b],old[1]=b,a),y]=source;return x===a&&y===b&&source!==old?1:0;",
+        "const source=[undefined,a];const alias=source;const [x=(alias[1]=b,a),y=9]=source;return x===a&&y===b?1:0;",
+        "const [x=a,y=x,z=(()=>{return y;})()]=[];return x===a&&y===x&&z===y?1:0;",
+        "let n=0;const make=()=>{n=n*10+1;return [];};const [x=(n=n*10+2,a),y=(n=n*10+3,x)]=make(),[z=(n=n*10+4,y)]=[];return n+(z===a?10000:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_binding_defaults_compose_with_helpers_identity_and_capture_cells() {
+    for source in [
+        "function fallback(x){return x;}export function run(a,b){const [x=fallback(a)]=[];return x===a?1:0;}",
+        "function inspect(items,value){const [x=value]=items;return x===value?1:0;}export function run(a,b){return inspect([],a)+inspect([b],a);}",
+        "export function run(a,b){const selected={tag:a};const [x=selected]=[];return x===selected?1:0;}",
+        "export function run(a,b){let [x=a]=[];const read=()=>x===b?1:0;const change=()=>{x=b;return read();};return change();}",
+        "export function run(a,b){const [text=' fallback ']=[' ready '];return text.trim().indexOf('ead');}",
+        "export function run(a,b){let first=()=>0;let last=()=>0;for(let [x=1]=[],i=0;i<2;i++,x=2){if(i===0)first=()=>x===1?1:10;last=()=>x===2?1:10;}return first()+last();}",
+        "export function run(a,b){let first=()=>0;let second=()=>0;for(let i=0;i<2;i++){let [x=i]=[];const read=()=>x===0?1:2;if(i===0)first=read;else second=read;}return first()*10+second();}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_binding_default_annotations_are_erased_without_proving_values() {
+    let js = "export function run(a,b){let [x=a,label='fallback']=[];x=b;return x===b&&label==='fallback'?1:0;}";
+    let ts = "type Tuple=never;export function run(a:string,b:boolean):void{let [x=a,label='fallback']:Tuple=([] as unknown);x=b;return (x as number)===b&&(label as number)==='fallback'?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    let source =
+        "export function run(a,b){const [text='fallback']:[string]=[a];return text.trim().length;}";
+    let error = compile(source, true)
+        .err()
+        .unwrap_or_else(|| panic!("admitted {source}"));
+    assert!(error.contains("unsupported"), "{source}: {error}");
+    assert!(!error.contains("internal IR"), "{source}: {error}");
+}
+
+#[test]
+fn array_binding_defaults_keep_tdz_and_conservative_origin_guards() {
+    for body in [
+        "const [x=x]=[];return a;",
+        "const [x=x]=[a];return a;",
+        "const [x=y,y=a]=[];return a;",
+        "const [x=y,y=a]=[a,b];return a;",
+        "const x=a;{const [x=x]=[];return x===a?1:0;}",
+        "const [x=(y=a),y=b]=[];return a;",
+        "const [f=()=>x,x=a]=[];return a;",
+        "const [f=()=>x,x=a]=[0,b];return a;",
+        "const [x=undefined,undefined=a]=[];return a;",
+        "const [x=a]=[];x=b;return a;",
+        "const [x=a]=[];return x+1;",
+        "const [[x]=[a]]=[];return a;",
+        "const [x=a,...rest]=[];return a;",
+        "const [text='fallback']=[];return text.trim().length;",
+        "const [text='fallback']=[a];return text.trim().length;",
+        "const [items=[a]]=[];return items.length;",
+        "const source=[undefined,'ready'];const [x=(source.length=0,a),text='fallback']=source;return text.trim().length;",
+        "const source=[undefined,'ready'];const alias=source;const [x=(alias.pop(),a),text='fallback']=source;return text.trim().length;",
+        "const source=a?[]:[undefined,'ready'];const [x=(source[1]='grown',a),text='fallback']=source;return text.trim().length;",
+        "const source=[undefined,8,'ready'];const [x=(source.length=0,a),y=(source[2]='grown',b),text='fallback']=source;return text.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    let source = "function drop(items){items.pop();return 0;}export function run(a,b){const source=[undefined,'ready'];const [x=(drop(source),a),text='fallback']=source;return text.trim().length;}";
+    for typed in [false, true] {
+        let error = compile(source, typed)
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
+fn array_binding_defaults_keep_local_and_native_stack_bounds_with_elisions() {
+    for count in [128, 129] {
+        let leaves = (0..count)
+            .map(|index| format!("v{index}=a"))
+            .collect::<Vec<_>>()
+            .join(",,");
+        let source = format!(
+            "export function run(a,b){{const []=[],[,,,,]=[],[{leaves}]=[];return v0===a&&v127===a?1:0;}}"
+        );
+        for typed in [false, true] {
+            let result = compile_on_small_stack(source.clone(), typed);
+            if count == 128 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("at most 128 source locals"), "{error}");
+            }
+        }
+    }
+    let source = format!(
+        "export function run(a,b){{const [{}value=a]=[];return value===a?1:0;}}",
         ",".repeat(2048)
     );
     for typed in [false, true] {

@@ -158,7 +158,6 @@ fn object_binding_defaults_keep_tdz_kind_and_pattern_guards() {
         "const {text='fallback'}={};return text.trim().length;",
         "const {text='fallback'}={text:a};return text.trim().length;",
         "const {child:{x}={x:a}}={};return a;",
-        "const [x=a]=[];return a;",
         "const key='x';const {[key]:x=a}={};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

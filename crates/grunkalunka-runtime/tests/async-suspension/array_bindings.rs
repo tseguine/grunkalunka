@@ -1,6 +1,64 @@
 use super::*;
 
 #[test]
+fn array_binding_defaults_suspend_only_on_undefined() {
+    compare_promises(
+        &[
+            "let n=0;const [x=(await a,n=n*10+1),y=(await b,n=n*10+2)]=[0];await a;return x===0&&y===2?n:-1;",
+            "const [x=await Promise.reject(a)]=[null];await b;return x===null?1:0;",
+            "const [x=(await a,a),y=(await b,b)]=[,undefined];await a;return x===a&&y===b?1:0;",
+            "const undefined=a;const [x=(await b,9)]=[];await a;return x===9?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn array_binding_defaults_keep_live_length_and_exhaustion_across_await() {
+    compare_promises(
+        &[
+            "const source=[];const [x=(await a,source[1]=b,a),y=(await b,9)]=source;return x===a&&y===9?1:0;",
+            "const source=[];const [x=(await a,source[1]=b,a),y]=source;await b;return x===a&&y===undefined?1:0;",
+            "const source=[,];const [x=(await a,source[1]=b,a),y=(await b,9)]=source;return x===a&&y===b?1:0;",
+            "const source=[undefined,8,9];const [x=(await a,source.length=0,a),y=(await b,source[2]=b,2),z=(await a,3)]=source;return x===a&&y===2&&z===3?1:0;",
+            "const source=[undefined,8,9];const [x=(await a,source.length=0,await b,source[2]=b,a),y=(await a,2),z=3]=source;return x===a&&y===2&&z===b?1:0;",
+            "const source=[,];const [x=(await a,source[2]=b,a),,y=(await b,9)]=source;return x===a&&y===b?1:0;",
+            "const source=[,];const [,x=(await a,source[2]=b,a),y=(await b,9)]=source;return x===a&&y===9?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn array_binding_defaults_retain_the_original_array_and_prior_values_across_await() {
+    compare_promises(
+        &[
+            "let source=[undefined,a];const old=source;const [x=(await a,source=[b,b],old[1]=b,a),y]=source;await b;return x===a&&y===b&&source!==old?1:0;",
+            "const source=[undefined,a];const alias=source;const [x=(await a,alias[1]=b,a),y]=(await b,source);await a;return x===a&&y===b?1:0;",
+            "const [x=(await a,a),y=(await b,x),z=(await a,y)]=[];return x===a&&y===x&&z===y?1:0;",
+            "const selected={tag:a};const [x=(await a,selected)]=[];await b;selected.tag=b;return x===selected?1:0;",
+            "const source=[{tag:a},undefined];const [saved,x=(await a,source[0]={tag:b},a)]=source;await b;return saved.tag===a&&source[0]!==saved?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn array_binding_defaults_preserve_rejection_helpers_and_live_captures() {
+    compare_promises(
+        &[
+            "let n=0;try{const [x=await Promise.reject(a),y=(n=1)]=[];n=2;}catch(e){return n===0&&e===a?1:0;}return -1;",
+            "let n=0;try{const [x=(await a,n=1,a),y=await Promise.reject(b),z=(n=3)]=[];n=4;}catch(e){return n===1&&e===b?1:0;}return -1;",
+            "const fallback=()=>{return {label:'ready'};};const [x=(await a,fallback())]=[];await b;return x!==null?1:0;",
+            "let [x=(await a,a)]=[];const read=()=>x===b?1:0;await b;x=b;await a;return read();",
+            "const [x=(await a,a),y=(await b,x)]=[];const read=()=>y===a?1:0;await b;return read();",
+            "let n=0;try{const [x=await Promise.reject(a),y=(n=9)]=[];}catch(e){n=1;}finally{await b;n=n*10+2;}return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_bindings_keep_selected_values_origins_and_captures_across_suspension() {
     compare_promises(
         &[

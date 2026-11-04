@@ -9,6 +9,7 @@ use oxc_ast::ast::{
     BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
 };
 
+mod array_bindings;
 mod bindings;
 
 #[cfg(test)]
@@ -338,6 +339,12 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         binding: binding_patterns::ArrayBinding<'n, 'a>,
     },
+    /// An array default retains the original receiver and the iterator's
+    /// persistent activity state while its selected expression completes.
+    ArrayBindingDefault {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        active: Box<array_bindings::DefaultBinding<'n, 'a>>,
+    },
     /// A lazy default owns its parent output and saved object until the
     /// expression completes; later properties have not been read yet.
     ObjectBindingDefault {
@@ -575,6 +582,7 @@ impl Frame<'_, '_> {
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ObjectBindingSource { sequence, .. } => sequence.depth,
             Self::ArrayBindingSource { sequence, .. } => sequence.depth,
+            Self::ArrayBindingDefault { sequence, .. } => sequence.depth,
             Self::ObjectBindingDefault { sequence, .. } => sequence.depth,
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
