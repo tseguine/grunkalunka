@@ -4,6 +4,9 @@ The A1 session package runs repeated source-driven interaction from a copied
 directory outside the source checkout. It retains the real portable handler
 component and Markdown guest alongside the native hosts and their Node adapters.
 The older static-preview package remains a separate demonstration.
+Use `--live` when packaging to create the
+[detached live application](a1-live-package.md) with its loopback browser
+presenter; event-file replay remains the default described here.
 
 ## Build, package and run
 

@@ -18,7 +18,7 @@ const COMPONENT_HEADER = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
 const MAX_COMPONENT = 4 * 1024 * 1024;
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const usage = 'usage: node examples/note-preview/session-package.mjs ' +
-  '--out NEW-DIR [--component HANDLER.wasm]';
+  '--out NEW-DIR [--component HANDLER.wasm] [--live]';
 
 export const sessionPackageInputs = Object.freeze([
   'examples/note-preview/session-bundle-entry.mjs',
@@ -38,17 +38,32 @@ export const sessionPackageInputs = Object.freeze([
   bin('a1_ui_action'),
 ]);
 
+export const liveSessionPackageInputs = Object.freeze([
+  ...sessionPackageInputs,
+  'examples/note-preview/async-session.mjs',
+  'examples/note-preview/session-worker.mjs',
+  'examples/note-preview/live-run.mjs',
+  'examples/note-preview/live-client.mjs',
+  'examples/note-preview/live-page.mjs',
+]);
+
 export function parseSessionPackageArguments(args) {
   const options = {};
   const seen = new Set();
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
-    const value = args[++index];
-    if (!['--out', '--component'].includes(flag) || seen.has(flag) ||
-        typeof value !== 'string' || !value || value.startsWith('--') || value.includes('\0')) {
+    if (!['--out', '--component', '--live'].includes(flag) || seen.has(flag)) {
       throw new Error(usage);
     }
     seen.add(flag);
+    if (flag === '--live') {
+      options.live = true;
+      continue;
+    }
+    const value = args[++index];
+    if (typeof value !== 'string' || !value || value.startsWith('--') || value.includes('\0')) {
+      throw new Error(usage);
+    }
     options[flag === '--out' ? 'out' : 'componentFile'] = value;
   }
   if (!options.out) throw new Error(usage);
@@ -65,8 +80,8 @@ async function refuseExisting(destination) {
   throw new Error('Output directory already exists');
 }
 
-export async function packageNoteSession({ out, componentFile, componentWasm }) {
-  if (typeof out !== 'string' || !out || out.includes('\0') ||
+export async function packageNoteSession({ out, componentFile, componentWasm, live = false }) {
+  if (typeof out !== 'string' || !out || out.includes('\0') || typeof live !== 'boolean' ||
       (componentFile !== undefined && (typeof componentFile !== 'string' ||
         !componentFile || componentFile.includes('\0'))) ||
       (componentWasm !== undefined && (!(componentWasm instanceof Uint8Array) ||
@@ -91,7 +106,8 @@ export async function packageNoteSession({ out, componentFile, componentWasm }) 
   const stage = await mkdtemp(join(dirname(destination), '.grunkalunka-a1-session-bundle-'));
   try {
     const files = [];
-    for (const path of [...sessionPackageInputs, componentPath]) {
+    const inputs = live ? liveSessionPackageInputs : sessionPackageInputs;
+    for (const path of [...inputs, componentPath]) {
       let bytes;
       let mode;
       if (path === componentPath) {
@@ -118,7 +134,8 @@ export async function packageNoteSession({ out, componentFile, componentWasm }) 
       });
     }
     const manifest = {
-      schemaVersion: 1, kind: 'a1-note-session-host-bundle',
+      schemaVersion: 1,
+      kind: live ? 'a1-note-live-host-bundle' : 'a1-note-session-host-bundle',
       host: {
         platform: process.platform, arch: process.arch,
         nodeMajor: Number(process.versions.node.split('.')[0]),
