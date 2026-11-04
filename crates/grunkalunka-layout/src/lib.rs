@@ -1,4 +1,4 @@
-//! A bounded, host-independent normal-flow block-box layout experiment.
+//! A bounded, host-independent block and nonflexing-row layout experiment.
 //! HTML parsing, CSS cascade, font metrics and scripting are external.
 //! A separate optional module provides bounded opaque RGB diagnostic painting.
 
@@ -53,6 +53,15 @@ pub enum Display {
     /// in the containing block's normal flow.
     Contents,
     None,
+}
+
+/// Line collection for the selected nonflexing row profile. Other display
+/// modes ignore this setting; reverse directions are not represented.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FlexWrap {
+    #[default]
+    NoWrap,
+    Wrap,
 }
 
 /// Already-resolved visibility declaration. Children inherit unless explicitly
@@ -202,9 +211,13 @@ pub enum HeightBound {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Style {
     pub display: Display,
+    pub flex_wrap: FlexWrap,
     /// Integer CSS-pixel space between active `FlexRow` items. Ignored by
     /// other display modes; no leading or trailing gap is added.
     pub column_gap: u32,
+    /// Integer CSS-pixel space between actual wrapped row lines. Ignored for
+    /// a single line and by other display modes; no outer gap is added.
+    pub row_gap: u32,
     pub visibility: Visibility,
     pub pointer_events: PointerEvents,
     pub descendant_clip: DescendantClip,
@@ -415,6 +428,23 @@ struct PreparedBox {
     padding_y: u32,
 }
 
+impl PreparedBox {
+    // A row item's dimensions are resolved at the origin once, before line
+    // collection. Move its prepared coordinates to the selected slot without
+    // re-resolving percentages or including relative offsets in its flow size.
+    fn translated(mut self, x: u32, y: u32) -> Result<Self, LayoutError> {
+        self.visual_x = add(self.visual_x, x)?;
+        self.visual_y = add(self.visual_y, y)?;
+        self.border_left = add(self.border_left, x)?;
+        self.border_top = add(self.border_top, y)?;
+        self.padding_left = add(self.padding_left, x)?;
+        self.padding_top = add(self.padding_top, y)?;
+        self.content_x = add(self.content_x, x)?;
+        self.content_y = add(self.content_y, y)?;
+        Ok(self)
+    }
+}
+
 #[derive(Clone, Copy)]
 struct FlowSize {
     width: u32,
@@ -424,7 +454,9 @@ struct FlowSize {
 struct RowFlow {
     items: Vec<usize>,
     next_x: u32,
-    height: u32,
+    line_y: u32,
+    line_height: u32,
+    has_items: bool,
 }
 
 struct PlaceFrame {
@@ -507,11 +539,8 @@ impl Engine<'_> {
             if let Some(size) = completed.take() {
                 if let Some(row) = &mut current.row {
                     row.next_x = add(row.next_x, size.width)?;
-                    row.height = row.height.max(size.height);
-                    current.next_y = add(
-                        current.prepared.expect("entered row box").content_y,
-                        row.height,
-                    )?;
+                    row.line_height = row.line_height.max(size.height);
+                    current.next_y = add(row.line_y, row.line_height)?;
                 } else {
                     current.next_y = add(current.next_y, size.height)?;
                 }
@@ -532,19 +561,24 @@ impl Engine<'_> {
                         current.next_y = current.cursor_y;
                     }
                     Display::Block | Display::FlexRow => {
-                        let prepared = self.prepare(
-                            current.node,
-                            current.containing_x,
-                            current.cursor_y,
-                            current.available_width,
-                            current.containing_height,
-                        )?;
+                        let prepared = match current.prepared {
+                            Some(prepared) => prepared,
+                            None => self.prepare(
+                                current.node,
+                                current.containing_x,
+                                current.cursor_y,
+                                current.available_width,
+                                current.containing_height,
+                            )?,
+                        };
                         current.next_y = prepared.content_y;
                         if self.nodes[current.node].style.display == Display::FlexRow {
                             current.row = Some(RowFlow {
                                 items: self.row_items(current.node),
                                 next_x: prepared.content_x,
-                                height: 0,
+                                line_y: prepared.content_y,
+                                line_height: 0,
+                                has_items: false,
                             });
                         }
                         current.prepared = Some(prepared);
@@ -569,7 +603,7 @@ impl Engine<'_> {
                         current.containing_height,
                     )
                 };
-                let (x, y) = if let Some(row) = &mut current.row {
+                let (x, y, prepared) = if let Some(row) = &mut current.row {
                     let style = self.nodes[child].style;
                     if style.width == Length::Auto {
                         return Err(LayoutError::UnsupportedFlexItemWidth { node: child });
@@ -577,18 +611,46 @@ impl Engine<'_> {
                     if style.horizontal_auto_margins != HorizontalAutoMargins::None {
                         return Err(LayoutError::UnsupportedFlexItemAutoMargins { node: child });
                     }
-                    if current.next_child != 0 {
-                        row.next_x = add(row.next_x, self.nodes[current.node].style.column_gap)?;
+                    let prepared = self.prepare(child, 0, 0, width, height)?;
+                    let item_width = add(
+                        prepared.border_width,
+                        add(prepared.margin_left, prepared.margin_right)?,
+                    )?;
+                    let container = current.prepared.expect("entered row box");
+                    let style = self.nodes[current.node].style;
+                    let gap = if row.has_items { style.column_gap } else { 0 };
+                    // Compare before materializing a cursor. An oversized gap
+                    // at a wrap boundary is discarded, not an overflow in an
+                    // actual coordinate. The first item always owns a line,
+                    // even when oversized; exact fits and zero widths count.
+                    let candidate_width = u64::from(row.next_x - container.content_x)
+                        + u64::from(gap)
+                        + u64::from(item_width);
+                    if style.flex_wrap == FlexWrap::Wrap
+                        && row.has_items
+                        && candidate_width > u64::from(container.content_width)
+                    {
+                        row.line_y = add(add(row.line_y, row.line_height)?, style.row_gap)?;
+                        row.next_x = container.content_x;
+                        row.line_height = 0;
+                        row.has_items = false;
                     }
+                    if row.has_items {
+                        row.next_x = add(row.next_x, style.column_gap)?;
+                    }
+                    row.has_items = true;
                     (
                         row.next_x,
-                        current.prepared.expect("entered row box").content_y,
+                        row.line_y,
+                        Some(prepared.translated(row.next_x, row.line_y)?),
                     )
                 } else {
-                    (x, current.next_y)
+                    (x, current.next_y, None)
                 };
                 current.next_child += 1;
-                pending.push(PlaceFrame::new(child, x, y, width, height));
+                let mut child_frame = PlaceFrame::new(child, x, y, width, height);
+                child_frame.prepared = prepared;
+                pending.push(child_frame);
             } else {
                 let size = if current.contents {
                     // Row contexts flatten these wrappers before placement;
@@ -885,7 +947,8 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// fixed/integral-percentage-width nonflexing rows with start alignment and gaps,
+/// fixed/integral-percentage-width nonflexing rows with start alignment,
+/// optional greedy wrapping and integer gaps,
 /// display:none, boxless display:contents, inherited visibility, resolved
 /// pointer-events input policy, optional padding-box descendant clipping,
 /// content-box/border-box sizing, min/max width/height constraints,
