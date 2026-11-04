@@ -17,10 +17,15 @@ const pixels = rgb.toString('base64');
 function frame(overrides = {}) {
   const sequence = overrides.sequence ?? 0;
   const remainingEvents = overrides.remainingEvents ?? 256 - sequence;
-  return { schemaVersion: 2, width: 320, height: 160, sequence,
+  return { schemaVersion: 3, width: 320, height: 160, sequence,
     expanded: 1, visibleCount: 2, canActivate: remainingEvents > 0, remainingEvents,
     scrollY: 0, maxScrollY: 0, canScroll: false, controlPoint: { x: 24, y: 16 },
-    pixels, ...overrides };
+    canReload: remainingEvents > 0, pixels, ...overrides };
+}
+
+function emptyFrame(overrides = {}) {
+  return frame({ expanded: 0, visibleCount: 0, canActivate: false,
+    controlPoint: null, ...overrides });
 }
 
 function scrollingFrame(overrides = {}) {
@@ -52,6 +57,8 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   const attributes = new Map();
   const listeners = new Map();
   const listenerOptions = new Map();
+  const reloadListeners = new Map();
+  const reloadAttributes = new Map();
   const painted = [];
   const status = { textContent: '' };
   let focused = 0;
@@ -72,6 +79,14 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
       if (listeners.get(name) === fn) listeners.delete(name);
     },
     focus: () => { focused++; },
+  };
+  const reloadButton = {
+    disabled: true,
+    setAttribute: (name, value) => reloadAttributes.set(name, value),
+    addEventListener: (name, fn) => reloadListeners.set(name, fn),
+    removeEventListener: (name, fn) => {
+      if (reloadListeners.get(name) === fn) reloadListeners.delete(name);
+    },
   };
   const data = new Map(stored === undefined ? [] : [[tokenKey, stored]]);
   const location = { hash, pathname: '/', search: '' };
@@ -95,7 +110,9 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     assert.ok(reply, 'unexpected browser request');
     return reply;
   };
-  const document = { getElementById: id => id === 'note-frame' ? canvas : status };
+  const document = { getElementById: id => ({
+    'note-frame': canvas, 'session-status': status, 'reload-note': reloadButton,
+  })[id] };
   const click = (overrides = {}) => listeners.get('click')?.({
     clientX: 78, clientY: 82, button: 0, isPrimary: true, ...overrides,
   });
@@ -112,6 +129,7 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     return prevented;
   }
   return { window, document, fetch, attributes, listeners, listenerOptions, painted, status,
+    reloadButton, reloadListeners, reloadAttributes, reload: () => reloadListeners.get('click')?.(),
     requests, replies, data, click, key, wheel, focused: () => focused };
 }
 
@@ -163,10 +181,13 @@ test('frame decoding preserves supplied native RGB and rejects malformed or unbo
   assert.doesNotThrow(() => decodeLiveFrame(frame({ sequence: 256, remainingEvents: 0 })));
   assert.doesNotThrow(() => decodeLiveFrame(frame({ canActivate: false })));
   assert.doesNotThrow(() => decodeLiveFrame(scrollingFrame({ scrollY: 400 })));
+  assert.doesNotThrow(() => decodeLiveFrame(emptyFrame()));
+  assert.equal(decodeLiveFrame(emptyFrame()).canReload, true);
   const supplied = frame({ controlPoint: { x: 85, y: 0 } });
   decodeLiveFrame(supplied).controlPoint.x = 0;
   assert.deepEqual(supplied.controlPoint, { x: 85, y: 0 });
-  for (const invalid of [null, [], frame({ schemaVersion: 1 }), frame({ width: 640 }),
+  for (const invalid of [null, [], frame({ schemaVersion: 1 }), frame({ schemaVersion: 2 }),
+    frame({ width: 640 }),
     frame({ height: 159 }), frame({ sequence: -1 }), frame({ sequence: '0' }),
     frame({ sequence: 257, remainingEvents: 0 }), frame({ expanded: 2 }),
     frame({ expanded: 0 }), frame({ visibleCount: 0 }), frame({ visibleCount: 65 }),
@@ -176,6 +197,8 @@ test('frame decoding preserves supplied native RGB and rejects malformed or unbo
     frame({ maxScrollY: -1 }), frame({ maxScrollY: 0x100000000 }),
     frame({ scrollY: 0.5, maxScrollY: 1 }), frame({ maxScrollY: '0' }),
     frame({ canScroll: 1 }), frame({ canScroll: true }),
+    frame({ canReload: 1 }), frame({ canReload: undefined }),
+    frame({ sequence: 256, remainingEvents: 0, canReload: true }),
     frame({ sequence: 256, remainingEvents: 0, canActivate: true }),
     scrollingFrame({ sequence: 256, canScroll: true }),
     frame({ controlPoint: null }), frame({ controlPoint: undefined }),
@@ -387,6 +410,193 @@ test('disposing during a scroll aborts the request and discards its coalesced ta
   assert.equal(b.requests.length, 2);
 });
 
+test('reload is available for empty and offscreen outlines and uses the new native frame', async t => {
+  for (const state of [emptyFrame(), scrollingFrame({ scrollY: 400 })]) {
+    const b = browser();
+    b.replies.push(response(state));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    assert.equal(b.reloadButton.disabled, false);
+    if (state.visibleCount === 0) {
+      assert.equal(b.attributes.get('aria-disabled'), 'true');
+      assert.match(b.status.textContent, /No headings.*reload/);
+    }
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    const reloading = b.reload();
+    b.reload();
+    b.click();
+    b.key('Enter');
+    b.wheel();
+    b.key('End');
+    assert.equal(b.requests.length, 2);
+    assert.equal(b.reloadButton.disabled, true);
+    assert.equal(b.reloadAttributes.get('aria-busy'), 'true');
+    assert.equal(b.requests[1].path, '/reload');
+    assert.equal(b.requests[1].method, 'POST');
+    assert.equal(b.requests[1].body, '{}');
+    assert.equal(b.requests[1].headers['x-a1-session'], token);
+    assert.equal(b.requests[1].headers['content-type'], 'application/json');
+    assert.match(b.status.textContent, /Reloading note/);
+
+    const nextPixels = Buffer.alloc(rgb.length, 55).toString('base64');
+    const point = { x: 101, y: 8 };
+    pending.resolve(response(frame({ sequence: 1, visibleCount: 3,
+      pixels: nextPixels, controlPoint: point })));
+    await reloading;
+    assert.equal(b.requests.length, 2, 'no movement against the old document follows the reload');
+    assert.equal(b.reloadButton.disabled, false);
+    assert.equal(b.reloadAttributes.get('aria-busy'), 'false');
+    assert.deepEqual([...b.painted.at(-1).data.subarray(0, 4)], [55, 55, 55, 255]);
+    assert.match(b.status.textContent, /Note reloaded.*3 headings/);
+    assert.equal(b.data.get(tokenKey), token);
+    b.replies.push(response(frame({ sequence: 2, expanded: 0, visibleCount: 0 })));
+    assert.equal(b.key('Enter'), true);
+    await settle();
+    assert.equal(b.requests[2].path, '/input');
+    assert.deepEqual(JSON.parse(b.requests[2].body), point);
+  }
+});
+
+test('reload waits for existing scroll work and drops fractional and queued movement at the reload boundary', async t => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const first = deferred();
+  b.replies.push(first.promise);
+  b.wheel();
+  b.wheel();
+  b.reload();
+  assert.equal(b.requests.length, 2);
+  assert.equal(b.reloadButton.disabled, true);
+  const queued = deferred();
+  b.replies.push(queued.promise);
+  first.resolve(response(scrollingFrame({ sequence: 1, scrollY: 20 })));
+  await settle();
+  assert.equal(b.requests.length, 3);
+  assert.equal(b.requests[2].body, '{"y":40}');
+  b.reload();
+  assert.equal(b.requests.length, 3, 'a reload is not queued behind the pending wheel target');
+  assert.equal(b.reloadButton.disabled, true);
+  queued.resolve(response(scrollingFrame({ sequence: 2, scrollY: 40 })));
+  await settle();
+  assert.equal(b.reloadButton.disabled, false);
+
+  b.wheel({ deltaY: 0.5 });
+  assert.equal(b.requests.length, 3, 'the old document has a fractional wheel remainder');
+  const pendingReload = deferred();
+  b.replies.push(pendingReload.promise);
+  const reloading = b.reload();
+  assert.equal(b.wheel({ deltaY: 0.5 }), true);
+  assert.equal(b.key('End'), true);
+  assert.equal(b.key('PageDown'), true);
+  assert.equal(b.wheel({ ctrlKey: true }), false);
+  assert.equal(b.key('Home', { ctrlKey: true }), false);
+  b.reload();
+  assert.equal(b.requests.length, 4);
+  pendingReload.resolve(response(scrollingFrame({ sequence: 3, scrollY: 40, maxScrollY: 800 })));
+  await reloading;
+  assert.equal(b.requests.length, 4);
+  b.wheel({ deltaY: 0.5 });
+  assert.equal(b.requests.length, 4, 'the old fractional remainder was also discarded');
+  b.replies.push(response(scrollingFrame({ sequence: 4, scrollY: 41, maxScrollY: 800 })));
+  b.wheel({ deltaY: 0.5 });
+  await settle();
+  assert.equal(b.requests[4].body, '{"y":41}');
+  b.replies.push(response(scrollingFrame({ sequence: 5, scrollY: 800, maxScrollY: 800 })));
+  assert.equal(b.key('End'), true);
+  await settle();
+  assert.equal(b.requests[5].body, '{"y":800}', 'later movement uses the reloaded native maximum');
+});
+
+test('reload is disabled during activation and remains available after an empty replacement', async t => {
+  const b = browser();
+  b.replies.push(response(frame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const activation = deferred();
+  b.replies.push(activation.promise);
+  b.click();
+  b.reload();
+  assert.equal(b.reloadButton.disabled, true);
+  assert.equal(b.requests.length, 2);
+  activation.resolve(response(frame({ sequence: 1, expanded: 0, visibleCount: 0 })));
+  await settle();
+  assert.equal(b.reloadButton.disabled, false);
+  b.replies.push(response(emptyFrame({ sequence: 2 })));
+  await b.reload();
+  assert.equal(b.reloadButton.disabled, false);
+  assert.equal(b.attributes.get('aria-disabled'), 'true');
+  assert.match(b.status.textContent, /Note reloaded.*No headings/);
+  b.replies.push(response(frame({ sequence: 3, expanded: 0, visibleCount: 0 })));
+  await b.reload();
+  assert.equal(b.attributes.get('aria-label'), 'Show outline');
+  assert.match(b.status.textContent, /Outline collapsed/);
+  assert.equal(b.requests.length, 4);
+});
+
+test('failed reloads never retry and recoverable errors preserve manual reload access', async t => {
+  for (const code of [403, 409, 429, 500, 503, 'network', 'stale']) await t.test(String(code), async t => {
+    const b = browser();
+    b.replies.push(response(scrollingFrame({ sequence: 2, scrollY: 400 })));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    const reloading = b.reload();
+    b.wheel();
+    b.key('Home');
+    if (code === 'network') pending.reject(new Error('connection lost after sending reload'));
+    else if (code === 'stale') pending.resolve(response(emptyFrame({ sequence: 1 })));
+    else pending.resolve(response({ error: 'Reload failed', frame: scrollingFrame({
+      sequence: 3, scrollY: 400, canScroll: ![409, 503].includes(code),
+      canReload: ![409, 503].includes(code),
+    }) }, code));
+    await reloading;
+    assert.equal(b.requests.length, 2, 'no retry or old scroll target follows a failed reload');
+    assert.equal(b.data.has(tokenKey), code !== 403);
+    if ([429, 500].includes(code)) {
+      assert.equal(b.reloadButton.disabled, false);
+      b.replies.push(response(scrollingFrame({ sequence: 4, scrollY: 400 })));
+      await b.reload();
+      assert.equal(b.requests.length, 3);
+      assert.equal(b.requests[2].path, '/reload');
+    } else {
+      assert.equal(b.reloadButton.disabled, true);
+      b.reload();
+      assert.equal(b.requests.length, 2);
+    }
+    if (code === 'stale') {
+      assert.equal(b.painted.length, 1);
+      assert.equal(b.attributes.get('aria-label'), 'Scrollable note outline');
+    }
+  });
+});
+
+test('disposing during a reload aborts it and removes the reload control handler', async () => {
+  const b = browser();
+  b.replies.push(response(frame()));
+  const client = startLiveClient(b);
+  await client.ready;
+  const pending = deferred();
+  b.replies.push(pending.promise);
+  const reloading = b.reload();
+  client.dispose();
+  assert.equal(b.requests[1].signal.aborted, true);
+  assert.equal(b.listeners.size, 0);
+  assert.equal(b.reloadListeners.size, 0);
+  assert.equal(b.reloadButton.disabled, true);
+  pending.resolve(response(emptyFrame({ sequence: 1 })));
+  await reloading;
+  assert.equal(b.painted.length, 1);
+  assert.equal(b.requests.length, 2);
+});
+
 test('sessionStorage supports refresh, invalid launch tokens replace old authority, and blocked storage keeps launch working', async t => {
   for (const options of [{ hash: '', stored: token }, { storageThrows: true }]) {
     const b = browser(options);
@@ -516,8 +726,8 @@ test('a terminal response applies its newest retained snapshot before disabling 
   assert.equal(b.requests.length, 2);
 });
 
-test('denied and exhausted sessions retain their supplied view without forwarding activation', async t => {
-  for (const state of [frame({ canActivate: false }),
+test('denied and exhausted sessions retain their supplied view without forwarding input or reloads', async t => {
+  for (const state of [frame({ canActivate: false, canReload: false }),
     frame({ sequence: 256, remainingEvents: 0 })]) {
     const b = browser();
     b.replies.push(response(state));
@@ -526,11 +736,13 @@ test('denied and exhausted sessions retain their supplied view without forwardin
     await client.ready;
     assert.equal(b.painted.length, 1);
     assert.equal(b.attributes.get('aria-disabled'), 'true');
+    assert.equal(b.reloadButton.disabled, true);
     b.click();
     b.key('Enter');
     b.key(' ');
     b.wheel();
     b.key('PageDown');
+    b.reload();
     assert.equal(b.requests.length, 1);
     if (!state.canActivate) assert.equal(b.attributes.get('role'), 'img');
     if (state.remainingEvents === 0) assert.match(b.status.textContent, /input limit reached/);
@@ -545,6 +757,8 @@ test('disposing the adapter aborts a pending request and removes all input handl
   client.dispose();
   assert.equal(b.requests[0].signal.aborted, true);
   assert.equal(b.listeners.size, 0);
+  assert.equal(b.reloadListeners.size, 0);
+  assert.equal(b.reloadButton.disabled, true);
   pending.resolve(response(frame()));
   await client.ready;
   assert.equal(b.painted.length, 0);
@@ -555,6 +769,8 @@ test('fixed page assets use external scripts/styles and preserve a borderless na
   assert.match(livePage, /<link rel="stylesheet" href="\/style\.css">/);
   assert.match(livePage, /id="note-frame" width="320" height="160"/);
   assert.match(livePage, /tabindex="0"/);
+  assert.match(livePage, /<button id="reload-note" type="button" disabled[^>]*>Reload note<\/button>/);
+  assert.match(livePage, /After editing the file, reload to see your changes/);
   assert.ok(!livePage.includes('<style') && !livePage.includes('onclick='));
   assert.match(liveStyles, /canvas \{[^}]*padding: 0; border: 0;/);
   assert.match(liveStyles, /image-rendering: pixelated/);

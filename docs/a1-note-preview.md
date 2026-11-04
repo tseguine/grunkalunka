@@ -24,6 +24,11 @@ displays the supplied native RGB instead of laying out the outline itself.
 Native scrolling exposes the complete admitted outline, including the last of
 64 headings. Scrolls and pointers share one ordered queue and attempt budget;
 the native host supplies the extent and current visible title-control point.
+**Reload note** reads the same startup-selected path after external edits. File
+loading and native document processing run in the existing worker queue; reload
+keeps the component, grants and lifetime budget, preserves expansion preference
+through empty content, and commits the document and native frame together. A bad
+edit leaves the previous view available for recovery.
 The [live package mode](a1-live-package.md) retains the worker and presenter along
 with the same native hosts and portable components for detached execution.
 
@@ -41,7 +46,8 @@ implementation PRs; checked-in tests are not an execution receipt.
 
 A1 remains **Planned** against its full acceptance criteria. Repeated
 source-driven input, owned host state, live browser presentation, native viewport
-scrolling, readable bitmap repaint and a detached interaction package are now implemented. Each action still
+scrolling, same-note reload, readable bitmap repaint and a detached interaction
+package are now implemented. Each action still
 starts a fresh guest Store. General Unicode typography, native OS window integration and typed record/resource
 views remain open; [the typed interface handoff #483](https://github.com/tseguine/grunkalunka/issues/483)
 is separate compiler/application coordination. This stack does not select a final

@@ -34,7 +34,9 @@ Rust control, and the [live browser surface](a1-live-application.md) forwards
 pointer, wheel and keyboard input to a bounded worker and paints the native RGB.
 Native viewport scrolling reaches all admitted headings, with one shared input
 budget and native control targeting even when the title is partly clipped. The
-typed view/resource contract and broader application-facing
+same selected note can be reloaded after external edits without replacing the
+session or its budget; failed reloads preserve the previous document and frame.
+The typed view/resource contract and broader application-facing
 Rust/JS parity remain acceptance gates. Each action still uses a fresh guest Store.
 See
 [A1 integration](a1-note-preview.md) and [steering #52](https://github.com/tseguine/grunkalunka/issues/52).

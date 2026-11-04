@@ -22,6 +22,10 @@ export const livePage = `<!doctype html>
           aria-label="Note outline view" aria-disabled="true" aria-busy="true"
           aria-describedby="session-status session-help">The note view requires canvas support.</canvas>
       </div>
+      <div class="view-actions">
+        <button id="reload-note" type="button" disabled aria-describedby="reload-help">Reload note</button>
+        <p id="reload-help">After editing the file, reload to see your changes.</p>
+      </div>
       <p id="session-status" role="status" aria-live="polite" aria-atomic="true">Connecting to your note…</p>
     </section>
     <p id="session-help">Scroll to see more. With the view focused, use the arrow
@@ -47,6 +51,11 @@ h1 { margin: 0; font-size: clamp(28px, 5vw, 38px); line-height: 1.2; letter-spac
 canvas { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; padding: 0; border: 0; image-rendering: pixelated; outline: none; }
 canvas[role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
 canvas:focus-visible { outline: 3px solid #2a7760; outline-offset: 5px; }
+.view-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 22px; }
+button { padding: 8px 13px; border: 1px solid #2a7760; border-radius: 6px; background: #2a7760; color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+button:focus-visible { outline: 3px solid #2a7760; outline-offset: 3px; }
+button:disabled { background: #edf1ed; color: #768078; border-color: #dce3db; cursor: default; }
+#reload-help { margin: 0; color: #66766b; font-size: 12px; line-height: 1.5; }
 #session-status { margin: 22px 0 0; min-height: 20px; color: #53665b; font-size: 13px; line-height: 1.5; }
 #session-help, noscript { display: block; margin: 18px 2px 0; max-width: 58ch; color: #66766b; font-size: 13px; line-height: 1.65; }
 @media (max-width: 420px) { main { width: calc(100% - 24px); } .brand { gap: 8px; } }
