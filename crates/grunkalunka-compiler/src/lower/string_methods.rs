@@ -10,6 +10,8 @@ pub(super) enum Method {
     StartsWith,
     Includes,
     EndsWith,
+    IndexOf,
+    LastIndexOf,
     Trim,
     TrimStart,
     TrimEnd,
@@ -24,26 +26,35 @@ impl Method {
             | Self::Trim
             | Self::TrimStart
             | Self::TrimEnd => Type::ManagedValue,
-            Self::CharCodeAt => Type::Number,
+            Self::CharCodeAt | Self::IndexOf | Self::LastIndexOf => Type::Number,
             Self::StartsWith | Self::Includes | Self::EndsWith => Type::Predicate,
         }
     }
 
     pub(super) fn arguments(self) -> usize {
         match self {
-            Self::Slice | Self::Substring | Self::StartsWith | Self::Includes | Self::EndsWith => 2,
+            Self::Slice
+            | Self::Substring
+            | Self::StartsWith
+            | Self::Includes
+            | Self::EndsWith
+            | Self::IndexOf
+            | Self::LastIndexOf => 2,
             Self::CharAt | Self::CharCodeAt => 1,
             Self::Trim | Self::TrimStart | Self::TrimEnd => 0,
         }
     }
 
     pub(super) fn search(self) -> bool {
-        matches!(self, Self::StartsWith | Self::Includes | Self::EndsWith)
+        matches!(
+            self,
+            Self::StartsWith | Self::Includes | Self::EndsWith | Self::IndexOf | Self::LastIndexOf
+        )
     }
 
     pub(super) fn defaults(self) -> [f64; 2] {
         match self {
-            Self::StartsWith | Self::Includes => [0.0, 0.0],
+            Self::StartsWith | Self::Includes | Self::IndexOf => [0.0, 0.0],
             _ => [0.0, f64::INFINITY],
         }
     }
@@ -76,6 +87,8 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
         "startsWith" => Method::StartsWith,
         "includes" => Method::Includes,
         "endsWith" => Method::EndsWith,
+        "indexOf" => Method::IndexOf,
+        "lastIndexOf" => Method::LastIndexOf,
         "trim" => Method::Trim,
         "trimStart" => Method::TrimStart,
         "trimEnd" => Method::TrimEnd,

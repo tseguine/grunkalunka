@@ -1027,6 +1027,53 @@ fn string_search_requires_managed_operands_number_position_and_predicate_result(
 }
 
 #[test]
+fn string_indices_require_managed_operands_and_number_position_and_result() {
+    for method in ["indexOf", "lastIndexOf"] {
+        let mut module = crate::lower_source(
+            &format!("export function run(a,b){{return 'abcdef'.{method}('bc',a);}}"),
+            false,
+        )
+        .unwrap();
+        let function = &mut module.functions[0];
+        let index = function
+            .body
+            .operations
+            .iter()
+            .position(|op| matches!(op.kind, Op::ManagedStringIndex { .. }))
+            .unwrap();
+        let Op::ManagedStringIndex {
+            result,
+            input,
+            search,
+            position,
+            backwards,
+        } = function.body.operations[index].kind
+        else {
+            unreachable!()
+        };
+        verify_module(&module).unwrap();
+        module.functions[0].values[result.0] = Type::Predicate;
+        assert!(verify_module(&module).is_err());
+        module.functions[0].values[result.0] = Type::Number;
+        for (input, search, position) in [
+            (position, search, position),
+            (input, position, position),
+            (input, search, input),
+            (input, search, result),
+        ] {
+            module.functions[0].body.operations[index].kind = Op::ManagedStringIndex {
+                result,
+                input,
+                search,
+                position,
+                backwards,
+            };
+            assert!(verify_module(&module).is_err());
+        }
+    }
+}
+
+#[test]
 fn string_character_operations_keep_text_index_and_result_types() {
     for (expression, expected) in [
         ("'abc'.charAt(a).length", Type::ManagedValue),

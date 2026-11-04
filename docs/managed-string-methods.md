@@ -37,6 +37,32 @@ still execute, and the result retains Boolean semantics through helpers, boxed
 fields and suspension. Existing `startsWith` and `includes` share the code-unit
 matching helper but keep their original start-position rules.
 
+## Substring positions
+
+`indexOf(search, position)` and `lastIndexOf(search, position)` return the first
+or last matching UTF-16 code-unit index from an inclusive starting position, or
+the Number -1 when there is no match. They share the explicit known String needle
+and Number-or-source-proven-undefined position admission used by the other
+search methods.
+
+| Method | Omitted or undefined position | Explicit NaN | Search direction |
+| --- | --- | --- | --- |
+| `indexOf` | Zero | Zero | Toward the end |
+| `lastIndexOf` | Last possible candidate | Last possible candidate | Toward the start |
+
+Number positions truncate toward zero and clamp to the relevant bounds. Empty
+needles return the clamped position, with positive zero at the beginning.
+Backward search rejects an overlong needle before subtracting its length; every
+candidate access and movement remains inside the receiver's code-unit bounds.
+The loops are iterative and consume the existing guest fuel budget.
+See [`indexOf`](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.indexof)
+and [`lastIndexOf`](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.lastindexof).
+
+The Number result can feed ranges, arithmetic, helper returns and boxed fields.
+Source tests include a captured label handler that trims a title, finds a
+separator, slices its label and locates a filename extension. Receiver/needle/
+position snapshots survive later argument mutation and awaits.
+
 ## Admission and evidence
 
 Static member calls and literal-computed names are recognized. All possible

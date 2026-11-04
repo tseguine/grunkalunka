@@ -160,3 +160,55 @@
   local.get $text i32.const 0 local.get $source local.get $first local.get $count
   array.copy $gc_key $gc_key
   i32.const 5 f64.const 0 local.get $text struct.new $gc_value)
+
+;; Return an exact UTF-16 position or -1. Source admission owns String/Number
+;; proofs. Only lastIndexOf maps an explicit NaN position to positive infinity.
+(func $gc_string_index (param $value (ref null $gc_value))
+  (param $needle (ref null $gc_value)) (param $position f64) (param $backwards i32)
+  (result f64)
+  (local $source (ref null $gc_key)) (local $search (ref null $gc_key))
+  (local $length i32) (local $count i32) (local $start i32)
+  (local $last i32) (local $index i32)
+  local.get $value call $gc_string_key local.tee $source array.len local.set $length
+  local.get $needle call $gc_string_key local.tee $search array.len local.set $count
+  local.get $backwards
+  if
+    local.get $position local.get $position f64.ne
+    if f64.const inf local.set $position end
+  end
+  local.get $length f64.convert_i32_u local.get $position i32.const 0
+  call $gc_string_position local.set $start
+  local.get $count i32.eqz
+  if local.get $start f64.convert_i32_u return end
+  ;; Validate before subtracting: all candidate starts then fit [0,length-count]
+  ;; and every matching-loop read is at most length-1, without Wasm32 overflow.
+  local.get $count local.get $length i32.gt_u if f64.const -1 return end
+  local.get $length local.get $count i32.sub local.set $last
+  local.get $start local.get $last i32.gt_u
+  if
+    local.get $backwards
+    if local.get $last local.set $start else f64.const -1 return end
+  end
+  loop $candidate
+    i32.const 0 local.set $index
+    block $mismatch
+      loop $unit
+        local.get $source local.get $start local.get $index i32.add array.get_u $gc_key
+        local.get $search local.get $index array.get_u $gc_key
+        i32.ne br_if $mismatch
+        local.get $index i32.const 1 i32.add local.tee $index
+        local.get $count i32.lt_u br_if $unit
+      end
+      local.get $start f64.convert_i32_u return
+    end
+    local.get $backwards
+    if
+      local.get $start i32.eqz if f64.const -1 return end
+      local.get $start i32.const 1 i32.sub local.set $start
+    else
+      local.get $start local.get $last i32.eq if f64.const -1 return end
+      local.get $start i32.const 1 i32.add local.set $start
+    end
+    br $candidate
+  end
+  unreachable)

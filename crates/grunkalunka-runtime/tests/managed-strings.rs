@@ -3,6 +3,110 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn string_indices_clamp_number_positions_and_return_numeric_offsets() {
+    for body in [
+        // The first input selects the method; the second still exercises every
+        // Number position in each method, retaining exact result-bit comparisons.
+        "return a>0?'abcabc'.indexOf('bc',b):'abcabc'.lastIndexOf('bc',b);",
+        "return a>0?'abcabc'.indexOf('bc',b+1.75):'abcabc'.lastIndexOf('bc',b+1.75);",
+        "return a>0?''.indexOf('',b):''.lastIndexOf('',b);",
+        "return a>0?'abc'.indexOf('',b):'abc'.lastIndexOf('',b);",
+        "return 'abcabc'.indexOf('abc')===0&&'abcabc'.indexOf('abc',undefined)===0&&'abcabc'.indexOf('abc',NaN)===0&&'abcabc'.lastIndexOf('abc')===3&&'abcabc'.lastIndexOf('abc',undefined)===3&&'abcabc'.lastIndexOf('abc',NaN)===3?1:0;",
+        "return 'abcabc'.indexOf('abc',1)===3&&'abcabc'.indexOf('abc',4)===-1&&'abcabc'.lastIndexOf('abc',4)===3&&'abcabc'.lastIndexOf('abc',1)===0?1:0;",
+        "return ''.indexOf('a')===-1&&''.lastIndexOf('a')===-1&&'a'.indexOf('abc')===-1&&'a'.lastIndexOf('abc')===-1&&'ab'.lastIndexOf('b',-Infinity)===-1&&'ab'.lastIndexOf('a',-Infinity)===0?1:0;",
+        "return 'abc'.indexOf('c',4294967296)===-1&&'abc'.lastIndexOf('c',4294967296)===2&&'abc'.indexOf('',1e300)===3&&'abc'.lastIndexOf('',1e300)===3&&'abc'.indexOf('a',-Infinity)===0?1:0;",
+        "return 'ababa'.indexOf('aba',1)===2&&'ababa'.lastIndexOf('aba',1)===0&&'aaaa'.indexOf('aa',1)===1&&'aaaa'.lastIndexOf('aa',Infinity)===2?1:0;",
+        r"const s='\0A\u{1f600}\ud800e\u0301\u{1f600}';return s.indexOf('\ude00')*100+s.lastIndexOf('\ude00')*10+s.indexOf('\ud800');",
+        r"return '\ud800x\udfff'.indexOf('\udfff')===2&&'\ud800x\udfff'.lastIndexOf('\ud800')===0&&'e\u0301'.indexOf('\u00e9')===-1&&'e\u0301'.lastIndexOf('\u0301')===1?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_indices_keep_defaults_argument_order_and_operand_snapshots() {
+    for body in [
+        "let n=0;const pos=(n=1,'abcabc').indexOf((n=n*10+2,'bc'),(n=n*10+3,2),(n=n*10+4,{}));return pos===4?n:-1;",
+        "let n=0;const pos=(n=1,'abcabc').lastIndexOf((n=n*10+2,'bc'),(n=n*10+3,3),(n=n*10+4,null));return pos===1?n:-1;",
+        "let s='abcabc';const pos=s['indexOf']((s='changed','bc'),2);return pos===4&&s==='changed'?1:0;",
+        "let needle='bc';const pos='abcabc'.lastIndexOf(needle,(needle='missing',3));return pos===1&&needle==='missing'?1:0;",
+        "let s='abcabc';let needle='bc';const pos=s.indexOf(needle,2,(s='changed',needle='missing'));return pos===4&&s==='changed'&&needle==='missing'?1:0;",
+        "let n=0;const first='abcabc'.indexOf((n=1,'bc'),void(n=n*10+2),(n=n*10+3));const last='abcabc'.lastIndexOf('bc',void(n=n*10+4));return first===1&&last===4?n:-1;",
+        "const undefined=2;return 'abcabc'.indexOf('bc',undefined)===4&&'abcabc'.lastIndexOf('bc',undefined)===1?1:0;",
+        "let n=0;'abc'.indexOf((n=1,'a'),(n=n*10+2,0),n=n*10+3);'abc'.lastIndexOf((n=n*10+4,'c'),void(n=n*10+5));return n;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_indices_compose_numeric_helpers_and_source_label_handlers() {
+    for source in [
+        "function first(s,n,p){return s.indexOf(n,p);}function last(s,n,p){return s.lastIndexOf(n,p);}export function run(a,b){return first('abcabc','bc',a)+last('abcabc','bc',b);}",
+        "export function run(a,b){const first='abc'.indexOf('b');const last='abc'.lastIndexOf('missing');const box={first,last};return typeof box.first==='number'&&box.first!==true&&box.first===1&&box.last===-1?1:0;}",
+        "function label(s){const text=s.trim();const start=text.indexOf(':');const name=text.slice(start+1).trim();const end=name.lastIndexOf('.');return end<0?name:name.slice(0,end);}export function run(a,b){const title=a>0?' Heading: Notes.md ':' Heading: Notes ';const handler=()=>label(title)==='Notes'?a:b;return handler();}",
+        "export function run(a,b){const o={indexOf:(x,y)=>x+y,lastIndexOf:x=>x>0};return o.lastIndexOf(a)?o.indexOf(a,b):b;}",
+        "function text(x){return 'ordinary';}export function run(a,b){const o={indexOf:text,lastIndexOf:text};return o.indexOf(a).length+o.lastIndexOf(b).length;}",
+    ] {
+        compare_sources(
+            source,
+            &source.replace("run(a,b)", "run(a: number,b: number)"),
+        );
+    }
+    let js = "export function run(a,b){const s='abcabc';return s.indexOf('bc',a)*10+s['lastIndexOf']('bc',b);}";
+    let ts = "export function run(a: number,b: number){const s: number='abcabc';return (s as boolean).indexOf('bc' as never,a as unknown)*10+s[('lastIndexOf' as number)]('bc',b);}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_indices_reject_unproven_strings_and_unrepresented_coercions() {
+    for body in [
+        "return 'abc'.indexOf();",
+        "return 'abc'.lastIndexOf(undefined);",
+        "return 'abc'.indexOf(a);",
+        "return 'abc'.lastIndexOf(/c/);",
+        "return 'abc'.indexOf('c','1');",
+        "return 'abc'.lastIndexOf('c',null);",
+        "return 'abc'.indexOf('c',true);",
+        "const s=a?'abc':null;return s.lastIndexOf('c');",
+        "const needle=a?'c':null;return 'abc'.indexOf(needle);",
+        "let needle='c';const find=()=> 'abc'.lastIndexOf(needle);needle=a;return find();",
+        "const xs=['abc'];return xs.at(0).indexOf('c');",
+        "const xs=['c'];return 'abc'.lastIndexOf(xs.at(0));",
+        "const xs=['abc'];return xs.indexOf('abc');",
+        "const s='abc';return s?.indexOf('c');",
+        "const s='abc';return s.lastIndexOf?.('c');",
+        "return 'abc'.indexOf.call('abc','c');",
+        "return 'abc'.lastIndexOf(...['c']);",
+        "const key='indexOf';return 'abc'[key]('c');",
+        "return 'abc'.lastIndexOf('c').length;",
+        "return ('abc'.indexOf('a')+'!').length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    assert!(
+        grunkalunka_compiler::compile(
+            "export function run(a: number,b: number){const s: string=a;return (s as string).lastIndexOf('c');}",
+            true,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn string_ends_with_clamps_endpoints_and_matches_utf16_units() {
     for body in [
         "const s='abcabc';return (s.endsWith('abc',a)?100:0)+(s.endsWith('bc',b)?10:0)+(s.endsWith('b',a+1.75)?1:0);",

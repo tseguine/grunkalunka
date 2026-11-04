@@ -589,6 +589,13 @@ pub(crate) enum Op {
         input: ValueId,
         ends: StringTrim,
     },
+    ManagedStringIndex {
+        result: ValueId,
+        input: ValueId,
+        search: ValueId,
+        position: ValueId,
+        backwards: bool,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1449,6 +1456,18 @@ impl Verifier<'_> {
                 self.value(*search, Type::ManagedValue, visible, span)?;
                 self.value(*position, Type::Number, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::ManagedStringIndex {
+                result,
+                input,
+                search,
+                position,
+                ..
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*search, Type::ManagedValue, visible, span)?;
+                self.value(*position, Type::Number, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;
