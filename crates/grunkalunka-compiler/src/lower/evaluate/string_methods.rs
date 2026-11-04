@@ -115,6 +115,13 @@ impl Lowering<'_, '_> {
                     _ => ir::StringSearch::EndsWith,
                 },
             },
+            Method::IndexOf | Method::LastIndexOf => Op::ManagedStringIndex {
+                result,
+                input,
+                search: first(),
+                position: task.inputs[1].expect("completed String search position"),
+                backwards: matches!(task.method, Method::LastIndexOf),
+            },
             Method::Trim | Method::TrimStart | Method::TrimEnd => Op::ManagedStringTrim {
                 result,
                 input,

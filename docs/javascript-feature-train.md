@@ -136,6 +136,14 @@ optional ending position, preserving the distinction between omitted/undefined
 and explicit NaN endpoints. This compiler/runtime slice is independent
 of the concurrent A1 persistent-session and reversible-toggle application work.
 
+`indexOf` and `lastIndexOf` return UTF-16 positions for source label parsing and
+range selection. Their Number results compose with helpers, captured handlers,
+boxed fields and suspension; backward search preserves its distinct NaN default.
+The String family remains bounded to proven receivers/needles and admitted
+position arguments. Everyday bindings/iteration and synchronous source errors
+remain the broader next feature families; completing every String builtin is
+not a prerequisite.
+
 ## A1 scope and existing evidence
 
 The separate A1 application stack, [#477](https://github.com/tseguine/grunkalunka/pull/477)

@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn string_indices_save_operands_and_numeric_results_across_awaits() {
+    compare_promises(
+        &[
+            "let s='abcabc';const pos=s.indexOf((await a,s='changed','bc'),(await b,2));await a;return pos===4&&s==='changed'?1:0;",
+            "let needle='bc';const pos='abcabc'.lastIndexOf(needle,(await a,needle='changed',3));await b;return pos===1&&needle==='changed'?1:0;",
+            "let n=0;const pos='abcabc'.lastIndexOf('bc',void(await a,n=1),(await b,n=n*10+2));await a;return pos===4?n:-1;",
+            "const first='abcabc'.indexOf('bc',(await a,NaN));const last='abcabc'.lastIndexOf('bc',(await b,NaN));await a;return first*10+last;",
+            "const pos='abcabc'.indexOf('bc',(await a,2));await b;return pos;",
+            "let n=0;'abc'.indexOf((await a,n=1,'a'),(await b,n=n*10+2,0),(await a,n=n*10+3));'abc'.lastIndexOf('c',void(await b,n=n*10+4));return n;",
+            "let n=0;try{'abc'.lastIndexOf((await a,'c'),await Promise.reject(b),n=1);}catch(e){return n;}return -1;",
+            "const label=' Notes.md '.trim();await a;const end=label.lastIndexOf('.');await b;return label.slice(0,end)==='Notes'?end:-1;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_ends_with_saves_arguments_and_boolean_results_across_awaits() {
     compare_promises(
         &[

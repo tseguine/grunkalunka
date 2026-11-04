@@ -409,6 +409,24 @@ impl Emitter<'_> {
                 writeln!(self.output, "i32.const {flags}\ncall $gc_string_trim").unwrap();
                 self.set(*result);
             }
+            Op::ManagedStringIndex {
+                result,
+                input,
+                search,
+                position,
+                backwards,
+            } => {
+                self.get(*input);
+                self.get(*search);
+                self.get(*position);
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_string_index",
+                    i32::from(*backwards)
+                )
+                .unwrap();
+                self.set(*result);
+            }
             Op::ManagedArrayNew { result, length } => {
                 writeln!(
                     self.output,

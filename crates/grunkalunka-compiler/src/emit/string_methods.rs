@@ -11,6 +11,7 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
                     | ir::Op::ManagedStringCharCodeAt { .. }
                     | ir::Op::ManagedStringSearch { .. }
                     | ir::Op::ManagedStringTrim { .. }
+                    | ir::Op::ManagedStringIndex { .. }
             )
         })
     }) {
