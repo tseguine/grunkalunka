@@ -1,0 +1,185 @@
+use grunkalunka_compiler::compile;
+
+#[path = "managed/common.rs"]
+mod common;
+
+#[test]
+fn array_for_of_visits_values_holes_and_empty_arrays() {
+    for body in [
+        "let n=0;for(const item of [a,,b,undefined])n=n*10+(item===undefined?3:item===a?1:2);return n;",
+        "let n=0;for(const item of [])n+=100;for(const item of [,,,])n+=item===undefined?1:10;return n;",
+        "let n=0;for(const item of [null,false,0,-0,NaN,''])n=n*2+(item?2:1);return n;",
+        "let n=0;for(const item of [null,false,a,'value',{},[]])n+=item?1:0;return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_evaluates_one_rhs_and_keeps_the_original_array_and_selection() {
+    for body in [
+        "let calls=0;const make=()=>{calls++;return [a,b];};let n=0;for(const item of make())n++;return calls*10+n;",
+        "let source=[a,b];const original=source;let n=0;for(const item of source){if(n===0){source=[b];original[1]=a;}n=n*10+(item===a?1:2);}return n+(source!==original?100:0);",
+        "const source=[a,b];let n=0;for(const item of source){source[0]=b;n=n*10+(item===a?1:2);}return n;",
+        "const row={tag:a};let n=0;for(const item of [row,row]){if(item===row)n++;row.tag=b;}return n+(row.tag===b?10:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_observes_live_growth_shrinkage_and_sparse_positions() {
+    for body in [
+        "const source=[a];let n=0,holes=0;for(const item of source){n++;if(item===undefined)holes++;if(n===1)source[2]=b;}return n*10+holes;",
+        "const source=[a,b,a];let n=0;for(const item of source){n++;source.length=1;}return n;",
+        "const source=[a,b];let n=0;for(const item of source){n++;source.pop();}return n;",
+        "const source=[a,b,b];let n=0,holes=0;for(const item of source){n++;if(item===undefined)holes++;if(n===1){source.length=0;source[2]=b;}}return n*10+holes;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_preserves_continue_break_nested_loops_and_return() {
+    for body in [
+        "let n=0;for(const item of [0,1,2,3]){if(item===1)continue;if(item===3)break;n=n*10+(item===0?1:3);}return n;",
+        "let n=0;for(const outer of [0,1]){for(const inner of [0,1,2]){if(inner===1)continue;if(inner===2)break;n++;}if(outer===0)continue;n+=10;}return n;",
+        "let n=0;for(const item of [0,1,2]){for(let i=0;i<2;i++){if(i===0)continue;n++;}if(item===1)break;}return n;",
+        "for(const item of [a,b]){if(item===a)return 1;else return 2;}return 3;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_allocates_fresh_const_and_mutable_let_capture_cells() {
+    for body in [
+        "let first=()=>0,last=()=>0;let n=0;for(const item of [0,1]){const read=()=>item===0?1:2;if(n===0)first=read;last=read;n++;}return first()*10+last();",
+        "let first=()=>0,last=()=>0,change=()=>0;for(let item of [0,1]){const read=()=>item===0?1:item===1?2:3;if(item===0){first=read;change=()=>{item=9;return 0;};continue;}last=read;}change();return first()*10+last();",
+        "let first=()=>0,second=()=>0;let n=0;for(const item of [a,b]){const read=()=>item===a?1:item===b?2:3;if(n===0)first=read;else second=read;n++;}return first()*10+second();",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_composes_with_helpers_and_lexical_shadowing() {
+    for source in [
+        "function count(items){let n=0;for(const item of items)if(item)n++;return n;}export function run(a,b){return count([a,b]);}",
+        "function select(items,needle){for(const item of items){if(item===needle)return 1;}return 0;}export function run(a,b){return select([a,b],b);}",
+        "function identity(x){return x;}export function run(a,b){const row={tag:a};let n=0;for(const item of [row,b])if(identity(item)===row)n++;return n;}",
+        "export function run(a,b){const items=[a,b];const count=()=>{let n=0;for(const item of items)n+=item?1:0;return n;};return count();}",
+        "export function run(a,b){const item=9;let n=0;for(let item of [a,b]){item=7;n+=item===7?1:0;}return item+n;}",
+        "export function run(a,b){const item=7;let n=0;for(const item of [a]){{const item=b;n+=item===b?1:0;}n+=item===a?2:0;}return n+(item===7?10:0);}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_for_of_erases_annotations_without_proving_runtime_values() {
+    let js = "export function run(a,b){let n=0;for(let item of [a,b]){item=a;n+=item===a?1:0;}return n;}";
+    let ts = "type Items=never;export function run(a:string,b:boolean):void{let n:number=0;for(let item of ([a,b] as Items)){item=a;n+=(item as number)===a?1:0;}return n;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    for source in [
+        "export function run(a,b){const items:number[]=a;for(const item of items){return item===a?1:0;}return 0;}",
+        "export function run(a,b){for(const item of ([a] as string[])){return item.trim().length;}return 0;}",
+    ] {
+        assert_rejected(source, true);
+    }
+}
+
+#[test]
+fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
+    for body in [
+        "for(var item of [a]){}return a;",
+        "let item=a;for(item of [b]){}return a;",
+        "const row={value:a};for(row.value of [b]){}return a;",
+        "for(const [item] of [[a]]){}return a;",
+        "for(const {item} of [{item:a}]){}return a;",
+        "for(const item of a){}return a;",
+        "for(const item of 'abc'){}return a;",
+        "for(const item of {0:a,length:1}){}return a;",
+        "for(const item of null){}return a;",
+        "for(const item of undefined){}return a;",
+        "const items=a?[a]:null;for(const item of items){}return a;",
+        "for(const item of [item]){}return a;",
+        "const items=[a];for(const items of items){}return a;",
+        "for(const item of [a]){}return item;",
+        "for(const item of [a])item=b;return a;",
+        "for(const item of [a])return item+1;return a;",
+        "for(const item of ['ready'])return item.trim().length;return a;",
+        "for(const item of [{value:a}])return item.value===a?1:0;return a;",
+        "outer:for(const item of [a]){break outer;}return a;",
+        "for(const key in {item:a}){}return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_rejected(&source, typed);
+        }
+    }
+}
+
+#[test]
+fn array_for_of_keeps_source_local_and_nesting_limits_on_a_small_native_stack() {
+    for count in [128, 129] {
+        let locals = (0..count - 1)
+            .map(|index| format!("v{index}=a"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = format!(
+            "export function run(a,b){{const {locals};for(const item of [a])return item===a?1:0;return b;}}"
+        );
+        for typed in [false, true] {
+            let result = compile_on_small_stack(source.clone(), typed);
+            if count == 128 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("at most 128 source locals"), "{error}");
+            }
+        }
+    }
+    for (depth, admitted) in [(1, true), (16, true), (64, true), (65, false)] {
+        let mut body = String::from("break;");
+        for level in 0..depth {
+            body = format!("for(const item{level} of [a]){body}");
+        }
+        let source = format!("export function run(a,b){{{body}return b;}}");
+        for typed in [false, true] {
+            let result = compile_on_small_stack(source.clone(), typed);
+            if admitted {
+                assert!(result.is_ok(), "{depth}: {result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("statement nesting exceeds 64"), "{error}");
+            }
+        }
+    }
+}
+
+fn compile_on_small_stack(source: String, typed: bool) -> Result<(), String> {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || compile(&source, typed).map(|_| ()))
+        .unwrap()
+        .join()
+        .expect("array for-of must not overflow the native stack")
+}
+
+fn assert_rejected(source: &str, typed: bool) {
+    let error = compile(source, typed)
+        .err()
+        .unwrap_or_else(|| panic!("admitted {source}"));
+    assert!(error.contains("unsupported"), "{source}: {error}");
+    assert!(!error.contains("internal IR"), "{source}: {error}");
+}
+
+fn compare(body: &str) {
+    let source = format!("export function run(a,b){{{body}}}");
+    common::compare_sources(&source, &source);
+}

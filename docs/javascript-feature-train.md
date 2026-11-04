@@ -168,9 +168,17 @@ the existing managed-value, capture and source-local-budget boundaries. See
 [array binding declarations](array-binding-patterns.md) for the intrinsic
 iterator scope and differential coverage.
 
-Nested patterns and `for...of` remain follow-on slices. This
-compiler work does not alter the concurrent A1 application's session, native
-view, service or packaging interfaces.
+Array `for...of` now supports lexical identifier heads, live length, sparse
+values and one original RHS evaluation. Body-owned initialization preserves
+fresh captured cells for each iteration, and existing completion machinery
+handles unlabelled loop control and supported suspension. See
+[array iteration](array-iteration.md) for its intrinsic-array admission and
+current boxed-element proof boundary.
+
+More precise iteration element origins and nested patterns remain follow-on
+slices. This compiler work does not alter the concurrent A1 application's
+session, native view, service or packaging interfaces, or the browser stream's
+native layout and engine-oracle work.
 
 ## A1 scope and existing evidence
 

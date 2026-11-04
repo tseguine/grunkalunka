@@ -45,6 +45,20 @@ fn seed_pattern_bindings(pattern: &BindingPattern<'_>, bindings: &mut BTreeMap<S
     }
 }
 
+fn seed_for_of_binding(
+    source: &oxc_ast::ast::ForOfStatement<'_>,
+    bindings: &mut BTreeMap<SymbolId, Kinds>,
+) {
+    // An iteration variable has no source initializer of its own. Its runtime
+    // selection uses the managed lane, including Numbers and sparse holes.
+    if let Some(symbol) = iteration::for_of_binding(source).and_then(|id| id.symbol_id.get()) {
+        bindings
+            .entry(symbol)
+            .or_default()
+            .extend(managed_value_kinds());
+    }
+}
+
 fn managed_type(kinds: &Kinds) -> Option<Type> {
     (kinds.contains(&Kind::Object) || kinds.contains(&Kind::Array) || kinds.contains(&Kind::String))
         .then_some(if kinds.len() == 1 && kinds.contains(&Kind::Object) {
@@ -405,6 +419,9 @@ pub(crate) fn infer(
     let mut all_calls = Vec::new();
     for node in semantic.nodes().iter() {
         match node.kind() {
+            AstKind::ForOfStatement(source) => {
+                seed_for_of_binding(source, &mut bindings);
+            }
             AstKind::VariableDeclarator(v) => {
                 if let BindingPattern::BindingIdentifier(i) = &v.id
                     && let Some(symbol) = i.symbol_id.get()
@@ -627,6 +644,9 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         bindings.entry(*symbol).or_default();
     }
     for node in semantic.nodes().iter() {
+        if let AstKind::ForOfStatement(source) = node.kind() {
+            seed_for_of_binding(source, &mut bindings);
+        }
         if let AstKind::VariableDeclarator(declaration) = node.kind() {
             seed_pattern_bindings(&declaration.id, &mut bindings);
         }

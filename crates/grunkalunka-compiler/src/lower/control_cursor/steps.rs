@@ -5,6 +5,7 @@
 //! scheduler in the parent module owns the worklist and continuation stack.
 use super::*;
 mod for_loop;
+mod for_of;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn begin_control<'n>(
@@ -153,6 +154,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             }
             ControlNode::For(source) => {
                 self.begin_for_loop(source, output, depth, cursor)?;
+            }
+            ControlNode::ForOf(source) => {
+                self.begin_for_of(source, output, depth, cursor)?;
             }
             ControlNode::DoWhile(source) => {
                 // Do-while tests are admitted only after the body.
@@ -404,6 +408,27 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let predicate = value.expect("predicate mode yields a value");
                 self.resume_for_predicate(frame, output_region, predicate, cursor)
             }
+            Frame::ForOfSource {
+                source,
+                output,
+                depth,
+                outer,
+            } => {
+                let condition = self.region(&source.right);
+                self.resume_for_of_source(
+                    Box::new(ForOfFrame {
+                        source,
+                        output,
+                        header: output_region,
+                        condition,
+                        depth,
+                        outer,
+                        old_loop: self.in_loop_body,
+                    }),
+                    value.expect("for-of iterable"),
+                    cursor,
+                )
+            }
             Frame::ForUpdate {
                 frame,
                 body,
@@ -558,6 +583,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::WhilePredicate { .. }
             | Frame::DoWhilePredicate { .. }
             | Frame::ForInitializer { .. }
+            | Frame::ForOfSource { .. }
             | Frame::ForPredicate(_)
             | Frame::ForUpdate { .. } => {
                 unreachable!("expression continuation is resumed by a value result")
@@ -854,6 +880,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             }
             Frame::For(frame) => {
                 self.resume_for_loop(frame, finished_region, completion, cursor)?;
+            }
+            Frame::ForOf(frame) => {
+                self.finish_for_of(*frame, finished_region, completion, cursor);
             }
             Frame::DoWhile {
                 source,

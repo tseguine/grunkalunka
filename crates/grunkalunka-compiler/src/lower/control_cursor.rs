@@ -6,7 +6,8 @@
 //! effect-free fact queries keep their existing, separate boundaries.
 use super::*;
 use oxc_ast::ast::{
-    BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
+    BlockStatement, DoWhileStatement, ForOfStatement, ForStatement, IfStatement, TryStatement,
+    WhileStatement,
 };
 
 mod array_bindings;
@@ -93,6 +94,7 @@ pub(super) enum ControlNode<'n, 'a> {
     While(&'n WhileStatement<'a>),
     DoWhile(&'n DoWhileStatement<'a>),
     For(&'n ForStatement<'a>),
+    ForOf(&'n ForOfStatement<'a>),
     Block(&'n BlockStatement<'a>),
     /// A lexical statement sequence is a traversal boundary, not a source node.
     Sequence(&'n [Statement<'a>]),
@@ -107,6 +109,7 @@ impl<'n, 'a> ControlNode<'n, 'a> {
             Statement::WhileStatement(statement) => Some(Self::While(statement)),
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
+            Statement::ForOfStatement(statement) => Some(Self::ForOf(statement)),
             Statement::BlockStatement(statement) => Some(Self::Block(statement)),
             Statement::TryStatement(statement) => Some(if statement.finalizer.is_some() {
                 Self::TryFinally(statement)
@@ -141,6 +144,18 @@ struct ForFrame<'n, 'a> {
     outer: usize,
     header_bindings: usize,
     let_slots: Vec<SlotId>,
+    old_loop: bool,
+}
+
+/// The iterable and hidden index belong to the header; the source binding is
+/// initialized afresh in the body Region on every successful iteration.
+struct ForOfFrame<'n, 'a> {
+    source: &'n ForOfStatement<'a>,
+    output: Region,
+    header: Region,
+    condition: Region,
+    depth: usize,
+    outer: usize,
     old_loop: bool,
 }
 
@@ -439,6 +454,13 @@ enum Frame<'n, 'a> {
     },
     ForPredicate(ForPredicateFrame<'n, 'a>),
     For(ForFrame<'n, 'a>),
+    ForOfSource {
+        source: &'n ForOfStatement<'a>,
+        output: Region,
+        depth: usize,
+        outer: usize,
+    },
+    ForOf(Box<ForOfFrame<'n, 'a>>),
     /// The loop body has finished; an update expression must run before
     /// captured let-header renewal and final loop IR assembly.
     ForUpdate {
@@ -578,6 +600,7 @@ impl Frame<'_, '_> {
             | Self::TryFinallyBody { depth, .. }
             | Self::TryFinallyCleanup { depth, .. } => *depth,
             Self::ForInitializer { depth, .. } => *depth,
+            Self::ForOfSource { depth, .. } => *depth,
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ObjectBindingSource { sequence, .. } => sequence.depth,
@@ -590,6 +613,7 @@ impl Frame<'_, '_> {
             Self::CheckedDeclarationFactory { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
+            Self::ForOf(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
         }
     }
@@ -1021,6 +1045,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                         self.admit_source_statement(node, depth)?;
                                     }
                                     ControlNode::For(node) => {
+                                        self.admit_source_statement(node, depth)?;
+                                    }
+                                    ControlNode::ForOf(node) => {
                                         self.admit_source_statement(node, depth)?;
                                     }
                                     ControlNode::Block(node) => {
