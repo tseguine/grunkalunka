@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import childProcess, { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,7 @@ import test, { after, before } from 'node:test';
 import { loadNoteDocument } from '../../examples/note-preview/run.mjs';
 import { prepareSelectedNoteScene } from '../../examples/note-preview/scene.mjs';
 import { activateNoteHeadingWithService, compileUiService, paintNoteScene } from '../../examples/note-preview/service-interaction.mjs';
+import { createNoteSession } from '../../examples/note-preview/session.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const target = resolve(root, process.env.CARGO_TARGET_DIR ?? 'target');
@@ -39,6 +41,12 @@ function activate(overrides = {}) {
   return activateNoteHeadingWithService({ executable, serviceExecutable,
     component, document, expanded: 1, x: 24, y: 40, ...overrides });
 }
+
+function session(overrides = {}) {
+  return createNoteSession({ executable, serviceExecutable, component, document, ...overrides });
+}
+
+const pointer = Object.freeze({ x: 24, y: 16 });
 
 before(async () => {
   for (const [pkg, example, extra] of [
@@ -207,4 +215,225 @@ test('long actual WIT labels reflow following glyphs and pointer targets togethe
   assert.equal(Buffer.from(second[9], 'hex').toString('utf8'), 'End');
   assert.deepEqual(pixel(result.previousPixels, 26, 73), [0, 0, 0], 'reflowed E ink');
   assert.equal(result.after.visibleCount, 0);
+});
+
+test('owned JS/TS sessions collapse and reopen through the same native control',
+  { timeout: 120_000 }, async () => {
+    const typescript = await readFile(
+      new URL('../../examples/note-preview/activate.ts', import.meta.url), 'utf8');
+    const tsComponent = compileUiService({
+      executable: serviceExecutable, source: typescript, language: 'ts',
+    });
+    for (const payload of [component, tsComponent]) {
+      const active = session({ component: payload });
+      const initial = active.snapshot();
+      assert.deepEqual([initial.expanded, initial.visibleCount, initial.eventsProcessed], [1, 2, 0]);
+      assert.match(initial.scene.input.toString('utf8'), /^A1SCENE2\tgranted\t17\t2\t1\t2\t1\n/);
+      const collapsed = active.activate(pointer);
+      assert.deepEqual([collapsed.sequence, collapsed.target, collapsed.activated,
+        collapsed.changed, collapsed.beforeExpanded, collapsed.expanded],
+      [1, 'toggle', true, true, 1, 0]);
+      assert.equal(collapsed.after.visibleCount, 0);
+      assert.match(collapsed.after.html, /Outline collapsed/);
+      assert.notDeepEqual(collapsed.pixels, initial.pixels);
+
+      // Heading-row coordinates from the prior view cannot activate the
+      // collapsed message. Input is hit-tested against the retained frame.
+      const staleHeading = active.activate({ x: 24, y: 40 });
+      assert.deepEqual([staleHeading.sequence, staleHeading.target, staleHeading.service,
+        staleHeading.expanded], [2, null, null, 0]);
+      assert.deepEqual(staleHeading.pixels, collapsed.pixels);
+
+      const reopened = active.activate(pointer);
+      assert.deepEqual([reopened.sequence, reopened.activated, reopened.changed,
+        reopened.beforeExpanded, reopened.expanded, reopened.after.visibleCount],
+      [3, true, true, 0, 1, 2]);
+      assert.deepEqual(reopened.after, initial.scene);
+      assert.deepEqual(reopened.pixels, initial.pixels);
+      assert.deepEqual([reopened.service.attempts, reopened.service.transitions,
+        reopened.service.visible], [1, 1, 2]);
+      const again = active.activate(pointer);
+      assert.equal(again.sequence, 4);
+      assert.deepEqual(again.pixels, collapsed.pixels);
+      assert.equal(active.snapshot().eventsProcessed, 4);
+    }
+    assert.deepEqual([document.attemptedReads, document.backingReads, document.cleanups], [1, 1, 1]);
+  });
+
+test('session state follows the service rather than pointer intent or numeric return',
+  { timeout: 120_000 }, () => {
+    const unchanged = session({ component: compile('return choose(a, b);') });
+    const initial = unchanged.snapshot();
+    const result = unchanged.activate(pointer);
+    assert.deepEqual([result.activated, result.changed, result.expanded], [true, false, 1]);
+    assert.equal(result.service.transitions, 1);
+    assert.deepEqual(result.pixels, initial.pixels);
+
+    const decoy = session({ component: compile('return choose(a > 0 ? 0 : 1, b) + 17;') });
+    const collapsed = decoy.activate(pointer);
+    const reopened = decoy.activate(pointer);
+    assert.deepEqual([collapsed.service.result, collapsed.after.visibleCount,
+      reopened.service.result, reopened.after.visibleCount], [17, 0, 19, 2]);
+    assert.deepEqual(reopened.pixels, initial.pixels);
+  });
+
+test('denied and empty session documents expose no control or service call', async () => {
+  const denied = await loadNoteDocument({
+    profile: 'denied', note: join(scratch, 'absent-session-secret.md'),
+  });
+  const note = join(scratch, 'no-headings.md');
+  await writeFile(note, 'A note without headings.\n');
+  const empty = await loadNoteDocument({ profile: 'granted', note });
+  for (const selected of [denied, empty]) {
+    const active = session({ document: selected,
+      serviceExecutable: join(scratch, 'must-not-run') });
+    const initial = active.snapshot();
+    assert.deepEqual([initial.expanded, initial.visibleCount], [0, 0]);
+    const action = active.activate(pointer);
+    assert.deepEqual([action.target, action.service, action.activated, action.expanded],
+      [null, null, false, 0]);
+    assert.deepEqual(action.pixels, initial.pixels);
+    assert.doesNotMatch(action.after.html, /Root|Child/);
+    assert.match(action.after.html, selected.profile === 'denied' ? /Document access denied/ : /No headings/);
+  }
+  assert.deepEqual([denied.attemptedReads, denied.backingReads, denied.cleanups], [1, 0, 1]);
+  assert.deepEqual([empty.attemptedReads, empty.backingReads, empty.cleanups], [1, 1, 1]);
+});
+
+test('UI denial preserves either retained session state across repeated inputs', () => {
+  for (const expanded of [0, 1]) {
+    const active = session({ expanded, uiProfile: 'denied' });
+    const initial = active.snapshot();
+    for (const sequence of [1, 2]) {
+      const action = active.activate(pointer);
+      assert.deepEqual([action.sequence, action.target, action.service.status,
+        action.service.attempts, action.service.transitions], [sequence, 'toggle', 'denied', 1, 0]);
+      assert.deepEqual([action.activated, action.changed, action.expanded], [false, false, expanded]);
+      assert.deepEqual(action.after, initial.scene);
+      assert.deepEqual(action.pixels, initial.pixels);
+    }
+  }
+});
+
+test('unused or rolled-back source actions preserve the last successful session frame',
+  { timeout: 120_000 }, () => {
+    for (const [body, status, attempts] of [
+      ['if (a > 0) return choose(0, b); if (a < 0) return choose(1, b); return 17;', 'ok', 0],
+      ['if (a > 0) return choose(0, b); choose(1, b); return choose(1, b + 1);', 'invalid-count', 2],
+      ['if (a > 0) return choose(0, b); choose(1, b); return 1 / 0;', 'invalid-result', 1],
+    ]) {
+      const active = session({ component: compile(body) });
+      const collapsed = active.activate(pointer);
+      assert.equal(collapsed.activated, true);
+      assert.equal(collapsed.expanded, 0);
+      const failed = active.activate(pointer);
+      assert.deepEqual([failed.service.status, failed.service.attempts,
+        failed.service.transitions, failed.activated, failed.expanded],
+      [status, attempts, 0, false, 0]);
+      assert.deepEqual(failed.after, collapsed.after);
+      assert.deepEqual(failed.pixels, collapsed.pixels);
+    }
+  });
+
+test('guest traps retain the last session frame and consume an event attempt',
+  { timeout: 120_000 }, () => {
+    const active = session({ maxEvents: 3, component: compile(
+      'if (a > 0) return choose(0, b); choose(1, b); while (b > 0) { a += 1; } return b;') });
+    const collapsed = active.activate(pointer);
+    assert.throws(() => active.activate(pointer), /fuel/i);
+    const retained = active.snapshot();
+    assert.deepEqual([retained.expanded, retained.visibleCount, retained.eventsProcessed], [0, 0, 2]);
+    assert.deepEqual(retained.scene, collapsed.after);
+    assert.deepEqual(retained.pixels, collapsed.pixels);
+    const miss = active.activate({ x: 0, y: 0 });
+    assert.deepEqual([miss.sequence, miss.service, miss.expanded], [3, null, 0]);
+    assert.throws(() => active.activate(pointer), /event limit/);
+    assert.equal(active.snapshot().eventsProcessed, 3);
+  });
+
+test('a failed native repaint commits no session state and a later input can recover', t => {
+  const active = session();
+  const initial = active.snapshot();
+  const actualSpawn = childProcess.spawnSync;
+  let invokedServices = 0;
+  const intercepted = t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+    if (command === serviceExecutable && args[0] === '--run') invokedServices++;
+    // Hit testing and the actual WIT action still run. Inject only the host
+    // frame-output failure after that service transition succeeds.
+    if (command === executable && args[0] === '--ppm') {
+      return { error: new Error('injected native repaint failure') };
+    }
+    return actualSpawn(command, args, options);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => active.activate(pointer), /injected native repaint failure/);
+    assert.equal(invokedServices, 1);
+  } finally {
+    intercepted.mock.restore();
+    syncBuiltinESMExports();
+  }
+  const retained = active.snapshot();
+  assert.deepEqual([retained.expanded, retained.visibleCount, retained.eventsProcessed], [1, 2, 1]);
+  assert.deepEqual(retained.scene, initial.scene);
+  assert.deepEqual(retained.pixels, initial.pixels);
+  const recovered = active.activate(pointer);
+  assert.deepEqual([recovered.sequence, recovered.beforeExpanded, recovered.expanded,
+    recovered.activated], [2, 1, 0, true]);
+});
+
+test('session owns input data and never exposes retained scene or frame buffers', () => {
+  const inputComponent = Buffer.from(component);
+  const inputDocument = { ...document, sourceBytes: Buffer.from(document.sourceBytes),
+    headings: document.headings.map(heading => ({ ...heading })) };
+  const active = session({ component: inputComponent, document: inputDocument });
+  const original = active.snapshot();
+  inputComponent.fill(0);
+  inputDocument.sourceBytes.fill(0);
+  inputDocument.headings[0].text = 'injected caller heading';
+  inputDocument.headings[0].end = 9000;
+  inputDocument.headings.length = 0;
+  inputDocument.profile = 'denied';
+  const exposed = active.snapshot();
+  exposed.scene.input.fill(0);
+  exposed.scene.html = 'injected caller HTML';
+  exposed.pixels.fill(0);
+  exposed.expanded = 0;
+  assert.deepEqual(active.snapshot(), original);
+
+  const collapsed = active.activate(pointer);
+  assert.equal(collapsed.expanded, 0, 'the session kept its real component bytes');
+  const retained = active.snapshot();
+  collapsed.before.input.fill(0);
+  collapsed.after.input.fill(0);
+  collapsed.previousPixels.fill(0);
+  collapsed.pixels.fill(0);
+  collapsed.service.visible = 64;
+  assert.deepEqual(active.snapshot(), retained);
+  const reopened = active.activate(pointer);
+  assert.deepEqual(reopened.after, original.scene);
+  assert.deepEqual(reopened.pixels, original.pixels);
+  assert.match(reopened.after.html, />Root<\/li>/);
+});
+
+test('session validates requests before native execution and bounds all pointer attempts', () => {
+  const absent = join(scratch, 'must-not-run-for-invalid-arguments');
+  for (const patch of [{ maxEvents: 0 }, { maxEvents: 257 }, { maxEvents: 1.5 },
+    { expanded: 2 }, { uiProfile: 'unknown' }, { serviceExecutable: '' },
+    { component: Buffer.from([0]) },
+    { document: { ...document, headings: [{ ...document.headings[0], end: 9000 }] } },
+    { document: { profile: 'denied', sourceBytes: Buffer.from('secret'), headings: [], backingReads: 0 } }]) {
+    assert.throws(() => session({ executable: absent, ...patch }), error =>
+      error instanceof Error && !error.message.includes('native'));
+  }
+  const active = session({ maxEvents: 2, serviceExecutable: absent });
+  for (const value of [{ x: -1, y: 0 }, { x: 0, y: Infinity },
+    { x: 0.5, y: 0 }, { x: 0xffffffff + 1, y: 0 }]) {
+    assert.throws(() => active.activate(value), /pointer/);
+  }
+  assert.equal(active.snapshot().eventsProcessed, 0);
+  assert.equal(active.activate({ x: 0, y: 0 }).sequence, 1);
+  assert.equal(active.activate({ x: 24, y: 40 }).sequence, 2, 'heading rows are inert in a session');
+  assert.throws(() => active.activate({ x: 0, y: 0 }), /event limit/);
+  assert.equal(active.snapshot().eventsProcessed, 2);
 });
