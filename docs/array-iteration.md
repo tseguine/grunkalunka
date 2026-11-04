@@ -32,9 +32,33 @@ finishes.
 The selected item uses the managed value carrier. Equality, truthiness, managed
 storage, identity transport and existing generic helper/capture positions work
 without assuming that the item is a Number or a particular reference kind.
-This first slice conservatively leaves element origins unknown. String-only
-methods, record projections and unchecked numeric unboxing require additional
-proof or a separate runtime operation. Type annotations do not supply proof.
+The original-source analysis also collects every possible element origin for
+each reached array allocation. When those alternatives prove a String, record
+or array, the binding can use the existing checked String operations, record
+projections or nested array iteration. The carrier remains a managed value;
+this proof does not add numeric unboxing. Type annotations do not supply proof.
+
+The proof follows aliases, helper arguments and returns, captures, conditional
+receivers and subsequent assignments to a mutable iteration binding. It unions
+literal elements with observed index writes. Same-kind replacement of an
+existing element can retain a proof; named properties do not contribute array
+elements. An unmodified empty array contributes no yielded values, including
+when it is one branch of a conditional receiver.
+
+Holes, unknown or incompatible values, new indices, any length write, `pop`
+and dynamic-key writes prevent a narrow element proof. This is deliberately
+conservative: even contiguous append or safe truncation can lose a proof, while
+generic equality, truthiness and identity transport remain available. Mutation
+facts are accumulated across the whole source, including helpers and captures;
+an earlier apparent proof cannot discard a later unknown alternative. Arrays
+created by runtime operations such as `Object.keys` remain iterable without
+proving the kind of their elements.
+
+Analysis first reaches a fixed point, then marks unresolved value rules as
+unknown and propagates those facts again. This prevents an unresolved cycle
+from disappearing beside a known alternative. Proven records and nested arrays
+can also use existing callable-member operations, subject to their established
+signature and receiver checks; the loop does not introduce a new call ABI.
 
 The receiver must be an array constructed within the admitted managed source
 surface. That surface cannot install a custom iterator, change iterator or array
@@ -59,6 +83,8 @@ operation, runtime import or application ABI is introduced.
 JavaScript, Node-Wasm and Wasmtime for JS and erased TS. It covers sparse/live
 arrays, original receiver identity, helpers, fresh captures, nested control,
 scope and rejection boundaries, and source limits on a 2 MiB native stack.
+Element-proof cases exercise String operations, record fields, nested arrays
+and conservative mutation boundaries, including aliases and helper writes.
 `crates/grunkalunka-runtime/tests/async-suspension/iteration.rs` checks saved
 state, promise timing, rejection and finalizer behavior through the existing
 async suite. These are ordinary Cargo tests; feature PRs record actual local

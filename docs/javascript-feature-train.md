@@ -172,10 +172,13 @@ Array `for...of` now supports lexical identifier heads, live length, sparse
 values and one original RHS evaluation. Body-owned initialization preserves
 fresh captured cells for each iteration, and existing completion machinery
 handles unlabelled loop control and supported suspension. See
-[array iteration](array-iteration.md) for its intrinsic-array admission and
-current boxed-element proof boundary.
+[array iteration](array-iteration.md) for its intrinsic-array admission.
+Conservative element origins now permit String operations, record fields and
+nested array iteration when every possible selected value has the required
+kind. Alias writes, holes and length changes retain unknown alternatives, and
+the selected value stays boxed without numeric unboxing.
 
-More precise iteration element origins and nested patterns remain follow-on
+Nested patterns and additional iteration binding forms remain follow-on
 slices. This compiler work does not alter the concurrent A1 application's
 session, native view, service or packaging interfaces, or the browser stream's
 native layout and engine-oracle work.

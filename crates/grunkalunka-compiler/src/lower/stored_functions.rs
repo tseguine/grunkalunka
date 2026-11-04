@@ -6,6 +6,9 @@ use oxc_ast::{
 };
 use oxc_syntax::{GetNodeId, node::NodeId};
 use std::collections::{BTreeMap, BTreeSet};
+mod elements;
+#[cfg(test)]
+mod iteration_tests;
 mod mutations;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,6 +33,7 @@ enum Rule {
 enum Definition {
     Value(SymbolId, NodeId),
     Member(SymbolId, NodeId, Key, Option<NodeId>),
+    Iterated(SymbolId, NodeId),
 }
 struct FunctionFlow {
     parameters: Vec<SymbolId>,
@@ -132,7 +136,22 @@ impl Fields {
         }
         let mut values = BTreeMap::new();
         let mut bindings = BTreeMap::new();
-        let mut definitions = Vec::new();
+        let iterations = semantic
+            .nodes()
+            .iter()
+            .filter_map(|node| {
+                let AstKind::ForOfStatement(source) = node.kind() else {
+                    return None;
+                };
+                iteration::for_of_binding(source)
+                    .and_then(|binding| binding.symbol_id.get())
+                    .map(|symbol| (symbol, source.right.node_id()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut definitions = iterations
+            .iter()
+            .map(|(symbol, receiver)| Definition::Iterated(*symbol, *receiver))
+            .collect::<Vec<_>>();
         let mut rules = Vec::new();
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
         let mut writes = Vec::new();
@@ -285,7 +304,7 @@ impl Fields {
                     {
                         if let Some(initializer) = &declaration.init {
                             definitions.push(Definition::Value(symbol, initializer.node_id()));
-                        } else {
+                        } else if !iterations.contains_key(&symbol) {
                             bindings.entry(symbol).or_default().insert(Origin::Other);
                         }
                     }
@@ -445,6 +464,8 @@ impl Fields {
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
+        let mut elements = elements::Elements::default();
+        let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
             // Binding patterns select the same source alternatives as an own
@@ -492,6 +513,10 @@ impl Fields {
                         }
                         (*symbol, found)
                     }
+                    Definition::Iterated(symbol, receiver) => (
+                        *symbol,
+                        elements.select(*receiver, &values, &fields, &index_deletes),
+                    ),
                 })
                 .collect::<Vec<_>>();
             let mut additions = Vec::new();
@@ -555,6 +580,7 @@ impl Fields {
                 };
                 additions.push((*id, found));
             }
+            let mut changed = false;
             let mut write_additions = Vec::new();
             for (receiver, key, value) in &writes {
                 for origin in get(receiver) {
@@ -563,6 +589,9 @@ impl Fields {
                     | Origin::Array(object) = origin
                     {
                         write_additions.push(((object, key.clone()), get(value)));
+                        if !iterations.is_empty() && matches!(origin, Origin::Array(_)) {
+                            changed |= elements.write(object, key, get(value), &fields);
+                        }
                         if matches!(origin, Origin::Array(_))
                             && key.as_slice() == [108, 101, 110, 103, 116, 104]
                         {
@@ -603,12 +632,14 @@ impl Fields {
                             | Origin::Array(object) = origin
                             {
                                 wildcard_additions.push((object, get(value)));
+                                if !iterations.is_empty() && matches!(origin, Origin::Array(_)) {
+                                    changed |= elements.wildcard(object, get(value));
+                                }
                             }
                         }
                     }
                 }
             }
-            let mut changed = false;
             for array in deleted {
                 changed |= index_deletes.insert(array);
             }
@@ -623,6 +654,17 @@ impl Fields {
             }
             for (key, found) in write_additions {
                 changed |= extend(&mut field_writes, key, found);
+            }
+            if !changed && !iterations.is_empty() && !finalized_unresolved {
+                finalized_unresolved = true;
+                // Bottom can be an unresolved cyclic value, not evidence that
+                // no element exists. Finalize only after ordinary convergence
+                // so delayed aliases and helper results retain their precision.
+                for (id, _) in &rules {
+                    if values.get(id).is_none_or(Alternatives::is_empty) {
+                        changed |= extend(&mut values, *id, BTreeSet::from([Origin::Other]));
+                    }
+                }
             }
             if !changed {
                 break;
