@@ -7,49 +7,16 @@ pub(super) struct DefaultBinding<'n, 'a> {
     binding: binding_patterns::ObjectBinding<'n, 'a>,
     output: Region,
     object: ValueId,
-    selected: ValueId,
-    condition: ValueId,
+    pending: LazyDefault,
     identifier: &'n BindingIdentifier<'a>,
 }
 
-impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn resume_array_binding_source<'n>(
-        &mut self,
-        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
-        binding: binding_patterns::ArrayBinding<'n, 'ast>,
-        mut output: Region,
-        array: ValueId,
-        cursor: &mut Cursor<'s, 'n, 'ast>,
-    ) -> Result<(), String>
-    where
-        'ast: 'n,
-    {
-        // Only the intrinsic iterator of a source-proven managed array is
-        // admitted. Without defaults there are no source effects between steps;
-        // direct own reads also produce Undefined for holes and exhausted steps.
-        // Elisions need no value read or generated operation in this slice.
-        for element in binding.elements {
-            let selected = self.value(Type::ManagedValue);
-            Self::push(
-                &mut output,
-                element.identifier,
-                Op::ManagedArrayGetOwn {
-                    result: selected,
-                    array,
-                    key: element.index.to_string().encode_utf16().collect(),
-                },
-            );
-            self.publish_pattern_binding(
-                element.identifier,
-                &mut output,
-                selected,
-                binding.mutable,
-            )?;
-        }
-        sequence.index += 1;
-        self.advance_declaration(sequence, output, cursor)
-    }
+pub(super) struct LazyDefault {
+    selected: ValueId,
+    condition: ValueId,
+}
 
+impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn resume_object_binding_source<'n>(
         &mut self,
         mut sequence: Box<DeclarationSequence<'n, 'ast>>,
@@ -73,36 +40,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 },
             );
             if let Some(source) = field.default {
-                // Null, false, zero, NaN and empty Strings retain their value.
-                // This intrinsic is independent of a source binding named undefined.
-                let primitive = self.value(Type::General);
-                Self::push(
-                    &mut output,
-                    field.source,
-                    Op::Nullish {
-                        result: primitive,
-                        value: ir::Nullish::Undefined,
-                    },
-                );
-                let undefined = self.value(Type::ManagedValue);
-                Self::push(
-                    &mut output,
-                    field.source,
-                    Op::ManagedPrimitive {
-                        result: undefined,
-                        input: primitive,
-                    },
-                );
-                let condition = self.value(Type::Predicate);
-                Self::push(
-                    &mut output,
-                    field.source,
-                    Op::ManagedEqual {
-                        result: condition,
-                        left: selected,
-                        right: undefined,
-                    },
-                );
+                let undefined = self.binding_undefined(field.source, &mut output);
+                let pending =
+                    self.prepare_binding_default(field.source, &mut output, selected, undefined);
                 let child = self.region(source);
                 cursor.pending.push(Frame::ObjectBindingDefault {
                     sequence,
@@ -110,8 +50,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         binding,
                         output,
                         object,
-                        selected,
-                        condition,
+                        pending,
                         identifier: field.identifier,
                     }),
                 });
@@ -133,7 +72,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &mut self,
         sequence: Box<DeclarationSequence<'n, 'ast>>,
         active: DefaultBinding<'n, 'ast>,
-        mut consequent: Region,
+        consequent: Region,
         default: ValueId,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
@@ -144,29 +83,92 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             binding,
             mut output,
             object,
-            selected,
-            condition,
+            pending,
             identifier,
         } = active;
-        consequent.exit = Exit::Yield(default);
-        let mut alternate = self.region(identifier);
-        alternate.exit = Exit::Yield(selected);
-        let result = self.value(Type::ManagedValue);
-        Self::push(
-            &mut output,
-            identifier,
-            Op::If {
-                result: Some(result),
-                condition,
-                consequent,
-                alternate,
-            },
-        );
+        let result =
+            self.finish_binding_default(identifier, &mut output, pending, consequent, default);
         self.publish_pattern_binding(identifier, &mut output, result, binding.mutable)?;
         self.resume_object_binding_source(sequence, binding, output, object, cursor)
     }
 
-    fn publish_pattern_binding(
+    pub(super) fn binding_undefined(
+        &mut self,
+        node: &impl GetSpan,
+        output: &mut Region,
+    ) -> ValueId {
+        let primitive = self.value(Type::General);
+        Self::push(
+            output,
+            node,
+            Op::Nullish {
+                result: primitive,
+                value: ir::Nullish::Undefined,
+            },
+        );
+        let undefined = self.value(Type::ManagedValue);
+        Self::push(
+            output,
+            node,
+            Op::ManagedPrimitive {
+                result: undefined,
+                input: primitive,
+            },
+        );
+        undefined
+    }
+
+    pub(super) fn prepare_binding_default(
+        &mut self,
+        node: &impl GetSpan,
+        output: &mut Region,
+        selected: ValueId,
+        undefined: ValueId,
+    ) -> LazyDefault {
+        // Intrinsic Undefined is independent of source shadowing. All other
+        // values, including null and false, retain their original selection.
+        let condition = self.value(Type::Predicate);
+        Self::push(
+            output,
+            node,
+            Op::ManagedEqual {
+                result: condition,
+                left: selected,
+                right: undefined,
+            },
+        );
+        LazyDefault {
+            selected,
+            condition,
+        }
+    }
+
+    pub(super) fn finish_binding_default(
+        &mut self,
+        node: &impl GetSpan,
+        output: &mut Region,
+        pending: LazyDefault,
+        mut consequent: Region,
+        default: ValueId,
+    ) -> ValueId {
+        consequent.exit = Exit::Yield(default);
+        let mut alternate = self.region(node);
+        alternate.exit = Exit::Yield(pending.selected);
+        let result = self.value(Type::ManagedValue);
+        Self::push(
+            output,
+            node,
+            Op::If {
+                result: Some(result),
+                condition: pending.condition,
+                consequent,
+                alternate,
+            },
+        );
+        result
+    }
+
+    pub(super) fn publish_pattern_binding(
         &mut self,
         identifier: &BindingIdentifier<'_>,
         output: &mut Region,

@@ -160,13 +160,15 @@ supported suspension, preserve earlier-binding visibility, and stop on abrupt
 completion. Unknown field origins remain conservative even with a default.
 
 Flat array declarations now provide the corresponding list extraction with
-identifier leaves, elisions and empty patterns. They evaluate a proven managed
-array once, preserve source order and retain the existing managed-value,
-capture and source-local-budget boundaries. See
+identifier leaves, elisions and empty patterns. Lazy defaults observe live
+length until the intrinsic iterator finishes, preserve that exhaustion through
+later growth, and retain the original array across rebinding or suspension.
+They evaluate a proven managed array once, preserve source order and retain
+the existing managed-value, capture and source-local-budget boundaries. See
 [array binding declarations](array-binding-patterns.md) for the intrinsic
 iterator scope and differential coverage.
 
-Array defaults, nested patterns and `for...of` remain follow-on slices. This
+Nested patterns and `for...of` remain follow-on slices. This
 compiler work does not alter the concurrent A1 application's session, native
 view, service or packaging interfaces.
 

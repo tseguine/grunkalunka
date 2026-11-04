@@ -83,6 +83,7 @@ pub(super) struct ObjectBinding<'n, 'a> {
 pub(super) struct ElementBinding<'n, 'a> {
     pub(super) identifier: &'n BindingIdentifier<'a>,
     pub(super) index: u32,
+    pub(super) default: Option<&'n Expression<'a>>,
 }
 
 pub(super) struct ArrayBinding<'n, 'a> {
@@ -125,7 +126,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let mut elements = Vec::with_capacity(count);
         for (index, element) in pattern.elements.iter().enumerate() {
             let Some(element) = element else { continue };
-            let BindingPattern::BindingIdentifier(identifier) = element else {
+            let Some((identifier, default)) = leaf(element) else {
                 return Err(unsupported(
                     element,
                     "array bindings currently require identifier leaves",
@@ -134,6 +135,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             elements.push(ElementBinding {
                 identifier,
                 index: index as u32,
+                default,
             });
         }
         Ok(ArrayBinding {

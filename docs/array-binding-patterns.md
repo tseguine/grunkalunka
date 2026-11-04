@@ -1,23 +1,44 @@
 # Array binding declarations
 
 Local `const` and `let` declarations admit flat array binding patterns over
-source-proven managed arrays. Identifier leaves, elisions and empty patterns
-work in blocks, helpers, async activations and traditional `for` initializers.
+source-proven managed arrays. Identifier leaves with optional lazy defaults,
+elisions and empty patterns work in blocks, helpers, async activations and
+traditional `for` initializers.
 
 ## Evaluation and representation
 
 The initializer executes once before any selected value is published. Each
 identifier receives its corresponding array position in source order. Sparse
 holes and positions past the end produce Undefined. Empty and all-elision
-patterns still evaluate their initializer. A later declarator can observe the
-earlier bindings and mutate the same array without changing a saved selection.
+patterns still evaluate their initializer. A default completes before its leaf
+is published and before the next position is selected. Earlier leaves and
+declarators are visible to later defaults; a saved selection keeps its identity
+when a later expression mutates the source array.
+
+Defaults run only for Undefined, including sparse holes and exhausted steps.
+Null, false, zero, NaN and empty Strings preserve their value. A source binding
+named `undefined` does not change the intrinsic comparison. Skipped defaults
+have no effects; a throwing or rejected default stops the remaining declaration.
+Self references and references to later leaves retain the controlled unsupported
+TDZ diagnostic even when that default would be skipped at runtime.
+
+Before each active step, the iterator observes the original array's current
+length. Growth is visible until a step reaches the end; after that, iteration
+stays finished even if a later default grows the array. In particular, an empty
+array is already exhausted before its first default runs, while an array with
+one hole is still active after yielding that hole's Undefined value. Truncation
+and regrowth before the next step differ from regrowth after exhaustion.
+Source rebinding does not replace the saved array. The receiver, selected value
+and activity state survive supported awaits in defaults.
 
 This admission uses the intrinsic iterator of an array created within the
 supported source surface. That surface cannot install a custom iterator, modify
-the array prototype, add accessors or import a foreign array. With identifier
-leaves and no defaults, there are no source effects between iterator steps, so
-ordered own-index reads preserve the intrinsic iterator's observations. Elisions
-do not need generated reads. This is not general iterable destructuring.
+the array prototype, add accessors or import a foreign array. Patterns without
+defaults have no source effects between steps and keep the direct own-index
+read path. Patterns with defaults retain an explicit activity value and guarded
+live-length checks. Elisions do not execute user hooks in this surface, so a
+check at the next bound index also observes exhaustion within a run of holes.
+This is not general iterable destructuring.
 
 Every leaf uses the managed value carrier, including selected Numbers. Existing
 equality, truthiness, storage and managed consumers apply; arithmetic does not
@@ -25,6 +46,9 @@ acquire unchecked numeric unboxing. Fixed-position source facts retain proven
 String or container operations through helpers and captures. Alias writes,
 truncation, `pop`, missing values and unknown alternatives remain conservative.
 Type annotations do not prove either the RHS or an element's runtime kind.
+Default origins are unioned with selected-element origins; a default cannot
+erase unknown or possibly missing alternatives. A String fallback on a missing
+element alone therefore does not justify a String-only consumer.
 
 Mutable leaves use the existing lexical slots and captured cells. Traditional
 `for` headers and declarations in loop bodies retain their existing iteration
@@ -34,27 +58,24 @@ or IR operations are added.
 
 ## Admission limits
 
-Defaults, nested patterns, rest elements, destructuring assignment and parameter
-patterns remain separate work. Strings, ordinary objects with numeric fields,
+Nested patterns, rest elements, destructuring assignment and parameter patterns
+remain separate work. Strings, ordinary objects with numeric fields,
 unknown parameters and nullable array alternatives do not satisfy the array
 proof. The intrinsic-iterator boundary also excludes user-defined iteration and
 observable iterator closing.
-
-Lazy defaults will require reading live length between source effects and
-retaining a finished state once iteration is exhausted. Independent indexed
-reads are insufficient for that extension: growing an already exhausted array
-must not restart its iterator.
 
 ## Executable evidence
 
 `crates/grunkalunka-runtime/tests/managed-array-bindings.rs` compares native
 JavaScript, Node-Wasm and Wasmtime for JS and erased TS. It covers sparse
-positions, evaluation order, references, helpers, captures, traditional loop
-headers, rejection boundaries and 2 MiB native-stack local-budget probes.
+positions, lazy defaults, live growth, persistent exhaustion, evaluation order,
+references, helpers, captures, traditional loop headers, rejection boundaries
+and 2 MiB native-stack local-budget probes.
 `crates/grunkalunka-runtime/tests/async-suspension/array_bindings.rs` covers
-saved references, initializer suspension and abrupt completion in the existing
-async suite. Local receipts and hosted results are recorded on the feature PRs.
+saved references, initializer/default suspension, iterator state and abrupt
+completion in the existing async suite. Local receipts and hosted results are
+recorded on the feature PRs.
 
 The semantic references are ECMAScript's
-[IteratorBindingInitialization](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-destructuring-binding-patterns-runtime-semantics-iteratorbindinginitialization)
+[IteratorBindingInitialization](https://tc39.es/ecma262/multipage/syntax-directed-operations.html#sec-runtime-semantics-iteratorbindinginitialization)
 and [CreateArrayIterator](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-createarrayiterator).
