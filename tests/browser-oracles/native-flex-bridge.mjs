@@ -8,7 +8,9 @@ import { validateCapture } from "./compare.mjs";
 
 const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
 const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
-  "relative", "clipped", "scrolled", "restored"];
+  "relative", "clipped", "scrolled", "justifyEnd", "justifyCenter", "spaceBetween",
+  "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "relativeAlign",
+  "clippedAlign", "scrolledAlign", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const rectFields = ["x", "y", "width", "height"];
 const viewportFields = ["width", "height", "devicePixelRatio"];
@@ -35,7 +37,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
     kind: "grunkalunka-native-browser-flex",
     status: "invalid",
     conformance: "not-assessed",
-    comparisonScope: "exact selected fixed-size row/wrap geometry and viewport hits; no CSS parsing, flex factors or intrinsic flex sizing",
+    comparisonScope: "exact selected fixed-size row/wrap/alignment geometry and viewport hits; no CSS parsing, flex factors or intrinsic flex sizing",
     sourceSha256, invalid, incompatible, differences, native, browser
   };
 
@@ -75,7 +77,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
   function validateStates(owner, states) {
     const path = "$." + owner + ".states";
     if (!keys(states, phases)) {
-      error(path, "exactly the ten named flex phases required");
+      error(path, "exactly the twenty-one named flex phases required");
       return;
     }
     for (const phase of phases) {
@@ -85,7 +87,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
         error(point, "complete flex sample required");
         continue;
       }
-      if (sample.scrollY !== (phase === "scrolled" ? 10 : 0)) {
+      if (sample.scrollY !== (["scrolled", "scrolledAlign"].includes(phase) ? 10 : 0)) {
         error(point + ".scrollY", "actual phase-specific scroll position required");
       }
       if (!keys(sample.boxes, ids)) {
@@ -176,6 +178,9 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
       }
       if (!sameRect(receipt.states.wrap.boxes[id], receipt.states.scrolled.boxes[id])) {
         error("$." + owner + ".states.scrolled.boxes." + id, "scroll changed document-space geometry");
+      }
+      if (!sameRect(receipt.states.alignCenter.boxes[id], receipt.states.scrolledAlign.boxes[id])) {
+        error("$." + owner + ".states.scrolledAlign.boxes." + id, "scroll changed aligned document-space geometry");
       }
     }
     for (const probe of probes) {

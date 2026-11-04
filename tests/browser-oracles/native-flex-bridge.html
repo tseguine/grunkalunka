@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<title>Native fixed-size flex row reference observations</title>
+<title>Native fixed-size flex row and alignment reference observations</title>
 <style>
   html, body { margin: 0; padding: 0; }
   html { scroll-behavior: auto; }
@@ -55,6 +55,7 @@
     "flexGrow", "flexShrink", "flexBasis", "minWidth"];
   const host = document.getElementById("row-host");
   const b = document.getElementById("row-b");
+  const after = document.getElementById("row-after");
 
   function box(element) {
     // getClientRects detects suppressed descendants as well as display:none
@@ -79,6 +80,7 @@
   function reset(wrap = false) {
     host.removeAttribute("style");
     b.removeAttribute("style");
+    after.removeAttribute("style");
     if (wrap) host.style.flexWrap = "wrap";
     window.scrollTo(0, 0);
   }
@@ -121,6 +123,66 @@
   reset(true);
   window.scrollTo(0, 10);
   states.scrolled = sample();
+
+  reset();
+  host.style.width = "220px";
+  host.style.justifyContent = "safe flex-end";
+  states.justifyEnd = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.justifyContent = "safe center";
+  states.justifyCenter = sample();
+  reset();
+  host.style.width = "230px";
+  host.style.justifyContent = "space-between";
+  states.spaceBetween = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe flex-end";
+  states.alignEnd = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe center";
+  states.alignCenter = sample();
+  reset(true);
+  host.style.justifyContent = "space-between";
+  host.style.alignItems = "safe center";
+  states.wrapAlign = sample();
+  reset(true);
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe flex-end";
+  states.wrapSingle = sample();
+  reset();
+  host.style.height = "20px";
+  host.style.justifyContent = "safe flex-end";
+  host.style.alignItems = "safe flex-end";
+  after.style.marginTop = "16px";
+  states.safeOverflow = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.justifyContent = "safe center";
+  host.style.alignItems = "safe center";
+  b.style.position = "relative";
+  b.style.left = "8px";
+  b.style.top = "9px";
+  states.relativeAlign = sample();
+  reset();
+  host.style.width = "216px";
+  host.style.height = "28px";
+  host.style.justifyContent = "safe center";
+  host.style.alignItems = "safe flex-end";
+  host.style.overflow = "clip";
+  states.clippedAlign = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe center";
+  window.scrollTo(0, 10);
+  states.scrolledAlign = sample();
   reset();
   states.restored = sample();
 
