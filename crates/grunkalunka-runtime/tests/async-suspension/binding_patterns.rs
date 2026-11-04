@@ -1,6 +1,56 @@
 use super::*;
 
 #[test]
+fn object_binding_defaults_suspend_only_on_undefined() {
+    compare_promises(
+        &[
+            "let n=0;const {x=(await a,n=n*10+1),y=(await b,n=n*10+2)}={x:0};await a;return x===0&&y===2?n:-1;",
+            "const {x=await Promise.reject(a)}={x:null};await b;return x===null?1:0;",
+            "const {x=await a,y=await b}={x:undefined};await a;return x===a&&y===b?1:0;",
+            "const undefined=a;const {x=(await b,9)}={};await a;return x===9?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn object_binding_defaults_keep_the_original_object_and_read_later_fields_after_await() {
+    compare_promises(
+        &[
+            "let source={y:a};const old=source;const {x=(await a,source={y:b},b),y}=source;await b;return x===b&&y===a&&source!==old?1:0;",
+            "const source={y:a};const alias=source;const {x=(await a,alias.y=b,a),y}=source;await b;return x===a&&y===b?1:0;",
+            "const source={};const {x:first=(await a,source.x=b,a),x:second}=source;await b;return first===a&&second===b?1:0;",
+            "const {x=(await a,a),y=(await b,x)}={};await a;return x===a&&y===a?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn object_binding_defaults_preserve_rejection_and_source_block_calls() {
+    compare_promises(
+        &[
+            "let n=0;try{const {x=await Promise.reject(a),y=(n=1)}={};n=2;}catch(e){return n===0&&e===a?1:0;}return -1;",
+            "const fallback=()=>{return {label:'ready'};};const {x=(await a,fallback())}={};await b;return x!==null?1:0;",
+            "const build=()=>{const {x=a}={};return x===a?1:0;};const {y=(await b,build())}={};await a;return y===1?1:0;",
+            "let n=0;try{const {x=await Promise.reject(a)}={};}catch(e){n=1;}finally{n=n*10+2;}return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn object_binding_defaults_keep_live_captures_after_suspension() {
+    compare_promises(
+        &[
+            "let {x=(await a,a)}={};const read=()=>x===b?1:0;await b;x=b;await a;return read();",
+            "const {x=(await a,a),y=(await b,x)}={};const read=()=>y===a?1:0;await b;return read();",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn object_bindings_keep_values_and_origins_across_suspension() {
     compare_promises(
         &[

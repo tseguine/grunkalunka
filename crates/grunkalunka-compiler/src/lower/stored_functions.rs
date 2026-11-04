@@ -29,7 +29,7 @@ enum Rule {
 }
 enum Definition {
     Value(SymbolId, NodeId),
-    Member(SymbolId, NodeId, Key),
+    Member(SymbolId, NodeId, Key, Option<NodeId>),
 }
 struct FunctionFlow {
     parameters: Vec<SymbolId>,
@@ -298,6 +298,12 @@ impl Fields {
                                     symbol,
                                     initializer.node_id(),
                                     key,
+                                    match &property.value {
+                                        BindingPattern::AssignmentPattern(pattern) => {
+                                            Some(pattern.right.node_id())
+                                        }
+                                        _ => None,
+                                    },
                                 ));
                             }
                         }
@@ -459,7 +465,16 @@ impl Fields {
                 .iter()
                 .map(|definition| match definition {
                     Definition::Value(symbol, id) => (*symbol, get(id)),
-                    Definition::Member(symbol, receiver, key) => (*symbol, member(receiver, key)),
+                    Definition::Member(symbol, receiver, key, default) => {
+                        let mut found = member(receiver, key);
+                        if let Some(default) = default {
+                            // Other includes Undefined and other primitive
+                            // values. A default adds alternatives; it cannot
+                            // remove Other or prove which branch will execute.
+                            found.extend(get(default));
+                        }
+                        (*symbol, found)
+                    }
                 })
                 .collect::<Vec<_>>();
             let mut additions = Vec::new();

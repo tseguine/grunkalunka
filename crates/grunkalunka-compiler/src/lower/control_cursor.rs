@@ -9,6 +9,8 @@ use oxc_ast::ast::{
     BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
 };
 
+mod bindings;
+
 #[cfg(test)]
 mod callback_tests;
 #[cfg(test)]
@@ -331,6 +333,12 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         binding: binding_patterns::ObjectBinding<'n, 'a>,
     },
+    /// A lazy default owns its parent output and saved object until the
+    /// expression completes; later properties have not been read yet.
+    ObjectBindingDefault {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        active: Box<bindings::DefaultBinding<'n, 'a>>,
+    },
     /// Completed metadata resumes its next declarator on the main loop,
     /// including consecutive factories with no arguments to suspend on.
     AdvanceDeclaration {
@@ -561,6 +569,7 @@ impl Frame<'_, '_> {
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ObjectBindingSource { sequence, .. } => sequence.depth,
+            Self::ObjectBindingDefault { sequence, .. } => sequence.depth,
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::MaterializedDeclaration { sequence, .. } => sequence.depth,

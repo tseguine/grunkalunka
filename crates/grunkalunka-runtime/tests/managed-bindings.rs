@@ -65,6 +65,142 @@ fn for_header_object_bindings_preserve_per_iteration_captures() {
 }
 
 #[test]
+fn object_binding_defaults_select_only_undefined() {
+    for body in [
+        "let n=0;const {missing=(n=n+1,a),explicit=(n=n+10,b)}={explicit:undefined};return n+(missing===a?100:0)+(explicit===b?1000:0);",
+        "let n=0;const {nil=(n=1),flag=(n=2),zero=(n=3),negative=(n=4),nan=(n=5),empty=(n=6)}={nil:null,flag:false,zero:0,negative:-0,nan:NaN,empty:''};return n+(nil===null?10:0)+(flag===false?100:0)+(zero===0?1000:0)+(negative===0?10000:0)+(nan!==nan?100000:0)+(empty===''?1000000:0);",
+        "let n=0;const {x=(n=1,b)}={x:a};return n+(x===a?10:0);",
+        "const {'left-label':left=a,['right-label']:right=b,'':empty='fallback'}={};return left===a&&right===b&&empty==='fallback'?1:0;",
+        "const undefined=7;let n=0;const {x=(n=n*10+1,a),y=(n=n*10+2,b)}={y:void 0};return n+(x===a?100:0)+(y===b?1000:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_binding_defaults_run_lazily_and_publish_in_source_order() {
+    for body in [
+        "let n=0;const {x=(n=n*10+1,a),y=(n=n*10+2,b),z=(n=n*10+3,x)}={y:0};return n+(x===a?100:0)+(y===0?1000:0)+(z===x?10000:0);",
+        "let n=0;const {x=(n=1,a),y=x}={},{z=(n=n*10+2,y)}={};return n+(z===x?100:0);",
+        "let n=0;const make=()=>{n=n*10+1;return {};};const {x=(n=n*10+2,a),y=(n=n*10+3,b)}=make();return n+(x===a?1000:0)+(y===b?10000:0);",
+        "const source={};const {x:first=(source.x=b,a),x:second}=source;return first===a&&second===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_binding_defaults_save_the_rhs_and_read_later_fields_when_reached() {
+    for body in [
+        "let source={y:a};const old=source;const {x=(source={y:b},a),y}=source;return x===a&&y===a&&source!==old?1:0;",
+        "const source={y:a};const alias=source;const {x=(alias.y=b,a),y}=source;return x===a&&y===b?1:0;",
+        "let source={y:1};const old=source;const {x=(source={y:9},old.y=3,2),y}=source;return x===2&&y===3&&source!==old?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_binding_defaults_compose_with_helpers_blocks_and_live_captures() {
+    for source in [
+        "function fallback(x){return x;}export function run(a,b){const {x=fallback(a)}={};return x===a?1:0;}",
+        "function inspect(o,value){const {x=value}=o;return x===value?1:0;}export function run(a,b){return inspect({},a)+inspect({x:b},a);}",
+        "export function run(a,b){const {x=a,y=(()=>{return x;})()}={};return x===y?1:0;}",
+        "export function run(a,b){let {x=a}={};const read=()=>x===b?1:0;const change=()=>{x=b;return read();};return change();}",
+        "export function run(a,b){const selected={tag:a};const {x=selected}={};return x===selected?1:0;}",
+        "export function run(a,b){const {text=' fallback '}={text:' ready '};return text.trim().indexOf('ead');}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn object_binding_defaults_preserve_header_and_body_capture_cells() {
+    for body in [
+        "let first=()=>0;let last=()=>0;for(let {x=1}={},i=0;i<2;i++,x=2){if(i===0)first=()=>x===1?1:10;last=()=>x===2?1:10;}return first()+last();",
+        "let first=()=>0;let second=()=>0;for(let i=0;i<2;i++){let {x=i}={};const read=()=>x===0?1:2;if(i===0)first=read;else second=read;}return first()*10+second();",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_binding_default_annotations_are_erased_without_proving_values() {
+    let js = "export function run(a,b){let {x=a,label='fallback'}={};x=b;return x===b&&label==='fallback'?1:0;}";
+    let ts = "type Shape=never;export function run(a:string,b:boolean):void{let {x=a,label='fallback'}:Shape=({} as unknown);x=b;return (x as number)===b&&(label as number)==='fallback'?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    let source = "export function run(a,b){const {text='fallback'}:{text:string}={text:a};return text.trim().length;}";
+    let error = compile(source, true)
+        .err()
+        .unwrap_or_else(|| panic!("admitted {source}"));
+    assert!(error.contains("unsupported"), "{source}: {error}");
+    assert!(!error.contains("internal IR"), "{source}: {error}");
+}
+
+#[test]
+fn object_binding_defaults_keep_tdz_kind_and_pattern_guards() {
+    for body in [
+        "const {x=x}={};return a;",
+        "const {x=y,y=a}={};return a;",
+        "const x=a;{const {x=x}={};return x===a?1:0;}",
+        "const {x=x}={x:a};return a;",
+        "const {x=y,y=a}={x:b};return a;",
+        "const {x=(y=a),y=b}={};return a;",
+        "const {f=()=>x,x=a}={};return a;",
+        "const {f=()=>x,x=a}={f:0};return a;",
+        "const {x=undefined,undefined=a}={};return a;",
+        "const {x=a}={};x=b;return a;",
+        "const {x=a}={};return x+1;",
+        "const {text='fallback'}={};return text.trim().length;",
+        "const {text='fallback'}={text:a};return text.trim().length;",
+        "const {child:{x}={x:a}}={};return a;",
+        "const [x=a]=[];return a;",
+        "const key='x';const {[key]:x=a}={};return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn object_binding_defaults_keep_the_source_local_limit_on_a_small_native_stack() {
+    for count in [128, 129] {
+        let fields = (0..count)
+            .map(|index| format!("value:v{index}=a"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = format!(
+            "export function run(a,b){{const {{{fields}}}={{}};return v0===a&&v127===a?1:0;}}"
+        );
+        for typed in [false, true] {
+            let source = source.clone();
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || compile(&source, typed).map(|_| ()))
+                .unwrap()
+                .join()
+                .expect("default continuations must not overflow the native stack");
+            if count == 128 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("at most 128 source locals"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
 fn object_binding_annotations_are_erased_without_proving_values() {
     let js = "export function run(a,b){let {x:value,text}={x:a,text:' ab '};value=b;return value===b&&text.trim()==='ab'?1:0;}";
     let ts = "type Shape=never;export function run(a:string,b:boolean):void{let {x:value,text}:Shape=({x:a,text:' ab '} as unknown);value=b;return (value as number)===b&&(text as number).trim()==='ab'?1:0;}";
@@ -92,8 +228,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {child:{x}}={child:{x:a}};return a;",
         "const {items:[x]}={items:[a]};return a;",
         "const [x]=[a];return a;",
-        "const {x=b}={x:a};return a;",
-        "const {x:y=b}={x:a};return a;",
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",
         "const {1:x}={'1':a};return a;",

@@ -154,7 +154,12 @@ source annotations do not prove those kinds. See
 [the binding contract](object-binding-patterns.md) and the managed binding and
 suspension suites for the admitted surface and its limits.
 
-Defaults, nested/array patterns and iteration remain follow-on slices. This
+Identifier-leaf defaults now run only for Undefined and complete before the next
+field is read. They retain the original RHS object across source rebinding and
+supported suspension, preserve earlier-binding visibility, and stop on abrupt
+completion. Unknown field origins remain conservative even with a default.
+
+Nested/array patterns and iteration remain follow-on slices. This
 compiler work does not alter the concurrent A1 application's session, native
 view, service or packaging interfaces.
 
