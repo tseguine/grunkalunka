@@ -1,0 +1,295 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import { compareNativeFlexBridge } from "./native-flex-bridge.mjs";
+
+const fixture = readFileSync(new URL("./native-flex-bridge.html", import.meta.url));
+const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
+const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
+const computedFields = ["display", "boxSizing", "width", "height", "flexDirection",
+  "flexWrap", "alignItems", "alignContent", "justifyContent", "columnGap", "rowGap",
+  "flexGrow", "flexShrink", "flexBasis", "minWidth"];
+const viewport = { width: 800, height: 600, devicePixelRatio: 1 };
+
+// Independent literal rectangles and targets for comparator contracts. These
+// synthetic receipts exercise validation only; they are not browser results.
+function states() {
+  const rows = {
+    nowrap: [[20, 20, 162, 54], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [174, 26, 42, 18], [0, 80, 180, 12]],
+    wrap: [[20, 20, 162, 80], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [26, 76, 42, 18], [0, 106, 180, 12]],
+    wide: [[20, 20, 232, 54], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [174, 26, 42, 18], [0, 80, 180, 12]],
+    columnGap: [[20, 20, 162, 86], [26, 26, 64, 24], [31, 60, 56, 36],
+      [34, 63, 25, 8], [114, 58, 42, 18], [0, 112, 180, 12]],
+    rowGap: [[20, 20, 162, 90], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [26, 86, 42, 18], [0, 116, 180, 12]],
+    hidden: [[20, 20, 162, 36], [26, 26, 64, 24], null,
+      null, [100, 26, 42, 18], [0, 62, 180, 12]],
+    relative: [[20, 20, 162, 80], [26, 26, 64, 24], [113, 37, 56, 36],
+      [116, 40, 25, 8], [26, 76, 42, 18], [0, 106, 180, 12]],
+    clipped: [[20, 20, 162, 48], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [26, 76, 42, 18], [0, 74, 180, 12]],
+  };
+  const targets = {
+    nowrap: ["row-a", "row-inner", "row-c", "row-after", "row-b", null, "row-host", "row-host", null],
+    wrap: ["row-a", "row-inner", "row-host", "row-c", "row-b", "row-after", "row-host", "row-host", null],
+    wide: ["row-a", "row-inner", "row-c", "row-after", "row-b", null, "row-host", "row-host", "row-host"],
+    columnGap: ["row-a", "row-host", "row-host", "row-host", "row-c", null, "row-host", "row-host", null],
+    rowGap: ["row-a", "row-inner", "row-host", "row-host", "row-b", null, "row-host", "row-host", null],
+    hidden: ["row-a", "row-c", "row-host", null, "row-after", null, "row-host", "row-host", null],
+    relative: ["row-a", "row-host", "row-host", "row-c", "row-b", "row-after", "row-host", "row-host", null],
+    clipped: ["row-a", "row-inner", "row-host", "row-after", "row-b", null, "row-host", "row-host", null],
+    scrolled: ["row-a", "row-b", "row-host", "row-c", "row-host", null, "row-host", "row-host", null],
+  };
+  rows.scrolled = rows.wrap;
+  rows.restored = rows.nowrap;
+  targets.restored = targets.nowrap;
+  return Object.fromEntries(Object.entries(rows).map(([phase, boxes]) => [phase, {
+    scrollY: phase === "scrolled" ? 10 : 0,
+    boxes: Object.fromEntries(ids.map((id, index) => {
+      const value = boxes[index];
+      return [id, value === null ? null : Object.fromEntries(
+        ["x", "y", "width", "height"].map((field, i) => [field, value[i]]))];
+    })),
+    hits: Object.fromEntries(probes.map((probe, index) => [probe, targets[phase][index]]))
+  }]));
+}
+
+function receipts(engine = "chromium") {
+  const native = {
+    schemaVersion: 1, kind: "grunkalunka-native-flex-geometry",
+    fixtureId: "native-flex-bridge-v1", viewport: { ...viewport }, states: states()
+  };
+  const browser = {
+    schemaVersion: 1, fixtureId: native.fixtureId,
+    environment: {
+      userAgent: "synthetic offline comparator test", viewportWidth: 800, viewportHeight: 600,
+      devicePixelRatio: 1, url: "file:///synthetic-native-flex-bridge.html",
+      timestamp: "2026-11-04T00:00:00.000Z"
+    },
+    observations: ids.map(id => ({
+      id, text: "",
+      computed: Object.fromEntries(computedFields.map(field => [field, "synthetic observed style"])),
+      rect: { ...native.states.nowrap.boxes[id] }
+    })),
+    states: states(),
+    provenance: {
+      collector: "playwright", playwrightVersion: "1.64.1", engine,
+      engineFamily: { chromium: "blink", firefox: "gecko", webkit: "webkit" }[engine],
+      browserVersion: "synthetic", fixtureSha256: sha(fixture),
+      hostPlatform: "synthetic", hostArchitecture: "synthetic", nodeVersion: "v24.21.0",
+      viewport: { ...viewport }
+    }
+  };
+  return { native, browser };
+}
+
+const compare = pair => compareNativeFlexBridge(pair.native, pair.browser, fixture);
+
+test("complete fixed-row receipts agree for each identified reference-engine family", () => {
+  for (const engine of ["chromium", "firefox", "webkit"]) {
+    const report = compare(receipts(engine));
+    assert.equal(report.status, "equal");
+    assert.equal(report.conformance, "not-assessed");
+    assert.equal(report.sourceSha256, sha(fixture));
+    assert.deepEqual([report.invalid, report.incompatible, report.differences], [[], [], []]);
+  }
+});
+
+test("missing, extra and malformed phase data cannot become equality", () => {
+  const mutations = [
+    r => { delete r.states.columnGap; },
+    r => { r.states.unmeasured = structuredClone(r.states.wrap); },
+    r => { r.states.wrap = null; },
+    r => { delete r.states.wrap.scrollY; },
+    r => { r.states.wrap.scrollY = 10; },
+    r => { r.states.scrolled.scrollY = 0; },
+    r => { delete r.states.wrap.boxes["row-c"]; },
+    r => { r.states.wrap.boxes["row-contents"] = null; },
+    r => { r.states.wrap.boxes["row-c"] = null; },
+    r => { delete r.states.wrap.boxes["row-c"].height; },
+    r => { r.states.wrap.boxes["row-c"].unknown = 0; },
+    r => { r.states.wrap.boxes["row-c"].x = 26.5; },
+    r => { r.states.wrap.boxes["row-c"].width = -1; },
+    r => { r.states.wrap.boxes["row-c"].height = Infinity; },
+    r => { r.states.wrap.boxes["row-c"].y = Number.MAX_SAFE_INTEGER + 1; },
+    r => { delete r.states.wrap.hits.outside; },
+    r => { r.states.wrap.hits.extra = null; },
+    r => { r.states.wrap.hits.a = "row-contents"; },
+    r => { r.states.wrap.hits.a = false; },
+    r => { r.states.wrap.extra = 0; },
+    r => { r.extra = 0; },
+  ];
+  for (const owner of ["native", "browser"]) {
+    for (const mutate of mutations) {
+      const pair = receipts();
+      mutate(pair[owner]);
+      const report = compare(pair);
+      assert.equal(report.status, "invalid", owner + ": " + mutate.toString());
+      assert.ok(report.invalid.length > 0);
+    }
+  }
+});
+
+test("suppressed flex item and descendant boxes require explicit null and cannot receive hits", () => {
+  for (const owner of ["native", "browser"]) {
+    for (const id of ["row-b", "row-inner"]) {
+      const pair = receipts();
+      pair[owner].states.hidden.boxes[id] = { x: 0, y: 0, width: 0, height: 0 };
+      assert.equal(compare(pair).status, "invalid");
+      const hit = receipts();
+      hit[owner].states.hidden.hits.b = id;
+      assert.equal(compare(hit).status, "invalid");
+    }
+  }
+});
+
+test("valid geometry and hit differences are exact and independently reported", () => {
+  const pair = receipts();
+  pair.browser.states.columnGap.boxes["row-c"].x = 122;
+  pair.browser.states.columnGap.hits["gap-wrap"] = "row-host";
+  const report = compare(pair);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.columnGap.boxes.row-c.x", left: 114, right: 122 },
+    { kind: "hit", path: "$.states.columnGap.hits.gap-wrap", left: "row-c", right: "row-host" }
+  ]);
+  const hitOnly = receipts();
+  hitOnly.browser.states.wrap.hits.a = null;
+  assert.deepEqual(compare(hitOnly).differences, [
+    { kind: "hit", path: "$.states.wrap.hits.a", left: "row-a", right: null }
+  ]);
+});
+
+test("restoration and document-space scroll invariants apply to each receipt independently", () => {
+  const mutations = [
+    r => { r.states.restored.boxes["row-c"].y += 1; },
+    r => { r.states.restored.hits.a = "row-host"; },
+    r => { r.states.scrolled.boxes["row-c"].y -= 10; },
+  ];
+  for (const mutate of mutations) {
+    for (const owners of [["native"], ["browser"], ["native", "browser"]]) {
+      const pair = receipts();
+      for (const owner of owners) mutate(pair[owner]);
+      assert.equal(compare(pair).status, "invalid");
+    }
+  }
+});
+
+test("baseline observation metadata and rectangles must be complete and consistent", () => {
+  const mutations = [
+    r => { r.observations.pop(); },
+    r => { r.observations.reverse(); },
+    r => { r.observations[0].text = "unexpected layout text"; },
+    r => { delete r.observations[0].computed.flexWrap; },
+    r => { r.observations[0].computed.flexWrap = ""; },
+    r => { r.observations[0].rect.width += 1; },
+    r => { r.observations[0].extra = true; },
+    r => { delete r.environment.timestamp; },
+  ];
+  for (const mutate of mutations) {
+    const pair = receipts();
+    mutate(pair.browser);
+    assert.equal(compare(pair).status, "invalid");
+  }
+});
+
+test("complete matching provenance is required before numerical comparison", () => {
+  const malformed = [
+    p => { delete p.hostArchitecture; },
+    p => { p.browserVersion = ""; },
+    p => { p.playwrightVersion = "unrecorded"; },
+    p => { p.fixtureSha256 = "not a sha256 digest"; },
+    p => { delete p.viewport.devicePixelRatio; },
+    p => { p.extra = true; },
+  ];
+  for (const mutate of malformed) {
+    const pair = receipts();
+    mutate(pair.browser.provenance);
+    assert.equal(compare(pair).status, "invalid");
+  }
+  const mismatches = [
+    p => { p.fixtureSha256 = "0".repeat(64); },
+    p => { p.collector = "unknown"; },
+    p => { p.engine = "unknown"; },
+    p => { p.engineFamily = "gecko"; },
+    p => { p.viewport.width = 801; },
+  ];
+  for (const mutate of mismatches) {
+    const pair = receipts();
+    mutate(pair.browser.provenance);
+    assert.equal(compare(pair).status, "incompatible");
+  }
+  const pair = receipts();
+  pair.browser.environment.viewportHeight = 601;
+  assert.equal(compare(pair).status, "incompatible");
+  const native = receipts();
+  native.native.viewport.width = 801;
+  assert.equal(compare(native).status, "invalid");
+});
+
+test("gap source mutation requires its own hash while retaining exactly two observable differences", () => {
+  const originalRule = 'host.style.columnGap = "24px";';
+  const source = fixture.toString("utf8");
+  assert.equal(source.split(originalRule).length, 2, "one reviewed real CSS mutation site");
+  const changed = Buffer.from(source.replace(originalRule, 'host.style.columnGap = "32px";'));
+  const pair = receipts();
+  pair.browser.states.columnGap.boxes["row-c"].x = 122;
+  pair.browser.states.columnGap.hits["gap-wrap"] = "row-host";
+  assert.equal(compareNativeFlexBridge(pair.native, pair.browser, changed).status, "incompatible");
+  pair.browser.provenance.fixtureSha256 = sha(changed);
+  const report = compareNativeFlexBridge(pair.native, pair.browser, changed);
+  assert.equal(report.status, "different");
+  assert.equal(report.differences.length, 2);
+  assert.equal(compare(pair).status, "incompatible", "mutated capture must not authenticate as original source");
+});
+
+test("invalid JSON values produce diagnostics and fixture bytes are mandatory", () => {
+  for (const bad of [null, [], false, 0, "receipt", {}]) {
+    assert.equal(compareNativeFlexBridge(bad, receipts().browser, fixture).status, "invalid");
+    assert.equal(compareNativeFlexBridge(receipts().native, bad, fixture).status, "invalid");
+  }
+  const pair = receipts();
+  for (const bytes of [undefined, null, "source", [], new Uint8Array()]) {
+    assert.throws(() => compareNativeFlexBridge(pair.native, pair.browser, bytes), TypeError);
+  }
+});
+
+test("CLI retains equality, difference and invalid-input exit codes", () => {
+  const directory = mkdtempSync(join(tmpdir(), "grunkalunka-flex-comparator-"));
+  try {
+    const nativeFile = join(directory, "native.json");
+    const browserFile = join(directory, "browser.json");
+    const sourceFile = join(directory, "fixture.html");
+    const pair = receipts();
+    writeFileSync(nativeFile, JSON.stringify(pair.native));
+    writeFileSync(sourceFile, fixture);
+    const executable = fileURLToPath(new URL("./native-flex-bridge.mjs", import.meta.url));
+    for (const [expected, change] of [
+      [0, () => {}],
+      [1, () => { pair.browser.states.columnGap.boxes["row-c"].x += 1; }],
+      [2, () => { delete pair.browser.states.wrap; }]
+    ]) {
+      change();
+      writeFileSync(browserFile, JSON.stringify(pair.browser));
+      const child = spawnSync(process.execPath, [executable, nativeFile, browserFile, sourceFile],
+        { encoding: "utf8", timeout: 30_000 });
+      assert.equal(child.error, undefined);
+      assert.equal(child.signal, null, child.stderr);
+      assert.equal(child.status, expected, child.stderr);
+      assert.equal(JSON.parse(child.stdout).conformance, "not-assessed");
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
