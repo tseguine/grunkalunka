@@ -15,10 +15,22 @@ pub(super) fn object_leaves<'n, 'a>(
     object
         .into_iter()
         .flat_map(|object| object.properties.iter())
-        .filter_map(|property| match &property.value {
-            BindingPattern::BindingIdentifier(identifier) => Some((identifier.as_ref(), property)),
+        .filter_map(|property| leaf(&property.value).map(|(identifier, _)| (identifier, property)))
+}
+
+fn leaf<'n, 'a>(
+    pattern: &'n BindingPattern<'a>,
+) -> Option<(&'n BindingIdentifier<'a>, Option<&'n Expression<'a>>)> {
+    match pattern {
+        BindingPattern::BindingIdentifier(identifier) => Some((identifier, None)),
+        BindingPattern::AssignmentPattern(assignment) => match &assignment.left {
+            BindingPattern::BindingIdentifier(identifier) => {
+                Some((identifier, Some(&assignment.right)))
+            }
             _ => None,
-        })
+        },
+        _ => None,
+    }
 }
 
 pub(super) fn key(property: &BindingProperty<'_>) -> Option<Vec<u16>> {
@@ -35,6 +47,7 @@ pub(super) struct PropertyBinding<'n, 'a> {
     pub(super) source: &'n BindingProperty<'a>,
     pub(super) identifier: &'n BindingIdentifier<'a>,
     pub(super) key: Vec<u16>,
+    pub(super) default: Option<&'n Expression<'a>>,
 }
 
 pub(super) struct ObjectBinding<'n, 'a> {
@@ -74,10 +87,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let dictionary = self.stored.dictionary(source.node_id());
         let mut fields = Vec::with_capacity(pattern.properties.len());
         for property in &pattern.properties {
-            let BindingPattern::BindingIdentifier(identifier) = &property.value else {
+            let Some((identifier, default)) = leaf(&property.value) else {
                 return Err(unsupported(
                     property,
-                    "object bindings currently require identifier leaves without defaults",
+                    "object bindings currently require identifier leaves",
                 ));
             };
             let key = key(property).ok_or_else(|| {
@@ -91,6 +104,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 source: property,
                 identifier,
                 key,
+                default,
             });
         }
         Ok(ObjectBinding {
@@ -98,38 +112,5 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             fields: fields.into_iter(),
             mutable,
         })
-    }
-
-    pub(super) fn finish_object_binding(
-        &mut self,
-        binding: ObjectBinding<'_, '_>,
-        region: &mut Region,
-        object: ValueId,
-    ) -> Result<(), String> {
-        for field in binding.fields {
-            let result = self.value(Type::ManagedValue);
-            Self::push(
-                region,
-                field.source,
-                Op::ManagedGetOwn {
-                    result,
-                    object,
-                    key: field.key,
-                },
-            );
-            self.commit_binding_value(
-                field.identifier,
-                field
-                    .identifier
-                    .symbol_id
-                    .get()
-                    .ok_or("missing pattern binding")?,
-                region,
-                Type::ManagedValue,
-                result,
-                binding.mutable,
-            )?;
-        }
-        Ok(())
     }
 }

@@ -149,22 +149,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         }
     }
 
-    pub(super) fn resume_object_binding_source<'n>(
-        &mut self,
-        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
-        binding: binding_patterns::ObjectBinding<'n, 'ast>,
-        mut output: Region,
-        object: ValueId,
-        cursor: &mut Cursor<'s, 'n, 'ast>,
-    ) -> Result<(), String>
-    where
-        'ast: 'n,
-    {
-        self.finish_object_binding(binding, &mut output, object)?;
-        sequence.index += 1;
-        self.advance_declaration(sequence, output, cursor)
-    }
-
     pub(super) fn resume_declaration_value<'n>(
         &mut self,
         mut sequence: Box<DeclarationSequence<'n, 'ast>>,
