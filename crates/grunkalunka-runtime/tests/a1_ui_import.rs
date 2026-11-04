@@ -353,6 +353,34 @@ fn imported_service_composes_with_locally_caught_source_failures() {
 }
 
 #[test]
+fn imported_service_composes_with_source_cleanup_and_terminal_provider_failures() {
+    for source in [
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            try {
+                if (a < 0) throw a;
+                return choose(a, b);
+            } catch (reason) {
+                return choose(0, b) + (+reason);
+            } finally {
+                choose(0, b);
+            }
+        }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            try {
+                try { return a; }
+                finally { choose(1, b); }
+            } catch (reason) {
+                return choose(0, b);
+            }
+        }"#,
+    ] {
+        compare_composed_source(source);
+    }
+}
+
+#[test]
 fn imported_service_composes_with_named_forward_and_recursive_helpers() {
     for source in [
         // The export, forward helper, and provider all have the same ABI, so

@@ -22,6 +22,9 @@ mod iteration;
 #[path = "async-suspension/sync_catch.rs"]
 mod sync_catch;
 
+#[path = "async-suspension/sync_finally.rs"]
+mod sync_finally;
+
 #[path = "async-suspension/managed_closures.rs"]
 mod managed_closures;
 

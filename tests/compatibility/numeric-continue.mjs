@@ -58,7 +58,6 @@ const negatives = [
   ['continue-header-scope', 'for(let i=0;i<1;i++) { continue; } return i;', reference],
   ['continue-const-step', 'for(const i=0;0;i++) { continue; } return a;', 'update to a const binding is not admitted'],
   ['continue-switch-remains', 'while(0) { switch(a) { default: continue; } } return b;', 'statement is outside'],
-  ['continue-finally-remains', 'while(0) { try { continue; } finally { a=b; } } return b;', 'statement is outside'],
   ['continue-statement-limit', `do { ${';'.repeat(253)} continue; } while(0); return a;`, 'at most 256 statements'],
   ['continue-header-statement-limit', `for(let i=0;0;) { ${';'.repeat(252)} continue; } return a;`, 'at most 256 statements'],
   ['continue-depth-limit', `${'while(false) '.repeat(65)}continue; return a;`, 'statement nesting exceeds 64'],

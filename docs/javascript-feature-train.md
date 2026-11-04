@@ -193,6 +193,13 @@ its source and independent oracle preserved. A1 composition tests recover from
 a local source failure before invoking the existing service, while provider
 denial remains a terminal host outcome.
 
+Synchronous `finally` now runs cleanup around normal completion, returns,
+locally handled throws and unlabelled loop exits. One emitted cleanup body
+preserves saved return/reason values and permits a cleanup completion to
+override them. Ordinary helper cleanup also composes with async callers and
+the existing A1 service; source failures and terminal host failures retain
+their separate contracts.
+
 See [synchronous errors](synchronous-errors.md) for the same-function lexical
 boundary and differential tests. Cross-call errors, broader exception values
 and source-error-producing runtime operations require further slices. In

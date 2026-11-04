@@ -1200,6 +1200,26 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         // moves to a traced value global before any suspension can occur.
         output.push_str("(local $gc_literal (ref null $gc_key))\n");
     }
+    // A settlement is emitted atomically and may contain an ordinary inline
+    // function's cleanup. Its completion kind is activation-local scratch,
+    // not a persistent frame lane. Async finalizers split above need no local.
+    let mut seen_settlements = std::collections::BTreeSet::new();
+    let mut finally_locals = std::collections::BTreeSet::new();
+    for state in &split.states {
+        for operation in state.operations {
+            if let Op::SettlePromise { body, .. } = &operation.kind
+                && seen_settlements.insert((state.function, body.id))
+            {
+                ir::visit_operations(body, &mut |operation| {
+                    if let Op::TryFinally { body, .. } = operation
+                        && finally_locals.insert((state.function, body.id))
+                    {
+                        super::declare_finally_local(&mut output, state.function, body.id.0);
+                    }
+                });
+            }
+        }
+    }
     output.push_str("block $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
     for id in 0..split.states.len() {

@@ -71,9 +71,40 @@ const NUMBER_REMAINDER: &str = r#"(func $number_remainder (param $a f64) (param 
 "#;
 
 #[derive(Clone, Copy)]
+enum FinallyStage {
+    Cleanup,
+    Dispatch,
+}
+
+#[derive(Clone, Copy)]
+enum FinallyKind {
+    Return = 1,
+    Throw = 2,
+    Break = 3,
+    Continue = 4,
+}
+
+#[derive(Clone, Copy)]
+enum ReturnTarget {
+    Inline(usize),
+    Finally {
+        label: usize,
+        returned: ValueId,
+        stage: FinallyStage,
+    },
+}
+
+#[derive(Clone, Copy)]
 enum ThrowTarget {
     Settlement(usize),
     Catch { label: usize, reason: ValueId },
+    Finally { label: usize, reason: ValueId },
+}
+
+#[derive(Clone, Copy)]
+enum LoopTarget {
+    Loop(usize),
+    Finally(usize),
 }
 
 struct Emitter<'a> {
@@ -85,9 +116,11 @@ struct Emitter<'a> {
     call_boundary: Option<Box<CallBoundary>>,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
-    loop_label: Option<usize>,
-    inline_return: Option<usize>,
+    loop_to: Option<LoopTarget>,
+    return_to: Option<ReturnTarget>,
     throw_to: Option<ThrowTarget>,
+    // Shared coroutine code needs distinct atomic scratch locals per owner.
+    finally_owner: usize,
     needs_remainder: bool,
     errors: bool,
     error_kinds: bool,
@@ -663,7 +696,7 @@ impl Emitter<'_> {
             | Op::AdoptPromise { .. } => {
                 unreachable!("async control uses the async emitter")
             }
-            Op::TryFinally { .. } => unreachable!("finally uses the async emitter"),
+            Op::TryFinally { .. } => unreachable!("structured operation"),
             Op::Nullish { result, value } => {
                 let tag = match value {
                     ir::Nullish::Undefined => 0,
@@ -996,9 +1029,19 @@ impl Emitter<'_> {
             Exit(Exit),
             Text(String),
             Set(ValueId),
-            RestoreInline(Option<usize>),
+            RestoreReturn(Option<ReturnTarget>),
             RestoreThrow(Option<ThrowTarget>),
-            RestoreLoop(Option<usize>),
+            RestoreLoop(Option<LoopTarget>),
+            FinallyDispatch {
+                label: usize,
+                reason: ValueId,
+                continuation: &'a Region,
+            },
+            FinallyExit {
+                label: usize,
+                kind: FinallyKind,
+                exit: Option<Exit>,
+            },
             WhileAfterCondition {
                 label: usize,
                 body: &'a Region,
@@ -1025,12 +1068,50 @@ impl Emitter<'_> {
                 Work::Exit(exit) => self.emit_exit(exit),
                 Work::Text(text) => self.output.push_str(&text),
                 Work::Set(value) => self.set(value),
-                Work::RestoreInline(previous) => self.inline_return = previous,
+                Work::RestoreReturn(previous) => self.return_to = previous,
                 Work::RestoreThrow(previous) => self.throw_to = previous,
-                Work::RestoreLoop(previous) => self.loop_label = previous,
+                Work::RestoreLoop(previous) => self.loop_to = previous,
+                Work::FinallyDispatch {
+                    label,
+                    reason,
+                    continuation,
+                } => {
+                    // The cleanup has restored the enclosing routes. Keep the
+                    // original continuation for both protected and cleanup
+                    // returns, including nontrivial raw-value continuations.
+                    pending.push(Work::FinallyExit {
+                        label,
+                        kind: FinallyKind::Continue,
+                        exit: self.loop_to.map(|_| Exit::Continue),
+                    });
+                    pending.push(Work::FinallyExit {
+                        label,
+                        kind: FinallyKind::Break,
+                        exit: self.loop_to.map(|_| Exit::Break),
+                    });
+                    pending.push(Work::FinallyExit {
+                        label,
+                        kind: FinallyKind::Throw,
+                        exit: self.throw_to.map(|_| Exit::Throw(reason)),
+                    });
+                    pending.push(Work::Text("end\n".into()));
+                    pending.push(Work::Region(continuation));
+                    self.begin_finally_case(label, FinallyKind::Return);
+                }
+                Work::FinallyExit { label, kind, exit } => {
+                    self.begin_finally_case(label, kind);
+                    if let Some(exit) = exit {
+                        self.emit_exit(exit);
+                    } else {
+                        // Verification and routing exclude this completion;
+                        // do not manufacture an enclosing throw/loop target.
+                        self.output.push_str("unreachable\n");
+                    }
+                    self.output.push_str("end\n");
+                }
                 Work::WhileAfterCondition { label, body, step } => {
                     writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
-                    let previous = self.loop_label.replace(label);
+                    let previous = self.loop_to.replace(LoopTarget::Loop(label));
                     writeln!(self.output, "block $continue{label}").unwrap();
                     pending.push(Work::Text(format!("br $loop{label}\nend\nend\n")));
                     if let Some(step) = step {
@@ -1042,7 +1123,8 @@ impl Emitter<'_> {
                 }
                 Work::Operation(operation) => match &operation.kind {
                     Op::InlineCall { result, body } => {
-                        let previous = self.inline_return.replace(body.id.0);
+                        let previous = self.return_to.replace(ReturnTarget::Inline(body.id.0));
+                        let previous_loop = self.loop_to.take();
                         let result_types = self.value_layout(self.function.values[result.0]).wat;
                         writeln!(
                             self.output,
@@ -1051,20 +1133,22 @@ impl Emitter<'_> {
                         )
                         .unwrap();
                         pending.push(Work::Set(*result));
-                        pending.push(Work::RestoreInline(previous));
+                        pending.push(Work::RestoreLoop(previous_loop));
+                        pending.push(Work::RestoreReturn(previous));
                         pending.push(Work::Text("unreachable\nend\n".into()));
                         pending.push(Work::Region(body));
                     }
                     Op::SettlePromise { result, body } => {
-                        let previous_return = self.inline_return.replace(body.id.0);
+                        let previous_return =
+                            self.return_to.replace(ReturnTarget::Inline(body.id.0));
                         let previous_throw =
                             self.throw_to.replace(ThrowTarget::Settlement(body.id.0));
-                        let previous_loop = self.loop_label.take();
+                        let previous_loop = self.loop_to.take();
                         writeln!(self.output, "block $call{} (result i32 f64)", body.id.0).unwrap();
                         pending.push(Work::Set(*result));
                         pending.push(Work::RestoreLoop(previous_loop));
                         pending.push(Work::RestoreThrow(previous_throw));
-                        pending.push(Work::RestoreInline(previous_return));
+                        pending.push(Work::RestoreReturn(previous_return));
                         pending.push(Work::Text("unreachable\nend\n".into()));
                         pending.push(Work::Region(body));
                     }
@@ -1089,10 +1173,54 @@ impl Emitter<'_> {
                         pending.push(Work::Text(format!("br $try_done{label}\nend\n")));
                         pending.push(Work::Region(body));
                     }
+                    Op::TryFinally {
+                        body,
+                        finalizer,
+                        returned,
+                        reason,
+                        continuation,
+                    } => {
+                        let label = body.id.0;
+                        let previous_return = self.return_to.replace(ReturnTarget::Finally {
+                            label,
+                            returned: *returned,
+                            stage: FinallyStage::Cleanup,
+                        });
+                        let previous_throw = self.throw_to.replace(ThrowTarget::Finally {
+                            label,
+                            reason: *reason,
+                        });
+                        let previous_loop = self.loop_to.replace(LoopTarget::Finally(label));
+                        // A loop can reenter this node after any prior pending
+                        // completion. Reset its private kind on every entry.
+                        writeln!(
+                            self.output,
+                            "i32.const 0\nlocal.set $finally_kind{}_{}\nblock $finally_dispatch{label}\nblock $finally_cleanup{label}",
+                            self.finally_owner, label
+                        )
+                        .unwrap();
+                        pending.push(Work::FinallyDispatch {
+                            label,
+                            reason: *reason,
+                            continuation,
+                        });
+                        pending.push(Work::RestoreReturn(previous_return));
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(finalizer));
+                        pending.push(Work::RestoreReturn(Some(ReturnTarget::Finally {
+                            label,
+                            returned: *returned,
+                            stage: FinallyStage::Dispatch,
+                        })));
+                        pending.push(Work::RestoreThrow(previous_throw));
+                        pending.push(Work::RestoreLoop(previous_loop));
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(body));
+                    }
                     Op::DoWhile { body, condition } => {
                         let label = body.id.0;
                         writeln!(self.output, "block $exit{label}\nloop $do{label}").unwrap();
-                        let previous = self.loop_label.replace(label);
+                        let previous = self.loop_to.replace(LoopTarget::Loop(label));
                         writeln!(self.output, "block $continue{label}").unwrap();
                         pending.push(Work::Text(format!("br_if $do{label}\nend\nend\n")));
                         pending.push(Work::Region(condition));
@@ -1146,6 +1274,46 @@ impl Emitter<'_> {
         }
     }
 
+    fn begin_finally_case(&mut self, label: usize, kind: FinallyKind) {
+        writeln!(
+            self.output,
+            "local.get $finally_kind{}_{}\ni32.const {}\ni32.eq\nif",
+            self.finally_owner, label, kind as u8
+        )
+        .unwrap();
+    }
+
+    fn jump_finally(&mut self, label: usize, kind: FinallyKind, stage: FinallyStage) {
+        let stage = match stage {
+            FinallyStage::Cleanup => "cleanup",
+            FinallyStage::Dispatch => "dispatch",
+        };
+        writeln!(
+            self.output,
+            "i32.const {}\nlocal.set $finally_kind{}_{}\nbr $finally_{stage}{label}",
+            kind as u8, self.finally_owner, label
+        )
+        .unwrap();
+    }
+
+    fn emit_loop_exit(&mut self, continuing: bool) {
+        match self.loop_to.expect("verified loop completion") {
+            LoopTarget::Loop(label) => {
+                let target = if continuing { "continue" } else { "exit" };
+                writeln!(self.output, "br ${target}{label}").unwrap();
+            }
+            LoopTarget::Finally(label) => self.jump_finally(
+                label,
+                if continuing {
+                    FinallyKind::Continue
+                } else {
+                    FinallyKind::Break
+                },
+                FinallyStage::Cleanup,
+            ),
+        }
+    }
+
     fn emit_exit(&mut self, exit: Exit) {
         match exit {
             Exit::Fallthrough => {}
@@ -1165,30 +1333,30 @@ impl Emitter<'_> {
                     self.set(reason);
                     writeln!(self.output, "br $try_catch{label}").unwrap();
                 }
+                ThrowTarget::Finally { label, reason } => {
+                    self.get(value);
+                    self.set(reason);
+                    self.jump_finally(label, FinallyKind::Throw, FinallyStage::Cleanup);
+                }
             },
-            Exit::Break => {
-                writeln!(
-                    self.output,
-                    "br $exit{}",
-                    self.loop_label.expect("verified loop break")
-                )
-                .unwrap();
-            }
-            Exit::Continue => {
-                writeln!(
-                    self.output,
-                    "br $continue{}",
-                    self.loop_label.expect("verified loop continue")
-                )
-                .unwrap();
-            }
+            Exit::Break => self.emit_loop_exit(false),
+            Exit::Continue => self.emit_loop_exit(true),
             Exit::Yield(value) => self.get(value),
             Exit::Return(value) => {
                 self.get(value);
-                if let Some(label) = self.inline_return {
-                    writeln!(self.output, "br $call{label}").unwrap();
-                } else {
-                    self.output.push_str("return\n");
+                match self.return_to {
+                    Some(ReturnTarget::Inline(label)) => {
+                        writeln!(self.output, "br $call{label}").unwrap();
+                    }
+                    Some(ReturnTarget::Finally {
+                        label,
+                        returned,
+                        stage,
+                    }) => {
+                        self.set(returned);
+                        self.jump_finally(label, FinallyKind::Return, stage);
+                    }
+                    None => self.output.push_str("return\n"),
                 }
             }
         }
@@ -1395,8 +1563,7 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
                 | Op::AdoptPromise { .. }
                 | Op::AwaitClosureCall { .. }
                 | Op::AwaitSettled { .. }
-                | Op::AwaitCall { .. }
-                | Op::TryFinally { .. } => return true,
+                | Op::AwaitCall { .. } => return true,
                 Op::StartAsyncClosure { .. } if starts => return true,
                 // Settlement bodies close their own throws, and don't await.
                 Op::SettlePromise { .. } | Op::StartAsyncClosure { .. } => {}
@@ -1407,6 +1574,18 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
                 Op::TryCatch { body, handler, .. } => {
                     pending.push((handler, caught));
                     pending.push((body, true));
+                }
+                Op::TryFinally {
+                    body,
+                    finalizer,
+                    continuation,
+                    ..
+                } => {
+                    // Cleanup preserves the enclosing exception ownership. A
+                    // finally node does not close a source throw by itself.
+                    pending.push((continuation, caught));
+                    pending.push((finalizer, caught));
+                    pending.push((body, caught));
                 }
                 Op::If {
                     consequent,
@@ -1477,9 +1656,10 @@ fn emit_function(
         cell_offsets,
         arena_temp,
         call_boundary: None,
-        loop_label: None,
-        inline_return: None,
+        loop_to: None,
+        return_to: None,
         throw_to: None,
+        finally_owner: 0,
         needs_remainder: false,
         errors,
         error_kinds,
@@ -1521,6 +1701,11 @@ fn emit_function(
             .output
             .push_str("(local $gc_literal (ref null $gc_key))\n");
     }
+    ir::visit_operations(&function.body, &mut |operation| {
+        if let Op::TryFinally { body, .. } = operation {
+            declare_finally_local(&mut emitter.output, emitter.finally_owner, body.id.0);
+        }
+    });
     emitter.init_environment();
     emitter.init_cell_parameters();
     emitter.region(&function.body);
@@ -1528,6 +1713,10 @@ fn emit_function(
     // nested void branches whose arms return; it supplies no source semantics.
     emitter.output.push_str("unreachable\n)");
     (emitter.output, emitter.needs_remainder)
+}
+
+fn declare_finally_local(output: &mut String, owner: usize, label: usize) {
+    writeln!(output, "(local $finally_kind{owner}_{label} i32)").unwrap();
 }
 
 fn needs_literal_scratch(function: &ir::Function) -> bool {
@@ -1705,6 +1894,52 @@ mod control_scan_tests {
                 &inline(caught(thrown(), idle())),
                 starts,
             ));
+        }
+    }
+
+    #[test]
+    fn control_scan_traverses_finally_without_creating_a_catch() {
+        let finalized = |body, finalizer, continuation| {
+            region(
+                vec![Op::TryFinally {
+                    body,
+                    finalizer,
+                    returned: ValueId(0),
+                    reason: ValueId(1),
+                    continuation: Box::new(continuation),
+                }],
+                Exit::Fallthrough,
+            )
+        };
+        for starts in [false, true] {
+            assert!(!region_has_control(
+                &finalized(idle(), idle(), idle()),
+                starts
+            ));
+            for position in 0..3 {
+                for awaiting in [false, true] {
+                    let mut parts = [idle(), idle(), idle()];
+                    parts[position] = if awaiting {
+                        region(
+                            vec![Op::Await {
+                                result: ValueId(0),
+                                input: ValueId(0),
+                                rejected: false,
+                            }],
+                            Exit::Fallthrough,
+                        )
+                    } else {
+                        thrown()
+                    };
+                    let [body, finalizer, continuation] = parts;
+                    let source = finalized(body, finalizer, continuation);
+                    assert!(region_has_control(&source, starts));
+                    assert_eq!(
+                        region_has_control(&caught(source, idle()), starts),
+                        awaiting
+                    );
+                }
+            }
         }
     }
 

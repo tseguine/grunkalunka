@@ -916,7 +916,7 @@
     {
       "id": "exceptions",
       "kind": "open-requirement",
-      "assessment": "Locally caught primitive throws execute synchronously. Finally, throws across synchronous calls, uncaught synchronous throws and broader exception values still need completion/unwinding semantics.",
+      "assessment": "Locally caught primitive throws and finally execute synchronously. Throws across synchronous calls, uncaught synchronous throws and broader exception values still need completion/unwinding semantics.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-try-statement",
@@ -1221,13 +1221,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d66bca8a6c83f0ca28b4b433da842da4ef8ef0f0adf68da28d24ea738624a6f3",
       "group": "parameters"
-    },
-    {
-      "id": "gap-finally-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6b4ab88449bd24de349b188ca007fc0c7bd6dc720d3291b3a400b1d6b2b4c114",
-      "group": "exceptions"
     },
     {
       "id": "gap-class-instance",
@@ -2495,13 +2488,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "200590f090d7dd2612691762a32769a431eeb6421050ac0b9cb0d3a4abc52400",
       "group": "switch"
-    },
-    {
-      "id": "continue-finally-remains",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f5aac6d9a2c65911532fd31a6abbb6d88c2092a9fb978b981468aa5c59d0b491",
-      "group": "exceptions"
     },
     {
       "id": "continue-statement-limit",

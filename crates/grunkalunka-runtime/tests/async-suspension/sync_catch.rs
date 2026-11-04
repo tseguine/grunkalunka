@@ -23,6 +23,7 @@ fn async_callers_compose_with_synchronous_helpers_that_catch_locally() {
         "export async function run(a,b){let n=0;const recover=()=>{try{n++;throw a;}catch(e){n=n*10+2;return +e;}};const first=recover();await b;return first+n+recover();}",
         "function recover(x){try{throw x;}catch(e){return +e;}}export async function run(a,b){try{const value=recover(a);await b;return value;}catch(e){return 99;}}",
         "export async function run(a,b){try{throw b;}catch(outer){const recover=()=>{try{throw a;}catch(inner){return +inner;}};await a;return recover()+(+outer);}}",
+        "export async function run(a,b){const recover=()=>{try{return a;}finally{b;}};return recover();}",
     ]);
 }
 
@@ -37,7 +38,6 @@ fn async_callers_retain_synchronous_catch_cells_without_authorizing_escaping_thr
         "export async function run(a,b){try{const fail=()=>{if(a)throw b;return 0;};return fail();}catch(e){return e;}}",
         "export async function run(a,b){try{const fail=()=>{try{throw a;}catch(e){if(a)throw e;return 0;}};return fail();}catch(e){return e;}}",
         "function fail(x){if(x)throw x;return 0;}export async function run(a,b){try{return fail(a);}catch(e){return e;}}",
-        "export async function run(a,b){const recover=()=>{try{return a;}finally{b;}};return recover();}",
     ] {
         for typed in [false, true] {
             let error = compile_async(source, typed)

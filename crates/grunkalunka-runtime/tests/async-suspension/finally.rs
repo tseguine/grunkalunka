@@ -162,14 +162,11 @@ fn finally_keeps_erasure_source_await_and_execution_limits() {
             )
             .is_err()
         );
-        assert!(
-            compile_async(
-                &source_for("const f=()=>{try{return a;}finally{b++;}};return f();"),
-                ts
-            )
-            .is_err()
-        );
     }
+    compare_promises(
+        &["const f=()=>{try{return a;}finally{b++;}};return f();"],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
     assert_eq!(
         source_for("try{await a;}finally{a++;}"),
         "export async function run(a,b){try{await a;}finally{a++;}}"

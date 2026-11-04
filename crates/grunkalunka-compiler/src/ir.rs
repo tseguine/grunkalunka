@@ -45,6 +45,8 @@ mod settled_promise_tests;
 mod stack_hygiene_tests;
 #[cfg(test)]
 mod sync_catch_tests;
+#[cfg(test)]
+mod sync_finally_tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ValueId(pub usize);
@@ -734,8 +736,9 @@ pub(crate) enum Op {
         reason: ValueId,
         handler: Region,
     },
-    /// Protected and finalizer returns are raw values. Only the return
-    /// continuation sees the captured return; the reason is General or AsyncValue.
+    /// Protected and finalizer returns use the capture's result lane. Ordinary
+    /// cleanup keeps the enclosing lane; async cleanup may capture AsyncValue
+    /// before adoption. Only the continuation sees the captured return.
     TryFinally {
         body: Region,
         finalizer: Region,
@@ -1114,8 +1117,8 @@ enum PendingRegion {
     IfAlternate(Contract, Completion),
     TryBody,
     TryHandler(Completion),
-    FinallyBody,
-    FinallyCleanup(Completion),
+    FinallyBody(Type, bool),
+    FinallyCleanup(Completion, Type),
     FinallyReturn(Completion),
     DoBody,
     DoCondition(Completion),
@@ -2158,6 +2161,7 @@ impl Verifier<'_> {
                     // inlined source function. Its own protected regions may
                     // establish local catches as usual.
                     child.local_catch = false;
+                    child.raw_completion = false;
                     child.inline_async |= matches!(operation.kind, Op::AwaitCall { .. });
                     if matches!(operation.kind, Op::AwaitCall { .. }) {
                         child.throw_type = self.rejection_type;
@@ -2292,10 +2296,19 @@ impl Verifier<'_> {
                     },
                     PendingRegion::Start,
                 ) => {
-                    if !matches!(frame.return_type, Type::General | Type::AsyncValue) {
+                    let captured_type = self
+                        .function
+                        .values
+                        .get(returned.0)
+                        .copied()
+                        .ok_or_else(|| invalid(span, "invalid finally return capture"))?;
+                    if captured_type != frame.return_type
+                        && !(captured_type == Type::AsyncValue
+                            && frame.return_type == Type::General)
+                    {
                         return Err(invalid(
                             span,
-                            "finally requires an async completion contract",
+                            "finally return capture must preserve its result lane or raw async value",
                         ));
                     }
                     let mut hidden = BTreeSet::new();
@@ -2307,31 +2320,36 @@ impl Verifier<'_> {
                         ));
                     }
                     self.define(*reason, reason_type, &mut hidden, span)?;
-                    if self.function.values.get(returned.0) != Some(&Type::AsyncValue) {
-                        return Err(invalid(span, "finally return capture must be AsyncValue"));
-                    }
                     let mut child = frame.child(
                         body,
                         Contract::Statement,
                         frame.allow_loop_control,
-                        Type::AsyncValue,
+                        captured_type,
                     );
-                    // Capture the pending reason separately from the raw return.
-                    child.raw_completion = true;
+                    // Adapting an existing General completion preserves its
+                    // raw async contract. A typed ordinary finally introduces
+                    // neither a catch nor permission for an escaping throw.
+                    let raw_completion = frame.raw_completion
+                        || (frame.return_type == Type::General
+                            && captured_type == Type::AsyncValue);
+                    child.raw_completion = raw_completion;
                     child.throw_type = reason_type;
-                    frame.pending = PendingRegion::FinallyBody;
+                    frame.pending = PendingRegion::FinallyBody(captured_type, raw_completion);
                     return Ok(RegionCheck::Child(child));
                 }
-                (Op::TryFinally { finalizer, .. }, PendingRegion::FinallyBody) => {
+                (
+                    Op::TryFinally { finalizer, .. },
+                    PendingRegion::FinallyBody(captured_type, raw_completion),
+                ) => {
                     let body = completed.take().expect("checked finally body");
                     let mut child = frame.child(
                         finalizer,
                         Contract::Statement,
                         frame.allow_loop_control,
-                        Type::AsyncValue,
+                        captured_type,
                     );
-                    child.raw_completion = true;
-                    frame.pending = PendingRegion::FinallyCleanup(body);
+                    child.raw_completion = raw_completion;
+                    frame.pending = PendingRegion::FinallyCleanup(body, captured_type);
                     return Ok(RegionCheck::Child(child));
                 }
                 (
@@ -2340,13 +2358,13 @@ impl Verifier<'_> {
                         continuation,
                         ..
                     },
-                    PendingRegion::FinallyCleanup(body),
+                    PendingRegion::FinallyCleanup(body, captured_type),
                 ) => {
                     let completion =
                         body.finalized_by(completed.take().expect("checked finalizer"));
                     let mut child =
                         frame.child(continuation, Contract::Function, false, frame.return_type);
-                    self.define(*returned, Type::AsyncValue, &mut child.visible, span)?;
+                    self.define(*returned, captured_type, &mut child.visible, span)?;
                     frame.pending = PendingRegion::FinallyReturn(completion);
                     return Ok(RegionCheck::Child(child));
                 }

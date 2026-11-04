@@ -5,8 +5,8 @@ The exact `gap-async-await` source now executes in the separate
 a numeric-profile rejection; general Promise values and exception completion
 remain known requirements. Primitive rejected-await catch handlers now execute in
 the async profile; locally caught primitive throws now also execute
-[synchronously](synchronous-errors.md). Cross-call synchronous throws and
-synchronous finally remain open. Numeric structured
+[synchronously](synchronous-errors.md), including cleanup through finally.
+Cross-call and uncaught synchronous throws remain open. Numeric structured
 control flow can now suspend.
 Undefined/null/Boolean/Number values and uncaught rejection reasons survive that
 suspension; Strings, objects and arbitrary Promise values remain outside this slice.
@@ -57,7 +57,6 @@ their specific declaration diagnostic.
 | Nested declarations and nested recursion | `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
 | Bindings and parameter forms | `gap-var`, `gap-var-hoisting`, `gap-uninitialized-let`, `gap-local-destructure`, `gap-destructuring-write`, `gap-defaults`, `gap-rest` |
-| Exceptions and completion | `gap-finally-return` |
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export` |
@@ -218,8 +217,9 @@ nonnumeric RHS values remain outside admission.
 The former `gap-break` reference is now `break-promoted-reference` in
 [`numeric-break.mjs`](../tests/compatibility/numeric-break.mjs). Unlabelled break
 exits the nearest while/for/do loop, skipping the for step or do condition. Mixed
-break/return paths do not prove a numeric return. Switch, labels and
-try/finally remain outside admission.
+break/return paths do not prove a numeric return. Switch and labels remain
+outside admission; [synchronous finally](synchronous-errors.md) now preserves
+or overrides the pending loop exit.
 
 The former `gap-continue`, `for-continue`, `do-continue` and
 `break-continue-remains` references are now finite admitted cases in
@@ -667,9 +667,11 @@ ABI. General recursive function-result signatures remain open; see [local functi
 
 Primitive rejected awaits now enter lexical `try/catch` handlers, preserving the
 reason's primitive kind and await reaction job. Nested catches, later awaits,
-loop exits and captured handler bindings are covered in both engines. Synchronous
-cross-call synchronous throw, synchronous finally and general exception values remain open;
-numeric rejection fixtures and counts are unchanged. See [async catch](async-catch.md).
+loop exits and captured handler bindings are covered in both engines. Cross-call
+synchronous throw and general exception values remain open. The later synchronous
+catch/finally slice promotes the three original exception fixtures with sources
+and hashes preserved. See [async catch](async-catch.md) and
+[synchronous errors](synchronous-errors.md).
 
 Known block-bodied local calls now return compatible-signature function pairs
 through branches, loops and early returns. Callback identity/selection uses the actual
@@ -681,8 +683,8 @@ general recursive function-result signatures and mixed return kinds remain open.
 Primitive source throw now transfers immediately to lexical async catch handlers
 or rejects the activation directly, preserving represented reason kinds and adding
 no reaction job. Prefix/after-await effects, nested rethrows and 32-job settlement
-are checked against native JS. Cross-call synchronous throw, synchronous finally and general
-exception values remain open; numeric rejection sources remain unchanged. See
+are checked against native JS. Cross-call synchronous throw and general
+exception values remain open. See
 [async throw](async-throw.md).
 
 Runtime-selected synchronous factories with concise or complete block bodies return primitive-leaf function
