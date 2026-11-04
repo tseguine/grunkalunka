@@ -1,15 +1,18 @@
 # A1 owned interaction session
 
 `examples/note-preview/session.mjs` retains one authorized document and committed
-native frame across a bounded sequence of pointer and scroll inputs. The default
-compiled `activate.js` or `activate.ts` handler can collapse and reopen the same outline
-through the native title control. A hidden heading row cannot stand in for that
-control; every input is hit-tested against the current scene.
+native frame across a bounded sequence of pointer, scroll and reload inputs. The
+default compiled `activate.js` or `activate.ts` handler can collapse and reopen
+the same outline through the native title control. A hidden heading row cannot
+stand in for that control; every pointer is hit-tested against the current scene.
 
 ## State and ownership
 
 `createNoteSession` receives explicit native scene/action executables, component
 bytes, an already-authorized document, the initial expansion flag and a UI grant.
+An optional `reloadDocument` callback supplies a synchronous, already-authorized
+replacement for the same selected document. That callback is fixed at session
+construction; `reload()` accepts no new path, profile or component.
 It validates and copies the component bytes, source bytes and heading records
 before native execution. Later caller mutation cannot change the session's
 document or handler. Empty and denied documents start with expansion zero and
@@ -32,10 +35,10 @@ also preserve that frame, so the caller can handle the error and submit another
 input.
 
 The default budget is 256 input attempts; callers may choose a lower positive
-limit. A valid pointer or scroll consumes an attempt before native execution,
-including misses, unchanged offsets, denied actions and traps. Invalid coordinates
-or offsets and requests past the limit
-do not execute a guest or change the retained view.
+limit. A valid pointer, scroll or configured reload consumes an attempt before
+native execution or document loading, including misses, unchanged results,
+denied actions and traps. Invalid coordinates or offsets, unconfigured reloads
+and requests past the limit do not execute a guest or change the retained view.
 
 ## Native viewport scrolling
 
@@ -56,7 +59,50 @@ A failure consumes its attempt but leaves the entire previous frame inspectable.
 
 A source transition recomputes the native extent and clamps the existing offset
 before repaint. Collapsing the outline therefore returns to offset zero; a later
-reopen starts at that offset. Scroll and pointer inputs share one lifetime budget.
+reopen starts at that offset. Scroll, pointer and reload inputs share one lifetime
+budget.
+
+## Reloading the selected document
+
+`reload()` returns `{ sequence, status, changed, pixels }`. Its sequence uses the
+existing lifetime attempt count; replacement never creates another session or
+refills the input budget. Without a configured callback it throws
+`A1_RELOAD_UNAVAILABLE` before consuming an attempt. A configured reload requires
+both the original document grant and the UI grant. Denial consumes one attempt,
+returns `status: 'denied'` with `changed: false`, and invokes no loader, filesystem
+operation or WIT document call. Exhausted sessions also reject before loading.
+
+An allowed reload invokes the fixed callback, validates and copies its document,
+and rejects a profile different from the original grant. It then prepares the
+replacement scene, inspects the native extent, clamps the existing scroll offset
+and paints the new native frame. The document, heading count, expansion, scene,
+viewport, control point and pixels are published together only after every stage
+succeeds. Read errors, malformed documents, WIT failures, invalid profiles and
+native inspection or paint failures consume the attempt while preserving the
+complete previous committed document and view. A later input can recover.
+
+The session retains the initial expansion preference and updates it only when a
+source-service transition commits successfully. A reload with no headings shows
+`No headings.`, expansion zero and no control, but preserves that preference. A
+later nonempty reload therefore reopens an outline that was expanded before the
+empty note; an explicit collapse remains collapsed. Empty or short replacement
+content can clamp scrolling to zero, which becomes the retained offset.
+
+`status: 'ok'` means the replacement was committed. `changed` compares owned source
+bytes and normalized heading records, so a body-only edit can report a change
+while the outline pixels remain identical. Re-reading identical content returns
+`changed: false` and still consumes an attempt. Returned pixels are owned copies.
+Reload does not invoke or recompile the source handler, replace its component
+bytes, or change either grant.
+
+`run.mjs` exports `loadNoteDocumentSync({ profile, note, binaryTarget })` alongside
+the existing asynchronous loader. Both use the same byte validation and WIT
+lifting checks, admit at most 4096 UTF-8 bytes from a regular file, and avoid all
+note filesystem access under document denial. The synchronous form keeps file
+and native document work in a worker's ordered operation. The trusted host must
+retain its launch-selected note and target in the callback; the callback itself
+is not a filesystem grant or a public guest API. Detached hosts must pass their
+copied native target explicitly.
 
 ## Boundaries and verification
 
@@ -80,3 +126,10 @@ offsets and independent grants. Fault-injection cases fail native viewport
 inspection or frame output to verify atomic commit and recovery, including a
 source transition from a scrolled view. These error-path tests are separate from
 the ordinary native rendering evidence.
+
+Reload cases cover real WIT reads after edits, changed heading counts and
+body-only changes, unchanged reloads, empty-note preference recovery, denial,
+shared quotas, copied replacement records and recovery after failed native
+inspection or paint. The existing `note-preview.test.mjs` suite compares the
+asynchronous and synchronous loader results for Unicode, empty and boundary-size
+notes, checks rejected inputs, and instruments denied host filesystem access.

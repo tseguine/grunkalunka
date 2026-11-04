@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { access, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import fsPromises, { access, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { compileSource } from '../../tools/build/compile.mjs';
 import { escapeHtml, renderNotePreview, renderWithCompiledToggle } from '../../examples/note-preview/render.mjs';
-import { parseArguments, runPreview } from '../../examples/note-preview/run.mjs';
+import { loadNoteDocument, loadNoteDocumentSync, parseArguments, runPreview } from '../../examples/note-preview/run.mjs';
 import { buildCommands } from '../../examples/note-preview/build.mjs';
 import { packageNotePreview, parsePackageArguments } from '../../examples/note-preview/package.mjs';
 import { prepareNoteScene } from '../../examples/note-preview/scene.mjs';
@@ -329,6 +331,75 @@ test('real Markdown/WIT guest drives native-parity granted and denied HTML throu
       assert.doesNotMatch(nativeDenied.input.toString('utf8'), /Root|Sensitive|Café|子/);
       assert.ok(!deniedFrame.anchors.some(anchor =>
         headings.some(heading => anchor.text === heading.text)));
+    }
+  });
+
+test('async and synchronous note loaders return the same real WIT documents at admitted boundaries',
+  { timeout: 180_000 }, async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-loaders-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const note = join(cwd, 'selected.md');
+    const boundary = Buffer.from('# Boundary\n' + 'x'.repeat(4096 - 11));
+    assert.equal(boundary.length, 4096);
+    for (const [input, labels] of [[bytes, ['Root', '子😀']], [Buffer.alloc(0), []],
+      [boundary, ['Boundary']]]) {
+      await writeFile(note, input);
+      const asynchronous = await loadNoteDocument({ profile: 'granted', note, binaryTarget: targetRoot });
+      const synchronous = loadNoteDocumentSync({ profile: 'granted', note, binaryTarget: targetRoot });
+      assert.deepEqual(synchronous, asynchronous);
+      assert.deepEqual(synchronous.sourceBytes, input);
+      assert.deepEqual(synchronous.headings.map(heading => heading.text), labels);
+      assert.deepEqual([synchronous.attemptedReads, synchronous.backingReads, synchronous.cleanups],
+        [1, 1, 1]);
+    }
+  });
+
+test('async and synchronous note loaders deny before note filesystem access',
+  { timeout: 120_000 }, async t => {
+    const touches = [];
+    const intercepted = [[fs, 'openSync'], [fs, 'fstatSync'], [fs, 'statSync'], [fs, 'lstatSync'],
+      [fsPromises, 'open'], [fsPromises, 'stat'], [fsPromises, 'lstat']]
+      .map(([owner, name]) => t.mock.method(owner, name, () => {
+        touches.push(name);
+        throw new Error('denied note touched the filesystem');
+      }));
+    syncBuiltinESMExports();
+    try {
+      for (const load of [loadNoteDocument, loadNoteDocumentSync]) {
+        await assert.rejects(async () => load({ profile: 'granted',
+          note: 'instrumented-note.md', binaryTarget: targetRoot }), /denied note touched the filesystem/);
+      }
+      assert.deepEqual(touches.sort(), ['open', 'openSync'], 'both loader filesystem hooks are active');
+      touches.length = 0;
+      for (const load of [loadNoteDocument, loadNoteDocumentSync]) {
+        const denied = await load({ profile: 'denied',
+          note: join(tmpdir(), 'never-open-protected-a1-note.md'), binaryTarget: targetRoot });
+        assert.deepEqual(denied, { profile: 'denied', sourceBytes: Buffer.alloc(0),
+          headings: [], backingReads: 0, attemptedReads: 1, cleanups: 1 });
+      }
+      assert.deepEqual(touches, []);
+    } finally {
+      for (const method of intercepted) method.mock.restore();
+      syncBuiltinESMExports();
+    }
+  });
+
+test('async and synchronous note loaders reject missing, nonregular and malformed notes',
+  { timeout: 120_000 }, async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-loader-errors-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const large = join(cwd, 'large.md');
+    const invalid = join(cwd, 'invalid.md');
+    await writeFile(large, Buffer.alloc(4097, 0x41));
+    await writeFile(invalid, Buffer.from([0xff]));
+    for (const load of [loadNoteDocument, loadNoteDocumentSync]) {
+      for (const [note, error] of [[join(cwd, 'missing.md'), { code: 'ENOENT' }],
+        [large, /4096 UTF-8 bytes/], [invalid, TypeError], [cwd, Error]]) {
+        await assert.rejects(async () => load({ profile: 'granted', note, binaryTarget: targetRoot }), error);
+      }
+      for (const options of [{ profile: 'unknown', note: large }, { profile: 'granted' }]) {
+        await assert.rejects(async () => load(options), /Invalid note-preview document arguments/);
+      }
     }
   });
 

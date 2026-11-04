@@ -1,7 +1,7 @@
 // A1-only runnable host. Source and capabilities remain explicit; the guest
 // receives only in-memory bytes, never a filesystem or ambient Node binding.
 import { spawnSync } from 'node:child_process';
-import { constants, realpathSync } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import { open, lstat, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,13 @@ export function parseArguments(args) {
   return options;
 }
 
+function checkedNoteBytes(buffer, length) {
+  if (length > MAX_NOTE) throw new RangeError('Markdown note exceeds 4096 UTF-8 bytes');
+  const bytes = buffer.subarray(0, length);
+  new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  return bytes;
+}
+
 async function boundedNote(path, profile) {
   if (profile === 'denied') return Buffer.alloc(0); // No filesystem metadata/access at all.
   // Opening a FIFO for reading would otherwise wait indefinitely before we can
@@ -57,12 +64,27 @@ async function boundedNote(path, profile) {
       if (result.bytesRead === 0) break;
       length += result.bytesRead;
     }
-    if (length > MAX_NOTE) throw new RangeError('Markdown note exceeds 4096 UTF-8 bytes');
-    const bytes = buffer.subarray(0, length);
-    new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    return bytes;
+    return checkedNoteBytes(buffer, length);
   } finally {
     await handle.close();
+  }
+}
+
+function boundedNoteSync(path, profile) {
+  if (profile === 'denied') return Buffer.alloc(0);
+  const handle = openSync(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+  try {
+    if (!fstatSync(handle).isFile()) throw new TypeError('Markdown note must be a regular file');
+    const buffer = Buffer.alloc(MAX_NOTE + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const bytesRead = readSync(handle, buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    return checkedNoteBytes(buffer, length);
+  } finally {
+    closeSync(handle);
   }
 }
 
@@ -123,18 +145,32 @@ function checkedPpm(bytes) {
   return bytes;
 }
 
-// Shared by the static preview and the input-driven A1 application.
-export async function loadNoteDocument({ profile, note, binaryTarget = target }) {
+function validateDocumentArguments(profile, note) {
   if (!['granted', 'denied'].includes(profile) ||
       (profile === 'granted' && (typeof note !== 'string' || !note))) {
     throw new TypeError('Invalid note-preview document arguments');
   }
-  const bytes = await boundedNote(note, profile);
+}
+
+function inspectNoteDocument(profile, bytes, binaryTarget) {
   const selectedGuest = join(binaryTarget, 'wasm32-unknown-unknown',
     'debug', 'examples', 'outline_guest.wasm');
   const raw = nativeCall(native('a1_note_preview', binaryTarget),
     [selectedGuest, '--profile', profile], bytes);
   return liftedResult(JSON.parse(raw.toString('utf8')), profile, bytes);
+}
+
+// Shared by the static preview and the input-driven A1 application.
+export async function loadNoteDocument({ profile, note, binaryTarget = target }) {
+  validateDocumentArguments(profile, note);
+  return inspectNoteDocument(profile, await boundedNote(note, profile), binaryTarget);
+}
+
+// Worker-owned reloads keep bounded file IO and native WIT execution in the
+// same serialized operation. This uses the same byte and lifted-result checks.
+export function loadNoteDocumentSync({ profile, note, binaryTarget = target }) {
+  validateDocumentArguments(profile, note);
+  return inspectNoteDocument(profile, boundedNoteSync(note, profile), binaryTarget);
 }
 
 export async function runPreview({
