@@ -9,12 +9,20 @@ pub(super) enum Method {
     CharCodeAt,
     StartsWith,
     Includes,
+    Trim,
+    TrimStart,
+    TrimEnd,
 }
 
 impl Method {
     pub(super) fn result(self) -> Type {
         match self {
-            Self::Slice | Self::Substring | Self::CharAt => Type::ManagedValue,
+            Self::Slice
+            | Self::Substring
+            | Self::CharAt
+            | Self::Trim
+            | Self::TrimStart
+            | Self::TrimEnd => Type::ManagedValue,
             Self::CharCodeAt => Type::Number,
             Self::StartsWith | Self::Includes => Type::Predicate,
         }
@@ -24,6 +32,7 @@ impl Method {
         match self {
             Self::Slice | Self::Substring | Self::StartsWith | Self::Includes => 2,
             Self::CharAt | Self::CharCodeAt => 1,
+            Self::Trim | Self::TrimStart | Self::TrimEnd => 0,
         }
     }
 }
@@ -54,6 +63,9 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
         "charCodeAt" => Method::CharCodeAt,
         "startsWith" => Method::StartsWith,
         "includes" => Method::Includes,
+        "trim" => Method::Trim,
+        "trimStart" => Method::TrimStart,
+        "trimEnd" => Method::TrimEnd,
         _ => return None,
     };
     Some((receiver, method))

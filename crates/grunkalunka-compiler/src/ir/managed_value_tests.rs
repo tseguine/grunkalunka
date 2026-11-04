@@ -937,6 +937,51 @@ fn string_concat_requires_visible_managed_operands_and_result() {
 }
 
 #[test]
+fn string_trimming_requires_managed_input_and_result() {
+    let mut module = crate::lower_source(
+        "export function run(a,b){return ' text '.trim(a=1).length;}",
+        false,
+    )
+    .unwrap();
+    let function = &mut module.functions[0];
+    let number = function
+        .body
+        .operations
+        .iter()
+        .find_map(|op| match op.kind {
+            Op::Constant { result, .. } => Some(result),
+            _ => None,
+        })
+        .unwrap();
+    let index = function
+        .body
+        .operations
+        .iter()
+        .position(|op| matches!(op.kind, Op::ManagedStringTrim { .. }))
+        .unwrap();
+    let Op::ManagedStringTrim {
+        result,
+        input: _,
+        ends,
+    } = function.body.operations[index].kind
+    else {
+        unreachable!()
+    };
+    verify_module(&module).unwrap();
+    module.functions[0].values[result.0] = Type::Number;
+    assert!(verify_module(&module).is_err());
+    module.functions[0].values[result.0] = Type::ManagedValue;
+    for input in [number, result] {
+        module.functions[0].body.operations[index].kind = Op::ManagedStringTrim {
+            result,
+            input,
+            ends,
+        };
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
 fn string_search_requires_managed_operands_number_position_and_predicate_result() {
     let mut module = crate::lower_source(
         "export function run(a,b){return 'abcdef'.includes('bc',a)?1:0;}",

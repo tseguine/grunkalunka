@@ -125,6 +125,15 @@ Local validation, hosted gates and native stack membership are recorded on the
 individual PRs. These compiler authoring fixtures do not complete or reassign
 the independent A1 application acceptance below.
 
+## Follow-on String authoring
+
+`trim`, `trimStart` and `trimEnd` now prepare source-owned labels and search
+text using the same managed String lane. They preserve exact UTF-16 contents,
+JavaScript whitespace rules and ordered surplus-argument effects, including
+suspension. See [the method contract](managed-string-methods.md) for admission
+limits and differential coverage. This compiler/runtime slice is independent
+of the concurrent A1 persistent-session and reversible-toggle application work.
+
 ## A1 scope and existing evidence
 
 The separate A1 application stack, [#477](https://github.com/tseguine/grunkalunka/pull/477)

@@ -99,3 +99,56 @@
     br $candidate
   end
   unreachable)
+
+;; ECMAScript WhiteSpace plus LineTerminator, not Unicode's broader
+;; White_Space property. Every member fits one UTF-16 code unit; surrogates,
+;; U+0085, U+180E and U+200B are retained. Unsigned range checks handle underflow.
+(func $gc_string_whitespace (param $unit i32) (result i32)
+  local.get $unit i32.const 0x0009 i32.sub i32.const 4 i32.le_u
+  local.get $unit i32.const 0x0020 i32.eq i32.or
+  local.get $unit i32.const 0x00a0 i32.eq i32.or
+  local.get $unit i32.const 0x1680 i32.eq i32.or
+  local.get $unit i32.const 0x2000 i32.sub i32.const 10 i32.le_u i32.or
+  local.get $unit i32.const 0x2028 i32.sub i32.const 1 i32.le_u i32.or
+  local.get $unit i32.const 0x202f i32.eq i32.or
+  local.get $unit i32.const 0x205f i32.eq i32.or
+  local.get $unit i32.const 0x3000 i32.eq i32.or
+  local.get $unit i32.const 0xfeff i32.eq i32.or)
+
+;; The private side mask is 1=start, 2=end, 3=both. Bound each scan before
+;; reading a code unit, including empty and all-white-space Strings. The
+;; retained interval is copied unchanged, preserving interior space and UTF-16.
+(func $gc_string_trim (param $value (ref null $gc_value)) (param $sides i32)
+  (result (ref null $gc_value))
+  (local $source (ref null $gc_key)) (local $text (ref null $gc_key))
+  (local $first i32) (local $last i32) (local $count i32)
+  local.get $value call $gc_string_key local.tee $source array.len local.set $last
+  local.get $sides i32.const 1 i32.and
+  if
+    block $start_done
+      loop $start
+        local.get $first local.get $last i32.ge_u br_if $start_done
+        local.get $source local.get $first array.get_u $gc_key
+        call $gc_string_whitespace i32.eqz br_if $start_done
+        local.get $first i32.const 1 i32.add local.set $first
+        br $start
+      end
+    end
+  end
+  local.get $sides i32.const 2 i32.and
+  if
+    block $end_done
+      loop $end
+        local.get $first local.get $last i32.ge_u br_if $end_done
+        local.get $source local.get $last i32.const 1 i32.sub array.get_u $gc_key
+        call $gc_string_whitespace i32.eqz br_if $end_done
+        local.get $last i32.const 1 i32.sub local.set $last
+        br $end
+      end
+    end
+  end
+  local.get $last local.get $first i32.sub local.tee $count
+  array.new_default $gc_key local.set $text
+  local.get $text i32.const 0 local.get $source local.get $first local.get $count
+  array.copy $gc_key $gc_key
+  i32.const 5 f64.const 0 local.get $text struct.new $gc_value)

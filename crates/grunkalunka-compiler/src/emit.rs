@@ -395,6 +395,20 @@ impl Emitter<'_> {
                 .unwrap();
                 self.set(*result);
             }
+            Op::ManagedStringTrim {
+                result,
+                input,
+                ends,
+            } => {
+                self.get(*input);
+                let flags = match ends {
+                    ir::StringTrim::Start => 1,
+                    ir::StringTrim::End => 2,
+                    ir::StringTrim::Both => 3,
+                };
+                writeln!(self.output, "i32.const {flags}\ncall $gc_string_trim").unwrap();
+                self.set(*result);
+            }
             Op::ManagedArrayNew { result, length } => {
                 writeln!(
                     self.output,
