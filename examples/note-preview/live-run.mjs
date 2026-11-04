@@ -59,10 +59,11 @@ function inputError(status, message) {
   return Object.assign(new Error(message), { status });
 }
 
-function readPointer(request) {
+function readInput(request, scroll) {
+  const label = scroll ? 'Scroll' : 'Pointer';
   const length = request.headers['content-length'];
   if (length !== undefined && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BODY)) {
-    return Promise.reject(inputError(413, 'Pointer input exceeds 128 bytes.'));
+    return Promise.reject(inputError(413, label + ' input exceeds 128 bytes.'));
   }
   return new Promise((resolveInput, rejectInput) => {
     const parts = [];
@@ -81,29 +82,40 @@ function readPointer(request) {
         rejectInput(error);
       } else resolveInput(value);
     };
-    const onError = () => finish(inputError(400, 'Pointer input was interrupted.'));
-    const onAbort = () => finish(inputError(400, 'Pointer input was interrupted.'));
+    const onError = () => finish(inputError(400, label + ' input was interrupted.'));
+    const onAbort = () => finish(inputError(400, label + ' input was interrupted.'));
     const onData = chunk => {
       size += chunk.length;
-      if (size > MAX_BODY) finish(inputError(413, 'Pointer input exceeds 128 bytes.'));
+      if (size > MAX_BODY) finish(inputError(413, label + ' input exceeds 128 bytes.'));
       else parts.push(chunk);
     };
     const onEnd = () => {
       try {
         const value = JSON.parse(new TextDecoder('utf-8', { fatal: true })
           .decode(Buffer.concat(parts, size)));
-        if (value === null || typeof value !== 'object' || Array.isArray(value) ||
-            Object.keys(value).length !== 2 || !Object.hasOwn(value, 'x') || !Object.hasOwn(value, 'y') ||
-            !Number.isSafeInteger(value.x) || !Number.isSafeInteger(value.y) ||
-            value.x < 0 || value.x >= 320 || value.y < 0 || value.y >= 160) {
-          throw new Error('Invalid pointer');
+        if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+          throw new Error('Invalid input');
         }
-        finish(null, { x: value.x, y: value.y });
+        if (scroll) {
+          if (Object.keys(value).length !== 1 || !Object.hasOwn(value, 'y') ||
+              !Number.isSafeInteger(value.y) || value.y < 0 || value.y > 0xffffffff) {
+            throw new Error('Invalid scroll position');
+          }
+          finish(null, { y: value.y });
+        } else {
+          if (Object.keys(value).length !== 2 || !Object.hasOwn(value, 'x') || !Object.hasOwn(value, 'y') ||
+              !Number.isSafeInteger(value.x) || !Number.isSafeInteger(value.y) ||
+              value.x < 0 || value.x >= 320 || value.y < 0 || value.y >= 160) {
+            throw new Error('Invalid pointer');
+          }
+          finish(null, { x: value.x, y: value.y });
+        }
       } catch {
-        finish(inputError(400, 'Expected one pointer inside the native frame.'));
+        finish(inputError(400, scroll ? 'Expected one bounded scroll position.'
+          : 'Expected one pointer inside the native frame.'));
       }
     };
-    const timer = setTimeout(() => finish(inputError(408, 'Pointer input timed out.')), 5_000);
+    const timer = setTimeout(() => finish(inputError(408, label + ' input timed out.')), 5_000);
     request.on('data', onData);
     request.once('end', onEnd);
     request.once('error', onError);
@@ -175,11 +187,16 @@ export async function startLiveNote({
       throw new Error('Invalid retained native frame');
     }
     const remainingEvents = Math.max(0, maxEvents - snapshot.eventsProcessed);
+    const permitted = !closing && !unavailable && profile === 'granted' &&
+      uiProfile === 'granted' && remainingEvents > 0;
+    const controlPoint = snapshot.controlPoint === null ? null
+      : { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y };
     return {
-      schemaVersion: 1, width: 320, height: 160, sequence: snapshot.eventsProcessed,
+      schemaVersion: 2, width: 320, height: 160, sequence: snapshot.eventsProcessed,
       expanded: snapshot.expanded, visibleCount: snapshot.visibleCount,
-      canActivate: !closing && !unavailable && profile === 'granted' && uiProfile === 'granted' &&
-        document.headings.length > 0 && remainingEvents > 0,
+      scrollY: snapshot.scrollY, maxScrollY: snapshot.maxScrollY, controlPoint,
+      canActivate: permitted && controlPoint !== null,
+      canScroll: permitted && snapshot.maxScrollY > 0,
       remainingEvents,
       pixels: snapshot.pixels.subarray(PPM_HEADER.length).toString('base64'),
     };
@@ -223,7 +240,7 @@ export async function startLiveNote({
         return;
       }
       if (!((path === '/frame' && request.method === 'GET') ||
-          (path === '/input' && request.method === 'POST'))) {
+          ((path === '/input' || path === '/scroll') && request.method === 'POST'))) {
         send(response, 404, { error: 'Unknown application route.' });
         return;
       }
@@ -242,15 +259,17 @@ export async function startLiveNote({
         return;
       }
       if (!/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
-        send(response, 415, { error: 'Pointer input requires application/json.' });
+        send(response, 415, { error: 'Input requires application/json.' });
         return;
       }
-      const pointer = await readPointer(request);
+      const scroll = path === '/scroll';
+      const input = await readInput(request, scroll);
       try {
-        const action = await session.activate(pointer);
-        if (action.service !== null && action.service.status !== 'ok') {
+        const action = scroll ? await session.scrollTo(input.y) : await session.activate(input);
+        if (scroll ? action.status !== 'ok' : action.service !== null && action.service.status !== 'ok') {
           send(response, 409, {
-            error: 'The action was rejected. The last committed frame is still displayed.',
+            error: scroll ? 'Scrolling is unavailable in this session. The last committed frame is still displayed.'
+              : 'The action was rejected. The last committed frame is still displayed.',
             frame: frame(),
           });
           return;

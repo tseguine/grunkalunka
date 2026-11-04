@@ -16,11 +16,15 @@ node examples/note-preview/live-run.mjs --profile granted --note ./notes.md
 ```
 
 The command prints a JSON object with a `url`. Open that complete URL in a
-browser. Select the **Hide outline** or **Show outline** title inside the native
-view to collapse or reopen it. A focused view also accepts Enter or Space; both
-send the native title-control point through the same hit tester. Heading rows
-remain inert. The presenter scales pointer coordinates from the current canvas
-rectangle into native pixels, so resizing the page does not move the hit target.
+browser. Scroll over the view to reach headings below the frame. With the view
+focused, use Arrow Up/Down or Page Up/Down; Home and End jump to the top or bottom.
+Select the **Hide outline** or **Show outline** title inside the native view to
+collapse or reopen it. A focused view also accepts Enter or Space while that
+title is visible. Both send the native host's current title-control point through
+the same hit tester, including when the title is partly clipped. Home brings an
+offscreen title back into view. Heading rows remain inert. The presenter scales
+pointer coordinates from the current canvas rectangle into native pixels, so
+resizing the page does not move the hit target.
 
 The process listens on `127.0.0.1` and chooses an available port. `--port NUMBER`
 can select a particular port; there is no external bind option. Stop the command
@@ -48,22 +52,42 @@ An [asynchronous owned session](a1-async-session.md) performs native work in a
 fixed worker module. The HTTP event loop can continue serving the last committed
 frame while the worker executes an action. Inputs are serialized; the adapter
 defaults to at most eight queued or executing requests. A session has at most
-256 valid native input attempts, including misses, denied actions and traps.
-The programmatic host can choose smaller positive budgets.
+256 valid native input attempts, including pointer misses, denied actions,
+traps, denied scrolls and unchanged scroll positions. Pointer and scroll requests
+share this budget and queue. The programmatic host can choose smaller positive
+budgets. Both document and UI grants are required to change the scroll position.
 
-The browser sends only one input at a time. It never computes expansion, derives
-headings or substitutes browser layout for native pixels. A successful update
-returns the native frame and authoritative expansion/count/attempt metadata.
-The browser validates frame dimensions, RGB byte length and bounded state before
-painting, and rejects an older sequence. A trap leaves the committed pixels
-unchanged but consumes an attempt; its error response carries that newer
-snapshot. Transport uncertainty disables further input until reconnecting, so
-an unknown outcome is not automatically retried. Worker termination disables
-the session; it does not silently create a replacement state.
+The browser sends only one input at a time and retains at most one coalesced
+scroll target while a request is pending. Wheel input accepts pixel, line and
+page units, bounds each movement and clamps the target to the native scroll
+range. Pixel units follow the canvas scale; line and page steps are 16 and 160
+native pixels. Browser zoom gestures are preserved. A wheel or keyboard movement
+that remains at the current edge sends no request. Scroll controls keep working
+when the title is offscreen and activation is unavailable.
+
+The browser never computes expansion, derives headings or substitutes browser
+layout for native pixels. A successful update returns a version-2 frame with
+the authoritative expansion, count and shared attempt sequence, plus `scrollY`,
+`maxScrollY`, `canScroll` and `controlPoint`. The native position and maximum are
+unsigned 32-bit integers. `controlPoint` is a point inside the visible title or
+`null` when it cannot be hit. `canActivate` also requires that visible point;
+`canScroll` requires a positive maximum. Both require the grants and remaining
+input budget. Scrolling publishes the native pixels and viewport metadata
+together, and a collapsed outline clamps its scroll position to zero.
+
+The browser validates frame dimensions, RGB byte length, viewport bounds and
+control points before painting, and rejects an older sequence. A trap leaves
+the committed pixels unchanged but consumes an attempt; its error response
+carries that newer snapshot. Any failed request discards queued movement.
+Transport uncertainty disables further input until reconnecting, so an unknown
+outcome is not automatically retried. Worker termination disables the session;
+it does not silently create a replacement state.
 
 Controlled service rejections, including UI denial or an invalid requested
 heading count, return an explicit action error with the preserved frame. They
 do not revoke the independent transport token or become a successful repaint.
+Denied scrolling returns HTTP 409 with the preserved frame and consumed attempt.
+Queue or lifetime-budget exhaustion returns 429; a terminal session returns 503.
 
 Closing stops the HTTP listener and existing connections before awaiting worker
 termination. An already-running synchronous native subprocess may finish under
@@ -72,10 +96,11 @@ not immediate cancellation of arbitrary native code.
 
 ## Private loopback transport
 
-Only five exact routes exist: the fixed page, client module, stylesheet, frame
-read and pointer input. There is no file server, note download, component upload
-or generic command endpoint. The page and assets contain no note content, path
-or launch token. Frame responses carry native RGB and small view metadata.
+Only six exact routes exist: the fixed page, client module, stylesheet, frame
+read, pointer input and scroll input. There is no file server, note download,
+component upload or generic command endpoint. The page and assets contain no
+note content, path or launch token. Frame responses carry native RGB and small
+view metadata.
 
 Every frame/input request needs a random launch token in a custom header. The
 launch link puts that token in its fragment, which the browser removes before
@@ -86,8 +111,10 @@ Reopen the complete launch link after clearing that storage or losing access.
 The server checks the exact loopback Host header and rejects a foreign Origin
 before reading a body or calling the session. It sends no CORS permission,
 disables caching and referrers, and limits scripts/styles/connections to itself.
-Pointer bodies are at most 128 bytes, require JSON and exact integer coordinates
-inside the native frame, and have a five-second completion deadline. Sixteen
+Both input bodies are at most 128 bytes, require JSON and have a five-second
+completion deadline. `POST /input` accepts exactly `x` and `y` integer coordinates
+inside the native frame. `POST /scroll` accepts exactly one `y` integer from zero
+through 4294967295; the native session clamps it to the current maximum. Sixteen
 connections and one request per connection bound admission even for pipelined
 HTTP. These controls apply to this private local presenter; the transport is not
 a public WIT interface or general network application service.
@@ -97,9 +124,13 @@ a public WIT interface or general network application service.
 The two ordinary canonical live suites cover the worker lifecycle, copied state,
 native ordering and error recovery, the browser adapter's event/response rules,
 and real loopback requests to the native document/action/scene path. HTTP tests
-exercise grant separation, malformed and oversized input, slow bodies, foreign
-authority, HTTP pipelining, attempt exhaustion and close. The dependency-free
-browser harness verifies adapter behavior, not execution in an independent
+exercise grant separation, malformed and oversized pointer/scroll input, slow
+bodies, foreign authority, HTTP pipelining, shared attempt exhaustion and close.
+A long-note case scrolls to both ends, activates a partly clipped native title,
+checks offscreen hit behavior and restores the original pixels. The detached
+bundle exercises the same scroll path without build tools. The dependency-free
+browser harness covers wheel modes, keyboard controls, native control points,
+bounded coalescing and failed-request handling; it does not execute an independent
 browser engine. Actual browser QA and hosted results are reported in the PRs.
 
 This slice establishes a live browser input/pixel surface for the existing A1

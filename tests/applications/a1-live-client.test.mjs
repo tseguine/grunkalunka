@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { decodeLiveFrame, pointerToNative, startLiveClient } from '../../examples/note-preview/live-client.mjs';
+import { decodeLiveFrame, pointerToNative, wheelDeltaToNative,
+  startLiveClient } from '../../examples/note-preview/live-client.mjs';
 import { livePage, liveStyles } from '../../examples/note-preview/live-page.mjs';
 
 const token = 'a'.repeat(64);
@@ -14,9 +15,20 @@ for (let pixel = 0; pixel < 320 * 160; pixel++) {
 const pixels = rgb.toString('base64');
 
 function frame(overrides = {}) {
-  return { schemaVersion: 1, width: 320, height: 160, sequence: 0,
-    expanded: 1, visibleCount: 2, canActivate: true, remainingEvents: 256,
+  const sequence = overrides.sequence ?? 0;
+  const remainingEvents = overrides.remainingEvents ?? 256 - sequence;
+  return { schemaVersion: 2, width: 320, height: 160, sequence,
+    expanded: 1, visibleCount: 2, canActivate: remainingEvents > 0, remainingEvents,
+    scrollY: 0, maxScrollY: 0, canScroll: false, controlPoint: { x: 24, y: 16 },
     pixels, ...overrides };
+}
+
+function scrollingFrame(overrides = {}) {
+  const scrollY = overrides.scrollY ?? 0;
+  const remainingEvents = overrides.remainingEvents ?? 256 - (overrides.sequence ?? 0);
+  return frame({ visibleCount: 16, scrollY, maxScrollY: 400,
+    canScroll: remainingEvents > 0, canActivate: remainingEvents > 0 && scrollY === 0,
+    controlPoint: scrollY === 0 ? { x: 24, y: 16 } : null, ...overrides });
 }
 
 function response(value, status = 200) {
@@ -39,6 +51,7 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   const attributes = new Map();
   const listeners = new Map();
+  const listenerOptions = new Map();
   const painted = [];
   const status = { textContent: '' };
   let focused = 0;
@@ -51,7 +64,10 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
         data: new Uint8ClampedArray(width * height * 4) }),
       putImageData: (value, x, y) => painted.push({ ...value, x, y }),
     }),
-    addEventListener: (name, fn) => listeners.set(name, fn),
+    addEventListener: (name, fn, options) => {
+      listeners.set(name, fn);
+      listenerOptions.set(name, options);
+    },
     removeEventListener: (name, fn) => {
       if (listeners.get(name) === fn) listeners.delete(name);
     },
@@ -89,8 +105,14 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
       preventDefault: () => { prevented = true; }, ...overrides });
     return prevented;
   }
-  return { window, document, fetch, attributes, listeners, painted, status,
-    requests, replies, data, click, key, focused: () => focused };
+  function wheel(overrides = {}) {
+    let prevented = false;
+    listeners.get('wheel')?.({ deltaY: 40, deltaMode: 0, ctrlKey: false,
+      preventDefault: () => { prevented = true; }, ...overrides });
+    return prevented;
+  }
+  return { window, document, fetch, attributes, listeners, listenerOptions, painted, status,
+    requests, replies, data, click, key, wheel, focused: () => focused };
 }
 
 test('pointer mapping uses the current CSS rectangle and excludes every outside edge', () => {
@@ -111,6 +133,26 @@ test('pointer mapping uses the current CSS rectangle and excludes every outside 
   }
 });
 
+test('wheel units map to bounded native movement without intercepting zoom or invalid input', () => {
+  const rect = { height: 320 };
+  assert.equal(wheelDeltaToNative({ deltaY: 80, deltaMode: 0 }, rect), 40);
+  assert.equal(wheelDeltaToNative({ deltaY: -80, deltaMode: 0 }, rect), -40);
+  assert.equal(wheelDeltaToNative({ deltaY: 0.5, deltaMode: 0 }, rect), 0.25);
+  assert.equal(wheelDeltaToNative({ deltaY: 3, deltaMode: 1 }, rect), 48);
+  assert.equal(wheelDeltaToNative({ deltaY: -1, deltaMode: 2 }, rect), -160);
+  assert.equal(wheelDeltaToNative({ deltaY: Number.MAX_VALUE, deltaMode: 2 }, rect), 2560);
+  assert.equal(wheelDeltaToNative({ deltaY: -Number.MAX_VALUE, deltaMode: 0 }, rect), -2048);
+  for (const patch of [{ deltaY: 0 }, { deltaY: NaN }, { deltaY: Infinity },
+    { deltaY: -Infinity }, { deltaY: '4' }, { deltaMode: 3 }, { deltaMode: '0' },
+    { ctrlKey: true }]) {
+    assert.equal(wheelDeltaToNative({ deltaY: 40, deltaMode: 0, ...patch }, rect), null);
+  }
+  for (const badRect of [null, {}, { height: 0 }, { height: -1 }, { height: NaN },
+    { height: Infinity }]) {
+    assert.equal(wheelDeltaToNative({ deltaY: 40, deltaMode: 0 }, badRect), null);
+  }
+});
+
 test('frame decoding preserves supplied native RGB and rejects malformed or unbounded state', () => {
   const decoded = decodeLiveFrame(frame());
   assert.equal(decoded.rgba.length, 320 * 160 * 4);
@@ -120,13 +162,28 @@ test('frame decoding preserves supplied native RGB and rejects malformed or unbo
   assert.equal(decodeLiveFrame(frame()).rgba[1], 82);
   assert.doesNotThrow(() => decodeLiveFrame(frame({ sequence: 256, remainingEvents: 0 })));
   assert.doesNotThrow(() => decodeLiveFrame(frame({ canActivate: false })));
-  for (const invalid of [null, [], frame({ schemaVersion: 2 }), frame({ width: 640 }),
+  assert.doesNotThrow(() => decodeLiveFrame(scrollingFrame({ scrollY: 400 })));
+  const supplied = frame({ controlPoint: { x: 85, y: 0 } });
+  decodeLiveFrame(supplied).controlPoint.x = 0;
+  assert.deepEqual(supplied.controlPoint, { x: 85, y: 0 });
+  for (const invalid of [null, [], frame({ schemaVersion: 1 }), frame({ width: 640 }),
     frame({ height: 159 }), frame({ sequence: -1 }), frame({ sequence: '0' }),
     frame({ sequence: 257, remainingEvents: 0 }), frame({ expanded: 2 }),
     frame({ expanded: 0 }), frame({ visibleCount: 0 }), frame({ visibleCount: 65 }),
     frame({ visibleCount: 0.5 }), frame({ canActivate: 1 }),
     frame({ remainingEvents: -1 }), frame({ remainingEvents: 257 }),
-    frame({ remainingEvents: 0 }), frame({ pixels: pixels.slice(1) }),
+    frame({ remainingEvents: 0 }), frame({ scrollY: -1 }), frame({ scrollY: 1 }),
+    frame({ maxScrollY: -1 }), frame({ maxScrollY: 0x100000000 }),
+    frame({ scrollY: 0.5, maxScrollY: 1 }), frame({ maxScrollY: '0' }),
+    frame({ canScroll: 1 }), frame({ canScroll: true }),
+    frame({ sequence: 256, remainingEvents: 0, canActivate: true }),
+    scrollingFrame({ sequence: 256, canScroll: true }),
+    frame({ controlPoint: null }), frame({ controlPoint: undefined }),
+    frame({ controlPoint: [] }), frame({ controlPoint: { x: 1 } }),
+    frame({ controlPoint: { x: 1, y: 2, extra: 3 } }),
+    frame({ controlPoint: { x: -1, y: 0 } }), frame({ controlPoint: { x: 320, y: 0 } }),
+    frame({ controlPoint: { x: 0, y: 160 } }), frame({ controlPoint: { x: 0, y: 0.5 } }),
+    frame({ pixels: pixels.slice(1) }),
     frame({ pixels: pixels + 'AAAA' }), frame({ pixels: '*' + pixels.slice(1) }),
     frame({ pixels: pixels.slice(0, -1) + '=' })]) {
     assert.throws(() => decodeLiveFrame(invalid), /Invalid A1 live/);
@@ -190,6 +247,146 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.ok(b.focused() > 0);
 });
 
+test('keyboard activation uses the latest native control point, including a clipped title', async t => {
+  const b = browser();
+  b.replies.push(response(frame({ controlPoint: { x: 85, y: 0 } })));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  b.replies.push(response(frame({ sequence: 1, expanded: 0, visibleCount: 0,
+    controlPoint: { x: 103, y: 4 } })));
+  assert.equal(b.key('Enter'), true);
+  assert.equal(b.requests[1].body, '{"x":85,"y":0}');
+  await settle();
+  b.replies.push(response(frame({ sequence: 2 })));
+  assert.equal(b.key(' '), true);
+  assert.equal(b.requests[2].body, '{"x":103,"y":4}');
+  await settle();
+});
+
+test('wheel bursts coalesce one pending target and keyboard scrolling works with the title offscreen', async t => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  assert.deepEqual(b.listenerOptions.get('wheel'), { passive: false });
+  const first = deferred();
+  const second = deferred();
+  b.replies.push(first.promise, second.promise);
+  assert.equal(b.wheel({ deltaY: 80 }), true);
+  assert.equal(b.requests[1].path, '/scroll');
+  assert.equal(b.requests[1].body, '{"y":40}');
+  for (let index = 0; index < 100; index++) assert.equal(b.wheel({ deltaY: 80 }), true);
+  assert.equal(b.requests.length, 2, 'the burst retains only a target while the first request runs');
+  first.resolve(response(scrollingFrame({ sequence: 1, scrollY: 40 })));
+  await settle();
+  assert.equal(b.requests.length, 3);
+  assert.equal(b.requests[2].body, '{"y":400}', 'the one pending target is clamped');
+  assert.equal(b.key('Enter'), false, 'an offscreen title has no keyboard activation point');
+  b.click();
+  assert.equal(b.requests.length, 3);
+  b.wheel({ deltaY: 80 });
+  second.resolve(response(scrollingFrame({ sequence: 2, scrollY: 400 })));
+  await settle();
+  assert.equal(b.requests.length, 3, 'a pending target already reached needs no extra request');
+  assert.equal(b.attributes.get('aria-disabled'), 'false', 'scrolling remains available offscreen');
+  assert.equal(b.attributes.get('aria-label'), 'Scrollable note outline');
+  assert.match(b.status.textContent, /At the end/);
+
+  let sequence = 2;
+  for (const [key, y] of [['Home', 0], ['ArrowDown', 16], ['PageDown', 176],
+    ['End', 400], ['PageUp', 240], ['ArrowUp', 224]]) {
+    b.replies.push(response(scrollingFrame({ sequence: ++sequence, scrollY: y })));
+    assert.equal(b.key(key), true);
+    assert.equal(b.requests.at(-1).path, '/scroll');
+    assert.equal(b.requests.at(-1).body, JSON.stringify({ y }));
+    await settle();
+  }
+  b.replies.push(response(scrollingFrame({ sequence: ++sequence, scrollY: 208 })));
+  assert.equal(b.key('ArrowUp', { repeat: true }), true);
+  await settle();
+  assert.equal(b.requests.at(-1).body, '{"y":208}', 'held arrows remain bounded user input');
+  const count = b.requests.length;
+  assert.equal(b.key('PageDown', { ctrlKey: true }), false);
+  assert.equal(b.wheel({ ctrlKey: true }), false);
+  assert.equal(b.wheel({ deltaY: Infinity }), false);
+  assert.equal(b.requests.length, count);
+});
+
+test('fractional wheel movement accumulates without issuing zero-distance requests', async t => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  assert.equal(b.wheel({ deltaY: 0.5 }), true);
+  assert.equal(b.requests.length, 1);
+  b.replies.push(response(scrollingFrame({ sequence: 1, scrollY: 1 })));
+  assert.equal(b.wheel({ deltaY: 0.5 }), true);
+  assert.equal(b.requests[1].body, '{"y":1}');
+  await settle();
+  b.replies.push(response(scrollingFrame({ sequence: 2, scrollY: 0 })));
+  assert.equal(b.key('Home'), true);
+  await settle();
+  const count = b.requests.length;
+  assert.equal(b.wheel({ deltaY: -100 }), true, 'the viewport contains valid wheel input at its edge');
+  assert.equal(b.key('ArrowUp'), true);
+  assert.equal(b.requests.length, count, 'the top boundary does not create native attempts');
+});
+
+test('rejected or uncertain scrolling discards its pending target without an automatic retry', async t => {
+  for (const code of [403, 409, 429, 500, 503, 'network']) await t.test(String(code), async t => {
+    const b = browser();
+    b.replies.push(response(scrollingFrame()));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    b.wheel();
+    b.wheel();
+    assert.equal(b.requests.length, 2);
+    if (code === 'network') pending.reject(new Error('connection lost after sending scroll'));
+    else pending.resolve(response({ error: 'Scroll failed', frame: scrollingFrame({
+      sequence: 1, canScroll: code !== 409 && code !== 503,
+      canActivate: code !== 409 && code !== 503,
+    }) }, code));
+    await settle();
+    assert.equal(b.requests.length, 2, 'failed scrolling never drains the pending target');
+    if (code === 429 || code === 500) {
+      assert.equal(b.status.textContent, 'Scroll failed');
+      b.replies.push(response(scrollingFrame({ sequence: 2, scrollY: 20 })));
+      assert.equal(b.wheel(), true);
+      assert.equal(b.requests[2].body, '{"y":20}', 'new input starts from the actual retained frame');
+      await settle();
+    } else {
+      assert.equal(b.wheel(), false);
+      b.key('PageDown');
+      assert.equal(b.requests.length, 2);
+      if (code === 403) assert.equal(b.data.size, 0);
+    }
+  });
+});
+
+test('disposing during a scroll aborts the request and discards its coalesced target', async () => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  await client.ready;
+  const pending = deferred();
+  b.replies.push(pending.promise);
+  b.wheel({ deltaY: 100 });
+  b.wheel({ deltaY: 100 });
+  client.dispose();
+  assert.equal(b.requests[1].signal.aborted, true);
+  assert.equal(b.listeners.size, 0);
+  pending.resolve(response(scrollingFrame({ sequence: 1, scrollY: 50 })));
+  await settle();
+  assert.equal(b.painted.length, 1);
+  assert.equal(b.requests.length, 2);
+});
+
 test('sessionStorage supports refresh, invalid launch tokens replace old authority, and blocked storage keeps launch working', async t => {
   for (const options of [{ hash: '', stored: token }, { storageThrows: true }]) {
     const b = browser(options);
@@ -248,6 +445,28 @@ test('a failed action may publish its retained frame, but an older reply never r
   assert.equal(b.painted.length, 2);
   assert.equal(b.attributes.get('aria-expanded'), 'true');
   assert.equal(b.attributes.get('aria-disabled'), 'true');
+  assert.match(b.status.textContent, /Reopen the session link/);
+});
+
+test('an older scroll reply preserves committed viewport pixels and native control availability', async t => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame({ sequence: 8, scrollY: 400 })));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const committed = b.painted[0];
+  b.replies.push(response(scrollingFrame({ sequence: 7, scrollY: 0,
+    pixels: Buffer.alloc(rgb.length, 90).toString('base64') })));
+  assert.equal(b.wheel({ deltaY: -40 }), true);
+  assert.equal(b.wheel({ deltaY: -40 }), true);
+  await settle();
+  assert.deepEqual(b.painted, [committed]);
+  assert.equal(b.attributes.get('aria-label'), 'Scrollable note outline');
+  assert.equal(b.attributes.get('aria-expanded'), undefined);
+  assert.equal(b.attributes.get('aria-disabled'), 'true');
+  assert.equal(b.key('Enter'), false, 'the stale visible title point is not retained');
+  assert.equal(b.key('Home'), false);
+  assert.equal(b.requests.length, 2, 'the queued target is discarded on stale-frame failure');
   assert.match(b.status.textContent, /Reopen the session link/);
 });
 
@@ -310,13 +529,15 @@ test('denied and exhausted sessions retain their supplied view without forwardin
     b.click();
     b.key('Enter');
     b.key(' ');
+    b.wheel();
+    b.key('PageDown');
     assert.equal(b.requests.length, 1);
     if (!state.canActivate) assert.equal(b.attributes.get('role'), 'img');
-    else assert.match(b.status.textContent, /input limit reached/);
+    if (state.remainingEvents === 0) assert.match(b.status.textContent, /input limit reached/);
   }
 });
 
-test('disposing the adapter aborts a pending request and removes both input handlers', async () => {
+test('disposing the adapter aborts a pending request and removes all input handlers', async () => {
   const b = browser();
   const pending = deferred();
   b.replies.push(pending.promise);
