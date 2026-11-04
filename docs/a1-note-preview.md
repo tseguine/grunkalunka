@@ -17,6 +17,11 @@ same compiled handler can collapse and reopen the outline. The
 native frame; the [detached interaction bundle](a1-session-package.md) runs the
 retained component outside the checkout without recompilation.
 
+The [live application command](a1-live-application.md) now connects actual browser
+pointer/keyboard input to that same native hit/action/repaint path. A bounded
+worker session keeps native execution off the HTTP event loop; the browser
+displays the supplied native RGB instead of laying out the outline itself.
+
 The earlier single-activation development command remains available:
 
 ```sh
@@ -29,10 +34,10 @@ component bytes and an action receipt. See the interaction guide for replay
 and denial. Hosted validation and native stack membership are tracked in the
 implementation PRs; checked-in tests are not an execution receipt.
 
-A1 remains **Planned** against its full acceptance criteria. Repeated headless
-source-driven input, owned host state, readable bitmap repaint and a detached
-interaction package are now implemented. Each action still starts a fresh guest
-Store. General Unicode typography, a window/device loop and typed record/resource
+A1 remains **Planned** against its full acceptance criteria. Repeated
+source-driven input, owned host state, live browser presentation, readable bitmap
+repaint and a detached interaction package are now implemented. Each action still
+starts a fresh guest Store. General Unicode typography, native OS window integration and typed record/resource
 views remain open; [the typed interface handoff #483](https://github.com/tseguine/grunkalunka/issues/483)
 is separate compiler/application coordination. This stack does not select a final
 public API or change compiler/IR files. The local package described in the

@@ -1,0 +1,8 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/applications/a1-live-client.test.mjs",
+    "tests/applications/a1-live-run.test.mjs"
+  ]
+}

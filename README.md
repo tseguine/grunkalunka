@@ -147,10 +147,12 @@ JS/TS service call, Rust-owned action state and readable native RGB repaint.
 across repeated collapse/reopen inputs and record each service result and frame.
 The [detached interaction bundle](docs/a1-session-package.md) runs retained
 portable Wasm with copied native hosts without source recompilation.
+The [live application](docs/a1-live-application.md) displays native pixels in a
+browser canvas and forwards pointer/keyboard input through a bounded worker session.
 
 The experimental service still uses a scalar interface and each action has a
 fresh guest Store. A typed view/resource contract, broader Unicode typography,
-window/device input and general module imports remain open; this does not
+native OS window integration and general module imports remain open; this does not
 declare full A1 acceptance or a public UI API.
 
 ## Workspace

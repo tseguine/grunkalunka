@@ -24,13 +24,15 @@ public reference exports, catchable general synchronous exceptions or traced
 managed references in suspended async frames. Existing numeric/primitive profiles
 remain independently supported. See [managed values](managed-values.md).
 
-**A1 update (2026-11-04): Planned, with a connected headless application.** Authorized
+**A1 update (2026-11-04): Planned, with a connected live application.** Authorized
 Markdown/WIT, native input, an actual source-compiled scalar WIT service call,
 Rust-owned action state and readable bitmap reflow/repaint now run together.
 [Owned sessions and replay](a1-session-replay.md) carry the view through repeated
 collapse/reopen inputs, and a [detached interaction bundle](a1-session-package.md)
 retains portable components and native hosts. The action service has a native
-Rust control, while the typed view/resource contract and broader application-facing
+Rust control, and the [live browser surface](a1-live-application.md) forwards
+pointer/keyboard input to a bounded worker and paints the native RGB. The
+typed view/resource contract and broader application-facing
 Rust/JS parity remain acceptance gates. Each action still uses a fresh guest Store.
 See
 [A1 integration](a1-note-preview.md) and [steering #52](https://github.com/tseguine/grunkalunka/issues/52).
