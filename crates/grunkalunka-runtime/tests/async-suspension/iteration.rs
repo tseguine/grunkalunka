@@ -28,6 +28,47 @@ fn array_for_of_preserves_selected_references_and_per_iteration_captures_after_a
 }
 
 #[test]
+fn array_for_of_keeps_proven_values_and_fresh_cells_across_suspension() {
+    compare_promises(
+        &[
+            "let n=0;for(const item of (await a,[' x ',' yy '])){await b;n=n*10+item.trim().length;}return n;",
+            "const make=()=>[{label:' x ',values:[a,b]}];let n=0;for(const row of make()){await a;n+=row.label.trim().length+(row.values.at(-1)===b?10:0);}await b;return n;",
+            "let n=0;for(const values of [[' x '],[],[' yy ']]){await a;for(const item of values){await b;n=n*10+item.trim().length;}}return n;",
+            "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let item of [' x ',' yy ']){const read=()=>item.trim().length;await a;if(n===0){first=read;change=()=>{item=' zzz ';return 0;};n++;continue;}last=read;}await b;change();return first()*10+last();",
+            "let first=()=>0,last=()=>0;let n=0;for(const row of [{f:()=>1},{f:()=>2}]){const read=()=>row.f();await a;if(n===0)first=read;last=read;n++;}await b;return first()*10+last();",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn array_for_of_keeps_safe_write_proofs_and_rejects_taint_across_suspension() {
+    compare_promises(
+        &[
+            "const row={label:' a '};const source=[row,{label:' bb '}];const alias=source;let n=0;for(const item of source){await a;alias[0]={label:' ccc '};alias[1]={label:' dddd '};await b;n=n*10+item.label.trim().length+(item===row?100:0);}return n;",
+            "const source=[' a ',' bb '];const replace=()=>{source[1]=' ccc ';return source;};let n=0;for(const item of replace()){await a;source.named=b;n=n*10+item.trim().length;}await b;return n;",
+            "let n=0;for(const item of (await a,a?[]:[' x '])){await b;n+=item.trim().length;}await a;return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+    for body in [
+        "const items=[' x ',' yy '];const alias=items;let n=0;for(const item of items){await a;alias[1]=b;n+=item.trim().length;}return n;",
+        "const items=[' x ',' yy '];const alias=()=>items;let n=0;for(const item of items){await a;alias()[1]=b;n+=item.trim().length;}return n;",
+        "const items=['ready'];await a;items.length=2;let n=0;for(const item of items){await b;n+=item.trim().length;}return n;",
+        "for(let item of ['ready']){const read=()=>item.trim().length;await a;item=b;await a;return read();}return 0;",
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile_async(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
 fn array_for_of_routes_async_control_and_abrupt_completion() {
     compare_promises(
         &[

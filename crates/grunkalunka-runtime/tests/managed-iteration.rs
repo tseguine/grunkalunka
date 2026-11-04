@@ -77,9 +77,123 @@ fn array_for_of_composes_with_helpers_and_lexical_shadowing() {
 }
 
 #[test]
+fn array_for_of_retains_proven_string_record_and_nested_array_operations() {
+    for body in [
+        "for(const item of ['ready'])return item.trim().length;return a;",
+        "for(const item of [{value:a}])return item.value===a?1:0;return a;",
+        "let n=0;for(const item of [' a ',' bb '])n=n*10+item.trim().length;return n;",
+        "const row={label:' q ',values:[a,b]};let n=0;for(const item of [row,{label:' zz ',values:[b,a]}]){const {label,values}=item;n=n*10+label.trim().length+(values.at(0)===a?3:0);}return n;",
+        "let n=0;for(const values of [[' a '],[],[' bb ',' ccc ']]){n+=values.length;for(const item of values)n=n*10+item.trim().length;}return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_proves_values_through_helpers_captures_and_empty_array_branches() {
+    for source in [
+        "function values(){return [' a ',' bb '];}function identity(x){return x;}export function run(a,b){let n=0;for(const item of values())n+=identity(item).trim().length;return n;}",
+        "function inspect(items){let n=0;for(const item of items)n+=item.trim().length;return n;}export function run(a,b){return inspect(a?[' x ',' yy ']:[' z ']);}",
+        "export function run(a,b){let n=0;for(const item of (a?[]:[' x ']))n+=item.trim().length;return n;}",
+        "export function run(a,b){const items=[{label:' ab ',value:a}];const select=()=>items;let n=0;for(const row of select())n+=row.label.trim().length+(row.value===a?1:0);return n;}",
+        "export function run(a,b){let n=0;for(const item of Object.keys({ready:a,other:b}))n=n*10+(item==='ready'?1:item==='other'?2:9);return n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_for_of_keeps_proven_values_in_fresh_and_mutable_capture_cells() {
+    for body in [
+        "let first=()=>0,last=()=>0;let n=0;for(const item of [' a ',' bb ']){const read=()=>item.trim().length;if(n===0)first=read;last=read;n++;}return first()*10+last();",
+        "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let item of [' a ',' bb ']){const read=()=>item.trim().length;if(n===0){first=read;change=()=>{item=' ccc ';return 0;};n++;continue;}last=read;}change();return first()*10+last();",
+        "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let item of [{label:' a '},{label:' bb '}]){const read=()=>item.label.trim().length;if(n===0){first=read;change=()=>{item={label:' ccc '};return 0;};}last=read;n++;}change();return first()*10+last();",
+        "let n=0;for(let values of [[a],[b,a]]){values=[b];n+=values.length+(values.at(0)===b?10:0);}return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_for_of_keeps_proofs_for_safe_replacements_and_named_properties() {
+    for source in [
+        "export function run(a,b){const items=[' a ',' bb '];items[0]=' ccc ';let n=0;for(const item of items){items[1]=' dddd ';n=n*10+item.trim().length;}return n;}",
+        "export function run(a,b){const original={label:' a '};const items=[original,{label:' bb '}];const alias=items;let n=0;for(const item of items){alias[0]={label:' ccc '};alias[1]={label:' dddd '};n=n*10+item.label.trim().length+(item===original?100:0);}return n;}",
+        "function replace(items){items[1]=' ccc ';return items;}export function run(a,b){const items=[' a ',' bb '];const alias=replace(items);let n=0;for(const item of alias)n=n*10+item.trim().length;return n;}",
+        "export function run(a,b){const items=[' a ',' bb '];items.named=a;let n=0;for(const item of items)n=n*10+item.trim().length;return n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_for_of_preserves_proven_member_callbacks_and_their_signatures() {
+    for source in [
+        "function identity(x){return x;}export function run(a,b){let n=0;for(const row of [{f:identity},{f:x=>x}])n+=row.f(a)===a?1:0;return n;}",
+        "export function run(a,b){let n=0;for(const callbacks of [[()=>a],[()=>b]])n+=callbacks[0]()===a?1:2;return n;}",
+        "export function run(a,b){let first=()=>0,last=()=>0;let n=0;for(const row of [{f:()=>1},{f:()=>2}]){const read=()=>row.f();if(n===0)first=read;last=read;n++;}return first()*10+last();}",
+        "export function run(a,b){let n=0;for(const item of [()=>a,()=>b]){const box={f:item};n=n*10+(box.f()===a?1:2);}return n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+    for body in [
+        "let n=0;for(const row of [{f:()=>a},{f:x=>x}])n+=row.f();return n;",
+        "let n=0;for(const row of [{f:()=>a},{f:b}])n+=row.f();return n;",
+        "for(const row of [{f:()=>a}]){row.f=b;return row.f();}return 0;",
+        "for(const callbacks of [[()=>a],[]])return callbacks[0]();return 0;",
+        "for(const item of [()=>a])return item();return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_rejected(&source, typed);
+        }
+    }
+}
+
+#[test]
+fn array_for_of_rejects_tainted_or_unproven_specialized_values() {
+    for body in [
+        "let n=0;for(const item of ['ready',a])n+=item.trim().length;return n;",
+        "let n=0;for(const item of ['ready',,])n+=item.trim().length;return n;",
+        "let n=0;for(const item of ['ready',undefined])n+=item.trim().length;return n;",
+        "let n=0;for(const item of [{label:' x '},{}])n+=item.label.trim().length;return n;",
+        "const items=['ready'];items[0]=a;for(const item of items)return item.trim().length;return 0;",
+        "const items=['ready'];const alias=items;alias[0]=a;for(const item of items)return item.trim().length;return 0;",
+        "const items=['ready'];items[2]='later';let n=0;for(const item of items)n+=item.trim().length;return n;",
+        "const items=['ready'];items.length=2;let n=0;for(const item of items)n+=item.trim().length;return n;",
+        "const items=['ready'];items[a]='later';let n=0;for(const item of items)n+=item.trim().length;return n;",
+        "for(let item of ['ready']){item=a;return item.trim().length;}return 0;",
+        "for(let item of ['ready']){const read=()=>item.trim().length;item=a;return read();}return 0;",
+        "for(let item of [{label:'ready'}]){item=a;return item.label.trim().length;}return 0;",
+        "const items=[{label:' x '}];const row=items[0];row.label=a;for(const item of items)return item.label.trim().length;return 0;",
+        "for(const item of Object.keys({ready:a}))return item.trim().length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_rejected(&source, typed);
+        }
+    }
+    for source in [
+        "function identity(x){return x;}export function run(a,b){const items=['ready'];identity(items)[0]=a;for(const item of items)return item.trim().length;return 0;}",
+        "function replace(items,value){items[0]=value;return items;}export function run(a,b){for(const item of replace(['ready'],a))return item.trim().length;return 0;}",
+    ] {
+        for typed in [false, true] {
+            assert_rejected(source, typed);
+        }
+    }
+}
+
+#[test]
 fn array_for_of_erases_annotations_without_proving_runtime_values() {
     let js = "export function run(a,b){let n=0;for(let item of [a,b]){item=a;n+=item===a?1:0;}return n;}";
     let ts = "type Items=never;export function run(a:string,b:boolean):void{let n:number=0;for(let item of ([a,b] as Items)){item=a;n+=(item as number)===a?1:0;}return n;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    let js = "export function run(a,b){let n=0;for(const item of [{label:' x '},{label:' yy '}])n+=item.label.trim().length;return n;}";
+    let ts = "type Items=never;export function run(a:string,b:boolean):void{let n:number=0;for(const item of ([{label:' x '},{label:' yy '}] as Items))n+=(item.label as number).trim().length;return n;}";
     common::compare_sources(js, ts);
     assert_eq!(
         compile(js, false).unwrap().wasm,
@@ -109,11 +223,10 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "const items=a?[a]:null;for(const item of items){}return a;",
         "for(const item of [item]){}return a;",
         "const items=[a];for(const items of items){}return a;",
+        "let saved=()=>0;for(const item of (saved=()=>item,[a])){}return saved()===a?1:0;",
         "for(const item of [a]){}return item;",
         "for(const item of [a])item=b;return a;",
         "for(const item of [a])return item+1;return a;",
-        "for(const item of ['ready'])return item.trim().length;return a;",
-        "for(const item of [{value:a}])return item.value===a?1:0;return a;",
         "outer:for(const item of [a]){break outer;}return a;",
         "for(const key in {item:a}){}return a;",
     ] {
