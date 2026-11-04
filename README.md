@@ -140,14 +140,18 @@ for the remaining P1 and A1 goals.
 
 ### A1 application and source-to-service experiments
 
-The [runnable headless note preview](docs/a1-note-preview.md) combines an
-authorized Markdown/WIT guest, compiled JS selection, native semantic layout and
-RGB painting. Its host-managed hit/action/repaint proof is separate from the
-experimental [source-compiled WIT UI import](docs/a1-ui-source-import.md),
-which compiles a statically bound scalar JS/TS service call and executes against
-a Rust WIT provider. The two paths are **not yet joined** into a full
-event-to-source-import-to-render application. Text glyphs, a windowed UI,
-general module imports and a public UI contract remain open.
+The [runnable headless note application](docs/a1-note-preview.md) joins an
+authorized Markdown/WIT guest, native pointer input, an actual source-compiled
+JS/TS service call, Rust-owned action state and readable native RGB repaint.
+[Owned sessions and input replay](docs/a1-session-replay.md) retain the view
+across repeated collapse/reopen inputs and record each service result and frame.
+The [detached interaction bundle](docs/a1-session-package.md) runs retained
+portable Wasm with copied native hosts without source recompilation.
+
+The experimental service still uses a scalar interface and each action has a
+fresh guest Store. A typed view/resource contract, broader Unicode typography,
+window/device input and general module imports remain open; this does not
+declare full A1 acceptance or a public UI API.
 
 ## Workspace
 

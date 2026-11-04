@@ -50,13 +50,17 @@ Hosted execution results remain distinct from the checked-in test definitions.
 
 ## Scope
 
-This is one headless input activation against a bounded local document. Each
+This older API and command perform one headless input activation against a bounded local document. Each
 action creates a fresh component Store; there is no persistent JS object state or
 window/device loop. The current heading action collapses the outline, and the
 collapsed panel is inert, so this is not yet a reversible expand/collapse UI.
+The new [owned session](a1-owned-session.md) adds a distinct reversible control
+and retains host view state across repeated inputs. Its
+[replay command](a1-session-replay.md) and [detached package](a1-session-package.md)
+provide the corresponding application workflow.
 The native control shares the private scalar action semantics; it does not
 establish the proposed owned record/resource view API. The [bounded bitmap service](a1-bitmap-text.md) supplies printable ASCII glyphs
-and shared text/hit geometry. Broader typography and interactive packaging
+and shared text/hit geometry. Broader typography and the typed public interface
 remain separate work. A1 remains
 in progress as an integration target, not declared complete by this slice.
 
