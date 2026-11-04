@@ -76,6 +76,18 @@ pub enum FlexJustify {
     SpaceBetween,
 }
 
+/// Cross-axis item placement in the selected row profile, without stretching.
+/// A nowrap row uses its used content height; wrapped rows use each line's
+/// natural height. Safe positions fall back to start for an overflowing item.
+/// Other display modes ignore this setting.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FlexAlign {
+    #[default]
+    Start,
+    SafeEnd,
+    SafeCenter,
+}
+
 /// Already-resolved visibility declaration. Children inherit unless explicitly
 /// overridden; unlike display:none, a hidden ancestor retains its boxes and
 /// an explicitly visible descendant can be painted and hit.
@@ -225,6 +237,7 @@ pub struct Style {
     pub display: Display,
     pub flex_wrap: FlexWrap,
     pub justify_content: FlexJustify,
+    pub align_items: FlexAlign,
     /// Integer CSS-pixel space between active `FlexRow` items. Ignored by
     /// other display modes; no leading or trailing gap is added.
     pub column_gap: u32,
@@ -382,6 +395,10 @@ pub enum LayoutError {
     },
     /// This row's selected main-axis alignment requires fractional CSS pixels.
     FractionalFlexJustify {
+        node: usize,
+    },
+    /// This row's selected cross-axis alignment requires fractional CSS pixels.
+    FractionalFlexAlign {
         node: usize,
     },
     Overflow,
@@ -559,6 +576,33 @@ impl Engine<'_> {
         Ok(())
     }
 
+    fn align_line_items(
+        &mut self,
+        node: usize,
+        row: &RowFlow,
+        line_end: usize,
+        line_height: u32,
+    ) -> Result<(), LayoutError> {
+        for &item in &row.items[row.line_start..line_end] {
+            let outer_height = self.frame.boxes[item]
+                .expect("completed row item")
+                .margin
+                .height;
+            let free = line_height.saturating_sub(outer_height);
+            self.alignment_offsets[item].y = match self.nodes[node].style.align_items {
+                FlexAlign::Start => 0,
+                FlexAlign::SafeEnd => free,
+                FlexAlign::SafeCenter => {
+                    if !free.is_multiple_of(2) {
+                        return Err(LayoutError::FractionalFlexAlign { node });
+                    }
+                    free / 2
+                }
+            };
+        }
+        Ok(())
+    }
+
     // Geometry is initially laid out at start positions. Every alignment
     // offset is nonnegative and does not affect flow sizes or line collection.
     // A single topological projection moves complete subtrees, including those
@@ -731,6 +775,12 @@ impl Engine<'_> {
                         && candidate_width > u64::from(container.content_width)
                     {
                         self.justify_line(current.node, &container, row, current.next_child)?;
+                        self.align_line_items(
+                            current.node,
+                            row,
+                            current.next_child,
+                            row.line_height,
+                        )?;
                         row.line_start = current.next_child;
                         row.line_y = add(add(row.line_y, row.line_height)?, style.row_gap)?;
                         row.next_x = container.content_x;
@@ -775,6 +825,22 @@ impl Engine<'_> {
                         current.next_y,
                     )?
                 };
+                if let Some(row) = &current.row {
+                    // NoWrap is a single-line formatting context even when
+                    // its height is clamped or smaller than an item. Wrap
+                    // keeps natural line heights with start line packing,
+                    // including when just one actual line was collected.
+                    let line_height = match self.nodes[current.node].style.flex_wrap {
+                        FlexWrap::NoWrap => {
+                            self.frame.boxes[current.node]
+                                .expect("finished row box")
+                                .content
+                                .height
+                        }
+                        FlexWrap::Wrap => row.line_height,
+                    };
+                    self.align_line_items(current.node, row, current.next_child, line_height)?;
+                }
                 pending.pop();
                 completed = Some(size);
             }
@@ -1057,7 +1123,7 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// fixed/integral-percentage-width nonflexing rows with safe main-axis alignment,
+/// fixed/integral-percentage-width nonflexing rows with safe item alignment,
 /// optional greedy wrapping and integer gaps,
 /// display:none, boxless display:contents, inherited visibility, resolved
 /// pointer-events input policy, optional padding-box descendant clipping,

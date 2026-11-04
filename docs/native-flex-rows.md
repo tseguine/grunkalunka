@@ -6,8 +6,9 @@ geometry, semantic text anchors, RGB painter, clipping, hit tester and document
 scroll projection. Application hosts and compiler interfaces do not change.
 
 The selected profile corresponds to a horizontal row with nonflexing items,
-optional greedy wrapping, selected main-axis alignment and start cross-axis
-alignment. It does not implement general CSS flex layout, intrinsic width measurement, an HTML/CSS parser or a cascade.
+optional greedy wrapping and selected safe alignment on both axes. It does not
+implement general CSS flex layout, intrinsic width measurement, an HTML/CSS
+parser or a cascade.
 
 ## Sizing and placement
 
@@ -19,9 +20,10 @@ alignment. It does not implement general CSS flex layout, intrinsic width measur
 | Item height | Existing intrinsic, explicit or definite-percentage height; no cross-axis stretching. |
 | `Style::column_gap` | Nonnegative integer pixels between successive active items. Default zero; no leading or trailing gap. |
 | `Style::justify_content` | `FlexJustify::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` use each line's remaining content width. |
+| `Style::align_items` | `FlexAlign::Start` by default; `SafeEnd` and `SafeCenter` align each item's outer margin box within its line without stretching. |
 | `Style::flex_wrap` | `FlexWrap::NoWrap` by default; `Wrap` greedily collects lines against the row's content width. |
 | `Style::row_gap` | Nonnegative integer pixels between actual lines. Default zero; unused for a single line. |
-| Row auto height | The sum of line heights and intervening row gaps, subject to the existing intrinsic-height minimum and explicit height bounds. Each line uses its maximum normal-flow item margin-box height. |
+| Row auto height | Natural height starts from the tallest normal-flow item margin box per line plus intervening row gaps; the existing intrinsic-height minimum and explicit height bounds then apply. |
 | Overflow | Items retain their widths; their boxes may overflow the container and contribute to document scroll extents. |
 
 Items are placed by their outer margin boxes in source-tree order. A following
@@ -112,6 +114,39 @@ already present in the measured boxes and are not applied a second time.
 Nested rows and boxless ancestors therefore share the same final positions
 with semantic anchors, the painter and hit testing, without subtree relayout.
 
+## Cross-axis alignment
+
+`Style::align_items` follows the selected [cross-size determination](https://drafts.csswg.org/css-flexbox-1/#cross-sizing)
+and [cross-axis alignment](https://drafts.csswg.org/css-flexbox-1/#cross-alignment)
+rules with explicit safe overflow handling. The alignment height depends on
+`Style::flex_wrap`, not on how many lines happen to form:
+
+| Row mode | Height used for item alignment |
+| --- | --- |
+| `FlexWrap::NoWrap` | The row's final used content height, including explicit sizing, min/max bounds and the caller's intrinsic-height minimum. |
+| `FlexWrap::Wrap` | Each line's maximum normal-flow outer item height, even when there is only one actual line or the row's own used height is larger or smaller. |
+
+Wrapped lines stay packed at the content start with the declared row gaps.
+There is no line stretching or distribution of extra container height.
+For either mode, `FlexAlign::SafeEnd` places the available vertical space before
+each item, while `SafeCenter` places half before it. `Start` preserves the
+original top placement. All modes preserve item dimensions and row flow sizes.
+An oversized item falls back to start independently of its smaller neighbors.
+
+`LayoutError::FractionalFlexAlign { node }` identifies the row when any admitted
+item's center offset is fractional. As on the main axis, safe overflow fallback
+happens first. For example, a nowrap row of height 41 with items of outer heights
+20 and 40 rejects half-pixel offsets. A wrap row with the same inputs has one
+natural line of height 40 and admits offsets 10 and 0. A zero-height item still
+requires its own integral offset; an empty row has no item-alignment obligation.
+
+Cross-axis offsets join the same final projection as main-axis offsets. Each
+item's normal-flow margin-box height is measured before alignment; positive
+relative displacements do not enlarge the line or change following flow.
+Reading a completed nowrap row's used height for alignment does not make an
+auto height definite for percentage-height descendants. Existing percentage
+admission and full-width references for percentage margins remain unchanged.
+
 ## Boxless and hidden nodes
 
 Active `Display::Contents` wrappers are flattened into the row's item sequence.
@@ -138,9 +173,9 @@ margins on row items. Ordinary block auto margins and auto margins on a row
 container in a block context keep their existing behavior. Boxless wrappers and
 display-none subtrees have no row-item sizing obligations.
 
-Flexible growth/shrinkage, cross-axis item alignment or stretching, baseline
-alignment, other main-axis distributions, reverse directions, reordering and
-percentage gaps are outside this profile. The public enum names the
+Flexible growth/shrinkage, stretching, baseline alignment, per-item alignment
+overrides, line distribution, other main-axis distributions, reverse directions,
+reordering and percentage gaps are outside this profile. The public enum names the
 specific resolved row profile instead of implying that arbitrary `display:flex`
 declarations are supported. All row settings are ignored by other display modes.
 
@@ -158,11 +193,14 @@ semantic reflow, scrolled clipping and discarded-versus-actual gap overflow.
 padding and content rectangles, per-line distribution, integral percentages,
 safe overflow and fractional rejection, nested/boxless inheritance, shared
 paint/input/semantic behavior and final projection overflow.
+`tests/flex_align.rs` checks used versus natural line heights, fixed/auto/bounded
+nowrap sizing, the one-line wrap distinction, per-item safe overflow, fractional
+and zero-height cases, nested axes and percentage references, hidden policies,
+semantic reflow, vertical scrolled clipping and projected-coordinate limits.
 
 Both row-item discovery and nested layout use heap-owned work lists. The final
 alignment projection visits every input node once and uses the already-bounded
-parent-before-child order. The
-existing 4,096-node and depth-64 bounds remain in force, with just-past-limit
+parent-before-child order. The existing 4,096-node and depth-64 bounds remain in force, with just-past-limit
 errors and admitted nested rows exercised on a 2 MiB native stack. All dimension,
 cursor and actual gap arithmetic is checked. A row never shrinks, truncates or
 silently rounds a value to make the operation succeed.
