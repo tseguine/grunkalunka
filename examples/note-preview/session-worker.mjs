@@ -21,13 +21,15 @@ try {
 }
 
 if (session !== undefined) parentPort.on('message', message => {
-  if (message?.type !== 'activate' || !Number.isSafeInteger(message.id) || message.id < 1) {
+  if (!['activate', 'scroll'].includes(message?.type) ||
+      !Number.isSafeInteger(message.id) || message.id < 1) {
     throw new Error('Invalid A1 worker input');
   }
   let result;
   let error;
   try {
-    result = session.activate(message.pointer);
+    result = message.type === 'activate' ? session.activate(message.pointer) :
+      session.scrollTo(message.y);
   } catch (cause) {
     error = describeError(cause);
   }

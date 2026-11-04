@@ -19,6 +19,7 @@ const executable = native('a1_note_scene');
 const serviceExecutable = native('a1_ui_action');
 let scratch;
 let document;
+let longDocument;
 let source;
 let component;
 
@@ -62,6 +63,10 @@ before(async () => {
   const note = join(scratch, 'outline.md');
   await writeFile(note, '# Root\r\n## Child\n');
   document = await loadNoteDocument({ profile: 'granted', note });
+  const longNote = join(scratch, 'long-outline.md');
+  await writeFile(longNote, Array.from({ length: 64 }, (_, i) =>
+    '# Heading ' + (i + 1)).join('\n') + '\n');
+  longDocument = await loadNoteDocument({ profile: 'granted', note: longNote });
   source = await readFile(new URL('../../examples/note-preview/activate.js', import.meta.url), 'utf8');
   component = compileUiService({ executable: serviceExecutable, source });
 }, { timeout: 600_000 });
@@ -352,7 +357,8 @@ test('guest traps retain the last session frame and consume an event attempt',
   });
 
 test('a failed native repaint commits no session state and a later input can recover', t => {
-  const active = session();
+  const active = session({ document: longDocument });
+  active.scrollTo(16);
   const initial = active.snapshot();
   const actualSpawn = childProcess.spawnSync;
   let invokedServices = 0;
@@ -367,19 +373,19 @@ test('a failed native repaint commits no session state and a later input can rec
   });
   syncBuiltinESMExports();
   try {
-    assert.throws(() => active.activate(pointer), /injected native repaint failure/);
+    assert.throws(() => active.activate(initial.controlPoint), /injected native repaint failure/);
     assert.equal(invokedServices, 1);
   } finally {
     intercepted.mock.restore();
     syncBuiltinESMExports();
   }
   const retained = active.snapshot();
-  assert.deepEqual([retained.expanded, retained.visibleCount, retained.eventsProcessed], [1, 2, 1]);
-  assert.deepEqual(retained.scene, initial.scene);
-  assert.deepEqual(retained.pixels, initial.pixels);
-  const recovered = active.activate(pointer);
+  assert.deepEqual(retained, { ...initial, eventsProcessed: 2 });
+  const recovered = active.activate(retained.controlPoint);
   assert.deepEqual([recovered.sequence, recovered.beforeExpanded, recovered.expanded,
-    recovered.activated], [2, 1, 0, true]);
+    recovered.activated], [3, 1, 0, true]);
+  assert.equal(active.snapshot().scrollY, 0);
+  assert.equal(active.snapshot().maxScrollY, 0);
 });
 
 test('session owns input data and never exposes retained scene or frame buffers', () => {
@@ -399,6 +405,8 @@ test('session owns input data and never exposes retained scene or frame buffers'
   exposed.scene.html = 'injected caller HTML';
   exposed.pixels.fill(0);
   exposed.expanded = 0;
+  exposed.controlPoint.x = 319;
+  exposed.controlPoint.y = 159;
   assert.deepEqual(active.snapshot(), original);
 
   const collapsed = active.activate(pointer);
@@ -436,4 +444,78 @@ test('session validates requests before native execution and bounds all pointer 
   assert.equal(active.activate({ x: 24, y: 40 }).sequence, 2, 'heading rows are inert in a session');
   assert.throws(() => active.activate({ x: 0, y: 0 }), /event limit/);
   assert.equal(active.snapshot().eventsProcessed, 2);
+});
+
+test('owned scrolling exposes the long outline and keeps native control targeting coherent', () => {
+  const active = session({ document: longDocument });
+  const initial = active.snapshot();
+  assert.equal(longDocument.headings.length, 64);
+  assert.equal(initial.scrollY, 0);
+  assert.ok(initial.maxScrollY > 160);
+  assert.ok(initial.controlPoint);
+  const bottom = active.scrollTo(0xffffffff);
+  assert.deepEqual([bottom.sequence, bottom.status, bottom.changed, bottom.scrollY],
+    [1, 'ok', true, initial.maxScrollY]);
+  assert.notDeepEqual(bottom.pixels, initial.pixels);
+  assert.equal(active.snapshot().controlPoint, null);
+  const retainedBottom = active.snapshot();
+  bottom.pixels.fill(0);
+  assert.deepEqual(active.snapshot(), retainedBottom);
+  assert.equal(active.scrollTo(0xffffffff).changed, false, 'clamped no-op remains an attempt');
+  active.scrollTo(16);
+  const partial = active.snapshot();
+  assert.ok(partial.controlPoint && partial.controlPoint.y < 16);
+  assert.equal(active.activate(pointer).target, null, 'the old fixed keyboard point is outside the clipped title');
+  assert.equal(active.activate(partial.controlPoint).expanded, 0);
+  const collapsed = active.snapshot();
+  assert.deepEqual([collapsed.scrollY, collapsed.maxScrollY, collapsed.visibleCount], [0, 0, 0]);
+  assert.ok(collapsed.controlPoint);
+  assert.equal(active.activate(collapsed.controlPoint).expanded, 1);
+  assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 6 });
+});
+
+test('scroll denial and invalid requests preserve authority and the shared lifetime budget', async () => {
+  const denied = await loadNoteDocument({ profile: 'denied',
+    note: join(scratch, 'never-open-private-note') });
+  assert.equal(denied.backingReads, 0);
+  for (const options of [{ document: denied }, { document: longDocument, uiProfile: 'denied' }]) {
+    const active = session({ ...options, maxEvents: 2,
+      serviceExecutable: join(scratch, 'scroll-must-not-call-the-service') });
+    const initial = active.snapshot();
+    for (const y of [-1, 0.5, Infinity, NaN, 0x100000000, '10', undefined]) {
+      assert.throws(() => active.scrollTo(y), /scroll offset/);
+    }
+    assert.deepEqual(active.snapshot(), initial);
+    const result = active.scrollTo(0xffffffff);
+    assert.deepEqual([result.sequence, result.status, result.changed, result.scrollY],
+      [1, 'denied', false, 0]);
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 1 });
+    assert.equal(active.activate({ x: 0, y: 0 }).sequence, 2);
+    assert.throws(() => active.scrollTo(0), /event limit/);
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 2 });
+  }
+});
+
+test('failed viewport inspection or paint consumes an attempt without publishing partial scroll state', t => {
+  for (const phase of ['--view', '--ppm']) {
+    const active = session({ document: longDocument, maxEvents: 2 });
+    const initial = active.snapshot();
+    const actualSpawn = childProcess.spawnSync;
+    const intercepted = t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+      if (command === executable && args[0] === phase) {
+        return { error: new Error('injected scroll failure') };
+      }
+      return actualSpawn(command, args, options);
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => active.scrollTo(80), /injected scroll failure/);
+    } finally {
+      intercepted.mock.restore();
+      syncBuiltinESMExports();
+    }
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 1 });
+    assert.deepEqual([active.scrollTo(80).sequence, active.snapshot().scrollY], [2, 80]);
+    assert.throws(() => active.activate(pointer), /event limit/);
+  }
 });

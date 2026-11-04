@@ -64,8 +64,41 @@ export function invokeUiService({ executable, component, profile, count, expande
   return receipt;
 }
 
-export function paintNoteScene(executable, scene) {
-  const pixels = nativeOutput(executable, ['--ppm'], scene.input, PPM_SIZE + 1024);
+function scrollArguments(scrollY) {
+  if (!Number.isSafeInteger(scrollY) || scrollY < 0 || scrollY > 0xffffffff) {
+    throw new TypeError('Invalid A1 vertical scroll offset');
+  }
+  return scrollY === 0 ? [] : ['--scroll-y', String(scrollY)];
+}
+
+export function inspectNoteViewport(executable, scene, scrollY = 0) {
+  const raw = nativeOutput(executable, ['--view', ...scrollArguments(scrollY)],
+    scene.input, 1024).toString('utf8');
+  const match = /^A1VIEW1\t320\t160\t(0|[1-9][0-9]*)\t(0|[1-9][0-9]*)\t(none|0|[1-9][0-9]*)\t(none|0|[1-9][0-9]*)\n$/.exec(raw);
+  if (!match) throw new Error('Invalid native A1 viewport');
+  const scrollHeight = Number(match[1]);
+  const actualY = Number(match[2]);
+  const maxScrollY = Math.max(0, scrollHeight - 160);
+  if (!Number.isSafeInteger(scrollHeight) || scrollHeight > 0xffffffff ||
+      actualY !== scrollY || actualY > maxScrollY ||
+      (match[3] === 'none') !== (match[4] === 'none')) {
+    throw new Error('Invalid native A1 viewport bounds');
+  }
+  let controlPoint = null;
+  if (match[3] !== 'none') {
+    const x = Number(match[3]);
+    const y = Number(match[4]);
+    if (!Number.isSafeInteger(x) || x >= 320 || !Number.isSafeInteger(y) || y >= 160) {
+      throw new Error('Invalid native A1 control point');
+    }
+    controlPoint = { x, y };
+  }
+  return { scrollY: actualY, maxScrollY, controlPoint };
+}
+
+export function paintNoteScene(executable, scene, scrollY = 0) {
+  const pixels = nativeOutput(executable, ['--ppm', ...scrollArguments(scrollY)],
+    scene.input, PPM_SIZE + 1024);
   if (pixels.length !== PPM_SIZE ||
       !pixels.subarray(0, PPM_HEADER.length).equals(PPM_HEADER)) {
     throw new Error('Invalid native A1 frame');
