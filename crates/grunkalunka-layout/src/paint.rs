@@ -3,9 +3,13 @@
 //! The caller provides geometry and colors. No fonts, CSS paint semantics,
 //! HTML parsing, window backend, GPU or filesystem access are involved.
 
-use crate::{Frame, MAX_BLOCKS, MAX_DEPTH, MAX_VIEWPORT, Rect};
+use crate::paint_order::{PaintTree, TraversalError, validate_box};
+use crate::{Frame, MAX_BLOCKS, MAX_VIEWPORT, Rect};
 
 mod bitmap;
+
+#[cfg(test)]
+use crate::MAX_DEPTH;
 
 pub const MAX_CANVAS_PIXELS: usize = 4_000_000;
 
@@ -65,6 +69,21 @@ pub enum PaintError {
         node: usize,
     },
     Overflow,
+}
+
+impl From<TraversalError> for PaintError {
+    fn from(error: TraversalError) -> Self {
+        match error {
+            TraversalError::NodeCountMismatch => Self::NodeCountMismatch,
+            TraversalError::InvalidParent { node } => Self::InvalidParent { node },
+            TraversalError::TooDeep { node } => Self::TooDeep { node },
+            TraversalError::VisibleChildOfHiddenParent { node } => {
+                Self::VisibleChildOfHiddenParent { node }
+            }
+            TraversalError::InvalidBox { node } => Self::InvalidBox { node },
+            TraversalError::Overflow => Self::Overflow,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -145,119 +164,69 @@ impl Canvas {
     }
 }
 
-fn contains(outer: Rect, inner: Rect) -> Result<bool, PaintError> {
-    Ok(inner.x >= outer.x
-        && inner.y >= outer.y
-        && inner.right().ok_or(PaintError::Overflow)?
-            <= outer.right().ok_or(PaintError::Overflow)?
-        && inner.bottom().ok_or(PaintError::Overflow)?
-            <= outer.bottom().ok_or(PaintError::Overflow)?)
-}
-
-fn paint_node(
+fn paint_box(
     index: usize,
-    children: &[Vec<usize>],
     frame: &Frame,
     nodes: &[PaintNode],
     canvas: &mut Canvas,
     ancestor_clip: Option<Rect>,
 ) -> Result<(), PaintError> {
-    // Reverse-push children so the LIFO worklist reproduces the original
-    // preorder, including display:contents and overlapping sibling paints.
-    let mut pending = vec![(index, ancestor_clip)];
-    while let Some((index, ancestor_clip)) = pending.pop() {
-        if frame.contents[index] && frame.boxes[index].is_some() {
-            return Err(PaintError::InvalidBox { node: index });
-        }
-        let Some(geometry) = frame.boxes[index] else {
-            if frame.contents[index] {
-                for &child in children[index].iter().rev() {
-                    pending.push((child, ancestor_clip));
-                }
-            }
-            continue;
-        };
-        if !contains(geometry.margin, geometry.border)?
-            || !contains(geometry.border, geometry.padding)?
-            || !contains(geometry.padding, geometry.content)?
-        {
-            return Err(PaintError::InvalidBox { node: index });
-        }
+    let geometry = frame.boxes[index].expect("planned generated box");
+    let border = geometry.border;
+    let padding = geometry.padding;
+    let border_right = border.right().ok_or(PaintError::Overflow)?;
+    let border_bottom = border.bottom().ok_or(PaintError::Overflow)?;
+    let padding_right = padding.right().ok_or(PaintError::Overflow)?;
+    let padding_bottom = padding.bottom().ok_or(PaintError::Overflow)?;
 
-        let border = geometry.border;
-        let padding = geometry.padding;
-        let border_right = border.right().ok_or(PaintError::Overflow)?;
-        let border_bottom = border.bottom().ok_or(PaintError::Overflow)?;
-        let padding_right = padding.right().ok_or(PaintError::Overflow)?;
-        let padding_bottom = padding.bottom().ok_or(PaintError::Overflow)?;
-
-        if frame.visibility[index]
-            && let Some(color) = nodes[index].background
-        {
-            canvas.fill(padding, color, ancestor_clip)?;
-        }
-        if frame.visibility[index]
-            && let Some(color) = nodes[index].border
-        {
-            canvas.fill(
-                Rect {
-                    x: border.x,
-                    y: border.y,
-                    width: border.width,
-                    height: padding.y - border.y,
-                },
-                color,
-                ancestor_clip,
-            )?;
-            canvas.fill(
-                Rect {
-                    x: border.x,
-                    y: padding_bottom,
-                    width: border.width,
-                    height: border_bottom - padding_bottom,
-                },
-                color,
-                ancestor_clip,
-            )?;
-            canvas.fill(
-                Rect {
-                    x: border.x,
-                    y: padding.y,
-                    width: padding.x - border.x,
-                    height: padding.height,
-                },
-                color,
-                ancestor_clip,
-            )?;
-            canvas.fill(
-                Rect {
-                    x: padding_right,
-                    y: padding.y,
-                    width: border_right - padding_right,
-                    height: padding.height,
-                },
-                color,
-                ancestor_clip,
-            )?;
-        }
-        // The box's own background and border are not affected by its *own*
-        // descendant clip; only its children inherit the clip at its padding edge.
-        // Intersecting with a prior ancestor clip never permits a grandchild to
-        // escape an older clipping boundary.
-        let child_clip = if frame.clip_descendants[index] {
-            Some(if let Some(previous) = ancestor_clip {
-                previous
-                    .intersection(geometry.padding)
-                    .ok_or(PaintError::Overflow)?
-            } else {
-                geometry.padding
-            })
-        } else {
-            ancestor_clip
-        };
-        for &child in children[index].iter().rev() {
-            pending.push((child, child_clip));
-        }
+    if frame.visibility[index]
+        && let Some(color) = nodes[index].background
+    {
+        canvas.fill(padding, color, ancestor_clip)?;
+    }
+    if frame.visibility[index]
+        && let Some(color) = nodes[index].border
+    {
+        canvas.fill(
+            Rect {
+                x: border.x,
+                y: border.y,
+                width: border.width,
+                height: padding.y - border.y,
+            },
+            color,
+            ancestor_clip,
+        )?;
+        canvas.fill(
+            Rect {
+                x: border.x,
+                y: padding_bottom,
+                width: border.width,
+                height: border_bottom - padding_bottom,
+            },
+            color,
+            ancestor_clip,
+        )?;
+        canvas.fill(
+            Rect {
+                x: border.x,
+                y: padding.y,
+                width: padding.x - border.x,
+                height: padding.height,
+            },
+            color,
+            ancestor_clip,
+        )?;
+        canvas.fill(
+            Rect {
+                x: padding_right,
+                y: padding.y,
+                width: border_right - padding_right,
+                height: padding.height,
+            },
+            color,
+            ancestor_clip,
+        )?;
     }
     Ok(())
 }
@@ -320,29 +289,8 @@ pub fn paint_scrolled(
     {
         return Err(PaintError::NodeCountMismatch);
     }
-    if nodes[0].parent.is_some() {
-        return Err(PaintError::InvalidParent { node: 0 });
-    }
-
-    let mut children = vec![Vec::new(); nodes.len()];
-    let mut depths = vec![0usize; nodes.len()];
-    for (index, node) in nodes.iter().enumerate().skip(1) {
-        let Some(parent) = node.parent else {
-            return Err(PaintError::InvalidParent { node: index });
-        };
-        if parent >= index {
-            return Err(PaintError::InvalidParent { node: index });
-        }
-        depths[index] = depths[parent] + 1;
-        if depths[index] > MAX_DEPTH {
-            return Err(PaintError::TooDeep { node: index });
-        }
-        if frame.boxes[index].is_some() && frame.boxes[parent].is_none() && !frame.contents[parent]
-        {
-            return Err(PaintError::VisibleChildOfHiddenParent { node: index });
-        }
-        children[parent].push(index);
-    }
+    let tree = PaintTree::new(frame, nodes.iter().map(|node| node.parent))?;
+    let order = tree.plan(frame, |node| validate_box(frame, node))?;
 
     let mut canvas = Canvas {
         width,
@@ -351,7 +299,9 @@ pub fn paint_scrolled(
         scroll_y,
         pixels: vec![clear; pixel_count],
     };
-    paint_node(0, &children, frame, nodes, &mut canvas, None)?;
+    for entry in order {
+        paint_box(entry.node, frame, nodes, &mut canvas, entry.ancestor_clip)?;
+    }
     Ok(canvas)
 }
 

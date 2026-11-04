@@ -4,7 +4,8 @@
 //! depth-first traversal. This does NOT implement CSS pointer-events,
 //! stacking contexts, arbitrary clipping paths, transforms, or browser event dispatch.
 
-use crate::{Frame, MAX_BLOCKS, MAX_DEPTH, MAX_VIEWPORT, Rect};
+use crate::paint_order::{PaintTree, TraversalError, validate_box};
+use crate::{Frame, MAX_BLOCKS, MAX_VIEWPORT, Rect};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HitNode {
@@ -37,11 +38,19 @@ pub enum HitError {
     Overflow,
 }
 
-fn encloses(outer: Rect, inner: Rect) -> Result<bool, HitError> {
-    Ok(inner.x >= outer.x
-        && inner.y >= outer.y
-        && inner.right().ok_or(HitError::Overflow)? <= outer.right().ok_or(HitError::Overflow)?
-        && inner.bottom().ok_or(HitError::Overflow)? <= outer.bottom().ok_or(HitError::Overflow)?)
+impl From<TraversalError> for HitError {
+    fn from(error: TraversalError) -> Self {
+        match error {
+            TraversalError::NodeCountMismatch => Self::NodeCountMismatch,
+            TraversalError::InvalidParent { node } => Self::InvalidParent { node },
+            TraversalError::TooDeep { node } => Self::TooDeep { node },
+            TraversalError::VisibleChildOfHiddenParent { node } => {
+                Self::VisibleChildOfHiddenParent { node }
+            }
+            TraversalError::InvalidBox { node } => Self::InvalidBox { node },
+            TraversalError::Overflow => Self::Overflow,
+        }
+    }
 }
 
 fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {
@@ -109,41 +118,9 @@ pub fn hit_test_scrolled(
     if nodes.len() > MAX_BLOCKS {
         return Err(HitError::TooManyNodes);
     }
-    if nodes[0].parent.is_some() {
-        return Err(HitError::InvalidParent { node: 0 });
-    }
-
-    let mut children = vec![Vec::new(); nodes.len()];
-    let mut depths = vec![0usize; nodes.len()];
-    for (index, node) in nodes.iter().enumerate().skip(1) {
-        let Some(parent) = node.parent else {
-            return Err(HitError::InvalidParent { node: index });
-        };
-        if parent >= index {
-            return Err(HitError::InvalidParent { node: index });
-        }
-        depths[index] = depths[parent] + 1;
-        if depths[index] > MAX_DEPTH {
-            return Err(HitError::TooDeep { node: index });
-        }
-        if frame.boxes[index].is_some() && frame.boxes[parent].is_none() && !frame.contents[parent]
-        {
-            return Err(HitError::VisibleChildOfHiddenParent { node: index });
-        }
-        children[parent].push(index);
-    }
-
-    for (index, geometry) in frame.boxes.iter().enumerate() {
-        if frame.contents[index] && geometry.is_some() {
-            return Err(HitError::InvalidBox { node: index });
-        }
-        if let Some(geometry) = geometry
-            && (!encloses(geometry.margin, geometry.border)?
-                || !encloses(geometry.border, geometry.padding)?
-                || !encloses(geometry.padding, geometry.content)?)
-        {
-            return Err(HitError::InvalidBox { node: index });
-        }
+    let tree = PaintTree::new(frame, nodes.iter().map(|node| node.parent))?;
+    for node in 0..frame.boxes.len() {
+        validate_box(frame, node)?;
     }
 
     let max_x = frame
@@ -163,34 +140,10 @@ pub fn hit_test_scrolled(
     let x = x.checked_add(scroll_x).ok_or(HitError::Overflow)?;
     let y = y.checked_add(scroll_y).ok_or(HitError::Overflow)?;
 
-    // Compute the painter's depth-first order and effective *ancestor* clip.
-    // The node's own padding-box rule clips its children, not its own border.
-    // Preserve a zero-sized intersection as an active clip so later descendants
-    // cannot escape an earlier clipping ancestor.
-    let mut order = Vec::with_capacity(nodes.len());
-    let mut stack = vec![(0usize, None::<Rect>)];
-    while let Some((index, inherited_clip)) = stack.pop() {
-        order.push((index, inherited_clip));
-        let child_clip = if frame.clip_descendants[index] {
-            if let Some(geometry) = frame.boxes[index] {
-                Some(if let Some(ancestor) = inherited_clip {
-                    ancestor
-                        .intersection(geometry.padding)
-                        .ok_or(HitError::Overflow)?
-                } else {
-                    geometry.padding
-                })
-            } else {
-                inherited_clip
-            }
-        } else {
-            inherited_clip
-        };
-        for &child in children[index].iter().rev() {
-            stack.push((child, child_clip));
-        }
-    }
-    for (index, inherited_clip) in order.into_iter().rev() {
+    let order = tree.plan(frame, |_| Ok(()))?;
+    for entry in order.into_iter().rev() {
+        let index = entry.node;
+        let inherited_clip = entry.ancestor_clip;
         if nodes[index].targetable
             && frame.visibility[index]
             && frame.pointer_events[index]

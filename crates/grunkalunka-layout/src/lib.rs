@@ -6,6 +6,7 @@
 
 pub mod hit_test;
 pub mod paint;
+mod paint_order;
 pub mod semantic;
 
 pub const MAX_BLOCKS: usize = 4096;
