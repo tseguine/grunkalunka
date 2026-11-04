@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAsyncNoteSession } from './async-session.mjs';
+import { createAsyncNoteSession, ownDocumentSource } from './async-session.mjs';
 import { livePage, liveStyles } from './live-page.mjs';
 import { readBoundedSessionInput } from './session-run.mjs';
 import { compileUiService } from './service-interaction.mjs';
@@ -20,16 +20,17 @@ const COMPONENT_HEADER = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
 const PPM_HEADER = Buffer.from('P6\n320 160\n255\n');
 const MAX_BODY = 128;
 const usage = 'usage: node examples/note-preview/live-run.mjs ' +
-  '--profile granted|denied [--note NOTE.md] [--ui-profile granted|denied] ' +
+  '--profile granted|denied [--note NOTE.md ...] [--ui-profile granted|denied] ' +
   '[--component HANDLER.wasm] [--collapsed] [--port 0..65535]';
 
 export function parseLiveArguments(args) {
   const options = { profile: null, note: null, uiProfile: 'granted', expanded: 1, port: 0 };
+  const notes = [];
   const seen = new Set();
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
     if (!['--profile', '--note', '--ui-profile', '--component', '--collapsed', '--port']
-      .includes(flag) || seen.has(flag)) throw new Error(usage);
+      .includes(flag) || (seen.has(flag) && flag !== '--note')) throw new Error(usage);
     seen.add(flag);
     if (flag === '--collapsed') {
       options.expanded = 0;
@@ -40,8 +41,10 @@ export function parseLiveArguments(args) {
       throw new Error(usage);
     }
     if (flag === '--profile') options.profile = value;
-    else if (flag === '--note') options.note = value;
-    else if (flag === '--ui-profile') options.uiProfile = value;
+    else if (flag === '--note') {
+      if (notes.length === 8 || notes.some(note => resolve(note) === resolve(value))) throw new Error(usage);
+      notes.push(value);
+    } else if (flag === '--ui-profile') options.uiProfile = value;
     else if (flag === '--component') options.componentPath = value;
     else {
       if (!/^(0|[1-9][0-9]{0,4})$/.test(value) || Number(value) > 65535) throw new Error(usage);
@@ -50,7 +53,11 @@ export function parseLiveArguments(args) {
   }
   if (!['granted', 'denied'].includes(options.profile) ||
       !['granted', 'denied'].includes(options.uiProfile) ||
-      (options.profile === 'granted' && !options.note)) throw new Error(usage);
+      (options.profile === 'granted' && notes.length === 0)) throw new Error(usage);
+  if (notes.length > 1) {
+    delete options.note;
+    options.notes = notes;
+  } else if (notes.length === 1) options.note = notes[0];
   return options;
 }
 
@@ -59,7 +66,8 @@ function inputError(status, message) {
 }
 
 function readInput(request, kind) {
-  const label = kind === 'reload' ? 'Reload' : kind === 'scroll' ? 'Scroll' : 'Pointer';
+  const label = kind === 'select' ? 'Note selection'
+    : kind === 'reload' ? 'Reload' : kind === 'scroll' ? 'Scroll' : 'Pointer';
   const length = request.headers['content-length'];
   if (length !== undefined && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BODY)) {
     return Promise.reject(inputError(413, label + ' input exceeds 128 bytes.'));
@@ -95,7 +103,13 @@ function readInput(request, kind) {
         if (value === null || typeof value !== 'object' || Array.isArray(value)) {
           throw new Error('Invalid input');
         }
-        if (kind === 'reload') {
+        if (kind === 'select') {
+          if (Object.keys(value).length !== 1 || !Object.hasOwn(value, 'id') ||
+              !Number.isSafeInteger(value.id) || value.id < 0 || value.id > 7) {
+            throw new Error('Invalid note choice');
+          }
+          finish(null, { id: value.id });
+        } else if (kind === 'reload') {
           if (Object.keys(value).length !== 0) throw new Error('Invalid reload request');
           finish(null, {});
         } else if (kind === 'scroll') {
@@ -113,7 +127,8 @@ function readInput(request, kind) {
           finish(null, { x: value.x, y: value.y });
         }
       } catch {
-        finish(inputError(400, kind === 'reload' ? 'Expected an empty reload request.'
+        finish(inputError(400, kind === 'select' ? 'Expected one available note choice.'
+          : kind === 'reload' ? 'Expected an empty reload request.'
           : kind === 'scroll' ? 'Expected one bounded scroll position.'
             : 'Expected one pointer inside the native frame.'));
       }
@@ -138,15 +153,13 @@ function responseHeaders(type) {
   };
 }
 
-export async function startLiveNote({
-  profile, note, uiProfile = 'granted', expanded = 1, port = 0,
-  componentWasm, componentPath, binaryTarget = buildTarget, maxEvents = 256, maxPending = 8,
-}) {
+export async function startLiveNote(options) {
+  const { profile, uiProfile = 'granted', expanded = 1, port = 0,
+    componentWasm, componentPath, binaryTarget = buildTarget, maxEvents = 256, maxPending = 8 } = options;
   if (!['granted', 'denied'].includes(profile) || !['granted', 'denied'].includes(uiProfile) ||
       ![0, 1].includes(expanded) || !Number.isSafeInteger(port) || port < 0 || port > 65535 ||
       !Number.isSafeInteger(maxEvents) || maxEvents < 1 || maxEvents > 256 ||
       !Number.isSafeInteger(maxPending) || maxPending < 1 || maxPending > 16 ||
-      (profile === 'granted' && (typeof note !== 'string' || !note || note.includes('\0'))) ||
       typeof binaryTarget !== 'string' || !binaryTarget || binaryTarget.includes('\0') ||
       (componentPath !== undefined && (typeof componentPath !== 'string' ||
         !componentPath || componentPath.includes('\0'))) ||
@@ -158,7 +171,13 @@ export async function startLiveNote({
   // Copy retained bytes and resolve caller-relative paths before the first await.
   let component = componentWasm === undefined ? undefined : Buffer.from(componentWasm);
   const selectedTarget = resolve(binaryTarget);
-  const selectedNote = profile === 'granted' ? resolve(note) : undefined;
+  const source = { profile, binaryTarget: selectedTarget };
+  if (profile === 'granted') {
+    const { note, notes } = options;
+    if (note !== undefined) source.note = note;
+    if (notes !== undefined) source.notes = notes;
+  }
+  const documentSource = ownDocumentSource(source);
   const selectedComponent = componentPath === undefined ? undefined : resolve(componentPath);
   if (component === undefined) {
     component = selectedComponent === undefined ? compileUiService({
@@ -173,7 +192,7 @@ export async function startLiveNote({
   const session = await createAsyncNoteSession({
     executable: native(selectedTarget, 'a1_note_scene'),
     serviceExecutable: native(selectedTarget, 'a1_ui_action'),
-    documentSource: { profile, note: selectedNote, binaryTarget: selectedTarget },
+    documentSource,
     component, expanded, uiProfile, maxEvents, maxPending,
   });
   const token = randomBytes(32).toString('base64url');
@@ -195,12 +214,15 @@ export async function startLiveNote({
     const controlPoint = snapshot.controlPoint === null ? null
       : { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y };
     return {
-      schemaVersion: 3, width: 320, height: 160, sequence: snapshot.eventsProcessed,
+      schemaVersion: 4, width: 320, height: 160, sequence: snapshot.eventsProcessed,
       expanded: snapshot.expanded, visibleCount: snapshot.visibleCount,
       scrollY: snapshot.scrollY, maxScrollY: snapshot.maxScrollY, controlPoint,
       canActivate: permitted && controlPoint !== null,
       canScroll: permitted && snapshot.maxScrollY > 0,
       canReload: permitted,
+      noteChoices: snapshot.noteChoices.map(({ id, label }) => ({ id, label })),
+      selectedNoteId: snapshot.selectedNoteId,
+      canSelectNote: permitted && snapshot.noteChoices.length > 1,
       remainingEvents,
       pixels: snapshot.pixels.subarray(PPM_HEADER.length).toString('base64'),
     };
@@ -244,7 +266,7 @@ export async function startLiveNote({
         return;
       }
       if (!((path === '/frame' && request.method === 'GET') ||
-          (['/input', '/scroll', '/reload'].includes(path) && request.method === 'POST'))) {
+          (['/input', '/scroll', '/reload', '/select'].includes(path) && request.method === 'POST'))) {
         send(response, 404, { error: 'Unknown application route.' });
         return;
       }
@@ -268,13 +290,19 @@ export async function startLiveNote({
       }
       const kind = path.slice(1);
       const input = await readInput(request, kind);
+      if (kind === 'select' && !session.snapshot().noteChoices.some(note => note.id === input.id)) {
+        send(response, 400, { error: 'Expected one available note choice.' });
+        return;
+      }
       try {
-        const action = kind === 'reload' ? await session.reload()
+        const action = kind === 'select' ? await session.selectNote(input.id)
+          : kind === 'reload' ? await session.reload()
           : kind === 'scroll' ? await session.scrollTo(input.y) : await session.activate(input);
         if (kind === 'input' ? action.service !== null && action.service.status !== 'ok'
           : action.status !== 'ok') {
           send(response, 409, {
-            error: kind === 'reload' ? 'Reloading is unavailable in this session. The previous view is still displayed.'
+            error: kind === 'select' ? 'Switching notes is unavailable in this session. The previous view is still displayed.'
+              : kind === 'reload' ? 'Reloading is unavailable in this session. The previous view is still displayed.'
               : kind === 'scroll' ? 'Scrolling is unavailable in this session. The last committed frame is still displayed.'
                 : 'The action was rejected. The last committed frame is still displayed.',
             frame: frame(),
@@ -289,7 +317,8 @@ export async function startLiveNote({
         const message = error.code === 'A1_QUEUE_FULL' ? 'The input queue is full. Try again.' :
           error.code === 'A1_EVENT_LIMIT' ? 'This session has reached its input limit.' :
             status === 503 ? 'This session is closed.' :
-              kind === 'reload' ? 'The note could not be reloaded. The previous view is still displayed.'
+              kind === 'select' ? 'The note could not be opened. The previous view is still displayed.'
+                : kind === 'reload' ? 'The note could not be reloaded. The previous view is still displayed.'
                 : 'The action failed. The last committed frame is still displayed.';
         send(response, status, { error: message, frame: frame() });
       }
