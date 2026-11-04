@@ -3,6 +3,134 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn string_trim_uses_ecmascript_whitespace_and_line_terminators() {
+    for body in [
+        r"const ws='\t\v\f \u00a0\ufeff\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\n\r\u2028\u2029';const s=ws+'Heading'+ws;return s.trim()==='Heading'&&s.trimStart()==='Heading'+ws&&s.trimEnd()===ws+'Heading'?1:0;",
+        r"const ws='\t\v\f \u00a0\ufeff\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\n\r\u2028\u2029';return ws.trim()===''&&ws.trimStart()===''&&ws.trimEnd()===''?1:0;",
+        "return ''.trim()===''&&''.trimStart()===''&&''.trimEnd()===''&&'text'.trim()==='text'&&'text'.trimStart()==='text'&&'text'.trimEnd()==='text'?1:0;",
+        "const s='  a b  ';return s.trim()==='a b'&&s.trimStart()==='a b  '&&s.trimEnd()==='  a b'&&s==='  a b  '?1:0;",
+        r"const s=' \ud800\u{1f600}\0\udfff\t\u00a0e\u0301\r\n';return s.trim()==='\ud800\u{1f600}\0\udfff\t\u00a0e\u0301'&&s.trimStart()==='\ud800\u{1f600}\0\udfff\t\u00a0e\u0301\r\n'&&s.trimEnd()===' \ud800\u{1f600}\0\udfff\t\u00a0e\u0301'?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+    // These are deliberately not ECMAScript whitespace, despite resembling it
+    // or appearing in older Unicode whitespace definitions.
+    for unit in [r"\u0085", r"\u180e", r"\u200b"] {
+        let js = format!(
+            "export function run(a,b){{const edge='{unit}';const s=edge+' '+edge;return s.trim()===s&&s.trimStart()===s&&s.trimEnd()===s&&(' '+s+' ').trim()===s?1:0;}}"
+        );
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_trim_snapshots_receivers_and_evaluates_every_ignored_argument() {
+    for body in [
+        "let n=0;const text=(n=1,' x ').trim((n=n*10+2,null),(n=n*10+3,{}),(n=n*10+4,'ignored'));return text==='x'?n:-1;",
+        "let s=' x ';const text=s['trimStart']((s='changed',false),undefined);return text==='x '&&s==='changed'?1:0;",
+        "let s=' x ';const text=s.trimEnd((s='changed',[]),()=>a);return text===' x'&&s==='changed'?1:0;",
+        "let n=0;' x '.trim(n=1,n=n*10+2);' x '.trimStart(n=n*10+3);' x '.trimEnd(n=n*10+4);return n;",
+        "const o={text:' x '};const text=o.text.trim((o.text='changed'));return text==='x'&&o.text==='changed'?1:0;",
+        "const s=' x ';return s.trim(a,b)==='x'&&s.trimStart(a,b)==='x '&&s.trimEnd(a,b)===' x'?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_trim_composes_helpers_captures_fields_and_ordinary_method_names() {
+    for source in [
+        "function clean(s){return s.trim();}export function run(a,b){const text=clean(' Heading ');const use=()=>text+'!';return use()==='Heading!'?text.length:0;}",
+        "export function run(a,b){let text=' first ';const clean=()=>text.trimStart().trimEnd();const first=clean();text=' next ';return first==='first'&&clean()==='next'?1:0;}",
+        "export function run(a,b){const o={text:' Heading '.trim()};return o.text.startsWith('Head')&&o.text.includes('ing')?o.text.charCodeAt(0):0;}",
+        "export function run(a,b){const o={trim:(x,y)=>x+y,trimStart:x=>x,trimEnd:()=>true};return o.trimEnd()?o.trim(a,b)+o.trimStart(a):b;}",
+        "function text(x){return ' ordinary ';}export function run(a,b){const o={trim:text,trimStart:text,trimEnd:text};return o.trim(a).length+o.trimStart(b).length+o.trimEnd(a).length;}",
+    ] {
+        compare_sources(
+            source,
+            &source.replace("run(a,b)", "run(a: number,b: number)"),
+        );
+    }
+    let js = "export function run(a,b){const text=' x ';return text['trim'](a).length+text.trimStart().length+text.trimEnd().length;}";
+    let ts = "export function run(a: number,b: number){const text: number=' x ';return (text as boolean)[('trim' as number)](a as never).length+text.trimStart().length+text.trimEnd().length;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_trim_rejects_unproven_receivers_and_unrepresented_call_forms() {
+    for body in [
+        "return a.trim().length;",
+        "const s=a?' x ':null;return s.trimStart().length;",
+        "let s=' x ';s=a;return s.trimEnd().length;",
+        "const o={text:' x '};o.text=a;return o.text.trim().length;",
+        "const xs=[' x '];return xs.at(0).trim().length;",
+        "const s=' x ';return s?.trim().length;",
+        "const s=' x ';return s.trimStart?.().length;",
+        "return ' x '.trimEnd(...[a]).length;",
+        "const key='trim';return ' x '[key]().length;",
+        "return ' x '.trim.call(' x ').length;",
+        "return ' x '.trim();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    assert!(
+        grunkalunka_compiler::compile(
+            "export function run(a: number,b: number){const s: string=a;return (s as string).trim().length;}",
+            true,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn string_trim_cursors_keep_small_stack_and_argument_count_bounds() {
+    for (count, admitted, nested) in [
+        (24, true, true),
+        (140, false, true),
+        (1000, true, false),
+        (1001, false, false),
+    ] {
+        let expression = if nested {
+            format!("' x '{}", ".trim()".repeat(count))
+        } else {
+            format!("' x '.trim({})", vec!["a"; count].join(","))
+        };
+        let source = format!("export function run(a,b){{return {expression}.length;}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || grunkalunka_compiler::compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(
+            result.is_ok(),
+            admitted,
+            "count={count}, nested={nested}: {:?}",
+            result.as_ref().err()
+        );
+        if let Err(error) = result {
+            assert!(
+                error.contains(if nested { "nesting" } else { "1000" }),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
 fn string_search_clamps_number_positions_and_matches_utf16_units() {
     for body in [
         "const s='abcabc';return (s.startsWith('abc',a)?100:0)+(s.includes('abc',a)?10:0)+(s.includes('bc',b)?1:0);",

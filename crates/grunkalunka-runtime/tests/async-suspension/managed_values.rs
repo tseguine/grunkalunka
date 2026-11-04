@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn string_trim_preserves_snapshots_and_ignored_argument_effects_across_awaits() {
+    compare_promises(
+        &[
+            "let s=' x ';const text=s.trim((await a,s='changed'),(await b,s='later'));await a;return text==='x'&&s==='later'?1:0;",
+            "let s=' x ';const text=s.trimStart((await a,s='changed'));await b;return text==='x '&&s==='changed'?1:0;",
+            "let n=0;const text=(n=1,' x ').trimEnd(void(await a,n=n*10+2),(await b,n=n*10+3));await a;return text===' x'?n:-1;",
+            r"const text=' \ud800\u{1f600}\t'.trim();await a;return text==='\ud800\u{1f600}'?text.length:0;",
+            "let n=0;' x '.trim((await a,n=1),(await b,n=n*10+2));return n;",
+            "let s='original';try{s=' x '.trim(await Promise.reject(a));}catch(e){return s==='original'&&e===a?1:0;}return 0;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_search_saves_operands_and_boolean_results_across_awaits() {
     compare_promises(
         &[

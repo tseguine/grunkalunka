@@ -53,6 +53,13 @@ pub(crate) struct RegionId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct FunctionId(pub usize);
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum StringTrim {
+    Start,
+    End,
+    Both,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Type {
     Number,
@@ -569,6 +576,11 @@ pub(crate) enum Op {
         search: ValueId,
         position: ValueId,
         includes: bool,
+    },
+    ManagedStringTrim {
+        result: ValueId,
+        input: ValueId,
+        ends: StringTrim,
     },
     ManagedObjectNew {
         result: ValueId,
@@ -1375,6 +1387,10 @@ impl Verifier<'_> {
             Op::ManagedStringLength { result, input } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedStringTrim { result, input, .. } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedStringConcat {
                 result,

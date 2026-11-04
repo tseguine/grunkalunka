@@ -92,31 +92,40 @@ impl Lowering<'_, '_> {
         }
         let result = self.value(task.method.result());
         let input = task.receiver.expect("completed String receiver");
-        let first = task.inputs[0].expect("completed String first argument");
+        let first = || task.inputs[0].expect("completed String first argument");
         let operation = match task.method {
             Method::Slice | Method::Substring => Op::ManagedStringRange {
                 result,
                 input,
-                start: first,
+                start: first(),
                 end: task.inputs[1].expect("completed String end"),
                 substring: matches!(task.method, Method::Substring),
             },
             Method::CharAt => Op::ManagedStringCharAt {
                 result,
                 input,
-                index: first,
+                index: first(),
             },
             Method::CharCodeAt => Op::ManagedStringCharCodeAt {
                 result,
                 input,
-                index: first,
+                index: first(),
             },
             Method::StartsWith | Method::Includes => Op::ManagedStringSearch {
                 result,
                 input,
-                search: first,
+                search: first(),
                 position: task.inputs[1].expect("completed String search position"),
                 includes: matches!(task.method, Method::Includes),
+            },
+            Method::Trim | Method::TrimStart | Method::TrimEnd => Op::ManagedStringTrim {
+                result,
+                input,
+                ends: match task.method {
+                    Method::TrimStart => ir::StringTrim::Start,
+                    Method::TrimEnd => ir::StringTrim::End,
+                    _ => ir::StringTrim::Both,
+                },
             },
         };
         Self::push(regions.current(), task.node, operation);
