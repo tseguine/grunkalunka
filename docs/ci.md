@@ -151,6 +151,14 @@ The probe reports the native run link, SHA and completion age. A failing
 result is not hidden by an older success, and a baseline success does not
 claim that this PR itself ran on macOS.
 
+GitHub can mark a workflow failed when its native job is cancelled before
+receiving a runner. The probe excludes that wrapper failure only when complete
+job metadata identifies the same run and attempt, with exactly one expected
+native job, a completed cancellation, no assigned runner and no steps. An
+executed failure or incomplete, ambiguous or mismatched job evidence remains
+an unhealthy reference; lookup errors still request native fallback. Excluding
+an unstarted cancellation does not reset the older reference's 24-hour age limit.
+
 If the reference is stale, failed, missing or the lookup errors, the probe
 requests a **conditional reusable full macOS workflow**. The final PR gate
 passes only after the native fallback passes. If the fallback fails or cannot

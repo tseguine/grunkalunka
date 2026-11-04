@@ -8,10 +8,41 @@ export const MAX_BASELINE_AGE_MS = 24 * 60 * 60 * 1000;
 const isNonCancelled = r => r && r.status === 'completed' &&
   !!r.conclusion && r.conclusion !== 'cancelled';
 
-export function latestNonCancelled(runs, filter = () => true) {
+function orderedNonCancelled(runs, filter = () => true) {
   return [...runs].filter(r => isNonCancelled(r) && filter(r))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) ||
-      (b.run_attempt ?? 0) - (a.run_attempt ?? 0))[0] ?? null;
+      (b.run_attempt ?? 0) - (a.run_attempt ?? 0));
+}
+
+export function latestNonCancelled(runs, filter = () => true) {
+  return orderedNonCancelled(runs, filter)[0] ?? null;
+}
+
+function wasCancelledBeforeStarting(run, result) {
+  if (result?.total_count !== 1 || !Array.isArray(result.jobs) ||
+      result.jobs.length !== 1) return false;
+  const job = result.jobs[0];
+  return job?.name === 'Native macOS (Apple Silicon)' &&
+    job.status === 'completed' && job.conclusion === 'cancelled' &&
+    job.runner_id === 0 && job.runner_name === '' &&
+    Array.isArray(job.steps) && job.steps.length === 0 &&
+    Number.isSafeInteger(run.id) && run.id > 0 && job.run_id === run.id &&
+    Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 &&
+    job.run_attempt === run.run_attempt &&
+    typeof run.head_sha === 'string' && run.head_sha.length > 0 &&
+    job.head_sha === run.head_sha;
+}
+
+async function latestNativeResult(runs, jobs, filter) {
+  for (const run of orderedNonCancelled(runs, filter)) {
+    // GitHub can fail the workflow when its only native job is cancelled before
+    // acquiring a runner. Skip only complete evidence for this same run attempt;
+    // actual failures and uncertain job metadata must still require fallback.
+    if (run.conclusion === 'failure' &&
+        wasCancelledBeforeStarting(run, await jobs(run.id))) continue;
+    return run;
+  }
+  return null;
 }
 
 export function evaluateReference(ref, now = Date.now()) {
@@ -31,16 +62,16 @@ export function evaluateReference(ref, now = Date.now()) {
 }
 
 export async function findReference({ runs, jobs, head }) {
-  const exact = latestNonCancelled(await runs('macos.yml',
-    { head_sha: head, status: 'completed' }), r => r.event === 'workflow_dispatch' &&
+  const exact = await latestNativeResult(await runs('macos.yml',
+    { head_sha: head, status: 'completed' }), jobs, r => r.event === 'workflow_dispatch' &&
       r.head_branch !== 'master' && r.head_sha === head);
   if (exact) return {
     kind: 'PR', run: exact, outcome: exact.conclusion,
     completed: exact.updated_at, url: exact.html_url,
   };
 
-  const master = latestNonCancelled(await runs('macos.yml',
-    { branch: 'master', status: 'completed' }), r => r.head_branch === 'master');
+  const master = await latestNativeResult(await runs('macos.yml',
+    { branch: 'master', status: 'completed' }), jobs, r => r.head_branch === 'master');
   if (master) return {
     kind: 'master', run: master, outcome: master.conclusion,
     completed: master.updated_at, url: master.html_url,
