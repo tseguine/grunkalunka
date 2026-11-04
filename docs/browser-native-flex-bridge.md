@@ -1,9 +1,12 @@
-# Native fixed-size rows and alignment versus browsers
+# Native fixed-size rows, alignment and overlap versus browsers
 
 This bridge compares the native row layout engine with actual Chromium, Firefox
 and WebKit measurements. Its Rust input and HTML source are separate: the native
 example constructs resolved styles directly, and the HTML records browser
 rectangles and hit targets. Neither implementation reads the other's geometry.
+Selected overlap phases also assert actual native canvas pixels, checking that
+native painting and hit testing agree on the visible item. Browser pixel parity
+is not measured by this bridge.
 
 - [Native input and independent literal assertions](../crates/grunkalunka-layout/examples/native_flex_bridge.rs)
 - [HTML source](../tests/browser-oracles/native-flex-bridge.html)
@@ -32,8 +35,8 @@ pixels permits an actual page scroll.
 
 Each phase starts from the original declarations, with only its named
 changes applied. The source records six named border rectangles and nine
-fixed viewport hit probes per phase: 126 rectangle slots and 189 hit slots
-across 21 phases. Rectangles are converted to document coordinates using the
+fixed viewport hit probes per phase: 144 rectangle slots and 216 hit slots
+across 24 phases. Rectangles are converted to document coordinates using the
 browser's actual scroll offsets. The boxless wrapper is omitted from the
 rectangle map; suppressed boxes remain explicit nulls.
 
@@ -55,7 +58,10 @@ rectangle map; suppressed boxes remain explicit nulls.
 | `alignCenter` | Width 220, height 60, align items `safe center` | 232×72 | (174,47) | 98 |
 | `wrapAlign` | Wrap, justify `space-between`, align items `safe center` | 162×80 | (26,76) | 106 |
 | `wrapSingle` | Wrap, width 220, height 60, align items `safe flex-end` | 232×72 | (174,50) | 98 |
-| `safeOverflow` | Height 20, justify and align items `safe flex-end`, following margin-top 16 | 162×32 | (174,28) | 68 |
+| `safeOverflow` | Height 20, justify and align items `safe flex-end` | 162×32 | (174,28) | 58 |
+| `overlapClipped` | Same as `safeOverflow`, with padding-box clipping | 162×32 | (174,28) | 58 |
+| `nestedOverlap` | Second item becomes a row with top margin 0; inner item is 100×8 | 162×52 | (174,26) | 78 |
+| `nestedOverflow` | Same as `safeOverflow`; second item becomes a row with a 100×40 inner item | 162×32 | (174,28) | 58 |
 | `relativeAlign` | Width 220, height 60, center both axes, second item displaced by (8,9) | 232×72 | (189,47) | 98 |
 | `clippedAlign` | Width 216, height 28, justify center, align items end, padding-box clipping | 228×40 | (187,36) | 66 |
 | `scrolledAlign` | Same alignment as `alignCenter`, actual page scroll y=10 | 232×72 | (174,47) | 98 |
@@ -79,10 +85,30 @@ follow the aligned subtree.
 `safeOverflow` has negative main-axis free space and two items taller
 than its 20px line. Safe alignment falls back to start for those overflowing
 dimensions while the smaller third item still moves to cross-end. The
-following block has a 16px top margin in this phase, placing it at y=68
-without overlapping the overflowing second item. The `gap-wrap` probe
-therefore hits `row-b`. This additional margin resets before the next phase.
-`clippedAlign` separately makes that probe
+following block retains its baseline 6px top margin, placing it at y=58.
+The `gap-wrap` probe at (118,62) lies inside both that block and the overflowing
+second item; the flex item must paint above the ordinary block and receive
+the hit as `row-b`.
+
+`overlapClipped` preserves every layout rectangle from `safeOverflow`.
+Its padding clip ends at y=50, excluding the second item at that probe, so
+`gap-wrap` must instead hit `row-after`. The `nowrap` probe at (180,30)
+lies on the host's right border, outside the descendant clip, and must hit
+`row-host` despite the third item's unchanged overlapping rectangle.
+
+The two nested phases keep the second item in the outer row and make its
+child a fixed-size item of a nested row. The inner item explicitly uses
+`flex:none;min-width:0`, so its 100px width overflows its 50px containing
+content box. In `nestedOverlap`, (180,30) lies inside both that inner item
+and the later outer item `row-c`. The later outer item must win: nested
+items retain their parent item's atomic painting scope. In `nestedOverflow`,
+the 40px-tall inner item reaches (118,62) and must paint above the following
+ordinary block, producing `row-inner`. Together these probes reject both
+global postponement of every nested item and deferral limited to the local
+flex container. All inner, second-item and following-block declarations
+reset before the next independent phase.
+
+`clippedAlign` separately makes the same `gap-wrap` probe
 distinguish padding-box clipping after alignment: (118,62) lies inside the
 second item's unchanged border rectangle, below the padding clip's bottom
 edge at y=58, and above the following block's y=66. Its target must be null;
@@ -96,9 +122,10 @@ while changing viewport hits.
 The native example checks its complete final frame against its initial
 frame. The comparator independently requires both native and browser
 baseline rectangles and hit targets to be restored, and requires document
-geometry to agree between `wrap`/`scrolled` and `alignCenter`/`scrolledAlign`.
+geometry to agree between `wrap`/`scrolled`, `alignCenter`/`scrolledAlign`,
+and `safeOverflow`/`overlapClipped`.
 
-### Observed paint-order boundary
+### Original paint-order regression
 
 The first alignment witness at
 [`70c2043153cbc3181b2a69c3788e0f653c3e0a05`](https://github.com/tseguine/grunkalunka/commit/70c2043153cbc3181b2a69c3788e0f653c3e0a05)
@@ -110,22 +137,41 @@ failed with exactly one baseline difference in every engine:
 browser. Every measured rectangle and every other hit agreed. Both flex
 source controls rejected the same additional baseline mismatch.
 
-The native experiment retains tree-order painting and hit testing.
+The native implementation at that revision used tree-order painting and hit testing.
 [CSS Flexbox item painting](https://www.w3.org/TR/css-flexbox-1/#painting)
 instead uses inline-block painting, with ordinary in-flow block backgrounds
 and borders appearing earlier in the
 [CSS painting order](https://www.w3.org/TR/CSS22/zindex.html#painting-order).
-The revised phase keeps its safe-alignment geometry and overflow, and moves
-the following block clear of the item. This bounds the alignment witness;
-it does not implement the observed flex-versus-block paint-order difference.
+The alignment-only stack temporarily increased the following block's margin
+to 16px, moving it clear of the item while retaining safe-alignment coverage.
+This witness restores the original 6px margin and directly exercises the
+bounded non-positioned flex-item ordering behavior, with clipping and nested
+item scopes tested independently.
 [Issue #533](https://github.com/tseguine/grunkalunka/issues/533) retains the
-reproduction and completion criterion for that separate engine behavior.
-All 126 rectangle slots,
-189 hit slots, and exact live source controls remain required.
+original reproduction and completion criterion. All 144 rectangle slots,
+216 hit slots, and exact live source controls remain required.
+
+### Native overlap pixels
+
+The native example paints distinct opaque item colors through `paint_scrolled`
+and reads actual canvas pixels. These assertions use the same points that
+distinguish browser hit ordering:
+
+| Phase | Native pixel | Visible item | Expected RGB |
+| --- | --- | --- | --- |
+| `safeOverflow` | (118,62) | `row-b` | (0,0,255) |
+| `overlapClipped` | (118,62) | `row-after` | (255,128,0) |
+| `nestedOverlap` | (180,30) | `row-c` | (128,0,128) |
+| `nestedOverflow` | (118,62) | `row-inner` | (0,255,0) |
+
+Each assertion fails before the native JSON receipt is emitted if painting
+disagrees. The browser evidence remains independent rectangle and hit
+observations; these native pixel regressions do not introduce screenshot
+comparison, a new receipt schema, or an additional dependency.
 
 ## Source validation and negative controls
 
-The comparator requires the complete 21-phase schema, exact rectangle and
+The comparator requires the complete 24-phase schema, exact rectangle and
 probe IDs, exact integer coordinates, the fixed viewport, and source-hashed
 Playwright provenance identifying the engine family and browser version.
 Missing samples, unknown targets, unexpected nulls, nonfinite/fractional
@@ -160,12 +206,22 @@ native receipt:
 
 The exact source replacement includes the phase's sample assignment, so
 the separate overflow phase's identical alignment declaration is retained.
-Both mutations validate provenance against their own source bytes. A hash
-mismatch or any unexpected observation cannot count as successful detection.
-The original source, both modified sources, original native receipt, fresh
-browser captures and comparison reports are retained. These controls check
-that real source changes reach geometry and input observations; synthetic
-offline receipts do not establish those results.
+
+A third fresh capture changes only the following block's explicit
+`position:static` assignment in `safeOverflow` to `position:relative`, with
+no offsets. This changes its CSS painting category without changing any
+rectangle. Exactly one hit must change: `safeOverflow.hits.gap-wrap` switches
+from `row-b` to `row-after`. Every other phase, all 144 rectangle slots,
+and restoration remain unchanged. The positioned variant is a browser-only
+negative control; native input remains in the non-positioned profile and
+does not acquire general positioned precedence or `z-index` support.
+
+All three mutations validate provenance against their own source bytes.
+A hash mismatch or any unexpected observation cannot count as successful
+detection. The original source, all three modified sources, original native
+receipt, fresh browser captures and comparison reports are retained. These
+controls check that real source changes reach geometry and input observations;
+synthetic offline receipts do not establish those results.
 
 ## Execution and ownership
 
@@ -173,7 +229,7 @@ The native example and both bridge receipts use the existing
 `browser-native-bridge.yml` jobs. There is one native build job and the
 existing three-engine matrix, with no additional workflow or dependency.
 The original block bridge and its three live mutation controls still run,
-along with both flex controls. Alignment uses the existing fixture, example,
+along with all three flex controls. Alignment and overlap use the existing fixture, example,
 comparator and hosted suite without changing the workflow or command catalog.
 Both PR/push source filters and the independent impact-workflow descriptor
 include the flex source and comparator inputs.
