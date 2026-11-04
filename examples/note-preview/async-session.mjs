@@ -1,14 +1,39 @@
 // Private A1 scheduling adapter. The worker owns the synchronous native session;
 // this thread only keeps the latest completed snapshot and a bounded input queue.
 import { Worker } from 'node:worker_threads';
+import { resolve } from 'node:path';
 import { prepareSelectedNoteScene } from './scene.mjs';
 
 const COMPONENT_HEADER = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
 const MAX_COMPONENT = 4 * 1024 * 1024;
 const MAX_EVENTS = 256;
 const MAX_PENDING = 16;
+const validSourcePath = value => typeof value === 'string' && value.length > 0 &&
+  !value.includes('\0') && Buffer.byteLength(value, 'utf8') <= 4096;
 
-function ownedOptions({ executable, serviceExecutable, component, document,
+function ownedSource(source) {
+  if (source === null || typeof source !== 'object' || Array.isArray(source)) {
+    throw new TypeError('Invalid A1 document source');
+  }
+  const profile = source.profile;
+  const selectedTarget = source.binaryTarget;
+  if (!['granted', 'denied'].includes(profile) || !validSourcePath(selectedTarget)) {
+    throw new TypeError('Invalid A1 document source');
+  }
+  const binaryTarget = resolve(selectedTarget);
+  if (!validSourcePath(binaryTarget)) throw new TypeError('Invalid A1 document source target');
+  // A denied source never needs to inspect or retain a caller-supplied note path.
+  let note;
+  if (profile === 'granted') {
+    const selectedNote = source.note;
+    if (!validSourcePath(selectedNote)) throw new TypeError('Invalid A1 document source path');
+    note = resolve(selectedNote);
+    if (!validSourcePath(note)) throw new TypeError('Invalid A1 document source path');
+  }
+  return { profile, note, binaryTarget };
+}
+
+function ownedOptions({ executable, serviceExecutable, component, document, documentSource,
   expanded = 1, uiProfile = 'granted', maxEvents = MAX_EVENTS, maxPending = 8 }) {
   if (![executable, serviceExecutable].every(value =>
     typeof value === 'string' && value.length > 0 && !value.includes('\0')) ||
@@ -17,14 +42,12 @@ function ownedOptions({ executable, serviceExecutable, component, document,
       !Number.isSafeInteger(maxPending) || maxPending < 1 || maxPending > MAX_PENDING) {
     throw new TypeError('Invalid asynchronous A1 session arguments');
   }
+  if ((document === undefined) === (documentSource === undefined)) {
+    throw new TypeError('Expected exactly one A1 document or document source');
+  }
   if (!(component instanceof Uint8Array) || component.byteLength < COMPONENT_HEADER.length ||
       component.byteLength > MAX_COMPONENT) {
     throw new TypeError('Expected bounded A1 component bytes');
-  }
-  if (document === null || typeof document !== 'object' ||
-      !(document.sourceBytes instanceof Uint8Array) || document.sourceBytes.byteLength > 4096 ||
-      !Array.isArray(document.headings) || document.headings.length > 64) {
-    throw new TypeError('Expected a bounded authorized A1 document');
   }
   // Copy only known bounded fields before starting the worker or yielding.
   // Fresh Uint8Arrays transfer their exact views, not a pooled Buffer's backing
@@ -32,6 +55,15 @@ function ownedOptions({ executable, serviceExecutable, component, document,
   const payload = new Uint8Array(component);
   if (!Buffer.from(payload.subarray(0, COMPONENT_HEADER.length)).equals(COMPONENT_HEADER)) {
     throw new TypeError('Expected bounded A1 component bytes');
+  }
+  const options = { executable, serviceExecutable, component: payload, expanded, uiProfile, maxEvents };
+  if (documentSource !== undefined) {
+    return { maxPending, options: { ...options, documentSource: ownedSource(documentSource) } };
+  }
+  if (document === null || typeof document !== 'object' ||
+      !(document.sourceBytes instanceof Uint8Array) || document.sourceBytes.byteLength > 4096 ||
+      !Array.isArray(document.headings) || document.headings.length > 64) {
+    throw new TypeError('Expected a bounded authorized A1 document');
   }
   const owned = {
     profile: document.profile, backingReads: document.backingReads,
@@ -51,8 +83,7 @@ function ownedOptions({ executable, serviceExecutable, component, document,
   // The existing pure projection validates scalar fields, ranges, ancestry and
   // the aggregate label quota before anything crosses the worker boundary.
   prepareSelectedNoteScene({ ...owned, visibleCount: 0 });
-  return { maxPending, options: { executable, serviceExecutable, component: payload,
-    document: owned, expanded, uiProfile, maxEvents } };
+  return { maxPending, options: { ...options, document: owned } };
 }
 
 const copyScene = scene => ({ html: scene.html, visibleCount: scene.visibleCount,
@@ -71,6 +102,9 @@ const copyAction = action => ({ sequence: action.sequence, target: action.target
 const copyScroll = action => ({ sequence: action.sequence, status: action.status,
   changed: action.changed, beforeScrollY: action.beforeScrollY, scrollY: action.scrollY,
   pixels: Buffer.from(action.pixels) });
+const copyReload = action => ({ sequence: action.sequence, status: action.status,
+  changed: action.changed, pixels: Buffer.from(action.pixels) });
+const copyResult = { activate: copyAction, scroll: copyScroll, reload: copyReload };
 
 function codedError(code, message, ErrorType = Error) {
   const error = new ErrorType(message);
@@ -82,7 +116,7 @@ function receivedError(error) {
   const ErrorType = error?.name === 'RangeError' ? RangeError :
     error?.name === 'TypeError' ? TypeError : Error;
   const received = new ErrorType(error?.message ?? 'A1 session worker failed');
-  if (error?.code === 'A1_EVENT_LIMIT') received.code = error.code;
+  if (['A1_EVENT_LIMIT', 'A1_RELOAD_UNAVAILABLE'].includes(error?.code)) received.code = error.code;
   return received;
 }
 
@@ -92,7 +126,8 @@ export async function createAsyncNoteSession(arguments_) {
   try {
     worker = new Worker(new URL('./session-worker.mjs', import.meta.url), {
       workerData: options, execArgv: [],
-      transferList: [options.component.buffer, options.document.sourceBytes.buffer],
+      transferList: [options.component.buffer,
+        ...(options.document === undefined ? [] : [options.document.sourceBytes.buffer])],
     });
   } catch (error) {
     throw codedError('A1_WORKER_FAILED', error.message);
@@ -161,8 +196,7 @@ export async function createAsyncNoteSession(arguments_) {
       // Even failed native actions consume an attempt and return the preceding
       // committed view. Publish that snapshot before settling the input promise.
       const snapshot = copySnapshot(message.snapshot);
-      const result = message.ok ? (current.type === 'activate'
-        ? copyAction(message.result) : copyScroll(message.result)) : receivedError(message.error);
+      const result = message.ok ? copyResult[current.type](message.result) : receivedError(message.error);
       const request = current;
       current = null;
       latest = snapshot;
@@ -213,6 +247,18 @@ export async function createAsyncNoteSession(arguments_) {
     }
   }
 
+  function reload() {
+    try {
+      if (state !== 'open') throw terminalError;
+      if (options.documentSource === undefined) {
+        throw codedError('A1_RELOAD_UNAVAILABLE', 'A1 session has no reload source', TypeError);
+      }
+      return submit('reload', {});
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
   function submit(type, input) {
     if (latest.eventsProcessed >= options.maxEvents) {
       throw codedError('A1_EVENT_LIMIT', 'A1 session event limit exceeded', RangeError);
@@ -243,5 +289,5 @@ export async function createAsyncNoteSession(arguments_) {
     await stopWorker().catch(() => {});
     throw error;
   }
-  return Object.freeze({ snapshot, activate, scrollTo, close });
+  return Object.freeze({ snapshot, activate, scrollTo, reload, close });
 }

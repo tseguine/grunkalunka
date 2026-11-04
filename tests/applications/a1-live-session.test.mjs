@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import test, { after, before } from 'node:test';
@@ -25,6 +25,16 @@ let component;
 
 function session(overrides = {}) {
   return createAsyncNoteSession({ executable, serviceExecutable, component, document, ...overrides });
+}
+
+async function sourceSession(t, text = '# Root\n## Child\n', overrides = {}) {
+  const directory = await mkdtemp(join(scratch, 'source-'));
+  const note = join(directory, 'note.md');
+  await writeFile(note, text);
+  const active = await session({ document: undefined,
+    documentSource: { profile: 'granted', note, binaryTarget: target }, ...overrides });
+  t.after(() => active.close());
+  return { note, active };
 }
 
 function compile(body) {
@@ -211,7 +221,15 @@ test('invalid transport inputs fail before native work and never occupy the even
       { document: { ...document, sourceBytes: Buffer.alloc(4097) } },
       { document: { ...document, headings: Array(65).fill(document.headings[0]) } },
       { document: { ...document, headings: [{ ...document.headings[0], end: 9000 }] } },
-      { document: { ...deniedDocument, sourceBytes: Buffer.from('secret') } }]) {
+      { document: { ...deniedDocument, sourceBytes: Buffer.from('secret') } },
+      { document: undefined },
+      { documentSource: { profile: 'granted', note: 'note.md', binaryTarget: target } },
+      ...[null, {}, { profile: 'other', binaryTarget: target },
+        { profile: 'granted', note: '', binaryTarget: target },
+        { profile: 'granted', note: 'bad\0note', binaryTarget: target },
+        { profile: 'granted', note: 'a'.repeat(4097), binaryTarget: target },
+        { profile: 'denied', binaryTarget: '' }].map(documentSource =>
+        ({ document: undefined, documentSource }))]) {
       await assert.rejects(session({ executable: absent, ...patch }), error =>
         error instanceof Error && error.code !== 'A1_WORKER_FAILED' && !error.message.includes('native'));
     }
@@ -224,22 +242,24 @@ test('invalid transport inputs fail before native work and never occupy the even
     for (const y of [-1, 0.5, Infinity, NaN, 0x100000000, '10', undefined]) {
       await assert.rejects(active.scrollTo(y), { name: 'TypeError', message: 'Invalid A1 session scroll offset' });
     }
+    await assert.rejects(active.reload(), { code: 'A1_RELOAD_UNAVAILABLE' });
     assert.equal(active.snapshot().eventsProcessed, 0);
     assert.equal((await active.activate({ x: 0, y: 0 })).sequence, 1);
   });
 
 test('close rejects dispatched and queued inputs, keeps the last frame and is idempotent',
-  { timeout: 120_000 }, async () => {
-    const active = await session();
+  { timeout: 120_000 }, async t => {
+    const { active } = await sourceSession(t);
     const initial = active.snapshot();
-    const results = Promise.allSettled([active.scrollTo(10), active.activate(pointer)]);
+    const results = Promise.allSettled([active.reload(), active.scrollTo(10), active.activate(pointer)]);
     const closed = active.close();
     assert.equal(active.close(), closed);
     const rejected = await results;
     assert.deepEqual(rejected.map(result => [result.status, result.reason?.code]),
-      [['rejected', 'A1_SESSION_CLOSED'], ['rejected', 'A1_SESSION_CLOSED']]);
+      Array(3).fill(['rejected', 'A1_SESSION_CLOSED']));
     await assert.rejects(active.activate(pointer), { code: 'A1_SESSION_CLOSED' });
     await assert.rejects(active.scrollTo(0), { code: 'A1_SESSION_CLOSED' });
+    await assert.rejects(active.reload(), { code: 'A1_SESSION_CLOSED' });
     assert.deepEqual(active.snapshot(), initial);
     await closed;
     const exposed = active.snapshot();
@@ -251,15 +271,17 @@ test('failed initialization and unexpected worker exit settle callers and releas
   { timeout: 120_000 }, async t => {
     await assert.rejects(session({ executable: join(scratch, 'absent-native-painter') }),
       { code: 'A1_WORKER_FAILED' });
-    const active = await session();
-    t.after(() => active.close());
+    await assert.rejects(session({ document: undefined,
+      documentSource: { profile: 'granted', note: join(scratch, 'missing-initial-note.md'),
+        binaryTarget: target } }), { code: 'A1_WORKER_FAILED' });
+    const { active } = await sourceSession(t);
     const initial = active.snapshot();
     const actualPost = Worker.prototype.postMessage;
     let lostWorker = false;
     const intercepted = t.mock.method(Worker.prototype, 'postMessage', function(message, ...args) {
-      if (message?.type === 'scroll') {
+      if (message?.type === 'reload') {
         // Fault injection only: lose the real initialized worker before it
-        // receives the scroll. Ordinary service tests above use real input.
+        // receives the reload. Ordinary service tests above use real input.
         lostWorker = true;
         void this.terminate();
         return;
@@ -267,12 +289,13 @@ test('failed initialization and unexpected worker exit settle callers and releas
       return actualPost.call(this, message, ...args);
     });
     try {
-      const results = await Promise.allSettled([active.scrollTo(10), active.activate(pointer)]);
+      const results = await Promise.allSettled([active.reload(), active.activate(pointer)]);
       assert.equal(lostWorker, true);
       assert.deepEqual(results.map(result => [result.status, result.reason?.code]),
         [['rejected', 'A1_WORKER_FAILED'], ['rejected', 'A1_WORKER_FAILED']]);
       await assert.rejects(active.activate(pointer), { code: 'A1_WORKER_FAILED' });
       await assert.rejects(active.scrollTo(0), { code: 'A1_WORKER_FAILED' });
+      await assert.rejects(active.reload(), { code: 'A1_WORKER_FAILED' });
       assert.deepEqual(active.snapshot(), initial);
       await active.close();
     } finally {
@@ -327,5 +350,147 @@ test('worker execution rechecks mixed-operation quotas and keeps scroll denial a
         ['denied', false, 0, 1]);
       assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 1 });
       await assert.rejects(active.scrollTo(0), { code: 'A1_EVENT_LIMIT' });
+    }
+  });
+
+test('source sessions own startup paths and load Markdown off the calling event loop',
+  { timeout: 120_000 }, async t => {
+    const directory = await mkdtemp(join(scratch, 'owned-source-'));
+    const note = join(directory, 'note.md');
+    await writeFile(note, '# Owned source\n');
+    const originalDirectory = process.cwd();
+    const inputComponent = Buffer.from(component);
+    const source = { profile: 'granted', note: relative(originalDirectory, note),
+      binaryTarget: relative(originalDirectory, target), ignored: () => {} };
+    let heartbeats = 0;
+    const timer = setInterval(() => heartbeats++, 1);
+    let active;
+    try {
+      const starting = session({ document: undefined, documentSource: source, component: inputComponent });
+      source.note = join(scratch, 'must-not-open-another-note');
+      source.binaryTarget = join(scratch, 'must-not-use-another-target');
+      source.profile = 'denied';
+      inputComponent.fill(0);
+      process.chdir(dirname(note));
+      active = await starting;
+    } finally {
+      process.chdir(originalDirectory);
+      clearInterval(timer);
+    }
+    t.after(() => active.close());
+    assert.ok(heartbeats > 0, 'initial file/WIT loading must run in the worker');
+    assert.match(active.snapshot().scene.html, />Owned source<\/li>/);
+    await writeFile(note, '# Same selected path\n## New child\n');
+    const result = await active.reload();
+    assert.deepEqual([result.sequence, result.status, result.changed], [1, 'ok', true]);
+    assert.match(active.snapshot().scene.html, />Same selected path<\/li>/);
+    assert.equal(active.snapshot().visibleCount, 2);
+    assert.equal((await active.activate(active.snapshot().controlPoint)).expanded, 0,
+      'reload keeps the owned component bytes');
+  });
+
+test('immediate close and failed initialization wait for worker module bootstrap',
+  { timeout: 120_000 }, async () => {
+    for (let cycle = 0; cycle < 8; cycle++) {
+      await assert.rejects(session({ document: undefined,
+        documentSource: { profile: 'granted', note: join(scratch, 'missing-bootstrap-note.md'),
+          binaryTarget: target } }), { code: 'A1_WORKER_FAILED' });
+      const active = await session();
+      const initial = active.snapshot();
+      await active.close();
+      await assert.rejects(active.reload(), { code: 'A1_SESSION_CLOSED' });
+      assert.deepEqual(active.snapshot(), initial);
+    }
+  });
+
+test('reload, scroll and pointer inputs use one queue, document count and lifetime budget',
+  { timeout: 120_000 }, async t => {
+    const { active, note } = await sourceSession(t, '# Before\n', { maxPending: 4, maxEvents: 8 });
+    const initial = active.snapshot();
+    await writeFile(note, Array.from({ length: 64 }, (_, index) => '# Updated ' + index).join('\n') + '\n');
+    let heartbeats = 0;
+    const timer = setInterval(() => heartbeats++, 1);
+    let results;
+    try {
+      const operations = [active.reload(), active.scrollTo(0xffffffff),
+        active.activate(pointer), active.scrollTo(0)];
+      assert.deepEqual(active.snapshot(), initial, 'no reload candidate is published early');
+      await assert.rejects(active.reload(), { code: 'A1_QUEUE_FULL' });
+      results = await Promise.all(operations);
+    } finally {
+      clearInterval(timer);
+    }
+    assert.ok(heartbeats > 0, 'reload native work must not block the caller');
+    assert.deepEqual(results.map(value => value.sequence), [1, 2, 3, 4]);
+    assert.deepEqual([results[0].status, results[0].changed], ['ok', true]);
+    assert.notDeepEqual(results[0].pixels, initial.pixels);
+    assert.ok(results[1].scrollY > 160);
+    assert.equal(results[2].target, null, 'the pointer follows the reloaded, scrolled document');
+    assert.equal(results[3].scrollY, 0);
+    const reloaded = active.snapshot();
+    assert.equal(reloaded.visibleCount, 64);
+    results[0].pixels.fill(0);
+    assert.deepEqual(active.snapshot(), reloaded, 'reload results do not expose retained buffers');
+    const unchanged = await active.reload();
+    assert.deepEqual([unchanged.sequence, unchanged.changed], [5, false]);
+    assert.deepEqual(active.snapshot(), { ...reloaded, eventsProcessed: 5 });
+    assert.equal((await active.activate(active.snapshot().controlPoint)).expanded, 0);
+    const reopened = await active.activate(active.snapshot().controlPoint);
+    assert.deepEqual([reopened.sequence, reopened.service.visible, reopened.after.visibleCount], [7, 64, 64]);
+    assert.equal((await active.reload()).sequence, 8);
+    await rm(note);
+    await assert.rejects(active.reload(), { code: 'A1_EVENT_LIMIT' });
+    await assert.rejects(active.activate(pointer), { code: 'A1_EVENT_LIMIT' });
+    assert.equal(active.snapshot().eventsProcessed, 8);
+  });
+
+test('worker reload failures retain the entire frame and consume the shared attempt',
+  { timeout: 120_000 }, async t => {
+    const longNote = Array.from({ length: 64 }, (_, i) => '# Heading ' + i).join('\n') + '\n';
+    const { active, note } = await sourceSession(t, longNote);
+    await active.scrollTo(80);
+    for (const invalid of [Buffer.from([0xff]), Buffer.alloc(4097, 65),
+      Buffer.from(Array.from({ length: 65 }, (_, i) => '# Excess ' + i).join('\n')), null]) {
+      if (invalid === null) await rm(note);
+      else await writeFile(note, invalid);
+      const prior = active.snapshot();
+      await assert.rejects(active.reload(), error => error instanceof Error &&
+        error.code !== 'A1_WORKER_FAILED' && error.code !== 'A1_EVENT_LIMIT');
+      assert.deepEqual(active.snapshot(), { ...prior, eventsProcessed: prior.eventsProcessed + 1 });
+    }
+    await writeFile(note, '# Recovered\n');
+    const recovered = await active.reload();
+    assert.deepEqual([recovered.sequence, recovered.changed, active.snapshot().visibleCount,
+      active.snapshot().scrollY, active.snapshot().maxScrollY], [6, true, 1, 0, 0]);
+    assert.match(active.snapshot().scene.html, />Recovered<\/li>/);
+    assert.ok(active.snapshot().controlPoint);
+
+    const limited = await sourceSession(t, longNote, { maxEvents: 1, maxPending: 2 });
+    await rm(limited.note);
+    const first = limited.active.scrollTo(80);
+    const rejected = assert.rejects(limited.active.reload(), { code: 'A1_EVENT_LIMIT' });
+    assert.equal((await first).sequence, 1);
+    await rejected;
+    assert.deepEqual([limited.active.snapshot().eventsProcessed, limited.active.snapshot().scrollY], [1, 80]);
+  });
+
+test('reload keeps document and UI grants fixed and does no denied source loading',
+  { timeout: 120_000 }, async t => {
+    const deniedSource = { profile: 'denied', binaryTarget: target,
+      get note() { throw new Error('A denied source must not inspect its note path'); } };
+    const denied = await session({ document: undefined, documentSource: deniedSource, maxEvents: 2 });
+    t.after(() => denied.close());
+    const { active: uiDenied, note } = await sourceSession(t, '# Authorized display\n',
+      { uiProfile: 'denied', maxEvents: 2 });
+    assert.match(uiDenied.snapshot().scene.html, />Authorized display<\/li>/);
+    await writeFile(note, Buffer.from([0xff]));
+    for (const active of [denied, uiDenied]) {
+      const initial = active.snapshot();
+      const reload = await active.reload();
+      assert.deepEqual([reload.sequence, reload.status, reload.changed], [1, 'denied', false]);
+      assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 1 });
+      assert.deepEqual(reload.pixels, initial.pixels);
+      assert.equal((await active.scrollTo(80)).sequence, 2);
+      await assert.rejects(active.reload(), { code: 'A1_EVENT_LIMIT' });
     }
   });
