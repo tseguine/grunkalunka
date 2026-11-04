@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Native fixed-size flex row reference observations</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: auto; }
+  body { display: flow-root; min-height: 1200px; }
+  * { box-sizing: content-box; }
+  #row-host {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: flex-start;
+    align-content: flex-start;
+    justify-content: flex-start;
+    width: 150px;
+    margin: 20px 0 0 20px;
+    padding: 4px;
+    border: 2px solid black;
+    column-gap: 10px;
+    row-gap: 8px;
+  }
+  #row-a, #row-b, #row-c { flex: none; min-width: 0; }
+  #row-a { width: 60px; height: 20px; padding: 1px; border: 1px solid black; }
+  #row-contents { display: contents; width: 999px; padding: 100px; border: 50px solid red; }
+  #row-b {
+    width: 50px;
+    height: 30px;
+    padding: 2px;
+    border: 1px solid black;
+    margin: 2px 3px 4px 5px;
+  }
+  #row-inner { width: 50%; height: 8px; }
+  #row-c { width: 40px; height: 16px; border: 1px solid black; }
+  #row-after { width: 180px; height: 12px; margin-top: 6px; }
+  #output { display: none; }
+</style>
+<body>
+<div id="row-host"><div id="row-a"></div><div id="row-contents"><div id="row-b"><div id="row-inner"></div></div><div id="row-c"></div></div></div>
+<div id="row-after"></div>
+<pre id="output"></pre>
+<script>
+(() => {
+  "use strict";
+  // Measurements come only from the browser. No expected/native geometry is
+  // embedded in this fixture, including during source mutation controls.
+  const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
+  const probes = [
+    ["a", 30, 30], ["b", 110, 32], ["nowrap", 180, 30],
+    ["wrap", 30, 80], ["gap-wrap", 118, 62], ["after", 10, 110],
+    ["host-border", 21, 21], ["gap", 95, 30], ["outside", 250, 50]
+  ];
+  const computedFields = ["display", "boxSizing", "width", "height", "flexDirection",
+    "flexWrap", "alignItems", "alignContent", "justifyContent", "columnGap", "rowGap",
+    "flexGrow", "flexShrink", "flexBasis", "minWidth"];
+  const host = document.getElementById("row-host");
+  const b = document.getElementById("row-b");
+
+  function box(element) {
+    // getClientRects detects suppressed descendants as well as display:none
+    // on the element itself. A missing box is explicit null, not a zero rect.
+    if (element.getClientRects().length === 0) return null;
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x + window.scrollX, y: rect.y + window.scrollY,
+      width: rect.width, height: rect.height };
+  }
+
+  function sample() {
+    return {
+      scrollY: window.scrollY,
+      boxes: Object.fromEntries(ids.map(id => [id, box(document.getElementById(id))])),
+      hits: Object.fromEntries(probes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, ids.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+
+  function reset(wrap = false) {
+    host.removeAttribute("style");
+    b.removeAttribute("style");
+    if (wrap) host.style.flexWrap = "wrap";
+    window.scrollTo(0, 0);
+  }
+
+  reset();
+  const states = { nowrap: sample() };
+  const observations = ids.map(id => {
+    const element = document.getElementById(id);
+    const computed = getComputedStyle(element);
+    return {
+      id, text: element.textContent,
+      computed: Object.fromEntries(computedFields.map(field => [field, computed[field]])),
+      rect: box(element)
+    };
+  });
+
+  reset(true);
+  states.wrap = sample();
+  reset(true);
+  host.style.width = "220px";
+  states.wide = sample();
+  reset(true);
+  host.style.columnGap = "24px";
+  states.columnGap = sample();
+  reset(true);
+  host.style.rowGap = "18px";
+  states.rowGap = sample();
+  reset(true);
+  b.style.display = "none";
+  states.hidden = sample();
+  reset(true);
+  b.style.position = "relative";
+  b.style.left = "8px";
+  b.style.top = "9px";
+  states.relative = sample();
+  reset(true);
+  host.style.height = "36px";
+  host.style.overflow = "clip";
+  states.clipped = sample();
+  reset(true);
+  window.scrollTo(0, 10);
+  states.scrolled = sample();
+  reset();
+  states.restored = sample();
+
+  document.getElementById("output").textContent = JSON.stringify({
+    schemaVersion: 1,
+    fixtureId: "native-flex-bridge-v1",
+    environment: {
+      userAgent: navigator.userAgent, viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight, devicePixelRatio: window.devicePixelRatio,
+      url: location.href, timestamp: new Date().toISOString()
+    },
+    observations,
+    states
+  });
+})();
+</script>
+</body>
+</html>

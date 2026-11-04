@@ -9,6 +9,9 @@ on:
       - 'tests/browser-oracles/native-block-bridge.mjs'
       - 'tests/browser-oracles/native-block-bridge.test.mjs'
       - 'tests/browser-oracles/native-block-bridge-workflow.test.mjs'
+      - 'tests/browser-oracles/native-flex-bridge.html'
+      - 'tests/browser-oracles/native-flex-bridge.mjs'
+      - 'tests/browser-oracles/native-flex-bridge.test.mjs'
       - 'tests/browser-oracles/compare.mjs'
       - 'tools/browser-oracles/collect.mjs'
       - 'tools/browser-oracles/native-bridge-sensitivity.mjs'
@@ -31,6 +34,9 @@ on:
       - 'tests/browser-oracles/native-block-bridge.mjs'
       - 'tests/browser-oracles/native-block-bridge.test.mjs'
       - 'tests/browser-oracles/native-block-bridge-workflow.test.mjs'
+      - 'tests/browser-oracles/native-flex-bridge.html'
+      - 'tests/browser-oracles/native-flex-bridge.mjs'
+      - 'tests/browser-oracles/native-flex-bridge.test.mjs'
       - 'tests/browser-oracles/compare.mjs'
       - 'tools/browser-oracles/collect.mjs'
       - 'tools/browser-oracles/native-bridge-sensitivity.mjs'
@@ -74,17 +80,21 @@ jobs:
             . -> target
           cache-bin: 'false'
           save-if: 'false'
-      - name: Compile and run the real headless layout example
+      - name: Compile and run the real headless layout examples
         run: |
           cargo fetch --locked
           mkdir -p target/native-bridge
           cargo run --locked --offline -p grunkalunka-layout --example native_block_bridge > target/native-bridge/native.json
           python3 -m json.tool target/native-bridge/native.json > /dev/null
+          cargo run --locked --offline -p grunkalunka-layout --example native_flex_bridge > target/native-bridge/flex.json
+          python3 -m json.tool target/native-bridge/flex.json > /dev/null
       - name: Retain exact native geometry from this revision
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-block-bridge
-          path: target/native-bridge/native.json
+          path: |
+            target/native-bridge/native.json
+            target/native-bridge/flex.json
           if-no-files-found: error
           retention-days: 7
 
@@ -123,6 +133,7 @@ jobs:
           BROWSER_NODE_VERSION: '24.21.0'
           BROWSER_ENGINE: ${{ matrix.engine }}
           BROWSER_BRIDGE_NATIVE: target/native-bridge/native.json
+          BROWSER_BRIDGE_FLEX_NATIVE: target/native-bridge/flex.json
           BROWSER_BRIDGE_OUTPUT: target/native-bridge/${{ matrix.engine }}
         run: node --test tools/browser-oracles/hosted/native-bridge.test.mjs
       - name: Retain original native, HTML, browser and comparison evidence
@@ -132,6 +143,7 @@ jobs:
           name: native-bridge-${{ matrix.engine }}
           path: |
             target/native-bridge/native.json
+            target/native-bridge/flex.json
             target/native-bridge/${{ matrix.engine }}/
           if-no-files-found: warn
           retention-days: 7

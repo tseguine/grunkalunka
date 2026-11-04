@@ -27,6 +27,9 @@ const requiredPaths = [
   "tests/browser-oracles/native-block-bridge.mjs",
   "tests/browser-oracles/native-block-bridge.test.mjs",
   "tests/browser-oracles/native-block-bridge-workflow.test.mjs",
+  "tests/browser-oracles/native-flex-bridge.html",
+  "tests/browser-oracles/native-flex-bridge.mjs",
+  "tests/browser-oracles/native-flex-bridge.test.mjs",
   "tests/browser-oracles/compare.mjs",
   "tools/browser-oracles/collect.mjs",
   "tools/browser-oracles/native-bridge-sensitivity.mjs",
@@ -70,10 +73,12 @@ test("real layout artifact feeds one engine's node:test parity and sensitivity s
   assert.match(source, /needs: native/);
   assert.ok(source.includes("engine: [chromium, firefox, webkit]"));
   assert.match(source, /cargo run --locked --offline -p grunkalunka-layout --example native_block_bridge/);
+  assert.match(source, /cargo run --locked --offline -p grunkalunka-layout --example native_flex_bridge/);
   assert.ok(source.includes("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"));
   assert.ok(source.includes("actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333"));
   assert.ok(source.includes("node --test tools/browser-oracles/hosted/native-bridge.test.mjs"));
   assert.ok(source.includes("BROWSER_BRIDGE_NATIVE: target/native-bridge/native.json"));
+  assert.ok(source.includes("BROWSER_BRIDGE_FLEX_NATIVE: target/native-bridge/flex.json"));
   assert.ok(source.includes("BROWSER_ENGINE: ${{ matrix.engine }}"));
   for (const tool of ["native-hit-sensitivity", "native-height-sensitivity"]) {
     assert.ok(!source.includes("node tools/browser-oracles/" + tool + ".mjs"),
@@ -108,6 +113,31 @@ test("height mutation input edits independently retrigger PR and push browser ev
     assert.throws(() => verifyNativeBridgeTriggers(
       source.slice(0, last) + source.slice(last + entry.length)));
   }
+});
+
+test("flex source and comparator edits retrigger the existing engines with a fresh real gap mutation", () => {
+  for (const file of [
+    "tests/browser-oracles/native-flex-bridge.html",
+    "tests/browser-oracles/native-flex-bridge.mjs",
+    "tests/browser-oracles/native-flex-bridge.test.mjs",
+  ]) {
+    const entry = "      - '" + file + "'\n";
+    assert.equal(source.split(entry).length, 3, file + " must appear in both events");
+    assert.throws(() => verifyNativeBridgeTriggers(source.replace(entry, "")));
+    const last = source.lastIndexOf(entry);
+    assert.throws(() => verifyNativeBridgeTriggers(
+      source.slice(0, last) + source.slice(last + entry.length)));
+  }
+  const hosted = readFileSync(new URL("../../tools/browser-oracles/hosted/native-bridge.test.mjs",
+    import.meta.url), "utf8");
+  const parity = hosted.indexOf("fixed-size row geometry, wrapping and input agree");
+  const mutation = hosted.indexOf("real flex column-gap mutation moves one box and changes one hit");
+  assert.ok(parity > 0 && mutation > parity);
+  assert.ok(hosted.includes("compareNativeFlexBridge(flexNative, capture, fixture)"));
+  assert.ok(hosted.includes("compareNativeFlexBridge(flexNative, capture, mutated)"));
+  assert.ok(hosted.includes("assert.deepEqual(report.differences, ["));
+  assert.ok(hosted.includes("$.states.columnGap.boxes.row-c.x"));
+  assert.ok(hosted.includes("$.states.columnGap.hits.gap-wrap"));
 });
 
 test("real engines remain pinned and all report differences as test failures", () => {

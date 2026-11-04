@@ -10,10 +10,12 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectOne } from '../collect.mjs';
 import { compareNativeBlockBridge } from '../../../tests/browser-oracles/native-block-bridge.mjs';
+import { compareNativeFlexBridge } from '../../../tests/browser-oracles/native-flex-bridge.mjs';
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const sourceFile = new URL('../../../tests/browser-oracles/native-block-bridge.html', import.meta.url);
+const flexSourceFile = new URL('../../../tests/browser-oracles/native-flex-bridge.html', import.meta.url);
 
 function checkMutation(tool, engine, nativeFile, outputDir) {
   const executable = fileURLToPath(new URL('../' + tool, import.meta.url));
@@ -30,15 +32,17 @@ test('live native/browser parity and independent negative controls',
     const engine = process.env.BROWSER_ENGINE;
     const output = process.env.BROWSER_BRIDGE_OUTPUT;
     const nativeFile = process.env.BROWSER_BRIDGE_NATIVE;
+    const flexNativeFile = process.env.BROWSER_BRIDGE_FLEX_NATIVE;
     assert.ok(['chromium', 'firefox', 'webkit'].includes(engine), 'known engine required');
     assert.equal(process.versions.node, process.env.BROWSER_NODE_VERSION, 'pinned Node runtime');
     assert.equal(process.env.PLAYWRIGHT_BROWSERS_PATH, '/ms-playwright', 'managed engine image');
-    assert.ok(output && nativeFile, 'explicit native receipt and evidence paths required');
+    assert.ok(output && nativeFile && flexNativeFile, 'explicit native receipts and evidence paths required');
     const version = require('playwright/package.json').version;
     assert.equal(version, '1.64.1', 'pinned reference-engine package');
     const out = resolve(output), nativePath = resolve(nativeFile);
     const browserTypes = await import('playwright');
     const native = JSON.parse(await readFile(nativePath, 'utf8'));
+    const flexNative = JSON.parse(await readFile(resolve(flexNativeFile), 'utf8'));
 
     await t.test('unchanged native geometry and DOM targets agree', async () => {
       const fixture = await readFile(sourceFile);
@@ -66,5 +70,53 @@ test('live native/browser parity and independent negative controls',
     });
     await t.test('real height mutation changes only child height and next sibling y', () => {
       checkMutation('native-height-sensitivity.mjs', engine, nativePath, join(out, 'height-sensitivity'));
+    });
+
+    await t.test('fixed-size row geometry, wrapping and input agree', async () => {
+      const fixture = await readFile(flexSourceFile);
+      const directory = join(out, 'flex');
+      await mkdir(directory, { recursive: true });
+      const snapshot = join(directory, 'snapshot.html');
+      await writeFile(snapshot, fixture, { flag: 'wx', mode: 0o444 });
+      const capture = await collectOne(engine, {
+        browserTypes, playwrightVersion: version, fixturePath: snapshot,
+      });
+      await writeFile(join(directory, 'capture.json'),
+        JSON.stringify(capture, null, 2) + '\n', { flag: 'wx' });
+      const report = compareNativeFlexBridge(flexNative, capture, fixture);
+      await writeFile(join(directory, 'comparison.json'),
+        JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+      assert.equal(report.status, 'equal',
+        JSON.stringify({ invalid: report.invalid, incompatible: report.incompatible,
+          differences: report.differences }));
+    });
+
+    await t.test('real flex column-gap mutation moves one box and changes one hit', async () => {
+      const original = (await readFile(flexSourceFile)).toString('utf8');
+      const originalRule = 'host.style.columnGap = "24px";';
+      assert.equal(original.split(originalRule).length, 2, 'one reviewed CSS gap mutation site');
+      const mutated = Buffer.from(original.replace(originalRule, 'host.style.columnGap = "32px";'));
+      const directory = join(out, 'flex-gap-sensitivity');
+      await mkdir(directory, { recursive: true });
+      const snapshot = join(directory, 'column-gap-mutation.html');
+      await writeFile(snapshot, mutated, { flag: 'wx', mode: 0o444 });
+      // A fresh engine executes changed source. The original native receipt
+      // remains untouched, and provenance authenticates the modified bytes.
+      const capture = await collectOne(engine, {
+        browserTypes, playwrightVersion: version, fixturePath: snapshot,
+      });
+      await writeFile(join(directory, 'capture.json'),
+        JSON.stringify(capture, null, 2) + '\n', { flag: 'wx' });
+      const report = compareNativeFlexBridge(flexNative, capture, mutated);
+      await writeFile(join(directory, 'comparison.json'),
+        JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+      assert.equal(report.status, 'different', 'real CSS gap mutation must be detected');
+      assert.equal(report.conformance, 'not-assessed');
+      assert.deepEqual(report.invalid, []);
+      assert.deepEqual(report.incompatible, []);
+      assert.deepEqual(report.differences, [
+        { kind: 'geometry', path: '$.states.columnGap.boxes.row-c.x', left: 114, right: 122 },
+        { kind: 'hit', path: '$.states.columnGap.hits.gap-wrap', left: 'row-c', right: 'row-host' },
+      ]);
     });
   });
