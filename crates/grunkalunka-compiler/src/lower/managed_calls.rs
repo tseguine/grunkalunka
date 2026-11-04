@@ -31,11 +31,11 @@ fn managed_value_kinds() -> Kinds {
     .into()
 }
 
-fn seed_object_bindings(pattern: &BindingPattern<'_>, bindings: &mut BTreeMap<SymbolId, Kinds>) {
+fn seed_pattern_bindings(pattern: &BindingPattern<'_>, bindings: &mut BTreeMap<SymbolId, Kinds>) {
     // Each selected field uses the boxed property-value lane, even when this
     // source currently supplies a Number. Precise String/container provenance
     // remains in Fields; it must not silently change a local's representation.
-    for (identifier, _) in binding_patterns::object_leaves(pattern) {
+    for identifier in binding_patterns::leaves(pattern) {
         if let Some(symbol) = identifier.symbol_id.get() {
             bindings
                 .entry(symbol)
@@ -412,7 +412,7 @@ pub(crate) fn infer(
                     bindings.entry(symbol).or_default();
                     definitions.push((symbol, v.init.as_ref()));
                 }
-                seed_object_bindings(&v.id, &mut bindings);
+                seed_pattern_bindings(&v.id, &mut bindings);
             }
             AstKind::AssignmentExpression(a) => {
                 if let Some(identifier) = a
@@ -628,7 +628,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     }
     for node in semantic.nodes().iter() {
         if let AstKind::VariableDeclarator(declaration) = node.kind() {
-            seed_object_bindings(&declaration.id, &mut bindings);
+            seed_pattern_bindings(&declaration.id, &mut bindings);
         }
         let AstKind::Function(f) = node.kind() else {
             continue;

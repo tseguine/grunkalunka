@@ -438,7 +438,7 @@ pub(crate) fn general_mutable_bindings(
                             mutable.insert(symbol);
                         }
                     }
-                    for (identifier, _) in binding_patterns::object_leaves(&local.id) {
+                    for identifier in binding_patterns::leaves(&local.id) {
                         if let Some(symbol) = identifier.symbol_id.get() {
                             // A selected field uses the managed carrier and has
                             // no standalone source initializer proving Number.

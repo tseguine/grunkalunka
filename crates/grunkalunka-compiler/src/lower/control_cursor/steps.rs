@@ -273,6 +273,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 value.expect("object binding source"),
                 cursor,
             ),
+            Frame::ArrayBindingSource { sequence, binding } => self.resume_array_binding_source(
+                sequence,
+                binding,
+                output_region,
+                value.expect("array binding source"),
+                cursor,
+            ),
             Frame::ObjectBindingDefault { sequence, active } => self.resume_object_binding_default(
                 sequence,
                 *active,
@@ -532,6 +539,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::EvaluateFactoryValue { .. }
             | Frame::DeclarationValue { .. }
             | Frame::ObjectBindingSource { .. }
+            | Frame::ArrayBindingSource { .. }
             | Frame::ObjectBindingDefault { .. }
             | Frame::CheckedDeclarationClosure { .. }
             | Frame::MaterializedDeclaration { .. }

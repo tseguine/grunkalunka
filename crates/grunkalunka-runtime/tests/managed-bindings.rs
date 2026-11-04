@@ -227,7 +227,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {x,...rest}={x:a,y:b};return a;",
         "const {child:{x}}={child:{x:a}};return a;",
         "const {items:[x]}={items:[a]};return a;",
-        "const [x]=[a];return a;",
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",
         "const {1:x}={'1':a};return a;",
