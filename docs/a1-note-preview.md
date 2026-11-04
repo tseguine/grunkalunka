@@ -21,6 +21,8 @@ The [live application command](a1-live-application.md) now connects actual brows
 pointer/keyboard input to that same native hit/action/repaint path. A bounded
 worker session keeps native execution off the HTTP event loop; the browser
 displays the supplied native RGB instead of laying out the outline itself.
+The [live package mode](a1-live-package.md) retains the worker and presenter along
+with the same native hosts and portable components for detached execution.
 
 The earlier single-activation development command remains available:
 

@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test, { after, before } from 'node:test';
 import { parseLiveArguments, startLiveNote } from '../../examples/note-preview/live-run.mjs';
 import { compileUiService } from '../../examples/note-preview/service-interaction.mjs';
+import { liveSessionPackageInputs, packageNoteSession,
+  parseSessionPackageArguments } from '../../examples/note-preview/session-package.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const target = resolve(root, process.env.CARGO_TARGET_DIR ?? 'target');
@@ -260,3 +263,218 @@ test('live CLI has explicit grants and accepts no external bind address or dupli
     assert.throws(() => parseLiveArguments(args), /usage/);
   }
 });
+
+function detachedEnvironment(cwd) {
+  return { ...process.env, CARGO_TARGET_DIR: join(cwd, 'absent-build-target'),
+    PATH: join(cwd, 'no-build-tools') };
+}
+
+async function launchDetachedLive(t, entry, args, cwd) {
+  const child = spawn(process.execPath, [entry, ...args], {
+    cwd, shell: false, env: detachedEnvironment(cwd), stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stderr = '';
+  let stdout = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', chunk => {
+    stderr += chunk;
+    if (stderr.length > 1024 * 1024) child.kill('SIGKILL');
+  });
+  const exited = new Promise(resolveExit => child.once('close', (code, signal) =>
+    resolveExit({ code, signal })));
+  let stopped;
+  function stop() {
+    stopped ??= (async () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+      const timer = setTimeout(() => child.kill('SIGKILL'), 15_000);
+      try {
+        return await exited;
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
+    return stopped;
+  }
+  t.after(stop);
+  const url = await new Promise((resolveLaunch, rejectLaunch) => {
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) rejectLaunch(error);
+      else resolveLaunch(value);
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(new Error('Detached live startup timed out: ' + stderr));
+    }, 120_000);
+    child.once('error', error => finish(error));
+    child.once('close', (code, signal) => finish(new Error(
+      `Detached live command exited before launch (${code ?? signal}): ${stderr}`)));
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', chunk => {
+      stdout += chunk;
+      if (stdout.length > 1024 * 1024) {
+        child.kill('SIGKILL');
+        finish(new Error('Detached live command exceeded its output bound'));
+        return;
+      }
+      const newline = stdout.indexOf('\n');
+      if (newline === -1) return;
+      try {
+        const receipt = JSON.parse(stdout.slice(0, newline));
+        assert.deepEqual(Object.keys(receipt), ['url']);
+        assert.equal(new URL(receipt.url).hostname, '127.0.0.1');
+        finish(null, receipt.url);
+      } catch (error) {
+        child.kill('SIGKILL');
+        finish(error);
+      }
+    });
+  });
+  return { url, stop, output: () => stdout };
+}
+
+function packagedClient(url) {
+  const parsed = new URL(url);
+  const origin = parsed.origin;
+  const headers = { 'x-a1-session': parsed.hash.slice(1), Origin: origin };
+  async function frame() {
+    const response = await fetch(origin + '/frame', { headers });
+    assert.equal(response.status, 200);
+    return response.json();
+  }
+  async function input() {
+    const response = await fetch(origin + '/input', {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x: 24, y: 16 }),
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  }
+  return { origin, headers, frame, input };
+}
+
+test('detached live bundle runs its retained component and native frames outside the checkout',
+  { timeout: 300_000 }, async t => {
+    const cwd = await mkdtemp(join(scratch, 'detached-live-'));
+    const bundle = join(cwd, 'live bundle é & spaces');
+    const unrelated = join(cwd, 'unrelated working directory');
+    await mkdir(unrelated);
+    const detachedNote = join(unrelated, 'note with spaces.md');
+    await writeFile(detachedNote, '# Detached Root\n## Detached Child\n');
+    const packaged = await packageNoteSession({ out: bundle, live: true });
+    assert.equal(packaged.manifest.kind, 'a1-note-live-host-bundle');
+    assert.deepEqual(packaged.manifest.files.map(file => file.path).sort(),
+      [...liveSessionPackageInputs, 'artifacts/action.component.wasm'].sort());
+    assert.equal(packaged.manifest.files.filter(file => file.role === 'portable-wasm').length, 2);
+    assert.equal(packaged.manifest.files.filter(file => file.role === 'native-host').length, 3);
+    const retainedComponent = await readFile(join(bundle, 'artifacts/action.component.wasm'));
+    assert.deepEqual(retainedComponent, component);
+    assert.equal(packaged.manifest.files.find(file => file.path === 'artifacts/action.component.wasm').sha256,
+      createHash('sha256').update(component).digest('hex'));
+    for (const path of ['examples/note-preview/activate.js', 'tools/build/compile.mjs',
+      'Cargo.toml', 'target/debug/grunkalunka' + (process.platform === 'win32' ? '.exe' : '')]) {
+      await assert.rejects(access(join(bundle, path)), { code: 'ENOENT' });
+    }
+    const entry = join(bundle, 'examples/note-preview/session-bundle-entry.mjs');
+    const detached = await launchDetachedLive(t, entry,
+      ['--profile', 'granted', '--note', 'note with spaces.md'], unrelated);
+    const client = packagedClient(detached.url);
+    const initial = await client.frame();
+    assert.deepEqual([initial.sequence, initial.expanded, initial.visibleCount], [0, 1, 2]);
+    assert.equal(Buffer.from(initial.pixels, 'base64').length, 320 * 160 * 3);
+    const asset = await fetch(client.origin + '/client.mjs');
+    assert.equal(asset.status, 200);
+    assert.deepEqual(Buffer.from(await asset.arrayBuffer()),
+      await readFile(join(bundle, 'examples/note-preview/live-client.mjs')));
+    const collapsed = await client.input();
+    assert.deepEqual([collapsed.sequence, collapsed.expanded, collapsed.visibleCount], [1, 0, 0]);
+    assert.notEqual(collapsed.pixels, initial.pixels);
+    const reopened = await client.input();
+    assert.deepEqual([reopened.sequence, reopened.expanded, reopened.visibleCount], [2, 1, 2]);
+    assert.equal(reopened.pixels, initial.pixels);
+    assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), retainedComponent);
+    assert.equal(await readFile(detachedNote, 'utf8'), '# Detached Root\n## Detached Child\n');
+
+    const manifestBytes = await readFile(join(bundle, 'manifest.json'));
+    await assert.rejects(packageNoteSession({ out: bundle, live: true }), /already exists/);
+    assert.deepEqual(await readFile(join(bundle, 'manifest.json')), manifestBytes);
+    assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), retainedComponent);
+    const closed = await detached.stop();
+    if (process.platform !== 'win32') assert.equal(closed.code, 0);
+    assert.equal(detached.output(), JSON.stringify({ url: detached.url }) + '\n',
+      'the live entry prints exactly one launch receipt');
+    await assert.rejects(fetch(client.origin + '/frame', { headers: client.headers }));
+  });
+
+test('live packages preserve custom components and verify the complete payload before app imports',
+  { timeout: 300_000 }, async t => {
+    const cwd = await mkdtemp(join(scratch, 'custom-live-'));
+    const bundle = join(cwd, 'retained live bundle');
+    const customComponent = compileUiService({ executable: service,
+      source: 'import { selectVisible } from "grunkalunka:a1/ui";\n' +
+        'export function run(a,b) { return selectVisible(a,b); }' });
+    const componentFile = join(cwd, 'keep-outline.component.wasm');
+    await writeFile(componentFile, customComponent);
+    await packageNoteSession({ out: bundle, componentFile, live: true });
+    assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), customComponent);
+    const entry = join(bundle, 'examples/note-preview/session-bundle-entry.mjs');
+    const { runPackagedSession } = await import(pathToFileURL(entry).href);
+    const app = await runPackagedSession(['--profile', 'granted', '--note', note]);
+    t.after(() => app.close());
+    assert.equal(typeof app.close, 'function');
+    assert.equal(new URL(app.url).origin, app.origin);
+    const client = packagedClient(app.url);
+    const initial = await client.frame();
+    const kept = await client.input();
+    assert.deepEqual([kept.sequence, kept.expanded, kept.visibleCount], [1, 1, 2]);
+    assert.equal(kept.pixels, initial.pixels, 'the retained handler keeps the view instead of toggling it');
+    await app.close();
+
+    function rejectedLaunch(args = ['--profile', 'granted', '--note', join(cwd, 'absent-secret.md')]) {
+      const result = spawnSync(process.execPath, [entry, ...args], {
+        cwd, shell: false, env: detachedEnvironment(cwd),
+        timeout: 60_000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024,
+      });
+      assert.equal(result.error, undefined);
+      assert.equal(result.signal, null);
+      assert.equal(result.status, 1, result.stderr?.toString('utf8'));
+      assert.equal(result.stdout.toString('utf8'), '');
+      return result.stderr.toString('utf8');
+    }
+    for (const path of ['examples/note-preview/live-client.mjs', 'examples/note-preview/live-run.mjs']) {
+      const saved = await readFile(join(bundle, path));
+      await writeFile(join(bundle, path), 'throw new Error("must-not-import-damaged-live-module");');
+      const failure = rejectedLaunch();
+      assert.match(failure, /checksum mismatch/);
+      assert.doesNotMatch(failure, /must-not-import-damaged-live-module|absent-secret|ENOENT/);
+      await writeFile(join(bundle, path), saved);
+    }
+    const manifestPath = join(bundle, 'manifest.json');
+    const originalManifest = await readFile(manifestPath);
+    for (const change of [
+      manifest => { manifest.kind = 'a1-note-session-host-bundle'; },
+      manifest => { manifest.kind = 'unknown-live-bundle'; },
+      manifest => { manifest.files = manifest.files.filter(file =>
+        file.path !== 'examples/note-preview/session-worker.mjs'); },
+    ]) {
+      const modified = JSON.parse(originalManifest.toString('utf8'));
+      change(modified);
+      await writeFile(manifestPath, JSON.stringify(modified));
+      assert.match(rejectedLaunch(), /invalid manifest/);
+    }
+    await writeFile(manifestPath, originalManifest);
+    assert.match(rejectedLaunch(['--profile', 'denied', '--component', componentFile]),
+      /use their retained component/);
+
+    assert.deepEqual(parseSessionPackageArguments(['--live', '--out', bundle, '--component', componentFile]),
+      { live: true, out: bundle, componentFile });
+    for (const args of [['--live'], ['--out', bundle, '--live', '--live'],
+      ['--out', bundle, '--live', 'false']]) {
+      assert.throws(() => parseSessionPackageArguments(args), /usage/);
+    }
+    await assert.rejects(packageNoteSession({ out: join(cwd, 'invalid-mode'), live: 'yes' }),
+      /Invalid A1 session package arguments/);
+  });

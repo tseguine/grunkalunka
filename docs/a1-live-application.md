@@ -25,6 +25,8 @@ rectangle into native pixels, so resizing the page does not move the hit target.
 The process listens on `127.0.0.1` and chooses an available port. `--port NUMBER`
 can select a particular port; there is no external bind option. Stop the command
 with Ctrl+C. Startup failures do not leave a listening server or session worker.
+The [live package mode](a1-live-package.md) retains this application for execution
+outside the checkout without recompilation.
 
 Other explicit options:
 
