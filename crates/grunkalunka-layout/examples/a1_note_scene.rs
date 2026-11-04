@@ -3,8 +3,9 @@
 //! A trusted host passes only validated visible WIT heading records over stdin;
 //! no note source, path, network or guest capability enters this process.
 
-use grunkalunka_layout::hit_test::{HitNode, hit_test};
-use grunkalunka_layout::paint::{PaintNode, Rgb, paint};
+use grunkalunka_layout::Rect;
+use grunkalunka_layout::hit_test::{HitNode, hit_test_scrolled};
+use grunkalunka_layout::paint::{PaintNode, Rgb, paint_scrolled};
 use grunkalunka_layout::semantic::{Element, ElementKind, default_style, layout_semantic};
 use std::fmt::Write as _;
 use std::io::{self, Read, Write};
@@ -18,6 +19,7 @@ const MAX_WIRE_BYTES: usize = 24 * 1024;
 const MAX_SOURCE_BYTES: u32 = 4096;
 const MAX_LABEL_BYTES: usize = 4096;
 const MAX_HEADINGS: usize = 64;
+const USAGE: &str = "usage: a1_note_scene --report|--ppm|--view|--hit X Y [--scroll-y U32]";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Profile {
@@ -209,17 +211,20 @@ fn parse(input: &str) -> Result<Note, String> {
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
-    let output = args
-        .next()
-        .ok_or("usage: a1_note_scene --report|--ppm|--hit X Y")?;
+    let output = args.next().ok_or(USAGE)?;
     let hit = if output == "--hit" {
         let x: u32 = decimal(&args.next().ok_or("missing hit X")?, "hit X")?;
         let y: u32 = decimal(&args.next().ok_or("missing hit Y")?, "hit Y")?;
         Some((x, y))
-    } else if matches!(output.as_str(), "--report" | "--ppm") {
+    } else if matches!(output.as_str(), "--report" | "--ppm" | "--view") {
         None
     } else {
-        return Err("usage: a1_note_scene --report|--ppm|--hit X Y".into());
+        return Err(USAGE.into());
+    };
+    let scroll_y: u32 = match args.next().as_deref() {
+        None => 0,
+        Some("--scroll-y") => decimal(&args.next().ok_or("missing scroll Y")?, "scroll Y")?,
+        Some(_) => return Err("unexpected A1 scene arguments".into()),
     };
     if args.next().is_some() {
         return Err("unexpected A1 scene arguments".into());
@@ -308,7 +313,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             border: None,
         })
         .collect();
-    let mut canvas = paint(&semantic.frame, &paints, Rgb::WHITE)
+    // The native painter rejects offsets beyond the document extent. Its
+    // canvas also translates document-space bitmap ink by this same offset.
+    let mut canvas = paint_scrolled(&semantic.frame, &paints, Rgb::WHITE, 0, scroll_y)
         .map_err(|error| io::Error::other(format!("native RGB paint: {error:?}")))?;
     for (node, plan) in text_plans {
         let content = semantic.frame.boxes[node]
@@ -318,23 +325,23 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|error| io::Error::other(format!("A1 text painting: {error:?}")))?;
     }
 
+    // The opt-in session protocol keeps one stable toggle target even
+    // while collapsed. Legacy scenes retain their heading-only targets.
+    let targets: Vec<_> = elements
+        .iter()
+        .enumerate()
+        .map(|(index, node)| HitNode {
+            parent: node.parent,
+            targetable: if note.control.is_some() {
+                toggle_enabled && index == 2
+            } else {
+                index >= 4 && index < 4 + note.headings.len()
+            },
+        })
+        .collect();
     let mut stdout = io::stdout().lock();
     if let Some((x, y)) = hit {
-        // The opt-in session protocol keeps one stable toggle target even
-        // while collapsed. Legacy scenes retain their heading-only targets.
-        let targets: Vec<_> = elements
-            .iter()
-            .enumerate()
-            .map(|(index, node)| HitNode {
-                parent: node.parent,
-                targetable: if note.control.is_some() {
-                    toggle_enabled && index == 2
-                } else {
-                    index >= 4 && index < 4 + note.headings.len()
-                },
-            })
-            .collect();
-        let selected = hit_test(&semantic.frame, &targets, x, y)
+        let selected = hit_test_scrolled(&semantic.frame, &targets, x, y, 0, scroll_y)
             .map_err(|error| io::Error::other(format!("native A1 hit test: {error:?}")))?;
         if note.control.is_some() {
             writeln!(
@@ -355,6 +362,42 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else if output == "--ppm" {
         stdout.write_all(&canvas.ppm())?;
+    } else if output == "--view" {
+        let mut control_point = None;
+        if toggle_enabled {
+            let viewport = Rect {
+                x: 0,
+                y: scroll_y,
+                width: VIEW_WIDTH,
+                height: VIEW_HEIGHT,
+            };
+            let visible = semantic.frame.boxes[2]
+                .ok_or("A1 control lost its layout box")?
+                .border
+                .intersection(viewport)
+                .ok_or("A1 control viewport overflow")?;
+            if visible.width > 0 && visible.height > 0 {
+                let x = visible.x + visible.width / 2;
+                let y = visible.y - scroll_y + visible.height / 2;
+                let selected = hit_test_scrolled(&semantic.frame, &targets, x, y, 0, scroll_y)
+                    .map_err(|error| {
+                        io::Error::other(format!("native A1 control hit test: {error:?}"))
+                    })?;
+                if selected != Some(2) {
+                    return Err("visible A1 control point is not targetable".into());
+                }
+                control_point = Some((x, y));
+            }
+        }
+        let (control_x, control_y) = control_point.map_or_else(
+            || ("none".to_owned(), "none".to_owned()),
+            |(x, y)| (x.to_string(), y.to_string()),
+        );
+        writeln!(
+            stdout,
+            "A1VIEW1\t{VIEW_WIDTH}\t{VIEW_HEIGHT}\t{}\t{scroll_y}\t{control_x}\t{control_y}",
+            semantic.frame.scroll_height
+        )?;
     } else {
         writeln!(
             stdout,

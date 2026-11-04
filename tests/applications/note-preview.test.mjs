@@ -358,8 +358,8 @@ function parseNativeScene(output) {
     scrollHeight: Number(scrollHeight), anchors };
 }
 
-function checkedScenePpm(executable, input) {
-  const result = spawnSync(executable, ['--ppm'], {
+function checkedScenePpm(executable, input, args = []) {
+  const result = spawnSync(executable, ['--ppm', ...args], {
     cwd: projectRoot, input, shell: false, encoding: null,
     timeout: 30_000, killSignal: 'SIGKILL', maxBuffer: 512 * 1024,
   });
@@ -375,6 +375,25 @@ function checkedScenePpm(executable, input) {
 function ppmRgb(ppm, x, y) {
   const offset = Buffer.byteLength('P6\n320 160\n255\n') + (320 * y + x) * 3;
   return [...ppm.subarray(offset, offset + 3)];
+}
+
+function nativeScrollScene(session) {
+  // A bounded private-protocol fixture, not a substitute for the real WIT test.
+  // Each source heading is four bytes ("# A\n", with "# Z\n" as the final row).
+  const rows = Array.from({ length: 64 }, (_, index) =>
+    `1\t${index * 4}\t${(index + 1) * 4}\t${(index + 1) * 4}\t-1\t${index === 63 ? '5a' : '41'}\n`)
+    .join('');
+  return session ? `A1SCENE2\tgranted\t256\t64\t1\t64\t1\n${rows}`
+    : `A1SCENE1\tgranted\t256\t64\t1\n${rows}`;
+}
+
+function parseNativeView(output) {
+  assert.match(output,
+    /^A1VIEW1\t320\t160\t\d+\t\d+\t(?:\d+\t\d+|none\tnone)\n$/);
+  const [, width, height, scrollHeight, scrollY, x, y] = output.trimEnd().split('\t');
+  return { width: Number(width), height: Number(height),
+    scrollHeight: Number(scrollHeight), scrollY: Number(scrollY),
+    control: x === 'none' ? null : { x: Number(x), y: Number(y) } };
 }
 
 test('native A1 session scene keeps a reversible control with distinct hit identity',
@@ -445,6 +464,150 @@ test('native A1 session scene keeps a reversible control with distinct hit ident
     assert.deepEqual(legacyFrame.anchors.slice(1), shownFrame.anchors.slice(1));
   });
 
+test('native A1 viewport keeps zero-offset output and inert scenes compatible', () => {
+  const executable = nativeExample('a1_note_scene');
+  const inert = [
+    'A1SCENE1\tgranted\t0\t0\t1\n',
+    'A1SCENE1\tdenied\t0\t0\t0\n',
+    'A1SCENE2\tgranted\t0\t0\t1\t0\t0\n',
+    'A1SCENE2\tdenied\t0\t0\t0\t0\t0\n',
+  ];
+  const collapsed = 'A1SCENE2\tgranted\t256\t0\t1\t64\t0\n';
+  for (const input of [...inert, collapsed, nativeScrollScene(false), nativeScrollScene(true)]) {
+    for (const args of [['--report'], ['--view'], ['--hit', '24', '16'],
+      ['--hit', '24', '40'], ['--hit', '320', '160']]) {
+      assert.equal(checkedCommand(executable, [...args, '--scroll-y', '0'], input),
+        checkedCommand(executable, args, input));
+    }
+    assert.deepEqual(checkedScenePpm(executable, input, ['--scroll-y', '0']),
+      checkedScenePpm(executable, input));
+  }
+  for (const input of inert) {
+    assert.equal(checkedCommand(executable, ['--view'], input),
+      'A1VIEW1\t320\t160\t160\t0\tnone\tnone\n');
+  }
+  const view = parseNativeView(checkedCommand(executable, ['--view'], collapsed));
+  assert.equal(view.scrollHeight, 160);
+  assert.equal(view.scrollY, 0);
+  assert.ok(view.control);
+  assert.equal(checkedCommand(executable,
+    ['--hit', String(view.control.x), String(view.control.y)], collapsed), 'A1HIT2\ttoggle\n');
+});
+
+test('native A1 viewport translates pixels and hits through the full admitted outline', () => {
+  const executable = nativeExample('a1_note_scene');
+  const input = nativeScrollScene(false);
+  const report = checkedCommand(executable, ['--report'], input);
+  const frame = parseNativeScene(report);
+  // 64 rows at 18px + 2px margin, starting at y=40, plus 6px list
+  // margin and 8px main padding. These extents do not come from --view.
+  assert.equal(frame.scrollHeight, 1334);
+  assert.deepEqual(frame.anchors.at(-1), {
+    node: 67, x: 24, y: 1300, width: 288, height: 18,
+    start: 252, end: 256, level: 1, text: 'Z',
+  });
+  assert.equal(checkedCommand(executable, ['--view'], input),
+    'A1VIEW1\t320\t160\t1334\t0\tnone\tnone\n');
+  const initial = checkedScenePpm(executable, input);
+  const scrollY = 44;
+  const scrolled = checkedScenePpm(executable, input, ['--scroll-y', String(scrollY)]);
+  const headerBytes = Buffer.byteLength('P6\n320 160\n255\n');
+  assert.deepEqual(scrolled.subarray(headerBytes, headerBytes + (160 - scrollY) * 320 * 3),
+    initial.subarray(headerBytes + scrollY * 320 * 3),
+    'every overlapping pixel translates together, including backgrounds and clipped ink');
+  assert.deepEqual(ppmRgb(scrolled, 24, 0), [87, 164, 118]);
+  assert.deepEqual(ppmRgb(scrolled, 26, 0), [0, 0, 0],
+    'the partially clipped first A still paints its visible glyph row');
+  assert.equal(checkedCommand(executable, ['--hit', '24', '0', '--scroll-y', '44'], input),
+    'A1HIT1\t0\t0\t4\t1\n');
+  assert.equal(checkedCommand(executable, ['--hit', '24', '16', '--scroll-y', '44'], input),
+    'A1HIT1\t1\t4\t8\t1\n');
+  assert.equal(checkedCommand(executable, ['--report', '--scroll-y', '44'], input), report,
+    'A1FRAME1 remains a document-space report');
+
+  const bottom = checkedScenePpm(executable, input, ['--scroll-y', '1174']);
+  assert.equal(checkedCommand(executable, ['--view', '--scroll-y', '1174'], input),
+    'A1VIEW1\t320\t160\t1334\t1174\tnone\tnone\n');
+  assert.deepEqual(ppmRgb(bottom, 24, 126), [237, 183, 84],
+    'the last heading background is visible at the maximum offset');
+  // The final Z is an independent visible-ink oracle below the original viewport.
+  const zRows = [31, 1, 2, 4, 8, 16, 31];
+  for (const [row, bits] of zRows.entries()) {
+    for (let column = 0; column < 5; column++) {
+      assert.deepEqual(ppmRgb(bottom, 26 + column, 128 + row),
+        bits & (1 << (4 - column)) ? [0, 0, 0] : [237, 183, 84]);
+    }
+  }
+  assert.equal(checkedCommand(executable, ['--hit', '24', '126', '--scroll-y', '1174'], input),
+    'A1HIT1\t63\t252\t256\t1\n');
+  for (const [x, y] of [[24, 144], [320, 126], [24, 160]]) {
+    assert.equal(checkedCommand(executable,
+      ['--hit', String(x), String(y), '--scroll-y', '1174'], input), 'A1HIT1\tnone\n');
+  }
+});
+
+test('native A1 viewport reports a native-hit-tested control until its last visible pixel', () => {
+  const executable = nativeExample('a1_note_scene');
+  const input = nativeScrollScene(true);
+  for (const scrollY of [0, 8, 16, 31]) {
+    const view = parseNativeView(checkedCommand(executable,
+      ['--view', '--scroll-y', String(scrollY)], input));
+    assert.equal(view.scrollHeight, 1334);
+    assert.equal(view.scrollY, scrollY);
+    assert.ok(view.control);
+    assert.ok(view.control.x >= 8 && view.control.x < 312);
+    assert.ok(view.control.y >= Math.max(0, 8 - scrollY) && view.control.y < 32 - scrollY);
+    assert.equal(checkedCommand(executable, ['--hit', String(view.control.x),
+      String(view.control.y), '--scroll-y', String(scrollY)], input), 'A1HIT2\ttoggle\n');
+    const ppm = checkedScenePpm(executable, input, ['--scroll-y', String(scrollY)]);
+    assert.deepEqual(ppmRgb(ppm, 311, view.control.y), [54, 107, 178]);
+  }
+  for (const scrollY of [32, 1174]) {
+    assert.equal(checkedCommand(executable, ['--view', '--scroll-y', String(scrollY)], input),
+      `A1VIEW1\t320\t160\t1334\t${scrollY}\tnone\tnone\n`);
+    assert.equal(checkedCommand(executable, ['--hit', '24', '16', '--scroll-y', String(scrollY)], input),
+      'A1HIT2\tnone\n', 'an old control coordinate cannot activate an offscreen title');
+  }
+});
+
+test('native A1 viewport rejects invalid arguments and out-of-range offsets before output', () => {
+  const executable = nativeExample('a1_note_scene');
+  const input = nativeScrollScene(true);
+  const invalid = [
+    [], ['--scroll-y', '0', '--view'], ['--view', '--unknown', '0'],
+    ['--view', '--scroll-y'], ['--view', '--scroll-y', '0', '--scroll-y', '0'],
+    ['--view', '--scroll-y', '0', 'extra'], ['--hit', '--scroll-y', '0', '24', '16'],
+    ...['-1', '4294967296', '1.5', 'NaN'].map(value => ['--view', '--scroll-y', value]),
+  ];
+  // CLI errors precede stdin reads. Avoid an early-exit EPIPE while requiring
+  // an argument diagnostic, so an empty-scene rejection cannot mask a regression.
+  const cases = invalid.map(args => ({ input: '', args, argumentError: true }));
+  for (const args of [['--view'], ['--report'], ['--ppm'], ['--hit', '24', '16']]) {
+    cases.push({ input, args: [...args, '--scroll-y', '1175'] });
+    for (const empty of [
+      'A1SCENE2\tgranted\t256\t0\t1\t64\t0\n',
+      'A1SCENE2\tgranted\t0\t0\t1\t0\t0\n',
+      'A1SCENE2\tdenied\t0\t0\t0\t0\t0\n',
+    ]) {
+      cases.push({ input: empty, args: [...args, '--scroll-y', '1'] });
+    }
+  }
+  for (const { input, args, argumentError } of cases) {
+    const result = spawnSync(executable, args, {
+      cwd: projectRoot, input, shell: false, encoding: null,
+      timeout: 30_000, killSignal: 'SIGKILL', maxBuffer: 256 * 1024,
+    });
+    if (result.error) throw result.error;
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `rejected arguments ${JSON.stringify(args)}`);
+    assert.equal(result.stdout.length, 0, 'invalid viewport cannot emit metadata, pixels or hits');
+    if (argumentError) {
+      assert.match(result.stderr.toString('utf8'),
+        /^A1 native note scene: (?:usage:|unexpected A1 scene arguments|missing scroll Y|invalid decimal (?:hit X|scroll Y))/);
+    }
+  }
+});
+
 test('native A1 session scene rejects contradictory control state before output',
   { timeout: 120_000 }, () => {
     const executable = nativeExample('a1_note_scene');
@@ -468,7 +631,7 @@ test('native A1 session scene rejects contradictory control state before output'
       'A1SCENE2\tgranted\t20\t0\t1\t1\t0\n1\t0\t5\t20\t-1\t61\n',
     ];
     for (const [index, input] of cases.entries()) {
-      for (const args of [['--ppm'], ['--hit', '24', '16']]) {
+      for (const args of [['--ppm'], ['--view'], ['--hit', '24', '16']]) {
         const result = spawnSync(executable, args, {
           cwd: projectRoot, input, shell: false, encoding: null,
           timeout: 30_000, killSignal: 'SIGKILL', maxBuffer: 256 * 1024,
