@@ -3,7 +3,7 @@
 // component Store; this does not retain guest globals or establish a public UI ABI.
 import { spawnSync } from 'node:child_process';
 import { prepareSelectedNoteScene } from './scene.mjs';
-import { invokeUiService, paintNoteScene } from './service-interaction.mjs';
+import { inspectNoteViewport, invokeUiService, paintNoteScene } from './service-interaction.mjs';
 
 const COMPONENT_HEADER = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
 const MAX_COMPONENT = 4 * 1024 * 1024;
@@ -64,8 +64,9 @@ function sessionScene(document, expanded) {
 
 const copyScene = scene => ({ ...scene, input: Buffer.from(scene.input) });
 
-function hitControl(executable, scene, x, y) {
-  const result = spawnSync(executable, ['--hit', String(x), String(y)], {
+function hitControl(executable, scene, x, y, scrollY) {
+  const result = spawnSync(executable, ['--hit', String(x), String(y),
+    ...(scrollY === 0 ? [] : ['--scroll-y', String(scrollY)])], {
     input: scene.input, shell: false, encoding: 'utf8', timeout: 60_000,
     killSignal: 'SIGKILL', maxBuffer: 4096,
   });
@@ -93,12 +94,40 @@ export function createNoteSession({
   const count = owned.headings.length;
   let currentExpanded = owned.profile === 'granted' && count > 0 && expanded === 1 ? 1 : 0;
   let currentScene = sessionScene(owned, currentExpanded);
+  let currentViewport = inspectNoteViewport(executable, currentScene);
   let currentPixels = paintNoteScene(executable, currentScene);
   let eventsProcessed = 0;
 
   function snapshot() {
     return { expanded: currentExpanded, visibleCount: currentScene.visibleCount,
-      scene: copyScene(currentScene), pixels: Buffer.from(currentPixels), eventsProcessed };
+      scene: copyScene(currentScene), pixels: Buffer.from(currentPixels), eventsProcessed,
+      scrollY: currentViewport.scrollY, maxScrollY: currentViewport.maxScrollY,
+      controlPoint: currentViewport.controlPoint === null ? null : { ...currentViewport.controlPoint } };
+  }
+
+  function nextAttempt() {
+    if (eventsProcessed >= maxEvents) throw new RangeError('A1 session event limit exceeded');
+    return ++eventsProcessed;
+  }
+
+  function scrollTo(y) {
+    if (!Number.isSafeInteger(y) || y < 0 || y > 0xffffffff) {
+      throw new TypeError('Invalid A1 session scroll offset');
+    }
+    const sequence = nextAttempt();
+    const beforeScrollY = currentViewport.scrollY;
+    const status = owned.profile === 'granted' && uiProfile === 'granted' ? 'ok' : 'denied';
+    const nextY = Math.min(y, currentViewport.maxScrollY);
+    if (status === 'ok' && nextY !== beforeScrollY) {
+      const nextViewport = inspectNoteViewport(executable, currentScene, nextY);
+      const nextPixels = paintNoteScene(executable, currentScene, nextY);
+      // Viewport metadata and pixels form one publication. Failed inspection or
+      // paint consumes the attempt while retaining the complete preceding view.
+      currentViewport = nextViewport;
+      currentPixels = nextPixels;
+    }
+    return { sequence, status, changed: currentViewport.scrollY !== beforeScrollY,
+      beforeScrollY, scrollY: currentViewport.scrollY, pixels: Buffer.from(currentPixels) };
   }
 
   function activate({ x, y }) {
@@ -106,14 +135,13 @@ export function createNoteSession({
         x < 0 || y < 0 || x > 0xffffffff || y > 0xffffffff) {
       throw new TypeError('Invalid A1 session pointer');
     }
-    if (eventsProcessed >= maxEvents) throw new RangeError('A1 session event limit exceeded');
     // Count a valid attempt before native execution. Misses, policy failures and
     // traps cannot evade the session budget by leaving the view unchanged.
-    const sequence = ++eventsProcessed;
+    const sequence = nextAttempt();
     const beforeExpanded = currentExpanded;
     const before = currentScene;
     const previousPixels = currentPixels;
-    const target = hitControl(executable, before, x, y);
+    const target = hitControl(executable, before, x, y, currentViewport.scrollY);
     let service = null;
     let activated = false;
     if (target !== null) {
@@ -125,11 +153,16 @@ export function createNoteSession({
       if (service.status === 'ok' && service.transitions > 0) {
         const nextExpanded = service.visible === count ? 1 : 0;
         const nextScene = sessionScene(owned, nextExpanded);
-        const nextPixels = paintNoteScene(executable, nextScene);
+        const topViewport = inspectNoteViewport(executable, nextScene);
+        const nextY = Math.min(currentViewport.scrollY, topViewport.maxScrollY);
+        const nextViewport = nextY === 0 ? topViewport :
+          inspectNoteViewport(executable, nextScene, nextY);
+        const nextPixels = paintNoteScene(executable, nextScene, nextY);
         // Commit only after the native frame succeeds. A service failure, trap
         // or failed paint leaves the preceding successful scene intact.
         currentExpanded = nextExpanded;
         currentScene = nextScene;
+        currentViewport = nextViewport;
         currentPixels = nextPixels;
         activated = true;
       }
@@ -140,5 +173,5 @@ export function createNoteSession({
       pixels: Buffer.from(currentPixels), service };
   }
 
-  return Object.freeze({ snapshot, activate });
+  return Object.freeze({ snapshot, activate, scrollTo });
 }

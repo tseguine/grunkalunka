@@ -19,6 +19,7 @@ const serviceExecutable = native('a1_ui_action');
 const pointer = Object.freeze({ x: 24, y: 16 });
 let scratch;
 let document;
+let longDocument;
 let deniedDocument;
 let component;
 
@@ -44,6 +45,10 @@ before(async () => {
   const note = join(scratch, 'outline.md');
   await writeFile(note, '# Root\r\n## Child\n');
   document = await loadNoteDocument({ profile: 'granted', note, binaryTarget: target });
+  const longNote = join(scratch, 'long-outline.md');
+  await writeFile(longNote, Array.from({ length: 64 }, (_, i) =>
+    '# Heading ' + (i + 1)).join('\n') + '\n');
+  longDocument = await loadNoteDocument({ profile: 'granted', note: longNote, binaryTarget: target });
   deniedDocument = await loadNoteDocument({ profile: 'denied',
     note: join(scratch, 'absent-private-note.md'), binaryTarget: target });
   const source = await readFile(new URL('../../examples/note-preview/activate.js', import.meta.url), 'utf8');
@@ -119,6 +124,8 @@ test('worker inputs, queued pointers and every returned frame are owned copies',
     exposed.scene.input.fill(0);
     exposed.scene.html = 'Caller HTML';
     exposed.expanded = 0;
+    exposed.controlPoint.x = 319;
+    exposed.controlPoint.y = 159;
     assert.deepEqual(active.snapshot(), initial);
 
     const inputPointer = { ...pointer };
@@ -214,6 +221,9 @@ test('invalid transport inputs fail before native work and never occupy the even
       { x: 0.5, y: 0 }, { x: 0xffffffff + 1, y: 0 }]) {
       await assert.rejects(active.activate(invalid), { name: 'TypeError', message: 'Invalid A1 session pointer' });
     }
+    for (const y of [-1, 0.5, Infinity, NaN, 0x100000000, '10', undefined]) {
+      await assert.rejects(active.scrollTo(y), { name: 'TypeError', message: 'Invalid A1 session scroll offset' });
+    }
     assert.equal(active.snapshot().eventsProcessed, 0);
     assert.equal((await active.activate({ x: 0, y: 0 })).sequence, 1);
   });
@@ -222,13 +232,14 @@ test('close rejects dispatched and queued inputs, keeps the last frame and is id
   { timeout: 120_000 }, async () => {
     const active = await session();
     const initial = active.snapshot();
-    const results = Promise.allSettled([active.activate(pointer), active.activate(pointer)]);
+    const results = Promise.allSettled([active.scrollTo(10), active.activate(pointer)]);
     const closed = active.close();
     assert.equal(active.close(), closed);
     const rejected = await results;
     assert.deepEqual(rejected.map(result => [result.status, result.reason?.code]),
       [['rejected', 'A1_SESSION_CLOSED'], ['rejected', 'A1_SESSION_CLOSED']]);
     await assert.rejects(active.activate(pointer), { code: 'A1_SESSION_CLOSED' });
+    await assert.rejects(active.scrollTo(0), { code: 'A1_SESSION_CLOSED' });
     assert.deepEqual(active.snapshot(), initial);
     await closed;
     const exposed = active.snapshot();
@@ -246,9 +257,9 @@ test('failed initialization and unexpected worker exit settle callers and releas
     const actualPost = Worker.prototype.postMessage;
     let lostWorker = false;
     const intercepted = t.mock.method(Worker.prototype, 'postMessage', function(message, ...args) {
-      if (message?.type === 'activate') {
+      if (message?.type === 'scroll') {
         // Fault injection only: lose the real initialized worker before it
-        // receives the activation. Ordinary service tests above use real input.
+        // receives the scroll. Ordinary service tests above use real input.
         lostWorker = true;
         void this.terminate();
         return;
@@ -256,14 +267,65 @@ test('failed initialization and unexpected worker exit settle callers and releas
       return actualPost.call(this, message, ...args);
     });
     try {
-      const results = await Promise.allSettled([active.activate(pointer), active.activate(pointer)]);
+      const results = await Promise.allSettled([active.scrollTo(10), active.activate(pointer)]);
       assert.equal(lostWorker, true);
       assert.deepEqual(results.map(result => [result.status, result.reason?.code]),
         [['rejected', 'A1_WORKER_FAILED'], ['rejected', 'A1_WORKER_FAILED']]);
       await assert.rejects(active.activate(pointer), { code: 'A1_WORKER_FAILED' });
+      await assert.rejects(active.scrollTo(0), { code: 'A1_WORKER_FAILED' });
       assert.deepEqual(active.snapshot(), initial);
       await active.close();
     } finally {
       intercepted.mock.restore();
+    }
+  });
+
+test('scroll and pointer inputs share one ordered native queue and lifetime budget',
+  { timeout: 120_000 }, async t => {
+    const active = await session({ document: longDocument, maxPending: 4, maxEvents: 4 });
+    t.after(() => active.close());
+    const initial = active.snapshot();
+    assert.ok(initial.maxScrollY > 160 && initial.controlPoint);
+    const operations = [active.scrollTo(0xffffffff), active.activate(pointer),
+      active.scrollTo(16), active.scrollTo(0)];
+    assert.deepEqual(active.snapshot(), initial, 'unfinished native work is not published early');
+    await assert.rejects(active.scrollTo(0), { code: 'A1_QUEUE_FULL' });
+    const results = await Promise.all(operations);
+    assert.deepEqual(results.map(value => value.sequence), [1, 2, 3, 4]);
+    assert.equal(results[0].scrollY, initial.maxScrollY);
+    assert.notDeepEqual(results[0].pixels, initial.pixels);
+    assert.equal(results[1].target, null, 'scrolled native hit cannot activate the offscreen title');
+    assert.equal(results[1].service, null);
+    assert.equal(results[2].scrollY, 16);
+    assert.equal(results[3].scrollY, 0);
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 4 });
+    results[3].pixels.fill(0);
+    const exposed = active.snapshot();
+    exposed.controlPoint.x = 0;
+    exposed.maxScrollY = 0;
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 4 });
+    await assert.rejects(active.activate(pointer), { code: 'A1_EVENT_LIMIT' });
+    await assert.rejects(active.scrollTo(80), { code: 'A1_EVENT_LIMIT' });
+  });
+
+test('worker execution rechecks mixed-operation quotas and keeps scroll denial authoritative',
+  { timeout: 120_000 }, async t => {
+    const limited = await session({ document: longDocument, maxPending: 2, maxEvents: 1 });
+    t.after(() => limited.close());
+    const first = limited.scrollTo(80);
+    const rejected = assert.rejects(limited.activate(pointer), { code: 'A1_EVENT_LIMIT' });
+    assert.equal((await first).sequence, 1);
+    await rejected;
+    assert.deepEqual([limited.snapshot().scrollY, limited.snapshot().eventsProcessed], [80, 1]);
+    for (const options of [{ document: deniedDocument },
+      { document: longDocument, uiProfile: 'denied' }]) {
+      const active = await session({ ...options, maxEvents: 1 });
+      t.after(() => active.close());
+      const initial = active.snapshot();
+      const result = await active.scrollTo(0xffffffff);
+      assert.deepEqual([result.status, result.changed, result.scrollY, result.sequence],
+        ['denied', false, 0, 1]);
+      assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 1 });
+      await assert.rejects(active.scrollTo(0), { code: 'A1_EVENT_LIMIT' });
     }
   });

@@ -59,12 +59,18 @@ const copyScene = scene => ({ html: scene.html, visibleCount: scene.visibleCount
   input: Buffer.from(scene.input) });
 const copySnapshot = snapshot => ({ expanded: snapshot.expanded,
   visibleCount: snapshot.visibleCount, eventsProcessed: snapshot.eventsProcessed,
-  scene: copyScene(snapshot.scene), pixels: Buffer.from(snapshot.pixels) });
+  scene: copyScene(snapshot.scene), pixels: Buffer.from(snapshot.pixels),
+  scrollY: snapshot.scrollY, maxScrollY: snapshot.maxScrollY,
+  controlPoint: snapshot.controlPoint === null ? null :
+    { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y } });
 const copyAction = action => ({ sequence: action.sequence, target: action.target,
   activated: action.activated, changed: action.changed, beforeExpanded: action.beforeExpanded,
   expanded: action.expanded, before: copyScene(action.before), after: copyScene(action.after),
   previousPixels: Buffer.from(action.previousPixels), pixels: Buffer.from(action.pixels),
   service: action.service === null ? null : { ...action.service } });
+const copyScroll = action => ({ sequence: action.sequence, status: action.status,
+  changed: action.changed, beforeScrollY: action.beforeScrollY, scrollY: action.scrollY,
+  pixels: Buffer.from(action.pixels) });
 
 function codedError(code, message, ErrorType = Error) {
   const error = new ErrorType(message);
@@ -131,7 +137,7 @@ export async function createAsyncNoteSession(arguments_) {
     if (state !== 'open' || current !== null || queued.length === 0) return;
     current = queued.shift();
     try {
-      worker.postMessage({ type: 'activate', id: current.id, pointer: current.pointer });
+      worker.postMessage({ type: current.type, id: current.id, ...current.input });
     } catch (error) {
       fail(error);
     }
@@ -155,7 +161,8 @@ export async function createAsyncNoteSession(arguments_) {
       // Even failed native actions consume an attempt and return the preceding
       // committed view. Publish that snapshot before settling the input promise.
       const snapshot = copySnapshot(message.snapshot);
-      const result = message.ok ? copyAction(message.result) : receivedError(message.error);
+      const result = message.ok ? (current.type === 'activate'
+        ? copyAction(message.result) : copyScroll(message.result)) : receivedError(message.error);
       const request = current;
       current = null;
       latest = snapshot;
@@ -188,19 +195,35 @@ export async function createAsyncNoteSession(arguments_) {
           x < 0 || y < 0 || x > 0xffffffff || y > 0xffffffff) {
         throw new TypeError('Invalid A1 session pointer');
       }
-      if (latest.eventsProcessed >= options.maxEvents) {
-        throw codedError('A1_EVENT_LIMIT', 'A1 session event limit exceeded', RangeError);
-      }
-      if (queued.length + (current === null ? 0 : 1) >= maxPending) {
-        throw codedError('A1_QUEUE_FULL', 'A1 session input queue is full', RangeError);
-      }
-      return new Promise((resolve, reject) => {
-        queued.push({ id: ++nextId, pointer: { x, y }, resolve, reject });
-        dispatch();
-      });
+      return submit('activate', { pointer: { x, y } });
     } catch (error) {
       return Promise.reject(error);
     }
+  }
+
+  function scrollTo(y) {
+    try {
+      if (state !== 'open') throw terminalError;
+      if (!Number.isSafeInteger(y) || y < 0 || y > 0xffffffff) {
+        throw new TypeError('Invalid A1 session scroll offset');
+      }
+      return submit('scroll', { y });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  function submit(type, input) {
+    if (latest.eventsProcessed >= options.maxEvents) {
+      throw codedError('A1_EVENT_LIMIT', 'A1 session event limit exceeded', RangeError);
+    }
+    if (queued.length + (current === null ? 0 : 1) >= maxPending) {
+      throw codedError('A1_QUEUE_FULL', 'A1 session input queue is full', RangeError);
+    }
+    return new Promise((resolve, reject) => {
+      queued.push({ id: ++nextId, type, input, resolve, reject });
+      dispatch();
+    });
   }
 
   function close() {
@@ -220,5 +243,5 @@ export async function createAsyncNoteSession(arguments_) {
     await stopWorker().catch(() => {});
     throw error;
   }
-  return Object.freeze({ snapshot, activate, close });
+  return Object.freeze({ snapshot, activate, scrollTo, close });
 }
