@@ -37,12 +37,13 @@ record the two next architectural seams. A known accepted-source
 [for-let closure bug #334](https://github.com/tseguine/grunkalunka/issues/334)
 needs correction.
 
-The A1 host already has authorized Markdown inspection and a headless native
-hit/state/repaint experiment. A [separate source-to-WIT scalar import](a1-ui-source-import.md)
-calls a real Rust service; it has not been connected to the A1 input and paint
-cycle. [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
-requires that integration, readable glyphs and shared Rust/JS service behavior,
-**not** a general DOM implementation. Native-stack-sensitive compiler and JSON
+The A1 application update of 2026-11-04 connects authorized Markdown inspection,
+native input, source-to-WIT service calls and readable native repaint.
+[Owned sessions](a1-session-replay.md) retain host view state across repeated
+inputs, with [detached interaction packaging](a1-session-package.md).
+[A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
+still requires the typed view/resource interface and application-facing Rust/JS
+parity; a general DOM implementation is not a prerequisite. Native-stack-sensitive compiler and JSON
 paths have received iterative refactors; [#281](https://github.com/tseguine/grunkalunka/issues/281)
 tracks remaining cases. CLI diagnostics are [opt-in](observability.md).
 

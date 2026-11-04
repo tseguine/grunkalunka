@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import test, { before } from 'node:test';
 import { parseInteractionArguments, runInteraction } from '../../examples/note-preview/interact.mjs';
 import { compileUiService } from '../../examples/note-preview/service-interaction.mjs';
 import { parseSessionArguments, runNoteSession } from '../../examples/note-preview/session-run.mjs';
+import { packageNoteSession, parseSessionPackageArguments, sessionPackageInputs } from '../../examples/note-preview/session-package.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const entry = join(root, 'examples/note-preview/interact.mjs');
@@ -309,4 +310,131 @@ test('session input rejects a FIFO without waiting for a writer',
       assert.equal(result.status, 1);
       assert.match(result.stderr.toString('utf8'), /must be a regular file/);
     }
+  });
+
+test('detached session bundle executes its retained component and native hosts outside the checkout',
+  { timeout: 300_000 }, async t => {
+    const cwd = await workspace(t);
+    const bundle = join(cwd, 'session bundle é & spaces');
+    const note = join(cwd, 'granted note.md');
+    const eventsPath = join(cwd, 'events.json');
+    await writeFile(note, '# Packaged\n## Child\n');
+    await writeFile(eventsPath, JSON.stringify([{ x: 24, y: 16 }, { x: 24, y: 16 }]));
+    const packaged = await packageNoteSession({ out: bundle });
+    assert.equal(packaged.manifest.kind, 'a1-note-session-host-bundle');
+    assert.deepEqual(packaged.manifest.files.map(file => file.path).sort(),
+      [...sessionPackageInputs, 'artifacts/action.component.wasm'].sort());
+    assert.equal(packaged.manifest.files.filter(file => file.role === 'portable-wasm').length, 2);
+    assert.equal(packaged.manifest.files.filter(file => file.role === 'native-host').length, 3);
+    for (const path of ['examples/note-preview/activate.js', 'tools/build/compile.mjs',
+      'Cargo.toml', 'target/debug/grunkalunka' + (process.platform === 'win32' ? '.exe' : '')]) {
+      await assert.rejects(access(join(bundle, path)), { code: 'ENOENT' });
+    }
+    const entry = join(bundle, 'examples/note-preview/session-bundle-entry.mjs');
+    function bundled(args, selectedEntry = entry) {
+      return spawnSync(process.execPath, [selectedEntry, ...args], {
+        cwd, shell: false, timeout: 120_000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024,
+        env: { ...process.env, CARGO_TARGET_DIR: join(cwd, 'missing-build-target'),
+          PATH: join(cwd, 'no-build-tools') },
+      });
+    }
+    const out = join(cwd, 'packaged result');
+    const granted = bundled(['--profile', 'granted', '--note', note,
+      '--events', eventsPath, '--out', out]);
+    assert.equal(granted.error, undefined);
+    assert.equal(granted.signal, null);
+    assert.equal(granted.status, 0, granted.stderr?.toString('utf8'));
+    const receipt = JSON.parse(await readFile(join(out, 'receipt.json'), 'utf8'));
+    assert.deepEqual(receipt.events.map(event => event.visible), [0, 2]);
+    assert.deepEqual([receipt.attemptedReads, receipt.backingReads, receipt.cleanups], [1, 1, 1]);
+    assert.equal(receipt.initialFrameSha256, receipt.finalFrameSha256);
+    assert.deepEqual(await readFile(join(out, 'action.component.wasm')),
+      await readFile(join(bundle, 'artifacts/action.component.wasm')));
+    assert.match(await readFile(join(out, 'index.html'), 'utf8'), />Packaged<\/li>/);
+    assert.equal(await readFile(note, 'utf8'), '# Packaged\n## Child\n');
+
+    const denied = bundled(['--profile', 'denied', '--note', join(cwd, 'missing-secret.md'),
+      '--events', eventsPath, '--out', join(cwd, 'packaged denied')]);
+    assert.equal(denied.status, 0, denied.stderr?.toString('utf8'));
+    const deniedReceipt = JSON.parse(denied.stdout.toString('utf8'));
+    assert.deepEqual([deniedReceipt.backingReads, deniedReceipt.cleanups], [0, 1]);
+    assert.deepEqual(deniedReceipt.events.map(event => event.service), [null, null]);
+    const uiDenied = bundled(['--profile', 'granted', '--ui-profile', 'denied',
+      '--note', note, '--events', eventsPath, '--out', join(cwd, 'packaged ui denied')]);
+    assert.equal(uiDenied.status, 0, uiDenied.stderr?.toString('utf8'));
+    const uiReceipt = JSON.parse(uiDenied.stdout.toString('utf8'));
+    assert.deepEqual(uiReceipt.events.map(event => event.service.status), ['denied', 'denied']);
+    assert.deepEqual(uiReceipt.events.map(event => event.visible), [2, 2]);
+
+    if (process.platform !== 'win32') {
+      const alias = join(cwd, 'linked-session-bundle');
+      await symlink(bundle, alias, 'dir');
+      const linked = bundled(['--profile', 'denied', '--events', eventsPath,
+        '--out', join(cwd, 'symlinked session')],
+      join(alias, 'examples/note-preview/session-bundle-entry.mjs'));
+      assert.equal(linked.status, 0, linked.stderr?.toString('utf8'));
+      assert.equal(JSON.parse(linked.stdout.toString('utf8')).eventsProcessed, 2);
+    }
+    await assert.rejects(packageNoteSession({ out: bundle }), /already exists/);
+
+    // Integrity failures must be detected before app imports or note access.
+    for (const path of ['artifacts/action.component.wasm', 'examples/note-preview/session.mjs']) {
+      const original = await readFile(join(bundle, path));
+      await writeFile(join(bundle, path), 'throw new Error("must-not-import-corrupted-payload");');
+      const failureOut = join(cwd, 'corrupted-' + path.split('/').at(-1));
+      const failed = bundled(['--profile', 'granted', '--note', join(cwd, 'missing-note.md'),
+        '--events', eventsPath, '--out', failureOut]);
+      assert.equal(failed.status, 1);
+      assert.match(failed.stderr.toString('utf8'), /checksum mismatch/);
+      await assert.rejects(access(failureOut), { code: 'ENOENT' });
+      await writeFile(join(bundle, path), original);
+    }
+    const manifestPath = join(bundle, 'manifest.json');
+    const originalManifest = await readFile(manifestPath);
+    const changedManifest = JSON.parse(originalManifest.toString('utf8'));
+    changedManifest.files.find(file => file.path.includes('/a1_ui_action')).sha256 = '0'.repeat(64);
+    await writeFile(manifestPath, JSON.stringify(changedManifest));
+    const badHost = bundled(['--profile', 'granted', '--note', join(cwd, 'missing-note.md'),
+      '--events', eventsPath, '--out', join(cwd, 'wrong-native-host')]);
+    assert.equal(badHost.status, 1);
+    assert.match(badHost.stderr.toString('utf8'), /checksum mismatch.*a1_ui_action/);
+    await writeFile(manifestPath, originalManifest);
+    const override = bundled(['--profile', 'denied', '--events', eventsPath,
+      '--out', join(cwd, 'override'), '--component', join(out, 'action.component.wasm')]);
+    assert.equal(override.status, 1);
+    assert.match(override.stderr.toString('utf8'), /use their retained component/);
+  });
+
+test('session packaging can retain an existing mutated source component without recompiling it',
+  { timeout: 180_000 }, async t => {
+    const cwd = await workspace(t);
+    const component = compileUiService({ executable: serviceExecutable,
+      source: 'import { selectVisible } from "grunkalunka:a1/ui";\n' +
+        'export function run(a, b) { return selectVisible(a, b); }' });
+    const componentFile = join(cwd, 'keep-view.component.wasm');
+    await writeFile(componentFile, component);
+    const bundle = join(cwd, 'custom bundle');
+    await packageNoteSession({ out: bundle, componentFile });
+    assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), component);
+    const note = join(cwd, 'note.md');
+    const eventsPath = join(cwd, 'events.json');
+    await writeFile(note, '# Retained\n');
+    await writeFile(eventsPath, '[{"x":24,"y":16}]');
+    const result = spawnSync(process.execPath, [
+      join(bundle, 'examples/note-preview/session-bundle-entry.mjs'),
+      '--profile', 'granted', '--note', note, '--events', eventsPath, '--out', join(cwd, 'result'),
+    ], { cwd, shell: false, timeout: 120_000, killSignal: 'SIGKILL' });
+    assert.equal(result.status, 0, result.stderr?.toString('utf8'));
+    const receipt = JSON.parse(result.stdout.toString('utf8'));
+    assert.deepEqual([receipt.events[0].activated, receipt.events[0].changed, receipt.visible],
+      [true, false, 1]);
+    assert.equal(receipt.initialFrameSha256, receipt.finalFrameSha256);
+    assert.deepEqual(parseSessionPackageArguments(['--out', bundle, '--component', componentFile]),
+      { out: bundle, componentFile });
+    for (const args of [[], ['--out'], ['--out', bundle, '--out', 'duplicate'],
+      ['--out', bundle, '--other', 'x']]) {
+      assert.throws(() => parseSessionPackageArguments(args), /usage/);
+    }
+    await assert.rejects(packageNoteSession({ out: join(cwd, 'oversized'),
+      componentWasm: Buffer.alloc(4 * 1024 * 1024 + 1) }), /Invalid A1 session package arguments/);
   });

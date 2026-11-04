@@ -1,6 +1,6 @@
 # A1 candidate: source-scripted Markdown outline presentation
 
-## Current application stack (2026-11-03)
+## Current application stack (2026-11-04)
 
 The maintainer has assigned an independent A1 application stack from master,
 with the ongoing IR feature train retaining compiler/lowering ownership. The
@@ -10,7 +10,14 @@ action state and native reflow/paint. A native Rust control exercises the same
 private scalar action. The [bitmap text service](a1-bitmap-text.md) now paints
 printable ASCII, wraps long labels and keeps pointer geometry in step with text.
 
-The single-activation development command is:
+The application now retains an owned document and native view across repeated
+input. Its stable outline control remains targetable when collapsed, so the
+same compiled handler can collapse and reopen the outline. The
+[session replay command](a1-session-replay.md) saves every input outcome and
+native frame; the [detached interaction bundle](a1-session-package.md) runs the
+retained component outside the checkout without recompilation.
+
+The earlier single-activation development command remains available:
 
 ```sh
 node examples/note-preview/build.mjs
@@ -22,12 +29,15 @@ component bytes and an action receipt. See the interaction guide for replay
 and denial. Hosted validation and native stack membership are tracked in the
 implementation PRs; checked-in tests are not an execution receipt.
 
-A1 remains **Planned** against its full acceptance criteria. This stack exercises
-one headless source-driven transition. The collapsed panel remains inert; general
-Unicode typography, persistent application state/input, typed record/resource
-views and an interactive distribution still need work. It does not select a final
-public API or require changes in the IR stream. The existing local package below
-continues to package the older static preview, not the new interaction command.
+A1 remains **Planned** against its full acceptance criteria. Repeated headless
+source-driven input, owned host state, readable bitmap repaint and a detached
+interaction package are now implemented. Each action still starts a fresh guest
+Store. General Unicode typography, a window/device loop and typed record/resource
+views remain open; [the typed interface handoff #483](https://github.com/tseguine/grunkalunka/issues/483)
+is separate compiler/application coordination. This stack does not select a final
+public API or change compiler/IR files. The local package described in the
+historical sections below packages the older static preview; the current
+interaction bundle has its own entry and manifest.
 
 The sections below retain the earlier static-preview demonstrations and dated
 steering. Statements that source interaction or glyphs are absent describe those

@@ -44,6 +44,10 @@ still runs in the existing fresh component Store with its own fuel/call limits.
 No window/device loop, writable note, generic DOM or public typed view ABI is
 established by this adapter.
 
+The [session command](a1-session-replay.md) replays bounded event files and saves
+per-event native frames. The [detached bundle](a1-session-package.md) retains the
+compiled component and native hosts for execution outside the source checkout.
+
 The existing canonical `a1-service-interaction.test.mjs` suite covers real JS/TS
 collapse/reopen cycles, source-selected state, return decoys, denial/empty
 documents, rollback and fuel traps, ownership and input quotas. An additional
