@@ -67,6 +67,12 @@ async function application(t, options = {}) {
     reload: (value = {}, extra) => post('/reload', value, extra) };
 }
 
+async function fetchStatus(url, options) {
+  const response = await fetch(url, options);
+  await response.arrayBuffer();
+  return response.status;
+}
+
 function rawRequest(url, { headers = {}, body, incomplete = false } = {}) {
   return new Promise((resolveResponse, rejectResponse) => {
     const req = request(url, { method: body === undefined ? 'GET' : 'POST', headers }, response => {
@@ -126,16 +132,16 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     assert.ok(!html.includes('Live Root'));
     assert.ok(!html.includes(note));
     for (const path of ['/client.mjs', '/style.css']) {
-      assert.equal((await fetch(app.origin + path)).status, 200);
+      assert.equal(await fetchStatus(app.origin + path), 200);
     }
     for (const path of ['/note.md', '/manifest.json', '/frame?token=' + token,
       '/%2e%2e/Cargo.toml', '/input', '/scroll', '/reload', '/reload?note=other.md']) {
-      assert.equal((await fetch(app.origin + path, { headers })).status, 404);
+      assert.equal(await fetchStatus(app.origin + path, { headers }), 404);
     }
-    assert.equal((await fetch(app.origin + '/frame')).status, 403);
-    assert.equal((await fetch(app.origin + '/frame', {
+    assert.equal(await fetchStatus(app.origin + '/frame'), 403);
+    assert.equal(await fetchStatus(app.origin + '/frame', {
       headers: { ...headers, Origin: 'https://foreign.example' },
-    })).status, 403);
+    }), 403);
     assert.equal((await rawRequest(app.origin + '/frame', {
       headers: { ...headers, Host: 'foreign.example' },
     })).status, 403);
