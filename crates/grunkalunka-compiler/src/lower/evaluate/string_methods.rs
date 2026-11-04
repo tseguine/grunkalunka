@@ -36,8 +36,7 @@ impl Lowering<'_, '_> {
             let argument = argument
                 .as_expression()
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
-            let needle =
-                matches!(task.method, Method::StartsWith | Method::Includes) && task.argument == 0;
+            let needle = task.method.search() && task.argument == 0;
             if needle && !self.stored.string(argument.node_id()) {
                 return Err(unsupported(
                     argument,
@@ -59,22 +58,16 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(argument, depth, mode));
             return Ok(());
         }
-        let search = matches!(task.method, Method::StartsWith | Method::Includes);
-        if search && task.inputs[0].is_none() {
+        if task.method.search() && task.inputs[0].is_none() {
             return Err(unsupported(
                 task.node,
                 "String search requires a known String needle",
             ));
         }
-        let defaults = if search {
-            [0.0, 0.0]
-        } else {
-            [0.0, f64::INFINITY]
-        };
         for (input, default) in task
             .inputs
             .iter_mut()
-            .zip(defaults)
+            .zip(task.method.defaults())
             .take(task.method.arguments())
         {
             if input.is_none() {
@@ -111,12 +104,16 @@ impl Lowering<'_, '_> {
                 input,
                 index: first(),
             },
-            Method::StartsWith | Method::Includes => Op::ManagedStringSearch {
+            Method::StartsWith | Method::Includes | Method::EndsWith => Op::ManagedStringSearch {
                 result,
                 input,
                 search: first(),
                 position: task.inputs[1].expect("completed String search position"),
-                includes: matches!(task.method, Method::Includes),
+                kind: match task.method {
+                    Method::StartsWith => ir::StringSearch::StartsWith,
+                    Method::Includes => ir::StringSearch::Includes,
+                    _ => ir::StringSearch::EndsWith,
+                },
             },
             Method::Trim | Method::TrimStart | Method::TrimEnd => Op::ManagedStringTrim {
                 result,

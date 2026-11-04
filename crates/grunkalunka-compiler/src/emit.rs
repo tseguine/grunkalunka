@@ -382,17 +382,17 @@ impl Emitter<'_> {
                 input,
                 search,
                 position,
-                includes,
+                kind,
             } => {
                 self.get(*input);
                 self.get(*search);
                 self.get(*position);
-                writeln!(
-                    self.output,
-                    "i32.const {}\ncall $gc_string_search",
-                    i32::from(*includes)
-                )
-                .unwrap();
+                let mode = match kind {
+                    ir::StringSearch::StartsWith => 0,
+                    ir::StringSearch::Includes => 1,
+                    ir::StringSearch::EndsWith => 2,
+                };
+                writeln!(self.output, "i32.const {mode}\ncall $gc_string_search").unwrap();
                 self.set(*result);
             }
             Op::ManagedStringTrim {

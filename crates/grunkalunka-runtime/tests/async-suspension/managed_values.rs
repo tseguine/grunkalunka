@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn string_ends_with_saves_arguments_and_boolean_results_across_awaits() {
+    compare_promises(
+        &[
+            "let s='abc';const found=s.endsWith((await a,s='changed','bc'),(await b,3));await a;return found&&s==='changed'?1:0;",
+            "let needle='bc';const found='abc'.endsWith(needle,void(await a,needle='changed'));await b;return found&&needle==='changed'?1:0;",
+            "let n=0;const found=(n=1,'abc').endsWith((await a,n=n*10+2,'bc'),void(await b,n=n*10+3),(await a,n=n*10+4));await b;return found?n:-1;",
+            "await a;return 'abc'.endsWith('bc',void(await b));",
+            "const found='abc'.endsWith('missing');await a;return found;",
+            "let n=0;'abc'.endsWith((await a,n=1,'bc'),(await b,n=n*10+2,3),(await a,n=n*10+3));return n;",
+            "let n=0;try{'abc'.endsWith((await a,'bc'),await Promise.reject(b),n=1);}catch(e){return n;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_trim_preserves_snapshots_and_ignored_argument_effects_across_awaits() {
     compare_promises(
         &[

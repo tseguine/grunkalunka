@@ -60,6 +60,13 @@ pub(crate) enum StringTrim {
     Both,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum StringSearch {
+    StartsWith,
+    Includes,
+    EndsWith,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Type {
     Number,
@@ -575,7 +582,7 @@ pub(crate) enum Op {
         input: ValueId,
         search: ValueId,
         position: ValueId,
-        includes: bool,
+        kind: StringSearch,
     },
     ManagedStringTrim {
         result: ValueId,
