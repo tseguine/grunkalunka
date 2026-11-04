@@ -55,7 +55,7 @@ rectangle map; suppressed boxes remain explicit nulls.
 | `alignCenter` | Width 220, height 60, align items `safe center` | 232×72 | (174,47) | 98 |
 | `wrapAlign` | Wrap, justify `space-between`, align items `safe center` | 162×80 | (26,76) | 106 |
 | `wrapSingle` | Wrap, width 220, height 60, align items `safe flex-end` | 232×72 | (174,50) | 98 |
-| `safeOverflow` | Height 20, justify and align items `safe flex-end` | 162×32 | (174,28) | 58 |
+| `safeOverflow` | Height 20, justify and align items `safe flex-end`, following margin-top 16 | 162×32 | (174,28) | 68 |
 | `relativeAlign` | Width 220, height 60, center both axes, second item displaced by (8,9) | 232×72 | (189,47) | 98 |
 | `clippedAlign` | Width 216, height 28, justify center, align items end, padding-box clipping | 228×40 | (187,36) | 66 |
 | `scrolledAlign` | Same alignment as `alignCenter`, actual page scroll y=10 | 232×72 | (174,47) | 98 |
@@ -79,8 +79,10 @@ follow the aligned subtree.
 `safeOverflow` has negative main-axis free space and two items taller
 than its 20px line. Safe alignment falls back to start for those overflowing
 dimensions while the smaller third item still moves to cross-end. The
-following block receives the `gap-wrap` hit because it paints over the
-overflowing second item. `clippedAlign` separately makes that probe
+following block has a 16px top margin in this phase, placing it at y=68
+without overlapping the overflowing second item. The `gap-wrap` probe
+therefore hits `row-b`. This additional margin resets before the next phase.
+`clippedAlign` separately makes that probe
 distinguish padding-box clipping after alignment: (118,62) lies inside the
 second item's unchanged border rectangle, below the padding clip's bottom
 edge at y=58, and above the following block's y=66. Its target must be null;
@@ -95,6 +97,31 @@ The native example checks its complete final frame against its initial
 frame. The comparator independently requires both native and browser
 baseline rectangles and hit targets to be restored, and requires document
 geometry to agree between `wrap`/`scrolled` and `alignCenter`/`scrolledAlign`.
+
+### Observed paint-order boundary
+
+The first alignment witness at
+[`70c2043153cbc3181b2a69c3788e0f653c3e0a05`](https://github.com/tseguine/grunkalunka/commit/70c2043153cbc3181b2a69c3788e0f653c3e0a05)
+retained the following block's baseline 6px top margin in `safeOverflow`.
+That placed its top at y=58, overlapping the second flex item. The
+[independent three-engine run](https://github.com/tseguine/grunkalunka/actions/runs/41909076116)
+failed with exactly one baseline difference in every engine:
+`safeOverflow.hits.gap-wrap` was `row-after` natively and `row-b` in the
+browser. Every measured rectangle and every other hit agreed. Both flex
+source controls rejected the same additional baseline mismatch.
+
+The native experiment retains tree-order painting and hit testing.
+[CSS Flexbox item painting](https://www.w3.org/TR/css-flexbox-1/#painting)
+instead uses inline-block painting, with ordinary in-flow block backgrounds
+and borders appearing earlier in the
+[CSS painting order](https://www.w3.org/TR/CSS22/zindex.html#painting-order).
+The revised phase keeps its safe-alignment geometry and overflow, and moves
+the following block clear of the item. This bounds the alignment witness;
+it does not implement the observed flex-versus-block paint-order difference.
+[Issue #533](https://github.com/tseguine/grunkalunka/issues/533) retains the
+reproduction and completion criterion for that separate engine behavior.
+All 126 rectangle slots,
+189 hit slots, and exact live source controls remain required.
 
 ## Source validation and negative controls
 

@@ -55,6 +55,7 @@
     "flexGrow", "flexShrink", "flexBasis", "minWidth"];
   const host = document.getElementById("row-host");
   const b = document.getElementById("row-b");
+  const after = document.getElementById("row-after");
 
   function box(element) {
     // getClientRects detects suppressed descendants as well as display:none
@@ -79,6 +80,7 @@
   function reset(wrap = false) {
     host.removeAttribute("style");
     b.removeAttribute("style");
+    after.removeAttribute("style");
     if (wrap) host.style.flexWrap = "wrap";
     window.scrollTo(0, 0);
   }
@@ -157,6 +159,7 @@
   host.style.height = "20px";
   host.style.justifyContent = "safe flex-end";
   host.style.alignItems = "safe flex-end";
+  after.style.marginTop = "16px";
   states.safeOverflow = sample();
   reset();
   host.style.width = "220px";

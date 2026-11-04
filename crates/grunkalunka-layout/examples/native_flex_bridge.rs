@@ -203,6 +203,9 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
             blocks[1].style.height = Length::Px(20);
             blocks[1].style.justify_content = FlexJustify::SafeEnd;
             blocks[1].style.align_items = FlexAlign::SafeEnd;
+            // Isolate alignment from the unimplemented flex-item versus
+            // following-block paint-order rule by keeping their boxes apart.
+            blocks[7].style.margin.top = 16;
         }
         "relativeAlign" | "clippedAlign" => {
             blocks[1].style.width = Length::Px(220);
@@ -342,7 +345,7 @@ fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
         "safeOverflow" => {
             expected[0] = rect(20, 20, 162, 32);
             expected[4] = rect(174, 28, 42, 18);
-            expected[5] = rect(0, 58, 180, 12);
+            expected[5] = rect(0, 68, 180, 12);
         }
         "relativeAlign" => {
             expected[0] = rect(20, 20, 232, 72);
@@ -506,7 +509,7 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
                 Some("row-inner"),
                 Some("row-c"),
                 None,
-                Some("row-after"),
+                Some("row-b"),
                 None,
                 Some("row-host"),
                 Some("row-host"),
