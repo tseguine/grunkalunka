@@ -17,8 +17,11 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const target = resolve(root, process.env.CARGO_TARGET_DIR ?? 'target');
 const service = join(target, 'debug', 'examples',
   'a1_ui_action' + (process.platform === 'win32' ? '.exe' : ''));
+const longSource = Array.from({ length: 24 }, (_, index) =>
+  '# Heading ' + String(index + 1).padStart(2, '0') + '\n').join('');
 let scratch;
 let note;
+let longNote;
 let component;
 
 before(async () => {
@@ -31,6 +34,8 @@ before(async () => {
   scratch = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-live-'));
   note = join(scratch, 'private note with spaces.md');
   await writeFile(note, '# Live Root\n## Live Child\n');
+  longNote = join(scratch, 'long private note.md');
+  await writeFile(longNote, longSource);
   component = compileUiService({ executable: service,
     source: await readFile(new URL('../../examples/note-preview/activate.js', import.meta.url), 'utf8') });
 }, { timeout: 600_000 });
@@ -49,14 +54,16 @@ async function application(t, options = {}) {
     assert.equal(response.status, 200);
     return response.json();
   };
-  const input = async (value, extra = {}) => {
-    const response = await fetch(app.origin + '/input', {
+  const post = async (path, value, extra = {}) => {
+    const response = await fetch(app.origin + path, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(value), ...extra,
     });
     return { status: response.status, body: await response.json() };
   };
-  return { app, token, headers, frame, input };
+  return { app, token, headers, frame,
+    input: (value, extra) => post('/input', value, extra),
+    scroll: (value, extra) => post('/scroll', value, extra) };
 }
 
 function rawRequest(url, { headers = {}, body, incomplete = false } = {}) {
@@ -74,7 +81,7 @@ function rawRequest(url, { headers = {}, body, incomplete = false } = {}) {
   });
 }
 
-function pipelinedInput(origin, token) {
+function pipelinedInput(origin, token, path = '/input', value = { x: 24, y: 16 }) {
   return new Promise((resolveResponse, rejectResponse) => {
     const url = new URL(origin);
     const socket = connect({ host: url.hostname, port: Number(url.port) });
@@ -84,9 +91,9 @@ function pipelinedInput(origin, token) {
     socket.on('data', chunk => chunks.push(chunk));
     socket.on('end', () => resolveResponse(Buffer.concat(chunks).toString('utf8')));
     socket.once('connect', () => {
-      const body = JSON.stringify({ x: 24, y: 16 });
+      const body = JSON.stringify(value);
       socket.write('GET / HTTP/1.1\r\nHost: ' + url.host + '\r\n\r\n' +
-        'POST /input HTTP/1.1\r\nHost: ' + url.host + '\r\nx-a1-session: ' + token +
+        'POST ' + path + ' HTTP/1.1\r\nHost: ' + url.host + '\r\nx-a1-session: ' + token +
         '\r\nContent-Type: application/json\r\nContent-Length: ' + Buffer.byteLength(body) +
         '\r\n\r\n' + body);
     });
@@ -101,7 +108,10 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     const initial = await frame();
     assert.deepEqual([initial.schemaVersion, initial.width, initial.height, initial.sequence,
       initial.expanded, initial.visibleCount, initial.canActivate, initial.remainingEvents],
-    [1, 320, 160, 0, 1, 2, true, 4]);
+    [2, 320, 160, 0, 1, 2, true, 4]);
+    assert.deepEqual([initial.scrollY, initial.maxScrollY, initial.canScroll], [0, 0, false]);
+    assert.ok(initial.controlPoint.x >= 0 && initial.controlPoint.x < 320);
+    assert.ok(initial.controlPoint.y >= 0 && initial.controlPoint.y < 160);
     assert.equal(Buffer.from(initial.pixels, 'base64').length, 320 * 160 * 3);
 
     const page = await fetch(app.origin + '/');
@@ -117,7 +127,7 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
       assert.equal((await fetch(app.origin + path)).status, 200);
     }
     for (const path of ['/note.md', '/manifest.json', '/frame?token=' + token,
-      '/%2e%2e/Cargo.toml', '/input']) {
+      '/%2e%2e/Cargo.toml', '/input', '/scroll']) {
       assert.equal((await fetch(app.origin + path, { headers })).status, 404);
     }
     assert.equal((await fetch(app.origin + '/frame')).status, 403);
@@ -171,23 +181,117 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     await assert.rejects(fetch(app.origin + '/frame', { headers }));
   });
 
+test('live scrolling traverses native long notes with shared authority, ordering and attempt bounds',
+  { timeout: 180_000 }, async t => {
+    const { app, token, headers, frame, input, scroll } = await application(t,
+      { note: longNote, maxEvents: 8 });
+    const initial = await frame();
+    assert.deepEqual([initial.schemaVersion, initial.sequence, initial.scrollY,
+      initial.visibleCount, initial.canActivate, initial.canScroll], [2, 0, 0, 24, true, true]);
+    assert.ok(initial.maxScrollY > initial.height);
+    assert.ok(initial.controlPoint.y > 0);
+
+    assert.equal((await scroll({ y: 1 }, { headers: { 'Content-Type': 'application/json' } })).status, 403);
+    for (const forbidden of [{ Origin: 'https://foreign.example' }, { Host: 'foreign.example' }]) {
+      const rejected = await rawRequest(app.origin + '/scroll', {
+        headers: { ...headers, ...forbidden, 'Content-Type': 'application/json', 'Content-Length': '20' },
+        body: '{', incomplete: true,
+      });
+      assert.equal(rejected.status, 403, 'foreign authority is rejected before completing a body');
+    }
+    assert.equal((await scroll({ y: 1 }, {
+      headers: { ...headers, 'Content-Type': 'text/plain' },
+    })).status, 415);
+    for (const value of [null, [], {}, { x: 1, y: 1 }, { y: 1, expanded: 0 },
+      { y: -1 }, { y: 0.5 }, { y: '1' }, { y: 0x1_0000_0000 }]) {
+      assert.equal((await scroll(value)).status, 400);
+    }
+    assert.equal((await scroll({}, { body: 'x'.repeat(129) })).status, 413);
+    assert.equal((await scroll({}, { body: Buffer.from([0xff]) })).status, 400);
+    assert.equal((await rawRequest(app.origin + '/scroll', {
+      headers: { ...headers, 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' },
+      body: 'x'.repeat(129),
+    })).status, 413);
+    const timeout = await rawRequest(app.origin + '/scroll', {
+      headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': '20' },
+      body: '{', incomplete: true,
+    });
+    assert.equal(timeout.status, 408);
+    await pipelinedInput(app.origin, token, '/scroll', { y: 0xffffffff });
+    assert.deepEqual(await frame(), initial, 'rejected scroll transports consume no native attempts');
+
+    const unchanged = await scroll({ y: 0 });
+    assert.equal(unchanged.status, 200);
+    assert.deepEqual([unchanged.body.sequence, unchanged.body.scrollY, unchanged.body.pixels],
+      [1, 0, initial.pixels], 'a valid no-op scroll still consumes one attempt');
+    const clipped = await scroll({ y: initial.controlPoint.y });
+    assert.equal(clipped.status, 200);
+    assert.deepEqual([clipped.body.sequence, clipped.body.scrollY, clipped.body.canActivate],
+      [2, initial.controlPoint.y, true]);
+    assert.ok(clipped.body.controlPoint.y < initial.controlPoint.y);
+    assert.notEqual(clipped.body.pixels, initial.pixels);
+    const collapsed = await input(clipped.body.controlPoint);
+    assert.equal(collapsed.status, 200);
+    assert.deepEqual([collapsed.body.sequence, collapsed.body.expanded, collapsed.body.scrollY,
+      collapsed.body.maxScrollY, collapsed.body.canScroll], [3, 0, 0, 0, false]);
+    const reopened = await input(collapsed.body.controlPoint);
+    assert.equal(reopened.status, 200);
+    assert.deepEqual([reopened.body.sequence, reopened.body.expanded, reopened.body.scrollY,
+      reopened.body.maxScrollY, reopened.body.pixels], [4, 1, 0, initial.maxScrollY, initial.pixels]);
+
+    const bottom = await scroll({ y: 0xffffffff });
+    assert.equal(bottom.status, 200);
+    assert.deepEqual([bottom.body.sequence, bottom.body.scrollY, bottom.body.controlPoint,
+      bottom.body.canActivate, bottom.body.canScroll], [5, initial.maxScrollY, null, false, true]);
+    assert.notEqual(bottom.body.pixels, initial.pixels);
+    const miss = await input({ x: 24, y: 16 });
+    assert.equal(miss.status, 200);
+    assert.deepEqual([miss.body.sequence, miss.body.expanded, miss.body.scrollY, miss.body.pixels],
+      [6, 1, initial.maxScrollY, bottom.body.pixels], 'an offscreen title cannot be activated at its old point');
+    const top = await scroll({ y: 0 });
+    assert.equal(top.status, 200);
+    assert.deepEqual([top.body.sequence, top.body.scrollY, top.body.controlPoint, top.body.pixels],
+      [7, 0, initial.controlPoint, initial.pixels]);
+    const last = await scroll({ y: 0 });
+    assert.equal(last.status, 200);
+    assert.deepEqual([last.body.sequence, last.body.remainingEvents, last.body.canActivate,
+      last.body.canScroll, last.body.pixels], [8, 0, false, false, initial.pixels]);
+    for (const exhausted of [await scroll({ y: initial.maxScrollY }), await input(initial.controlPoint)]) {
+      assert.equal(exhausted.status, 429);
+      assert.deepEqual(exhausted.body.frame, last.body);
+    }
+    assert.equal(await readFile(longNote, 'utf8'), longSource);
+  });
+
 test('live document and UI grants remain independent and denied paths are never opened',
   { timeout: 180_000 }, async t => {
     const denied = await application(t, { profile: 'denied', note: join(scratch, 'missing-secret.md') });
     const hidden = await denied.frame();
-    assert.deepEqual([hidden.visibleCount, hidden.expanded, hidden.canActivate], [0, 0, false]);
+    assert.deepEqual([hidden.visibleCount, hidden.expanded, hidden.canActivate,
+      hidden.scrollY, hidden.maxScrollY, hidden.canScroll, hidden.controlPoint], [0, 0, false, 0, 0, false, null]);
     const hiddenInput = await denied.input({ x: 24, y: 16 });
     assert.equal(hiddenInput.status, 200);
     assert.deepEqual([hiddenInput.body.sequence, hiddenInput.body.pixels], [1, hidden.pixels]);
+    const hiddenScroll = await denied.scroll({ y: 0xffffffff });
+    assert.equal(hiddenScroll.status, 409);
+    assert.deepEqual([hiddenScroll.body.frame.sequence, hiddenScroll.body.frame.scrollY,
+      hiddenScroll.body.frame.pixels], [2, 0, hidden.pixels]);
     assert.ok(!JSON.stringify(hidden).includes('missing-secret'));
 
-    const readOnly = await application(t, { uiProfile: 'denied' });
+    const readOnly = await application(t, { uiProfile: 'denied', note: longNote });
     const visible = await readOnly.frame();
-    assert.deepEqual([visible.visibleCount, visible.expanded, visible.canActivate], [2, 1, false]);
+    assert.deepEqual([visible.visibleCount, visible.expanded, visible.canActivate,
+      visible.scrollY, visible.canScroll], [24, 1, false, 0, false]);
+    assert.ok(visible.maxScrollY > visible.height);
     const rejected = await readOnly.input({ x: 24, y: 16 });
     assert.equal(rejected.status, 409);
     assert.match(rejected.body.error, /action was rejected/);
     assert.deepEqual([rejected.body.frame.sequence, rejected.body.frame.pixels], [1, visible.pixels]);
+    const rejectedScroll = await readOnly.scroll({ y: visible.maxScrollY });
+    assert.equal(rejectedScroll.status, 409);
+    assert.match(rejectedScroll.body.error, /Scrolling is unavailable/);
+    assert.deepEqual([rejectedScroll.body.frame.sequence, rejectedScroll.body.frame.scrollY,
+      rejectedScroll.body.frame.pixels], [2, 0, visible.pixels]);
   });
 
 test('live controlled service rejection is observable without losing the authorized view',
@@ -345,15 +449,17 @@ function packagedClient(url) {
     assert.equal(response.status, 200);
     return response.json();
   }
-  async function input() {
-    const response = await fetch(origin + '/input', {
+  async function post(path, value) {
+    const response = await fetch(origin + path, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ x: 24, y: 16 }),
+      body: JSON.stringify(value),
     });
     assert.equal(response.status, 200);
     return response.json();
   }
-  return { origin, headers, frame, input };
+  return { origin, headers, frame,
+    input: (point = { x: 24, y: 16 }) => post('/input', point),
+    scroll: y => post('/scroll', { y }) };
 }
 
 test('detached live bundle runs its retained component and native frames outside the checkout',
@@ -363,7 +469,7 @@ test('detached live bundle runs its retained component and native frames outside
     const unrelated = join(cwd, 'unrelated working directory');
     await mkdir(unrelated);
     const detachedNote = join(unrelated, 'note with spaces.md');
-    await writeFile(detachedNote, '# Detached Root\n## Detached Child\n');
+    await writeFile(detachedNote, longSource);
     const packaged = await packageNoteSession({ out: bundle, live: true });
     assert.equal(packaged.manifest.kind, 'a1-note-live-host-bundle');
     assert.deepEqual(packaged.manifest.files.map(file => file.path).sort(),
@@ -383,20 +489,29 @@ test('detached live bundle runs its retained component and native frames outside
       ['--profile', 'granted', '--note', 'note with spaces.md'], unrelated);
     const client = packagedClient(detached.url);
     const initial = await client.frame();
-    assert.deepEqual([initial.sequence, initial.expanded, initial.visibleCount], [0, 1, 2]);
+    assert.deepEqual([initial.schemaVersion, initial.sequence, initial.expanded, initial.visibleCount,
+      initial.scrollY, initial.canScroll], [2, 0, 1, 24, 0, true]);
+    assert.ok(initial.maxScrollY > initial.height);
     assert.equal(Buffer.from(initial.pixels, 'base64').length, 320 * 160 * 3);
     const asset = await fetch(client.origin + '/client.mjs');
     assert.equal(asset.status, 200);
     assert.deepEqual(Buffer.from(await asset.arrayBuffer()),
       await readFile(join(bundle, 'examples/note-preview/live-client.mjs')));
-    const collapsed = await client.input();
+    const collapsed = await client.input(initial.controlPoint);
     assert.deepEqual([collapsed.sequence, collapsed.expanded, collapsed.visibleCount], [1, 0, 0]);
     assert.notEqual(collapsed.pixels, initial.pixels);
-    const reopened = await client.input();
-    assert.deepEqual([reopened.sequence, reopened.expanded, reopened.visibleCount], [2, 1, 2]);
+    const reopened = await client.input(collapsed.controlPoint);
+    assert.deepEqual([reopened.sequence, reopened.expanded, reopened.visibleCount], [2, 1, 24]);
     assert.equal(reopened.pixels, initial.pixels);
+    const bottom = await client.scroll(0xffffffff);
+    assert.deepEqual([bottom.sequence, bottom.scrollY, bottom.controlPoint,
+      bottom.canActivate, bottom.canScroll], [3, initial.maxScrollY, null, false, true]);
+    assert.notEqual(bottom.pixels, initial.pixels);
+    const top = await client.scroll(0);
+    assert.deepEqual([top.sequence, top.scrollY, top.controlPoint, top.pixels],
+      [4, 0, initial.controlPoint, initial.pixels]);
     assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), retainedComponent);
-    assert.equal(await readFile(detachedNote, 'utf8'), '# Detached Root\n## Detached Child\n');
+    assert.equal(await readFile(detachedNote, 'utf8'), longSource);
 
     const manifestBytes = await readFile(join(bundle, 'manifest.json'));
     await assert.rejects(packageNoteSession({ out: bundle, live: true }), /already exists/);

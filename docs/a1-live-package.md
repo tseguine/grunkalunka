@@ -29,12 +29,14 @@ node live-note-bundle/examples/note-preview/session-bundle-entry.mjs --profile g
 ```
 
 The command prints one JSON object containing a complete loopback `url`. Open
-that URL in a browser, then click the native title control to collapse or reopen
-the outline. Enter and Space work when the view is focused. Ctrl+C stops the
-local application. The live entry accepts the documented live options, including
-`--profile denied`, `--ui-profile denied`, `--collapsed` and `--port`; it does not
-require replay event or output files. Grant decisions and note paths remain
-explicit launch inputs.
+that URL in a browser. Scroll over the view to reach the rest of a long outline,
+or focus it and use Arrow Up/Down, Page Up/Down, Home and End. Click the native
+title control to collapse or reopen the outline. Enter and Space activate the
+current native title point while the title is visible; Home returns to it when
+it is offscreen. Ctrl+C stops the local application. The live entry accepts the
+documented live options, including `--profile denied`, `--ui-profile denied`,
+`--collapsed` and `--port`; it does not require replay event or output files.
+Grant decisions and note paths remain explicit launch inputs.
 
 Packaging normally compiles the checked-in `activate.js` once. To retain an
 already-built component, pass `--component ./handler.component.wasm` to the
@@ -81,10 +83,12 @@ view/resource work tracked separately in
 The ordinary canonical live application suite launches the packaged entry as a
 real child process from an unrelated directory, using an absolute Node path,
 an invalid developer build target and no build tools on `PATH`. It requests
-native frames, collapses and reopens the outline through HTTP, checks retained
-component identity and copied browser assets, and verifies the single launch
-receipt and process shutdown. A separate custom-component case uses the
-programmatic entry and demonstrates source-selected unchanged view state.
+native frames, collapses and reopens a long outline through HTTP, scrolls to its
+bottom and back to the original pixels, checks retained component identity and
+copied browser assets, and verifies the single launch receipt and process
+shutdown. Scrolling uses the existing verified payload without another module
+or executable. A separate custom-component case uses the programmatic entry and
+demonstrates source-selected unchanged view state.
 
 Corruption cases fail before live app import or missing-note access, and manifest
 cases reject incompatible kinds and incomplete worker closure. The existing

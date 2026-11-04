@@ -24,8 +24,9 @@ export const livePage = `<!doctype html>
       </div>
       <p id="session-status" role="status" aria-live="polite" aria-atomic="true">Connecting to your note…</p>
     </section>
-    <p id="session-help">Select the outline title to show or hide its headings.
-      With a keyboard, focus the view and press Enter or Space.</p>
+    <p id="session-help">Scroll to see more. With the view focused, use the arrow
+      or Page Up/Down keys; Home and End jump to the top or bottom. Select the
+      outline title to show or hide headings, or press Enter or Space while the title is visible.</p>
     <noscript>JavaScript is required to display this live view.</noscript>
   </main>
 </body>

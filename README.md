@@ -148,7 +148,9 @@ across repeated collapse/reopen inputs and record each service result and frame.
 The [detached interaction bundle](docs/a1-session-package.md) runs retained
 portable Wasm with copied native hosts without source recompilation.
 The [live application](docs/a1-live-application.md) displays native pixels in a
-browser canvas and forwards pointer/keyboard input through a bounded worker session.
+browser canvas and forwards pointer, wheel and keyboard input through a bounded
+worker session. Native viewport scrolling makes all admitted headings reachable;
+Rust supplies the scroll extent and the visible title-control point.
 Package it with `--live` for a [detached live application](docs/a1-live-package.md)
 that runs without the checkout or runtime recompilation.
 

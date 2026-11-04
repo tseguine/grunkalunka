@@ -43,6 +43,8 @@ native input, source-to-WIT service calls and readable native repaint.
 inputs, with [detached interaction packaging](a1-session-package.md).
 The [live application](a1-live-application.md) forwards real browser input to a
 bounded worker session and displays its native RGB frames.
+Native wheel/keyboard scrolling reaches the full admitted outline while sharing
+pointer input's ordering, grants and attempt budget.
 [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
 still requires the typed view/resource interface and application-facing Rust/JS
 parity; a general DOM implementation is not a prerequisite. Native-stack-sensitive compiler and JSON
