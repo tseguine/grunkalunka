@@ -45,8 +45,10 @@ The [live application](a1-live-application.md) forwards real browser input to a
 bounded worker session and displays its native RGB frames.
 Native wheel/keyboard scrolling reaches the full admitted outline while sharing
 pointer input's ordering, grants and attempt budget.
-Same-path note reload incorporates external edits through that worker while
-retaining the last good document and frame on failure.
+A fixed launch catalog of up to eight notes supports explicit selection through
+the same worker. Selection commits identity with the document and native frame;
+reload incorporates external edits at the committed path. Failed selection or
+reload retains the last good note and frame.
 [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
 still requires the typed view/resource interface and application-facing Rust/JS
 parity; a general DOM implementation is not a prerequisite. Native-stack-sensitive compiler and JSON

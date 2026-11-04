@@ -34,8 +34,10 @@ Rust control, and the [live browser surface](a1-live-application.md) forwards
 pointer, wheel and keyboard input to a bounded worker and paints the native RGB.
 Native viewport scrolling reaches all admitted headings, with one shared input
 budget and native control targeting even when the title is partly clipped. The
-same selected note can be reloaded after external edits without replacing the
-session or its budget; failed reloads preserve the previous document and frame.
+selected note can be reloaded after external edits without replacing the session
+or its budget. A fixed catalog of up to eight launch-selected paths adds explicit
+note switching; failed switches and reloads preserve the previous selected
+identity, document and frame.
 The typed view/resource contract and broader application-facing
 Rust/JS parity remain acceptance gates. Each action still uses a fresh guest Store.
 See

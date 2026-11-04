@@ -151,8 +151,11 @@ The [live application](docs/a1-live-application.md) displays native pixels in a
 browser canvas and forwards pointer, wheel and keyboard input through a bounded
 worker session. Native viewport scrolling makes all admitted headings reachable;
 Rust supplies the scroll extent and the visible title-control point.
-**Reload note** incorporates external edits through the same ordered worker
-session, preserving the last good view if the new file cannot be read or rendered.
+Supply up to eight `--note` paths at launch and switch between them in the note
+chooser. Selection commits the note identity and native frame together, starts
+at the top, and keeps the same session and input budget. **Reload note**
+incorporates external edits to the committed selection; failed loads or renders
+preserve the last good note and view.
 Package it with `--live` for a [detached live application](docs/a1-live-package.md)
 that runs without the checkout or runtime recompilation.
 
