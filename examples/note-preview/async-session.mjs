@@ -1,7 +1,7 @@
 // Private A1 scheduling adapter. The worker owns the synchronous native session;
 // this thread only keeps the latest completed snapshot and a bounded input queue.
 import { Worker } from 'node:worker_threads';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { prepareSelectedNoteScene } from './scene.mjs';
 
 const COMPONENT_HEADER = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
@@ -11,7 +11,22 @@ const MAX_PENDING = 16;
 const validSourcePath = value => typeof value === 'string' && value.length > 0 &&
   !value.includes('\0') && Buffer.byteLength(value, 'utf8') <= 4096;
 
-function ownedSource(source) {
+function defaultLabel(note, index) {
+  const name = basename(note).replace(/[\u0000-\u001f\u007f]/g, ' ');
+  let label = '';
+  let bytes = 0;
+  for (const character of name) {
+    const length = Buffer.byteLength(character, 'utf8');
+    if (bytes + length > 256) break;
+    label += character;
+    bytes += length;
+  }
+  return label || 'Note ' + (index + 1);
+}
+
+// Shared by the live host so source ownership precedes its first async boundary,
+// as well as the worker factory's. Only launch-selected paths become authority.
+export function ownDocumentSource(source) {
   if (source === null || typeof source !== 'object' || Array.isArray(source)) {
     throw new TypeError('Invalid A1 document source');
   }
@@ -22,15 +37,45 @@ function ownedSource(source) {
   }
   const binaryTarget = resolve(selectedTarget);
   if (!validSourcePath(binaryTarget)) throw new TypeError('Invalid A1 document source target');
-  // A denied source never needs to inspect or retain a caller-supplied note path.
-  let note;
-  if (profile === 'granted') {
-    const selectedNote = source.note;
-    if (!validSourcePath(selectedNote)) throw new TypeError('Invalid A1 document source path');
-    note = resolve(selectedNote);
-    if (!validSourcePath(note)) throw new TypeError('Invalid A1 document source path');
+  // Do not inspect or retain either path-bearing field without the document grant.
+  if (profile === 'denied') return { profile, binaryTarget };
+  const selectedNote = source.note;
+  const selectedNotes = source.notes;
+  if ((selectedNote === undefined) === (selectedNotes === undefined)) {
+    throw new TypeError('Expected exactly one A1 note or note catalog');
   }
-  return { profile, note, binaryTarget };
+  const inputs = selectedNotes === undefined ? [selectedNote] : selectedNotes;
+  if (!Array.isArray(inputs)) throw new TypeError('Invalid A1 note catalog');
+  const count = inputs.length;
+  if (count < 1 || count > 8) throw new TypeError('Invalid A1 note catalog');
+  const notes = [];
+  const paths = new Set();
+  for (let index = 0; index < count; index++) {
+    const input = inputs[index];
+    let selectedPath;
+    let selectedLabel;
+    if (typeof input === 'string') {
+      selectedPath = input;
+    } else if (selectedNotes !== undefined && input !== null &&
+        typeof input === 'object' && !Array.isArray(input)) {
+      selectedPath = input.note;
+      selectedLabel = input.label;
+    } else {
+      throw new TypeError('Invalid A1 document source path');
+    }
+    if (!validSourcePath(selectedPath)) throw new TypeError('Invalid A1 document source path');
+    const note = resolve(selectedPath);
+    if (!validSourcePath(note)) throw new TypeError('Invalid A1 document source path');
+    if (paths.has(note)) throw new TypeError('Duplicate A1 document source path');
+    paths.add(note);
+    const label = selectedLabel === undefined ? defaultLabel(note, index) : selectedLabel;
+    if (typeof label !== 'string' || label.length === 0 ||
+        Buffer.byteLength(label, 'utf8') > 256 || /[\u0000-\u001f\u007f]/.test(label)) {
+      throw new TypeError('Invalid A1 note label');
+    }
+    notes.push({ note, label });
+  }
+  return { profile, binaryTarget, notes };
 }
 
 function ownedOptions({ executable, serviceExecutable, component, document, documentSource,
@@ -58,7 +103,7 @@ function ownedOptions({ executable, serviceExecutable, component, document, docu
   }
   const options = { executable, serviceExecutable, component: payload, expanded, uiProfile, maxEvents };
   if (documentSource !== undefined) {
-    return { maxPending, options: { ...options, documentSource: ownedSource(documentSource) } };
+    return { maxPending, options: { ...options, documentSource: ownDocumentSource(documentSource) } };
   }
   if (document === null || typeof document !== 'object' ||
       !(document.sourceBytes instanceof Uint8Array) || document.sourceBytes.byteLength > 4096 ||
@@ -93,7 +138,9 @@ const copySnapshot = snapshot => ({ expanded: snapshot.expanded,
   scene: copyScene(snapshot.scene), pixels: Buffer.from(snapshot.pixels),
   scrollY: snapshot.scrollY, maxScrollY: snapshot.maxScrollY,
   controlPoint: snapshot.controlPoint === null ? null :
-    { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y } });
+    { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y },
+  noteChoices: snapshot.noteChoices.map(choice => ({ id: choice.id, label: choice.label })),
+  selectedNoteId: snapshot.selectedNoteId });
 const copyAction = action => ({ sequence: action.sequence, target: action.target,
   activated: action.activated, changed: action.changed, beforeExpanded: action.beforeExpanded,
   expanded: action.expanded, before: copyScene(action.before), after: copyScene(action.after),
@@ -104,7 +151,7 @@ const copyScroll = action => ({ sequence: action.sequence, status: action.status
   pixels: Buffer.from(action.pixels) });
 const copyReload = action => ({ sequence: action.sequence, status: action.status,
   changed: action.changed, pixels: Buffer.from(action.pixels) });
-const copyResult = { activate: copyAction, scroll: copyScroll, reload: copyReload };
+const copyResult = { activate: copyAction, scroll: copyScroll, reload: copyReload, select: copyReload };
 
 function codedError(code, message, ErrorType = Error) {
   const error = new ErrorType(message);
@@ -116,7 +163,9 @@ function receivedError(error) {
   const ErrorType = error?.name === 'RangeError' ? RangeError :
     error?.name === 'TypeError' ? TypeError : Error;
   const received = new ErrorType(error?.message ?? 'A1 session worker failed');
-  if (['A1_EVENT_LIMIT', 'A1_RELOAD_UNAVAILABLE'].includes(error?.code)) received.code = error.code;
+  if (['A1_EVENT_LIMIT', 'A1_RELOAD_UNAVAILABLE', 'A1_SELECTION_UNAVAILABLE'].includes(error?.code)) {
+    received.code = error.code;
+  }
   return received;
 }
 
@@ -259,6 +308,22 @@ export async function createAsyncNoteSession(arguments_) {
     }
   }
 
+  function selectNote(id) {
+    try {
+      if (state !== 'open') throw terminalError;
+      if (options.documentSource === undefined || options.documentSource.profile === 'denied') {
+        throw codedError('A1_SELECTION_UNAVAILABLE', 'A1 session has no note catalog', TypeError);
+      }
+      if (!Number.isSafeInteger(id) || id < 0 || id >= options.documentSource.notes.length) {
+        throw new TypeError('Invalid A1 note selection');
+      }
+      // The transport id correlates requests; noteId is a distinct catalog ordinal.
+      return submit('select', { noteId: id });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
   function submit(type, input) {
     if (latest.eventsProcessed >= options.maxEvents) {
       throw codedError('A1_EVENT_LIMIT', 'A1 session event limit exceeded', RangeError);
@@ -289,5 +354,5 @@ export async function createAsyncNoteSession(arguments_) {
     await stopWorker().catch(() => {});
     throw error;
   }
-  return Object.freeze({ snapshot, activate, scrollTo, reload, close });
+  return Object.freeze({ snapshot, activate, scrollTo, reload, selectNote, close });
 }
