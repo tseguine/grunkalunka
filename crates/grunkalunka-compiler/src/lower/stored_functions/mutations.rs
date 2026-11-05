@@ -13,21 +13,18 @@ pub(super) fn call(call: &CallExpression<'_>) -> Option<Mutation> {
     }
 }
 
-pub(super) fn array_index(key: &[u16]) -> bool {
+pub(super) fn array_index(key: &[u16]) -> Option<u32> {
     if key.is_empty() || key.len() > 10 || (key.len() > 1 && key[0] == u16::from(b'0')) {
-        return false;
+        return None;
     }
     let mut value = 0_u64;
     for unit in key {
-        let Some(digit) = unit
+        let digit = unit
             .checked_sub(u16::from(b'0'))
-            .filter(|digit| *digit < 10)
-        else {
-            return false;
-        };
+            .filter(|digit| *digit < 10)?;
         value = value * 10 + u64::from(digit);
     }
-    value < u64::from(u32::MAX)
+    (value < u64::from(u32::MAX)).then_some(value as u32)
 }
 
 #[cfg(test)]

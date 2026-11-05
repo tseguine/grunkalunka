@@ -174,7 +174,10 @@ Array rest collects the remaining values after earlier defaults into a fresh
 dense array. Holes become own Undefined entries, references retain identity and
 the copied slots are independent of the source. Rest observes the original
 receiver's live length while active and stays empty after exhaustion. The rest
-receiver has an Array proof; its copied element origins remain opaque.
+receiver has an Array proof. Iterating it follows the copied suffix through
+aliases and chained rest expressions, including index writes on each array.
+A1 can destructure each heading in the copied list and trim its label. Direct
+indexed reads of the copy still have generic value kinds.
 
 Array `for...of` accepts a `const` or `let` identifier or a supported object/array
 pattern, including mixed nesting, identifier rest in arrays and defaults on

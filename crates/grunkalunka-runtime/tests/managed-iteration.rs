@@ -386,7 +386,6 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(const [...rest] of [[a],null]){}return a;",
         "for(const [...rest] of [[a]])rest=[];return a;",
         "for(const [head=rest,...rest] of [[]]){}return a;",
-        "const [...rest]=['x'];for(const item of rest)return item.trim().length;return 0;",
         "for(const {row:{x}={x:a}} of [{row:null}]){}return a;",
         "for(const [[x]=[a]] of [[b]]){}return a;",
         "for(const {row:{x}={x}} of [{}]){}return a;",
@@ -420,6 +419,35 @@ fn destructuring_for_of_counts_each_leaf_against_the_source_local_budget() {
             } else {
                 assert!(result.unwrap_err().contains("at most 128 source locals"));
             }
+        }
+    }
+}
+
+#[test]
+fn array_rest_iteration_preserves_proven_strings_records_and_inner_arrays() {
+    for body in [
+        "const [...rest]=['x'];for(const item of rest)return item.trim().length;return 0;",
+        "const source=[a,' one ',' two '];source[0]=b;const [,...rest]=source;let n=0;for(const item of rest)n+=item.trim().length;return n;",
+        "const source=[a,{label:' one '},{label:' two '}];const [header,...rows]=source;let n=0;for(const {label} of rows)n+=label.trim().length;return n+(header===a?10:0);",
+        "const source=[,a,[a,b],[b,a]];const [,...middle]=source;const [,...tail]=middle;let n=0;for(const [x,y] of tail)n+=(x===a?1:0)+(y===b?10:0);return n;",
+        "const source=a?[0,' first ',' next ']:[1];const [,...tail]=source;let n=0;for(const item of tail)n+=item.trim().length;return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn tail_iteration_rejects_holes_incompatible_writes_and_opaque_sources() {
+    for body in [
+        "const [,...tail]=[0,,'x'];for(const item of tail)return item.trim().length;return 0;",
+        "const source=[a,'x'];const alias=source;alias[1]=b;const [,...tail]=source;for(const item of tail)return item.trim().length;return 0;",
+        "const [,...tail]=[a,'x'];tail.length=3;for(const item of tail)return item.trim().length;return 0;",
+        "const [...tail]=Object.keys('x');for(const item of tail)return item.trim().length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_rejected(&source, typed);
         }
     }
 }

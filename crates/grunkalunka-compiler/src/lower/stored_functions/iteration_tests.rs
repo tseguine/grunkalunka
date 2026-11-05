@@ -467,7 +467,7 @@ fn binding_defaults_cannot_infer_absence_from_spread_or_intrinsic_members() {
 }
 
 #[test]
-fn array_rest_origins_prove_the_new_receiver_but_keep_copied_elements_opaque() {
+fn array_rest_origins_prove_the_new_receiver_but_keep_indexed_reads_opaque() {
     for body in [
         "const [head,...rest]=[a,b];const observed=rest;return a;",
         "const {items:[,...rest]=[a,b]}={};const observed=rest;return a;",
@@ -491,7 +491,6 @@ fn array_rest_origins_prove_the_new_receiver_but_keep_copied_elements_opaque() {
         "const [...rest]=['text'];const observed=rest[0];return a;",
         "const [...rest]=['text'];const [label='fallback']=rest;const observed=label;return a;",
         "const [...rest]=[{label:'text'}];const observed=rest[0].label;return a;",
-        "const [...rest]=['text'];for(const item of rest){const observed=item;}return a;",
         "let [...rest]=[];rest=a;const observed=rest;return a;",
     ] {
         assert_eq!(observe(body), UNKNOWN, "{body}");
@@ -542,5 +541,30 @@ fn object_rest_fields_keep_source_kinds_and_include_writes_to_each_allocation() 
             !observation.string && observation.other,
             "{body}: {observation:?}"
         );
+    }
+}
+
+#[test]
+fn tail_iteration_tracks_only_the_reachable_suffix_and_its_writes() {
+    for body in [
+        "const [...rest]=['text'];for(const item of rest){const observed=item;}return a;",
+        "const src=[a,'x','y'];src[0]=b;const [,...tail]=src;for(const item of tail){const observed=item;}return a;",
+        "const src=[,a,'x'];const [,...mid]=src;const [,...tail]=mid;for(const item of tail){const observed=item;}return a;",
+        "const src=a?[a,'x']:[b];const [,...tail]=src;for(const item of tail){const observed=item;}return a;",
+        "const src=[a,'x'];const [,...tail]=src;src[1]='y';tail.named=b;for(const item of tail){const observed=item;}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const original=[a,'x'];const [...base]=original;const [,...later]=base;const branch=a?base:later;const [...tail]=branch;for(const item of tail){const observed=item;}return a;",
+        "const src=[a,,'x'];const [,...tail]=src;for(const item of tail){const observed=item;}return a;",
+        "const src=[a,'x'];const [,...tail]=src;const alias=src;alias[1]=b;for(const item of tail){const observed=item;}return a;",
+        "const src=[a,'x'];const [,...tail]=src;tail[2]=b;for(const item of tail){const observed=item;}return a;",
+        "const src=[a,'x'];const [,...tail]=src;src.pop();for(const item of tail){const observed=item;}return a;",
+        "const src=[a,'x'];const [,...tail]=src;tail.length=2;for(const item of tail){const observed=item;}return a;",
+        "let src=['x'];for(let i=0;i<2;i++){const [...next]=src;src=next;}for(const item of src){const observed=item;}return a;",
+    ] {
+        let facts = observe(body);
+        assert!(facts.other && !facts.string, "{body}: {facts:?}");
     }
 }
