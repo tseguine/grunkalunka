@@ -2,6 +2,84 @@
 use super::SCHEDULED_DECLARATION_VALUES;
 
 #[test]
+fn identifier_defaults_admit_consumers_of_proven_missing_values() {
+    for (body, asynchronous) in [
+        ("const {label=' x '}={};return label.trim().length;", false),
+        ("const [label=' x ']=[,];return label.trim().length;", false),
+        ("const [values=[a,b]]=[];return values.length;", false),
+        (
+            "const {record={label:' x '}}={};return record.label.trim().length;",
+            false,
+        ),
+        (
+            "let missing;const {label=' x '}={label:missing};return label.trim().length;",
+            false,
+        ),
+        (
+            "const source=Object.create(null);const {constructor:label=' x '}=source;return label.trim().length;",
+            false,
+        ),
+        (
+            "const source={...{label:a},label:undefined};const {label=' x '}=source;return label.trim().length;",
+            false,
+        ),
+        (
+            "let n=0;for(const {label=' x '} of [{}])n+=label.trim().length;return n;",
+            false,
+        ),
+        (
+            "const {label=(await a,' x ')}={};return label.trim().length;",
+            true,
+        ),
+    ] {
+        let source = format!(
+            "export {}function run(a,b){{{body}}}",
+            if asynchronous { "async " } else { "" }
+        );
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, asynchronous, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+}
+
+#[test]
+fn identifier_defaults_retain_unknown_and_whole_pattern_guards() {
+    for body in [
+        "const {label=' x '}={label:null};return label.trim().length;",
+        "const undefined=a;const {label=' x '}={label:undefined};return label.trim().length;",
+        "const source={...{label:a}};const {label=' x '}=source;return label.trim().length;",
+        "const source={label:undefined,...{label:a}};const {label=' x '}=source;return label.trim().length;",
+        "const source=[];const {label=' x '}={label:source.length};return label.trim().length;",
+        "const source={};const {constructor:label=' x '}=source;return label.trim().length;",
+        "let missing;missing++;const {label=' x '}={label:missing};return label.trim().length;",
+        "let missing=undefined;missing += a;const {label=' x '}={label:missing};return label.trim().length;",
+        "let missing;const mutate=()=>{missing++;};mutate();const {label=' x '}={label:missing};return label.trim().length;",
+        "const {child:{label}={label:' x '}}={};return a;",
+        "const [[label]=[' x ']]=[];return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let error = on_small_stack(&source, false, false)
+            .0
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+    for mutation in ["=a", "+=a", "++"] {
+        let source = format!(
+            "export function run(a,b){{let missing=undefined;(missing as unknown){mutation};const {{label=' x '}}={{label:missing}};return label.trim().length;}}"
+        );
+        let error = on_small_stack(&source, false, true)
+            .0
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
 fn for_of_patterns_use_the_shared_cursor_with_lexical_admission() {
     for (body, asynchronous) in [
         (

@@ -58,9 +58,12 @@ acquire unchecked numeric unboxing. Fixed-position source facts retain proven
 String or container operations through helpers and captures. Alias writes,
 truncation, `pop`, missing values and unknown alternatives remain conservative.
 Type annotations do not prove either the RHS or an element's runtime kind.
-Default origins are unioned with selected-element origins; a default cannot
-erase unknown or possibly missing alternatives. A String fallback on a missing
-element alone therefore does not justify a String-only consumer.
+Default origins distinguish proven Undefined from unknown alternatives. Literal
+holes, known out-of-range selections and explicit Undefined may use a fallback
+to retain a proven String or container kind. The default replaces only that
+Undefined alternative; unknown values and conservative mutation effects remain
+in the proof. A fallback cannot turn an unproven value into a safe specialized
+receiver.
 
 Mutable leaves use the existing lexical slots and captured cells. Traditional
 `for` headers and declarations in loop bodies retain their existing iteration

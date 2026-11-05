@@ -46,12 +46,15 @@ object and array consumers when the source proves their receiver kind; a type
 annotation does not supply that proof. Mutable bindings and captured bindings
 use the same slots and cells as identifier declarations.
 
-Default provenance conservatively unions the selected property's alternatives
-with the default's alternatives. The existing unknown category includes
-Undefined and other primitive values; a default alone does not turn such a
-selection into a proven String or container. A missing-field String default can
-be observed with equality and other managed consumers, but that default alone
-does not yet admit String methods.
+Default provenance distinguishes a source-proven Undefined value from an unknown
+value. It removes only the proven Undefined alternative and includes the
+fallback's alternatives. A missing property on a closed source record can
+therefore use a String or container fallback with the corresponding consumers.
+Explicit intrinsic `undefined` and `void` results carry the same narrow fact.
+Unknown spread fields, nullable or other primitive alternatives, alias writes
+and unresolved values retain their conservative proof boundaries. A default does
+not erase those alternatives, and a shadowing binding named `undefined` follows
+its actual source values.
 
 The source-local budget counts each bound identifier across the complete pattern;
 empty patterns do not consume locals. Pattern processing is iterative, with at

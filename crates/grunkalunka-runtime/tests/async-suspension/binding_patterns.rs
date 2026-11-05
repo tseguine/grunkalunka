@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn known_undefined_defaults_keep_proven_consumers_and_lazy_awaits() {
+    compare_promises(
+        &[
+            "let n=0;const source=a?{label:' chosen '}:{};const {label=(await b,n=1,' fallback ')}=source;await a;return label.trim().length+n*100;",
+            "const {row=(await a,{label:' ready '})}={};const [items=(await b,[row])]=[];await a;return items.length+(items.at(0)===row?10:0)+row.label.trim().length*100;",
+            "const {label=(await Promise.reject(a),'bad')}={label:' safe '};await b;return label.trim().length;",
+            "let n=0;try{const {label=(await Promise.reject(a),'bad'),after=(n=1,'bad')}={};n=2;}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn nested_object_binding_defaults_keep_receivers_order_and_captures_across_await() {
     compare_promises(
         &[
