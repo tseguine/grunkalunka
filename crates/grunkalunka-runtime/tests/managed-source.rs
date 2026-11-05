@@ -815,3 +815,49 @@ fn dynamic_in_matches_all_native_prototype_names_and_near_misses() {
         common::compare_sources_with_fuel(&source, &source, Some(3_000_000));
     }
 }
+
+#[test]
+fn computed_record_keys_are_saved_before_values_and_keep_definition_order() {
+    for body in [
+        "let k='first',n=0;const obj={[(n=n*10+1,k)]:(n=n*10+2,k='second',a),[(n=n*10+3,k)]:(n=n*10+4,b)};const keys=Object.keys(obj);return n===1234&&keys[0]==='first'&&keys[1]==='second'&&obj.first===a&&obj.second===b?1:0;",
+        "const key=a?'shown':'hidden';const row={[key]:undefined,tail:b};return Object.hasOwn(row,key)&&key in row&&Object.keys(row).length===2&&row.tail===b?1:0;",
+        "const k='x';const row={before:a,x:0,[k]:1,...{middle:b},[k]:2,end:0};const keys=Object.keys(row);return row.x===2&&keys[0]==='before'&&keys[1]==='x'&&keys[2]==='middle'&&keys[3]==='end'?1:0;",
+        "const k='2';const row={z:a,[k]:b,['1']:a};const keys=Object.keys(row);return keys[0]==='1'&&keys[1]==='2'&&keys[2]==='z'&&row[2]===b?1:0;",
+        "const key='x';const obj={[key]:a,label:' confirmed '};return obj.label.trim()==='confirmed'&&obj.x===a?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn computed_proto_names_create_own_data_fields() {
+    for body in [
+        "const key='__proto__';const proto={marker:a};const obj={[key]:proto};const keys=Object.keys(obj);return Object.hasOwn(obj,key)&&!('marker' in obj)&&keys.length===1&&keys[0]===key?1:0;",
+        "const obj={['__proto__']:null,['constructor']:undefined};const {...rest}=obj;return Object.hasOwn(rest,'__proto__')&&Object.hasOwn(rest,'constructor')&&Object.keys(rest).length===2?1:0;",
+        r"const key='\ud800\0';const obj={[key]:a,['\ufffd\0']:b};return obj['\ud800\0']===a&&obj['\ufffd\0']===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn computed_literal_keys_reject_unknown_coercions_and_invalidated_field_kinds() {
+    for body in [
+        "const key=a?'label':b;const obj={[key]:a};return a;",
+        "const key={};const obj={[key]:a};return a;",
+        "const key='label';const obj={label:'text',[key]:a};return obj.label.trim().length;",
+        "const key='fn';const obj={fn:x=>x+1,[key]:a};return obj.fn(b);",
+        "const obj={__proto__:{marker:a}};return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let err = compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

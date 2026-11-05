@@ -109,7 +109,9 @@ tests presence in proven null-prototype dictionaries, evaluating its key before
 the receiver. Static keys on ordinary objects and arrays also account for
 their inherited intrinsic names. Runtime String keys work on these receivers
 when their prototype is known. A1 can test the selected action on either a
-dictionary or an ordinary availability record.
+dictionary or an ordinary availability record. A handler can also construct
+that record directly with a runtime action name, saving the computed String
+key before evaluating the property's value.
 
 ### Deliberate remaining limits
 

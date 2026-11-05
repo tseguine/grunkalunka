@@ -90,3 +90,23 @@ fn computed_rest_exclusions_require_visible_managed_values() {
         assert!(verify_module(&module).is_err());
     }
 }
+
+#[test]
+fn computed_literal_string_keys_use_the_typed_own_property_write() {
+    let source = "export function run(a,b){const k='x';const o={[k]:a};return o.x===a?1:0;}";
+    let module = crate::lower_source(source, false).unwrap();
+    verify_module(&module).unwrap();
+    assert!(any_operation(
+        &module.functions[0].body,
+        &mut |op| matches!(op, Op::ManagedSetOwnDynamic { .. })
+    ));
+    let typed =
+        "export function run(a:number,b:number){const k=(a as string);const o={[k]:b};return a;}";
+    let err = crate::compile(typed, true)
+        .err()
+        .expect("type annotation cannot coerce a Number key");
+    assert!(
+        err.contains("unsupported") && !err.contains("internal IR"),
+        "{err}"
+    );
+}

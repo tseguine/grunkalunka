@@ -485,3 +485,15 @@ fn dynamic_in_keeps_the_saved_name_across_receiver_suspension() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn computed_literal_keys_survive_value_awaits_and_key_rejections() {
+    compare_promises(
+        &[
+            "let k='first',n=0;const obj={[(await a,n=1,k)]:(await b,k='second',n=n*10+2,a),[k]:b};await a;return n===12&&obj.first===a&&obj.second===b?1:0;",
+            "let n=0;try{const obj={[(await Promise.reject(a),'x')]:(n=1,b),tail:(n=2,a)};n=3;}catch(e){return n===0&&e===a?1:0;}return -1;",
+            "let n=0;try{const obj={[(n=1,'x')]:(await Promise.reject(a),b),tail:(n=2,a)};n=3;}catch(e){return n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
