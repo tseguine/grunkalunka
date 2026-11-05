@@ -2,7 +2,115 @@
 #[path = "../examples/core_engine_cost/process_memory.rs"]
 mod process_memory;
 
-use process_memory::{ProcessMemory, Snapshot, parse_linux_status};
+use process_memory::{ProcessMemory, Snapshot, parse_linux_status, sample_windows_working_set};
+
+#[test]
+fn windows_sampling_returns_the_first_coherent_native_pair_unchanged() {
+    for expected in [
+        Snapshot {
+            rss_bytes: 4096,
+            peak_rss_bytes: 8192,
+        },
+        Snapshot {
+            rss_bytes: 8192,
+            peak_rss_bytes: 8192,
+        },
+    ] {
+        let mut reads = 0;
+        let actual = sample_windows_working_set(|| {
+            reads += 1;
+            Ok(expected)
+        })
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(reads, 1, "a coherent native pair needs no retry");
+    }
+}
+
+#[test]
+fn windows_sampling_retries_incoherent_pairs_without_clamping_or_mixing_samples() {
+    let first = Snapshot {
+        rss_bytes: 16_384,
+        peak_rss_bytes: 4096,
+    };
+    let second = Snapshot {
+        rss_bytes: 12_288,
+        peak_rss_bytes: 8192,
+    };
+    let expected = Snapshot {
+        rss_bytes: 2048,
+        peak_rss_bytes: 3072,
+    };
+    for samples in [vec![first, expected], vec![first, second, expected]] {
+        let expected_reads = samples.len();
+        let mut pending = samples.into_iter();
+        let mut reads = 0;
+        let actual = sample_windows_working_set(|| {
+            reads += 1;
+            Ok(pending.next().expect("must stop after a coherent read"))
+        })
+        .unwrap();
+        assert_eq!(actual, expected, "return one native pair verbatim");
+        assert_eq!(reads, expected_reads);
+    }
+}
+
+#[test]
+fn windows_sampling_stops_after_three_incoherent_native_reads() {
+    let later_coherent = Snapshot {
+        rss_bytes: 5000,
+        peak_rss_bytes: 6000,
+    };
+    let mut pending = [
+        Snapshot {
+            rss_bytes: 16_000,
+            peak_rss_bytes: 9000,
+        },
+        Snapshot {
+            rss_bytes: 12_000,
+            peak_rss_bytes: 10_000,
+        },
+        Snapshot {
+            rss_bytes: 7000,
+            peak_rss_bytes: 6000,
+        },
+        later_coherent,
+    ]
+    .into_iter();
+    let mut reads = 0;
+    let error = sample_windows_working_set(|| {
+        reads += 1;
+        Ok(pending.next().expect("native read budget must be bounded"))
+    })
+    .unwrap_err();
+    assert_eq!(reads, 3, "the Windows observation budget is three calls");
+    assert!(error.contains("after 3 samples"), "{error}");
+    assert!(error.contains("current=7000 bytes"), "{error}");
+    assert!(error.contains("peak=6000 bytes"), "{error}");
+    assert_eq!(pending.next(), Some(later_coherent));
+}
+
+#[test]
+fn windows_sampling_preserves_api_errors_without_retrying_them() {
+    let inconsistent = Snapshot {
+        rss_bytes: 9000,
+        peak_rss_bytes: 8000,
+    };
+    let native_error = "K32GetProcessMemoryInfo: simulated native error";
+    for prior_inconsistent_reads in 0..3 {
+        let mut samples = vec![Ok(inconsistent); prior_inconsistent_reads];
+        samples.push(Err(native_error.to_owned()));
+        let mut pending = samples.into_iter();
+        let mut reads = 0;
+        let error = sample_windows_working_set(|| {
+            reads += 1;
+            pending.next().expect("an API error must stop sampling")
+        })
+        .unwrap_err();
+        assert_eq!(error, native_error);
+        assert_eq!(reads, prior_inconsistent_reads + 1);
+    }
+}
 
 fn status(rss: u64, peak: u64) -> String {
     format!(

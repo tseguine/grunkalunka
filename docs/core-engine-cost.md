@@ -161,6 +161,13 @@ phase schema without claiming the different OS accounting rules are equivalent.
 The [real Windows control](p1-windows-process-memory-control.md) independently
 established the FFI ABI before integration.
 
+The integrated Windows collector retries a successful observation whose peak is
+below its current working set, for at most three native calls per checkpoint.
+It returns the first coherent pair exactly as observed, without clamping or
+combining values across calls. API errors still fail immediately; persistent
+inconsistency reports the attempt count and final raw byte values. The five-phase
+assembly still rejects partial observations and decreasing peaks.
+
 On macOS, the same five phases use `task_info(MACH_TASK_BASIC_INFO)`
 with `source: "macos-mach-task-basic-info"`, using the
 [independently isolated Mach ABI](p1-macos-process-memory-control.md).

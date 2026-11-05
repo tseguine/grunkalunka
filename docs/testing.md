@@ -7,7 +7,7 @@
 selection can narrow the latter; unknown plans run it in full. See the
 [coverage table and budgets](ci.md#fast-pr-profile-and-full-master-profile).
 
-PRs retain all non-runtime Cargo tests, runtime library tests and 20 fast runtime
+PRs retain all non-runtime Cargo tests, runtime library tests and 21 fast runtime
 integration targets, full client/transport contracts, compiled/native smoke
 coverage, all document-outline fixtures, and two real HTTP/synchronization
 scenarios. Exhaustive runtime matrices, repeated native application/package
@@ -16,6 +16,11 @@ master verification. Document-outline PR checks omit repeated cost measurements
 while retaining native/component parity and driver invariants. Existing full
 suite descriptions below refer to that full coverage; a green PR does not claim
 that every master-only scenario executed.
+
+The small `core_engine_process_memory` target runs on PRs, including deterministic
+Windows sampling recovery/error cases on every host and the real local OS
+observation path. The full source-compilation and other cost probes remain in
+master verification.
 
 New checks default to PR execution. Every runtime integration target must be
 classified, and each master-only or trimmed command has a reason in its paired

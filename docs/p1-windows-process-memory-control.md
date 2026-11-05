@@ -10,6 +10,15 @@ shared Rust/Wasmtime process-memory collector. The sampler now uses the
 same system API in the P1 core-Wasm, compiler and Markdown/WIT cost probes;
 the original standalone control remains an independently executable test.
 
+The integrated collector accepts the first coherent pair within at most three
+native calls at each checkpoint. Only successful calls returning a peak below
+the current working set are resampled. API errors fail immediately, and three
+inconsistent observations fail with their final raw counters. Reported values
+always come from one complete API observation; they are never clamped or combined.
+Deterministic tests exercise this recovery and its failure paths on every host,
+and the existing small memory-observation target runs in PR checks. The standalone
+ABI control below retains its independent single-call implementation.
+
 The checked-in [Rust witness](../tools/bench/tests/fixtures/windows-working-set.rs)
 is compiled directly with the canonical host's `rustc` (Edition 2024, no
 external packages, no Cargo workspace build). It uses a verified 72-byte
