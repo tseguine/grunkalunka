@@ -335,6 +335,11 @@ layout. Both the optional RGB painter and hit tester consume that same
 metadata and reject missing or mismatched entries. They account for
 global viewport scrolling using the original document-space coordinates.
 Clipping does **not** alter the layout boxes or normal-flow sibling positions.
+The two consumers share one iterative tree/order planner and carry original-
+ancestry clips with each planned box. Forward painting and reverse hit selection
+therefore use the same traversal and clip intersections. Hit testing still
+validates the entire frame before accepting any target, including for queries
+outside the viewport; per-node visibility and input eligibility remain separate.
 
 This intentionally only clips **paint and hits**. The current document
 `scroll_width`/`scroll_height` still measure the entire child overflow,
