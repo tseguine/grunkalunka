@@ -124,6 +124,32 @@ test('the pending limit counts running and queued inputs without consuming rejec
     assert.deepEqual([third.sequence, third.target, third.service, third.expanded], [3, null, null, 1]);
   });
 
+test('settled native snapshots retain the frame at their queue boundary without consuming an input',
+  { timeout: 120_000 }, async t => {
+    const active = await session({ maxEvents: 2, maxPending: 4 });
+    t.after(() => active.close());
+    const initial = active.snapshot();
+    const collapse = active.activate(pointer);
+    const collapsedRead = active.settledSnapshot();
+    const reopen = active.activate(pointer);
+    const reopenedRead = active.settledSnapshot();
+    const [collapsed, collapsedFrame, reopened, reopenedFrame] = await Promise.all([
+      collapse, collapsedRead, reopen, reopenedRead,
+    ]);
+    assert.deepEqual([collapsedFrame.eventsProcessed, collapsedFrame.expanded], [1, 0]);
+    assert.deepEqual(collapsedFrame.pixels, collapsed.pixels);
+    assert.deepEqual(collapsedFrame.scene, collapsed.after);
+    assert.deepEqual([reopenedFrame.eventsProcessed, reopenedFrame.expanded], [2, 1]);
+    assert.deepEqual(reopenedFrame.pixels, reopened.pixels);
+    assert.deepEqual(reopenedFrame.pixels, initial.pixels);
+    await assert.rejects(active.activate(pointer), { code: 'A1_EVENT_LIMIT' });
+    const exhausted = await active.settledSnapshot();
+    assert.deepEqual(exhausted, reopenedFrame);
+    exhausted.pixels.fill(0);
+    exhausted.scene.input.fill(0);
+    assert.deepEqual(active.snapshot(), reopenedFrame);
+  });
+
 test('worker inputs, queued pointers and every returned frame are owned copies',
   { timeout: 120_000 }, async t => {
     const inputComponent = Buffer.from(component);
@@ -266,16 +292,17 @@ test('close rejects dispatched and queued inputs, keeps the last frame and is id
     const { active } = await sourceSession(t);
     const initial = active.snapshot();
     const results = Promise.allSettled([active.reload(), active.selectNote(0),
-      active.scrollTo(10), active.activate(pointer)]);
+      active.scrollTo(10), active.activate(pointer), active.settledSnapshot()]);
     const closed = active.close();
     assert.equal(active.close(), closed);
     const rejected = await results;
     assert.deepEqual(rejected.map(result => [result.status, result.reason?.code]),
-      Array(4).fill(['rejected', 'A1_SESSION_CLOSED']));
+      Array(5).fill(['rejected', 'A1_SESSION_CLOSED']));
     await assert.rejects(active.activate(pointer), { code: 'A1_SESSION_CLOSED' });
     await assert.rejects(active.scrollTo(0), { code: 'A1_SESSION_CLOSED' });
     await assert.rejects(active.reload(), { code: 'A1_SESSION_CLOSED' });
     await assert.rejects(active.selectNote(0), { code: 'A1_SESSION_CLOSED' });
+    await assert.rejects(active.settledSnapshot(), { code: 'A1_SESSION_CLOSED' });
     assert.deepEqual(active.snapshot(), initial);
     await closed;
     const exposed = active.snapshot();
@@ -305,14 +332,16 @@ test('failed initialization and unexpected worker exit settle callers and releas
       return actualPost.call(this, message, ...args);
     });
     try {
-      const results = await Promise.allSettled([active.selectNote(0), active.reload(), active.activate(pointer)]);
+      const results = await Promise.allSettled([active.selectNote(0), active.reload(),
+        active.activate(pointer), active.settledSnapshot()]);
       assert.equal(lostWorker, true);
       assert.deepEqual(results.map(result => [result.status, result.reason?.code]),
-        Array(3).fill(['rejected', 'A1_WORKER_FAILED']));
+        Array(4).fill(['rejected', 'A1_WORKER_FAILED']));
       await assert.rejects(active.activate(pointer), { code: 'A1_WORKER_FAILED' });
       await assert.rejects(active.scrollTo(0), { code: 'A1_WORKER_FAILED' });
       await assert.rejects(active.reload(), { code: 'A1_WORKER_FAILED' });
       await assert.rejects(active.selectNote(0), { code: 'A1_WORKER_FAILED' });
+      await assert.rejects(active.settledSnapshot(), { code: 'A1_WORKER_FAILED' });
       assert.deepEqual(active.snapshot(), initial);
       await active.close();
     } finally {

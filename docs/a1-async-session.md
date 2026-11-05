@@ -40,7 +40,7 @@ or invalid until selected. A denied source does not inspect or retain either
 path-bearing field, including its labels. A separately denied UI grant still
 permits the initial authorized display and its read-only catalog metadata.
 
-The returned object has six methods:
+The returned object has seven methods:
 
 - `snapshot()` synchronously copies the latest completed snapshot. It never
   waits for unfinished native work. Buffer values remain owned copies, including
@@ -48,6 +48,15 @@ The returned object has six methods:
   scroll offset, maximum, copied `noteChoices` and `selectedNoteId` belong to the
   same completed frame. In-memory and document-denied sources expose an empty
   choice list and a null selected ID.
+- `settledSnapshot()` returns a promise for an owned snapshot at its position
+  in the input queue. Every earlier admitted action has completed and published
+  its result, including a failed action's retained frame, before this read
+  resolves. Later inputs cannot change the returned copy. The read shares the
+  pending limit but invokes no worker action, file read or native service and
+  consumes no event attempt; it remains available after the event budget is
+  exhausted. Closing or worker loss rejects a pending read instead of resolving
+  it from stale data. This boundary orders inputs already admitted to this
+  adapter; an HTTP host must also handle requests still awaiting admission.
 - `activate({ x, y })` owns the validated pointer and returns a promise for the
   existing action result. Inputs execute and settle in submission order. A
   queue-full rejection consumes no native event attempt.
@@ -165,3 +174,9 @@ successful switching then verifies subsequent reload targets the new path.
 The paired canonical check manifest and impact descriptor select this suite
 through the existing A1 source and native-host dependency group. No additional
 Actions workflow or runner matrix is introduced.
+
+The dependency-free `a1-session-transport.test.mjs` suite uses a controlled worker
+protocol to test FIFO read boundaries, copied snapshots, queue and event limits,
+earlier failures, close and worker loss in the real parent adapter. Its results
+are transport evidence, separate from native/WIT execution in the integration
+suite.

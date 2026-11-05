@@ -14,8 +14,9 @@ rehearsal workflow does not allocate an Apple Silicon runner.
 [`platform-rehearsal.mjs`](platform-rehearsal.mjs) replays the source-file list
 from [merged PR #75](https://github.com/tseguine/grunkalunka/pull/75) against the
 current graph and checkout. Layout now has downstream A1 consumers, so its
-independent expected commands include all five application checks: note preview,
-service interaction, interaction replay/package, live session and live application.
+independent expected commands include all six application checks: note preview,
+service interaction, interaction replay/package, live session, session transport
+and live application.
 Their build closure includes CLI, compiler, layout, Markdown, runtime and Wasm-link.
 Only layout is selected for Cargo tests and Clippy; building the other packages
 does not select their own tests. Workspace formatting remains global.

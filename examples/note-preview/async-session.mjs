@@ -218,12 +218,21 @@ export async function createAsyncNoteSession(arguments_) {
   }
 
   function dispatch() {
-    if (state !== 'open' || current !== null || queued.length === 0) return;
-    current = queued.shift();
-    try {
-      worker.postMessage({ type: current.type, id: current.id, ...current.input });
-    } catch (error) {
-      fail(error);
+    while (state === 'open' && current === null && queued.length > 0) {
+      const request = queued.shift();
+      if (request.type === 'snapshot') {
+        // Every earlier admitted action has published its worker response.
+        // Copy at this queue position, before dispatching any later input; a
+        // cached snapshot taken when the request arrived would be too early.
+        request.resolve(copySnapshot(latest));
+        continue;
+      }
+      current = request;
+      try {
+        worker.postMessage({ type: current.type, id: current.id, ...current.input });
+      } catch (error) {
+        fail(error);
+      }
     }
   }
 
@@ -267,6 +276,15 @@ export async function createAsyncNoteSession(arguments_) {
     // The last received view remains inspectable after closing or worker loss.
     // It is always copied and is never a promise for unfinished native work.
     return copySnapshot(latest);
+  }
+
+  function settledSnapshot() {
+    try {
+      if (state !== 'open') throw terminalError;
+      return submit('snapshot', {});
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 
   function activate(pointer) {
@@ -325,7 +343,7 @@ export async function createAsyncNoteSession(arguments_) {
   }
 
   function submit(type, input) {
-    if (latest.eventsProcessed >= options.maxEvents) {
+    if (type !== 'snapshot' && latest.eventsProcessed >= options.maxEvents) {
       throw codedError('A1_EVENT_LIMIT', 'A1 session event limit exceeded', RangeError);
     }
     if (queued.length + (current === null ? 0 : 1) >= maxPending) {
@@ -354,5 +372,5 @@ export async function createAsyncNoteSession(arguments_) {
     await stopWorker().catch(() => {});
     throw error;
   }
-  return Object.freeze({ snapshot, activate, scrollTo, reload, selectNote, close });
+  return Object.freeze({ snapshot, settledSnapshot, activate, scrollTo, reload, selectNote, close });
 }
