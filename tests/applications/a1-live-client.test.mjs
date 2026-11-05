@@ -6,6 +6,7 @@ import { livePage, liveStyles } from '../../examples/note-preview/live-page.mjs'
 
 const token = 'a'.repeat(64);
 const tokenKey = 'grunkalunka:a1:session';
+const scrollControlIds = ['scroll-start', 'scroll-up', 'scroll-down', 'scroll-end'];
 const rgb = Buffer.alloc(320 * 160 * 3);
 for (let pixel = 0; pixel < 320 * 160; pixel++) {
   rgb[pixel * 3] = pixel % 256;
@@ -122,6 +123,18 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   const reloadAttributes = new Map();
   const reconnectListeners = new Map();
   const reconnectAttributes = new Map();
+  const scrollListeners = new Map();
+  const scrollButtons = Object.fromEntries(scrollControlIds.map(id => [id, {
+    disabled: true,
+    addEventListener: (name, fn) => {
+      assert.equal(name, 'click');
+      scrollListeners.set(id, fn);
+    },
+    removeEventListener: (name, fn) => {
+      assert.equal(name, 'click');
+      if (scrollListeners.get(id) === fn) scrollListeners.delete(id);
+    },
+  }]));
   const choiceListeners = new Map();
   const choiceAttributes = new Map();
   const painted = [];
@@ -196,6 +209,7 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   const document = { getElementById: id => ({
     'note-frame': canvas, 'session-status': status, 'reload-note': reloadButton,
     'reconnect-view': reconnectButton, 'note-choice': noteChoice,
+    ...scrollButtons,
   })[id], createElement: name => {
     assert.equal(name, 'option');
     return { value: '', textContent: '',
@@ -220,11 +234,16 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     reloadButton, reloadListeners, reloadAttributes, reload: () => reloadListeners.get('click')?.(),
     reconnectButton, reconnectListeners, reconnectAttributes,
     reconnect: () => reconnectListeners.get('click')?.(),
+    scrollButtons, scrollListeners, tapScroll: id => scrollListeners.get(id)?.(),
     noteChoice, choiceListeners, choiceAttributes, select: id => {
       noteChoice.value = String(id);
       return choiceListeners.get('change')?.();
     },
     requests, replies, data, click, key, wheel, focused: () => focused };
+}
+
+function scrollDisabled(b) {
+  return scrollControlIds.map(id => b.scrollButtons[id].disabled);
 }
 
 test('pointer mapping uses the current CSS rectangle and excludes every outside edge', () => {
@@ -436,6 +455,187 @@ test('wheel bursts coalesce one pending target and keyboard scrolling works with
   assert.equal(b.wheel({ ctrlKey: true }), false);
   assert.equal(b.wheel({ deltaY: Infinity }), false);
   assert.equal(b.requests.length, count);
+});
+
+test('visible scroll controls use native page steps and stop at both boundaries without moving focus', async t => {
+  const b = browser();
+  const initial = deferred();
+  b.replies.push(initial.promise);
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+  for (const id of scrollControlIds) b.tapScroll(id);
+  assert.equal(b.requests.length, 1);
+  initial.resolve(response(scrollingFrame()));
+  await client.ready;
+  assert.deepEqual(scrollDisabled(b), [true, true, false, false]);
+  b.tapScroll('scroll-start');
+  b.tapScroll('scroll-up');
+  assert.equal(b.requests.length, 1, 'top-boundary taps do not consume native attempts');
+
+  let sequence = 0;
+  for (const [id, y] of [['scroll-down', 160], ['scroll-down', 320],
+    ['scroll-down', 400], ['scroll-up', 240], ['scroll-start', 0], ['scroll-end', 400]]) {
+    b.replies.push(response(scrollingFrame({ sequence: ++sequence, scrollY: y })));
+    b.tapScroll(id);
+    assert.equal(b.requests.at(-1).path, '/scroll');
+    assert.equal(b.requests.at(-1).body, JSON.stringify({ y }));
+    await settle();
+    assert.deepEqual(scrollDisabled(b), [y === 0, y === 0, y === 400, y === 400]);
+  }
+  b.tapScroll('scroll-down');
+  b.tapScroll('scroll-end');
+  assert.equal(b.requests.length, 7, 'bottom-boundary taps also avoid zero-distance requests');
+  assert.equal(b.focused(), 0, 'button activation keeps focus on the native HTML button');
+});
+
+test('scroll button bursts coalesce behind the active target and allow reversing pending movement', async t => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const first = deferred();
+  const second = deferred();
+  const third = deferred();
+  b.replies.push(first.promise, second.promise, third.promise);
+  b.tapScroll('scroll-down');
+  assert.equal(b.requests[1].body, '{"y":160}');
+  assert.deepEqual(scrollDisabled(b), [false, false, false, false]);
+  b.tapScroll('scroll-down');
+  b.tapScroll('scroll-end');
+  assert.deepEqual(scrollDisabled(b), [false, false, true, true]);
+  assert.equal(b.requests.length, 2, 'taps retain one target while a scroll is running');
+  first.resolve(response(scrollingFrame({ sequence: 1, scrollY: 160 })));
+  await settle();
+  assert.equal(b.requests[2].body, '{"y":400}');
+  b.tapScroll('scroll-up');
+  assert.deepEqual(scrollDisabled(b), [false, false, false, false]);
+  second.resolve(response(scrollingFrame({ sequence: 2, scrollY: 400 })));
+  await settle();
+  assert.equal(b.requests[3].body, '{"y":240}');
+  third.resolve(response(scrollingFrame({ sequence: 3, scrollY: 240 })));
+  await settle();
+  assert.equal(b.requests.length, 4);
+  assert.deepEqual(scrollDisabled(b), [false, false, false, false]);
+});
+
+test('scroll buttons queue behind pointer input only while the resulting outline can still scroll', async t => {
+  for (const collapsed of [false, true]) await t.test(String(collapsed), async t => {
+    const b = browser();
+    b.replies.push(response(scrollingFrame()));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    const pointer = deferred();
+    b.replies.push(pointer.promise);
+    if (!collapsed) b.replies.push(response(scrollingFrame({ sequence: 2, scrollY: 160 })));
+    b.click();
+    assert.equal(b.requests[1].path, '/input');
+    assert.deepEqual(scrollDisabled(b), [true, true, false, false]);
+    b.tapScroll('scroll-down');
+    assert.equal(b.requests.length, 2);
+    pointer.resolve(response(collapsed ? frame({ sequence: 1, expanded: 0, visibleCount: 0 })
+      : scrollingFrame({ sequence: 1 })));
+    await settle();
+    if (collapsed) {
+      assert.equal(b.requests.length, 2, 'collapse discards a target outside the new outline');
+      assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+    } else {
+      assert.equal(b.requests.length, 3);
+      assert.equal(b.requests[2].body, '{"y":160}');
+      assert.deepEqual(scrollDisabled(b), [false, false, false, false]);
+    }
+  });
+});
+
+test('document replacement disables scroll buttons and never queues old-document taps', async t => {
+  for (const kind of ['reload', 'select']) await t.test(kind, async t => {
+    const b = browser();
+    const scrolling = overrides => selectionFrame({ maxScrollY: 400, canScroll: true, ...overrides });
+    b.replies.push(response(scrolling()));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    const replacement = deferred();
+    b.replies.push(replacement.promise);
+    const replacing = kind === 'reload' ? b.reload() : b.select(1);
+    assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+    for (const id of scrollControlIds) b.tapScroll(id);
+    assert.equal(b.requests.length, 2);
+    replacement.resolve(response(scrolling({ sequence: 1, selectedNoteId: kind === 'select' ? 1 : 0 })));
+    await replacing;
+    assert.equal(b.requests.length, 2, 'document replacement does not drain ignored taps');
+    assert.deepEqual(scrollDisabled(b), [true, true, false, false]);
+  });
+});
+
+test('scroll controls stay disabled without scroll authority, overflow or remaining budget', async t => {
+  const states = [frame(), emptyFrame(), scrollingFrame({ canScroll: false, canActivate: false,
+    canReload: false, controlPoint: null }), scrollingFrame({ sequence: 256, remainingEvents: 0 })];
+  for (const state of states) {
+    const b = browser();
+    b.replies.push(response(state));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+    for (const id of scrollControlIds) b.tapScroll(id);
+    assert.equal(b.requests.length, 1);
+  }
+});
+
+test('uncertain scroll taps are discarded through disconnect and synchronization', async t => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const lost = deferred();
+  b.replies.push(lost.promise);
+  b.tapScroll('scroll-down');
+  b.tapScroll('scroll-end');
+  lost.reject(new Error('scroll reply lost'));
+  await settle();
+  assert.equal(b.painted.length, 1, 'the last completed native frame stays visible');
+  assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+  for (const id of scrollControlIds) b.tapScroll(id);
+  assert.equal(b.requests.length, 2);
+
+  const sync = deferred();
+  b.replies.push(sync.promise);
+  const reconnecting = b.reconnect();
+  assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+  for (const id of scrollControlIds) b.tapScroll(id);
+  sync.resolve(response(scrollingFrame({ sequence: 1, inputGeneration: 2, scrollY: 160 })));
+  await reconnecting;
+  assert.deepEqual(b.requests.map(request => request.path), ['/sync', '/scroll', '/sync']);
+  assert.deepEqual(scrollDisabled(b), [false, false, false, false]);
+  b.replies.push(response(scrollingFrame({ sequence: 2, inputGeneration: 2, scrollY: 320 })));
+  b.tapScroll('scroll-down');
+  assert.equal(b.requests[3].body, '{"y":320}', 'a new tap uses the reconciled native position');
+  await settle();
+});
+
+test('disposal removes scroll button listeners and prevents queued or late scroll work', async () => {
+  const b = browser();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient(b);
+  await client.ready;
+  const pending = deferred();
+  b.replies.push(pending.promise);
+  const staleListener = b.scrollListeners.get('scroll-down');
+  b.tapScroll('scroll-down');
+  b.tapScroll('scroll-end');
+  client.dispose();
+  assert.equal(b.scrollListeners.size, 0);
+  assert.deepEqual(scrollDisabled(b), [true, true, true, true]);
+  assert.equal(b.requests[1].signal.aborted, true);
+  staleListener();
+  pending.resolve(response(scrollingFrame({ sequence: 1, scrollY: 160 })));
+  await settle();
+  assert.equal(b.requests.length, 2);
+  assert.equal(b.painted.length, 1);
 });
 
 test('fractional wheel movement accumulates without issuing zero-distance requests', async t => {
@@ -1566,10 +1766,16 @@ test('fixed page assets use external scripts/styles and preserve a borderless na
   assert.match(livePage, /tabindex="0"/);
   assert.match(livePage, /<button id="reload-note" type="button" disabled[^>]*>Reload note<\/button>/);
   assert.match(livePage, /<button id="reconnect-view" type="button" disabled hidden>Reconnect<\/button>/);
+  assert.match(livePage, /role="group" aria-label="Scroll outline"/);
+  for (const [id, label] of [['scroll-start', 'Top'], ['scroll-up', 'Page up'],
+    ['scroll-down', 'Page down'], ['scroll-end', 'Bottom']]) {
+    assert.match(livePage, new RegExp(`<button id="${id}" type="button" disabled aria-controls="note-frame">${label}</button>`));
+  }
   assert.match(livePage, /After editing the file, reload to see your changes/);
   assert.match(livePage, /<label for="note-choice">Note<\/label>/);
   assert.match(livePage, /<select id="note-choice" disabled/);
   assert.ok(!livePage.includes('<style') && !livePage.includes('onclick='));
   assert.match(liveStyles, /canvas \{[^}]*padding: 0; border: 0;/);
   assert.match(liveStyles, /image-rendering: pixelated/);
+  assert.match(liveStyles, /\.scroll-actions button \{[^}]*min-height: 44px;/);
 });
