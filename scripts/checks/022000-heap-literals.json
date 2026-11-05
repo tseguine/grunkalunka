@@ -2,5 +2,9 @@
   "command": "node",
   "args": [
     "scripts/check-heap-literals.mjs"
-  ]
+  ],
+  "pr": {
+    "reason": "The two-engine 500-repeat heap matrix is retained in full verification; native heap and compiled-value smoke coverage remains in the PR Cargo profile.",
+    "commands": []
+  }
 }

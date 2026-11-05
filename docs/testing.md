@@ -1,5 +1,30 @@
 # External tests and benchmarks
 
+## PR and master execution policy (2026-11-05)
+
+`node scripts/check.mjs` runs the complete master/manual suite.
+`node scripts/check.mjs --profile=pr` runs the bounded PR profile. Dependency
+selection can narrow the latter; unknown plans run it in full. See the
+[coverage table and budgets](ci.md#fast-pr-profile-and-full-master-profile).
+
+PRs retain all non-runtime Cargo tests, runtime library tests and 20 fast runtime
+integration targets, full client/transport contracts, compiled/native smoke
+coverage, all document-outline fixtures, and two real HTTP/synchronization
+scenarios. Exhaustive runtime matrices, repeated native application/package
+scenarios, the compatibility replay and heap repetition stress remain in full
+master verification. Document-outline PR checks omit repeated cost measurements
+while retaining native/component parity and driver invariants. Existing full
+suite descriptions below refer to that full coverage; a green PR does not claim
+that every master-only scenario executed.
+
+New checks default to PR execution. Every runtime integration target must be
+classified, and each master-only or trimmed command has a reason in its paired
+manifest and impact descriptor. Keep execution under two minutes per PR command;
+compile Cargo tests separately before timing their execution. Shorten redundant
+work first, then keep irreducibly long tests on master. The manual partial-build
+rehearsal is available for selector investigations without allocating extra PR
+runners.
+
 ## Current verification map (2026-11-01)
 
 The canonical [check catalog](../scripts/checks/README.md) and the

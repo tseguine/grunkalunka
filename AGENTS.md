@@ -107,13 +107,13 @@ when changing modules, tests, fixtures, build inputs, or workflows. The
 independent `impact-shadow.yml` advisory workflow is retired after its regression
 checks moved to the canonical runner. The maintainer
 authorized **dependency-selected verification on Linux and Windows PR runners**
-through `ci/impact/pr-gate.mjs`. Unknown or unsafe selections run the **original
-full** checks on that host. Every `master` push gets full Linux/Windows checks.
+through `ci/impact/pr-gate.mjs`. Unknown or unsafe selections run the **complete fast PR profile** on that host;
+they must not reintroduce exhaustive master-only tests. Every `master` push gets full Linux/Windows checks.
 Native Apple Silicon full verification is requested on every `master` push
 (with running builds preserved and superseded pending revisions replaced), or
 by explicit manual dispatch. A Linux PR probe checks the latest completed, non-cancelled macOS result on
 `master` (or a completed exact-head manual PR run). If missing, stale or
-failed, it triggers actual full native macOS checks on the PR merge revision.
+failed, it triggers the actual native macOS fast PR profile on the PR merge revision.
 The final macOS gate passes only with a healthy reference or successful real
 fallback; a master baseline does not imply PR-native verification. Independent browser workflows
 retain their own triggers and gates. P1 regressions and native-host integration
@@ -133,12 +133,12 @@ are not automatic PR merge gates.
   matching per-command descriptor in the same PR. Add new commands via an
   independently named `scripts/checks/NNNNNN-name.json` manifest, not by
   editing `scripts/check.mjs`. Paired new manifest/descriptor files are eligible
-  for selected tests; edits/deletions or incomplete pairs still force full CI.
+  for selected tests; edits/deletions or incomplete pairs still force the complete fast PR profile.
   Account for new modules, fixtures, imports, generated inputs, and spawned
   tools in the relevant owner, test and Cargo-test descriptors. Prefer
   separate descriptor files over shared registries. Unknown or ambiguous
   paths/dependencies, stale command mappings,
-  and global build/CI changes **must fall back to full CI**, never silently
+  and global build/CI changes **must fall back to the complete fast PR profile**, never silently
   select zero tests. A failed selected check is a failure, **not** a planning
   fallback. An inability to independently validate a dependency or target
   cannot justify marking it safely excluded.
@@ -158,10 +158,22 @@ are not automatic PR merge gates.
 Tests and experiments should be implemented as **ordinary repository tests** and
 registered with the existing canonical check runner by default. Provide accurate
 ownership, source/fixture dependencies and per-command check descriptors so the
-same tests participate in dependency-selected PR CI on Linux and Windows, and in
-full master-push/manual native macOS checks.
+same tests participate in full master/manual checks and, where bounded, in
+dependency-selected PR CI on Linux and Windows. The automatic native macOS
+fallback also uses the PR profile.
 A regression test must not require its own Actions workflow merely because it
 originated in a research or implementation workstream.
+
+**Keep PR tests short.** Trim repeated compilation, setup and workload repetition
+first. Tests that still cannot fit a two-minute command execution budget belong
+in the full master/manual profile, with an explicit reason and useful fast smoke
+coverage in the matching canonical manifest and impact descriptor. New commands
+default into PRs; classify every new runtime integration target explicitly.
+Cargo compilation/Clippy may use ten minutes separately from test execution;
+PR jobs have a 15-minute total cap. Unknown impact plans and disabling selective
+execution still run the complete fast PR profile, not the exhaustive master
+suite. Failures and timeouts remain failures. The partial-build rehearsal is a
+manual diagnostic; its inexpensive regression tests stay in canonical CI.
 
 Avoid adding standalone PR-triggered workflows, status checks, duplicated Cargo
 builds, or extra runner matrices to execute tests that the canonical runner can

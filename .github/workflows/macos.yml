@@ -7,6 +7,11 @@ on:
     branches: [master]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      pr-checks:
+        description: Run the bounded PR profile for an automatic PR fallback
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -29,7 +34,7 @@ jobs:
   verify:
     name: Native macOS (Apple Silicon)
     runs-on: macos-15
-    timeout-minutes: 65
+    timeout-minutes: ${{ inputs.pr-checks && 15 || 65 }}
     steps:
       - name: Check out exact master-push or manually selected revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,6 +75,11 @@ jobs:
           cargo fetch --locked
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
       - name: Full workspace build
+        timeout-minutes: ${{ inputs.pr-checks && 10 || 65 }}
         run: cargo build --workspace --locked --offline -j 4
+      - name: Complete fast PR profile
+        if: inputs.pr-checks
+        run: node scripts/check.mjs --profile=pr
       - name: Full canonical tests
+        if: ${{ !inputs.pr-checks }}
         run: node scripts/check.mjs

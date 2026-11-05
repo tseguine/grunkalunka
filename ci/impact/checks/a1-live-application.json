@@ -12,5 +12,25 @@
   "paths": [
     "tests/applications/a1-live-client.test.mjs",
     "tests/applications/a1-live-run.test.mjs"
-  ]
+  ],
+  "pr": {
+    "reason": "PRs run every pure client test plus two actual native HTTP smoke scenarios; the complete HTTP lifecycle/timeout matrix remains in full verification.",
+    "commands": [
+      {
+        "command": "node",
+        "args": [
+          "--test",
+          "tests/applications/a1-live-client.test.mjs"
+        ]
+      },
+      {
+        "command": "node",
+        "args": [
+          "--test",
+          "--test-name-pattern=^live (HTTP host transports|synchronization fences)",
+          "tests/applications/a1-live-run.test.mjs"
+        ]
+      }
+    ]
+  }
 }

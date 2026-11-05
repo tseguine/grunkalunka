@@ -6,6 +6,11 @@
     "ci/impact/*.test.mjs"
   ],
   "dependsOn": [
-    "canonical-scripts"
-  ]
+    "canonical-scripts",
+    "check:a1-note-preview",
+    "check:a1-live-application",
+    "check:document-outline",
+    "check:workspace-tests"
+  ],
+  "buildDependsOn": []
 }

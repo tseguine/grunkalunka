@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { cargoModules, planImpact } from './impact.mjs';
 import { cargoTestNodes } from './cargo-test-nodes.mjs';
-import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
+import { checkNodes, verifyCanonicalChecks, verifyPrChecks } from './canonical.mjs';
 import { auditBrowserWorkflows } from './external-workflows.mjs';
 import { choosePrChecks, runDecision } from './pr-gate.mjs';
 
@@ -19,11 +19,12 @@ const readCatalog = folder => readdirSync(join(directory, folder))
   .filter(file => file.endsWith('.json')).sort()
   .map(file => JSON.parse(readFileSync(join(directory, folder, file), 'utf8')));
 
-function invoke(command, args, { capture = false, timeout = 300000 } = {}) {
+function invoke(command, args, { capture = false, timeout = 30_000 } = {}) {
   const started = performance.now();
   console.log('PLATFORM REHEARSAL START ' + JSON.stringify({ command, args }));
   const result = spawnSync(command === 'node' ? process.execPath : command, args, {
     cwd: root, shell: false, timeout,
+    ...(timeout ? { killSignal: 'SIGKILL' } : {}),
     encoding: capture ? 'utf8' : undefined,
     stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     maxBuffer: 16 * 1024 * 1024,
@@ -45,6 +46,7 @@ function invoke(command, args, { capture = false, timeout = 300000 } = {}) {
 // than the reverse selection of Cargo tests. Build-only packages stay untested.
 export function assertLayoutRehearsal(choice) {
   assert.equal(choice.mode, 'partial', choice.reason);
+  assert.equal(choice.profile, 'pr', 'rehearsal must exercise the production fast PR profile');
   assert.deepEqual(choice.selectedPackages, ['grunkalunka-layout'],
     'the rehearsal must retain layout-only Cargo test and Clippy scope');
   assert.deepEqual(choice.selectedTests, [
@@ -55,6 +57,7 @@ export function assertLayoutRehearsal(choice) {
     'check:a1-note-preview',
     'check:a1-service-interaction',
     'check:a1-session-transport',
+    'check:impact-planner-regressions',
     'check:workspace-clippy',
     'check:workspace-format',
     'check:workspace-tests',
@@ -67,14 +70,15 @@ export function assertLayoutRehearsal(choice) {
     ['cargo', 'fmt', '--all', '--check'],
     ['cargo', 'clippy', '--all-targets', '--locked', '--offline', '-j', '4',
       '-p', 'grunkalunka-layout', '--', '-D', 'warnings'],
-    ['cargo', 'test', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout'],
-    ['node', '--test', 'tests/applications/note-preview.test.mjs'],
-    ['node', '--test', 'tests/applications/a1-service-interaction.test.mjs'],
-    ['node', '--test', 'tests/applications/a1-interaction-run.test.mjs'],
-    ['node', '--test', 'tests/applications/a1-live-session.test.mjs'],
+    ['node', 'scripts/pr-cargo-tests.mjs', '--package', 'grunkalunka-layout'],
+    ['node', '--test',
+      '--test-name-pattern=^(trusted lifted outline|collapsed and partial outlines|denial is a distinct static result|inert heading labels|malformed spans|actual compiled JS/TS Wasm|native A1|A1 development build)',
+      'tests/applications/note-preview.test.mjs'],
     ['node', '--test', 'tests/applications/a1-session-transport.test.mjs'],
-    ['node', '--test', 'tests/applications/a1-live-client.test.mjs',
+    ['node', '--test', 'tests/applications/a1-live-client.test.mjs'],
+    ['node', '--test', '--test-name-pattern=^live (HTTP host transports|synchronization fences)',
       'tests/applications/a1-live-run.test.mjs'],
+    ['node', '--test', 'ci/impact/*.test.mjs'],
   ], 'the rehearsal must execute the independent build and A1 command contract');
 }
 
@@ -98,6 +102,9 @@ function main() {
   const observed = JSON.parse(invoke('node',
     ['ci/impact/collect-checks.mjs'], { capture: true }));
   const coverage = verifyCanonicalChecks(observed, declared);
+  const prObserved = JSON.parse(invoke('node',
+    ['ci/impact/collect-checks.mjs', '--profile=pr'], { capture: true }));
+  verifyPrChecks(prObserved, declared);
   const modules = [...cargoModules(metadata, root), ...readCatalog('owners')];
   const groups = readCatalog('targets');
   const cargoTests = cargoTestNodes(packages, readCatalog('cargo-tests'));
@@ -119,7 +126,7 @@ function main() {
   };
   const choice = choosePrChecks({
     eventName: 'pull_request', runnerOS: nativePlatform, enabled: true,
-    plan, declared, observed, workspacePackages,
+    plan, declared, observed, prObserved, workspacePackages,
   });
   assertLayoutRehearsal(choice);
   const revision = invoke('git', ['rev-parse', 'HEAD'], { capture: true }).trim();
@@ -128,15 +135,14 @@ function main() {
     affectedTests: choice.selectedTests, selectedPackages: choice.selectedPackages,
     canonicalCoverage: coverage, externalWorkflows, commands: choice.commands,
   }));
-  // The selected A1 suites contain many real native/WIT sessions. A complete
-  // suite exceeds the former five-minute layout-only command budget on Linux.
-  // Keep discovery short and execution bounded independently of the job limit.
-  const receipts = runDecision(choice, (command, args) =>
-    invoke(command, args, { timeout: 10 * 60_000 }));
+  // Exercise the same child budgets as production PR verification. The hosted
+  // diagnostic uses the same 15-minute job watchdog and remains manual-only.
+  const receipts = runDecision(choice, (command, args, options) =>
+    invoke(command, args, options));
   console.log('PASS native-platform partial rehearsal ' + JSON.stringify({
     revision, nativePlatform, receipts,
     elapsedMs: receipts.reduce((sum, r) => sum + r.elapsedMs, 0),
-    caveat: 'historical changed paths replayed against current source; full PR CI is authoritative',
+    caveat: 'historical changed paths replayed against current source; the production PR profile is authoritative',
   }));
 }
 
