@@ -4,6 +4,8 @@
   "paths": [
     ".gitattributes",
     ".github/workflows/browser-smoke.yml",
+    "examples/note-preview/live-client.mjs",
+    "examples/note-preview/live-page.mjs",
     "tests/browser-oracles/cascade-mutations.html",
     "tests/browser-oracles/compare.mjs",
     "tests/browser-oracles/cross-engine.mjs",
@@ -14,6 +16,8 @@
     "tests/browser-oracles/layout-baseline.html",
     "tests/browser-oracles/listener-lifecycle.html",
     "tests/browser-oracles/shadow-events.html",
+    "tools/browser-oracles/a1-presenter-fixture.mjs",
+    "tools/browser-oracles/a1-presenter.mjs",
     "tools/browser-oracles/cascade.mjs",
     "tools/browser-oracles/collect.mjs",
     "tools/browser-oracles/diagnostic-isolation.mjs",
@@ -21,6 +25,7 @@
     "tools/browser-oracles/flex.mjs",
     "tools/browser-oracles/flex-wrap-lines.mjs",
     "tools/browser-oracles/grid-placement.mjs",
+    "tools/browser-oracles/hosted/a1-presenter.test.mjs",
     "tools/browser-oracles/hosted/cross-engine.test.mjs",
     "tools/browser-oracles/hosted/smoke.test.mjs",
     "tools/browser-oracles/listener-lifecycle.mjs",
@@ -32,6 +37,8 @@
   "requiredFor": [
     ".gitattributes",
     ".github/workflows/browser-smoke.yml",
+    "examples/note-preview/live-client.mjs",
+    "examples/note-preview/live-page.mjs",
     "tests/browser-oracles/cascade-mutations.html",
     "tests/browser-oracles/compare.mjs",
     "tests/browser-oracles/cross-engine.mjs",
@@ -42,6 +49,8 @@
     "tests/browser-oracles/layout-baseline.html",
     "tests/browser-oracles/listener-lifecycle.html",
     "tests/browser-oracles/shadow-events.html",
+    "tools/browser-oracles/a1-presenter-fixture.mjs",
+    "tools/browser-oracles/a1-presenter.mjs",
     "tools/browser-oracles/cascade.mjs",
     "tools/browser-oracles/collect.mjs",
     "tools/browser-oracles/diagnostic-isolation.mjs",
@@ -49,6 +58,7 @@
     "tools/browser-oracles/flex.mjs",
     "tools/browser-oracles/flex-wrap-lines.mjs",
     "tools/browser-oracles/grid-placement.mjs",
+    "tools/browser-oracles/hosted/a1-presenter.test.mjs",
     "tools/browser-oracles/hosted/cross-engine.test.mjs",
     "tools/browser-oracles/hosted/smoke.test.mjs",
     "tools/browser-oracles/listener-lifecycle.mjs",
@@ -60,7 +70,7 @@
   "mustContain": [
     "engine: [chromium, firefox, webkit]",
     "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea",
-    "node --test tools/browser-oracles/hosted/smoke.test.mjs",
+    "node --test tools/browser-oracles/hosted/smoke.test.mjs tools/browser-oracles/hosted/a1-presenter.test.mjs",
     "node --test tools/browser-oracles/hosted/cross-engine.test.mjs"
   ]
 }

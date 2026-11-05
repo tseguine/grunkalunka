@@ -1,6 +1,10 @@
 {
   "id": "test:browser-oracle-contracts",
   "dependsOn": [
+    "browser-oracles",
+    "a1-note-preview"
+  ],
+  "buildDependsOn": [
     "browser-oracles"
   ]
 }

@@ -10,7 +10,9 @@ the existing `*.test.mjs` files under `tests/browser-oracles/` and
 `tools/browser-oracles/`, excluding `tools/browser-oracles/hosted/`.
 These offline tests run without installing Playwright or building unrelated
 Cargo packages. The reverse dependency graph uses
-`test:browser-oracle-contracts` and the `browser-oracles` owner.
+`test:browser-oracle-contracts` and the `browser-oracles` owner. The production
+A1 presenter imports also select this test through the `a1-note-preview` owner;
+that selection edge adds no native build prerequisite to browser-only edits.
 
 Only **two independent, path-filtered, real-engine workflows** remain:
 `browser-smoke.yml` (Chromium, Firefox and WebKit plus source-checked
@@ -46,10 +48,18 @@ and global CI changes retain conservative full fallback.
 ## Live smoke dependency closure
 
 The smoke workflow's identical PR/push filters now enumerate the actual
-source inputs of its hosted `smoke.test.mjs` and `cross-engine.test.mjs`:
+source inputs of its hosted `smoke.test.mjs`, `a1-presenter.test.mjs` and
+`cross-engine.test.mjs`:
 the baseline/event/flex/grid/shadow fixtures, their collector/validator and
 suite runners, cross-engine comparator, pinned Playwright package, runner
-programs and source-byte checkout attributes. Pure `*.test.mjs` offline
+programs and source-byte checkout attributes. The A1 presenter test serves the
+production `live-client.mjs` and `live-page.mjs` against a bounded controlled HTTP
+backend inside each existing engine job. It checks browser presentation, input
+and reconnect behavior; it does not execute the native application or WIT service.
+It reuses the pinned image and dependency with no new job, matrix or Cargo build.
+Its exact production and fixture inputs therefore belong in the same source
+filters. See [the presenter evidence contract](../../docs/a1-browser-presenter.md).
+Pure `*.test.mjs` offline
 regression edits, native-bridge-only sensitivity tools and unrelated fixtures
 do **not** restart three browser containers; those are already covered by
 the canonical Node suite or native bridge as appropriate.

@@ -6,6 +6,8 @@ on:
     paths:
       - '.gitattributes'
       - '.github/workflows/browser-smoke.yml'
+      - 'examples/note-preview/live-client.mjs'
+      - 'examples/note-preview/live-page.mjs'
       - 'tests/browser-oracles/cascade-mutations.html'
       - 'tests/browser-oracles/compare.mjs'
       - 'tests/browser-oracles/cross-engine.mjs'
@@ -16,6 +18,8 @@ on:
       - 'tests/browser-oracles/layout-baseline.html'
       - 'tests/browser-oracles/listener-lifecycle.html'
       - 'tests/browser-oracles/shadow-events.html'
+      - 'tools/browser-oracles/a1-presenter-fixture.mjs'
+      - 'tools/browser-oracles/a1-presenter.mjs'
       - 'tools/browser-oracles/cascade.mjs'
       - 'tools/browser-oracles/collect.mjs'
       - 'tools/browser-oracles/diagnostic-isolation.mjs'
@@ -23,6 +27,7 @@ on:
       - 'tools/browser-oracles/flex.mjs'
       - 'tools/browser-oracles/flex-wrap-lines.mjs'
       - 'tools/browser-oracles/grid-placement.mjs'
+      - 'tools/browser-oracles/hosted/a1-presenter.test.mjs'
       - 'tools/browser-oracles/hosted/cross-engine.test.mjs'
       - 'tools/browser-oracles/hosted/smoke.test.mjs'
       - 'tools/browser-oracles/listener-lifecycle.mjs'
@@ -35,6 +40,8 @@ on:
     paths:
       - '.gitattributes'
       - '.github/workflows/browser-smoke.yml'
+      - 'examples/note-preview/live-client.mjs'
+      - 'examples/note-preview/live-page.mjs'
       - 'tests/browser-oracles/cascade-mutations.html'
       - 'tests/browser-oracles/compare.mjs'
       - 'tests/browser-oracles/cross-engine.mjs'
@@ -45,6 +52,8 @@ on:
       - 'tests/browser-oracles/layout-baseline.html'
       - 'tests/browser-oracles/listener-lifecycle.html'
       - 'tests/browser-oracles/shadow-events.html'
+      - 'tools/browser-oracles/a1-presenter-fixture.mjs'
+      - 'tools/browser-oracles/a1-presenter.mjs'
       - 'tools/browser-oracles/cascade.mjs'
       - 'tools/browser-oracles/collect.mjs'
       - 'tools/browser-oracles/diagnostic-isolation.mjs'
@@ -52,6 +61,7 @@ on:
       - 'tools/browser-oracles/flex.mjs'
       - 'tools/browser-oracles/flex-wrap-lines.mjs'
       - 'tools/browser-oracles/grid-placement.mjs'
+      - 'tools/browser-oracles/hosted/a1-presenter.test.mjs'
       - 'tools/browser-oracles/hosted/cross-engine.test.mjs'
       - 'tools/browser-oracles/hosted/smoke.test.mjs'
       - 'tools/browser-oracles/listener-lifecycle.mjs'
@@ -105,11 +115,12 @@ jobs:
           fc-list | LC_ALL=C sort > target/browser-smoke/${{ matrix.engine }}/fonts.txt
           uname -a > target/browser-smoke/${{ matrix.engine }}/host.txt
           cat /etc/os-release >> target/browser-smoke/${{ matrix.engine }}/host.txt
-      - name: Run real reference-engine behavior as node:test
+      - name: Run real reference-engine and A1 presenter behavior as node:test
         env:
           BROWSER_ENGINE: ${{ matrix.engine }}
           BROWSER_EVIDENCE_DIR: target/browser-smoke/${{ matrix.engine }}/captures
-        run: timeout --kill-after=10s 250s node --test tools/browser-oracles/hosted/smoke.test.mjs
+          BROWSER_A1_EVIDENCE_DIR: target/browser-smoke/${{ matrix.engine }}/a1-presenter
+        run: timeout --kill-after=10s 250s node --test tools/browser-oracles/hosted/smoke.test.mjs tools/browser-oracles/hosted/a1-presenter.test.mjs
       - name: Retain raw evidence and resolved dependency inventory
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

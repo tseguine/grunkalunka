@@ -38,11 +38,14 @@ const packageGraph = [
 const workspacePackages = packageGraph.map(([id]) => id);
 const modules = [
   ...packageGraph.map(([id, dependsOn]) => ({ id, paths: ['crates/' + id + '/'], dependsOn })),
-  ...['a1-note-preview', 'node-build', 'node-runtime'].map(id => read('owners/' + id + '.json')),
+  ...['a1-note-preview', 'browser-oracles', 'node-build', 'node-runtime']
+    .map(id => read('owners/' + id + '.json')),
 ];
 const group = read('targets/a1-note-preview.json');
+const browserGroup = read('targets/browser-oracle-contracts.json');
 const declared = catalog('checks').filter(check => check.scope === 'workspace' ||
-  check.dependsOn.includes('test:a1-note-preview') || check.id === 'check:a1-ui-service');
+  check.dependsOn.includes('test:a1-note-preview') ||
+  ['check:a1-ui-service', 'check:browser-oracle-contracts'].includes(check.id));
 const commandKey = ({ command, args }) => JSON.stringify([command, ...args]);
 const relevantCommands = new Set(declared.map(commandKey));
 const observed = JSON.parse(execFileSync(process.execPath, ['ci/impact/collect-checks.mjs'], {
@@ -57,7 +60,7 @@ const tests = [
 const externalWorkflows = auditBrowserWorkflows(changedPaths, catalog('workflows'),
   path => readFileSync(join(root, path), 'utf8'));
 
-function selection({ runnerOS = 'Linux', groups = [group], mutate = () => {} } = {}) {
+function selection({ runnerOS = 'Linux', groups = [group, browserGroup], mutate = () => {} } = {}) {
   const impact = planImpact({ changedPaths, modules, groups, tests, ignored: ['docs/'] });
   assert.equal(impact.full, false, impact.reasons.join('; '));
   mutate(impact);
@@ -77,6 +80,8 @@ test('current A1 consumers build their prerequisites while only layout Cargo tes
     assert.doesNotThrow(() => assertLayoutRehearsal(choice), runnerOS);
     assert.ok(!choice.selectedTests.includes('check:a1-ui-service'),
       'building the runtime does not select its separate source-service test');
+    assert.ok(!choice.selectedTests.includes('check:browser-oracle-contracts'),
+      'building the A1 owner does not select its presenter consumer');
     assert.ok(!choice.commands.flat().includes('unrelated-test-package'));
     assert.equal(choice.externalJobsVerified, false,
       'an expected browser trigger is not browser execution evidence');
@@ -85,7 +90,7 @@ test('current A1 consumers build their prerequisites while only layout Cargo tes
 
 test('removing the A1 layout dependency exposes the obsolete four-command selection', () => {
   const choice = selection({ groups: [{ ...group,
-    dependsOn: group.dependsOn.filter(id => id !== 'grunkalunka-layout') }] });
+    dependsOn: group.dependsOn.filter(id => id !== 'grunkalunka-layout') }, browserGroup] });
   assert.equal(choice.commands.length, 4);
   assert.throws(() => assertLayoutRehearsal(choice), /every downstream A1 consumer/);
 });
