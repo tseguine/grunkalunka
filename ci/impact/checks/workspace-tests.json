@@ -10,5 +10,19 @@
     "4"
   ],
   "dependsOn": [],
-  "scope": "workspace"
+  "scope": "workspace",
+  "pr": {
+    "reason": "PRs retain all non-runtime tests plus the explicitly classified fast runtime targets; exhaustive runtime matrices run in the full profile.",
+    "commands": [
+      {
+        "command": "node",
+        "args": [
+          "scripts/pr-cargo-tests.mjs"
+        ]
+      }
+    ]
+  },
+  "paths": [
+    "scripts/pr-cargo-tests.mjs"
+  ]
 }

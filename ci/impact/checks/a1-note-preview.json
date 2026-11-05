@@ -1,7 +1,27 @@
 {
   "id": "check:a1-note-preview",
   "command": "node",
-  "args": ["--test", "tests/applications/note-preview.test.mjs"],
-  "dependsOn": ["test:a1-note-preview"],
-  "paths": ["tests/applications/note-preview.test.mjs"]
+  "args": [
+    "--test",
+    "tests/applications/note-preview.test.mjs"
+  ],
+  "dependsOn": [
+    "test:a1-note-preview"
+  ],
+  "paths": [
+    "tests/applications/note-preview.test.mjs"
+  ],
+  "pr": {
+    "reason": "PRs retain the static contracts, compiled JS/TS, native UI and development-build smoke tests; repeated document/application scenarios remain in full verification.",
+    "commands": [
+      {
+        "command": "node",
+        "args": [
+          "--test",
+          "--test-name-pattern=^(trusted lifted outline|collapsed and partial outlines|denial is a distinct static result|inert heading labels|malformed spans|actual compiled JS/TS Wasm|native A1|A1 development build)",
+          "tests/applications/note-preview.test.mjs"
+        ]
+      }
+    ]
+  }
 }

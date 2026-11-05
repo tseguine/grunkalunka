@@ -1,28 +1,42 @@
 // Compare actual canonical invocations with independent command descriptors.
 // A stale or ambiguous catalog must never be treated as a safe partial plan.
+import { projectPrCommands } from '../../scripts/check-catalog.mjs';
+
 function commandKey(check) {
   if (!check || !['node', 'cargo'].includes(check.command) ||
       !Array.isArray(check.args) || !check.args.length ||
-      !check.args.every(arg => typeof arg === 'string' && arg.length > 0)) {
+      !check.args.every(arg => typeof arg === 'string' && arg.length > 0 && !arg.includes('\0'))) {
     throw new Error('invalid canonical command declaration');
   }
   return JSON.stringify([check.command, ...check.args]);
 }
 
-export function verifyCanonicalChecks(observed, declared) {
-  if (!Array.isArray(observed) || !Array.isArray(declared) || !observed.length) {
-    throw new Error('missing canonical command inventory');
-  }
-  const expected = new Map();
+function declaredInventories(declared) {
+  if (!Array.isArray(declared) || !declared.length) throw new Error('missing canonical declarations');
+  const full = new Map(), pr = new Map(), variants = [];
   const ids = new Set();
   for (const check of declared) {
-    if (typeof check.id !== 'string' || !check.id.startsWith('check:') || ids.has(check.id)) {
-      throw new Error('invalid or duplicate canonical check ID: ' + check.id);
+    if (!check || typeof check.id !== 'string' || !check.id.startsWith('check:') || ids.has(check.id)) {
+      throw new Error('invalid or duplicate canonical check ID: ' + check?.id);
     }
     ids.add(check.id);
     const key = commandKey(check);
-    if (expected.has(key)) throw new Error('duplicate canonical declaration: ' + key);
-    expected.set(key, check.id);
+    if (full.has(key)) throw new Error('duplicate canonical declaration: ' + key);
+    full.set(key, check.id);
+    const projected = projectPrCommands(check);
+    variants.push({ id: check.id, keys: projected.map(commandKey) });
+    for (const command of projected) {
+      const projectedKey = commandKey(command);
+      if (pr.has(projectedKey)) throw new Error('duplicate canonical PR declaration: ' + projectedKey);
+      pr.set(projectedKey, check.id);
+    }
+  }
+  return { full, pr, variants };
+}
+
+function verifyInventory(observed, expected, allowEmpty = false) {
+  if (!Array.isArray(observed) || !allowEmpty && !observed.length) {
+    throw new Error('missing canonical command inventory');
   }
   const seen = new Set();
   for (const command of observed) {
@@ -35,6 +49,26 @@ export function verifyCanonicalChecks(observed, declared) {
     if (!seen.has(key)) throw new Error('stale canonical declaration ' + id + ': ' + key);
   }
   return { commands: observed.length, mapped: expected.size };
+}
+
+export function verifyCanonicalChecks(observed, declared) {
+  return verifyInventory(observed, declaredInventories(declared).full);
+}
+
+// Capture the PR runner independently. Matching the full catalog alone cannot
+// prove that an exclusion or bounded variant is the one the PR actually runs.
+export function verifyPrChecks(observed, declared) {
+  const { pr, variants } = declaredInventories(declared);
+  const coverage = verifyInventory(observed, pr, true);
+  const positions = new Map(observed.map((command, index) => [commandKey(command), index]));
+  for (const { id, keys } of variants) {
+    for (let index = 1; index < keys.length; index++) {
+      if (positions.get(keys[index - 1]) >= positions.get(keys[index])) {
+        throw new Error('canonical PR variant order differs from declaration: ' + id);
+      }
+    }
+  }
+  return coverage;
 }
 
 // Workspace-wide canonical commands must track new Cargo members automatically.
@@ -51,7 +85,7 @@ export function checkNodes(declared, workspaceModules, cargoTestTargets = []) {
       !workspaceModules.every(id => typeof id === 'string' && id)) {
     throw new Error('invalid Cargo workspace package IDs');
   }
-  return declared.map(({ command, args, scope, ...node }) => {
+  return declared.map(({ command, args, scope, pr, ...node }) => {
     if (scope !== undefined && scope !== 'workspace') {
       throw new Error('unsupported scope: ' + scope);
     }

@@ -29,7 +29,7 @@ jobs:
   checks:
     name: Checks (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 15 || 60 }}
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +84,7 @@ jobs:
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
 
       # Linux/Windows verify all checks on master and manually dispatched CI.
-      # PRs use validated dependency-selected checks.
+      # PRs use the bounded fast profile, selected by validated dependencies.
       - name: Build the workspace offline (full verification)
         if: github.event_name != 'pull_request'
         run: cargo build --workspace --locked --offline -j 4
@@ -94,9 +94,9 @@ jobs:
         run: node scripts/check.mjs
 
       # Linux/Windows PRs use the same dependency graph, not a path allowlist.
-      # Unknown/unsafe plans revert to the exact full build + check pair.
+      # Unknown/unsafe plans run the complete fast PR profile on that host.
       # Disable all-platform selective PR verification with PARTIAL_PR_CI='false'.
-      - name: Verify PR (dependency-selected or full fallback)
+      - name: Verify PR (selected or complete fast profile)
         if: github.event_name == 'pull_request'
         env:
           PARTIAL_PR_CI: 'true'
@@ -134,6 +134,8 @@ jobs:
     needs: macos-probe
     if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.macos-probe.result != 'success' || needs.macos-probe.outputs.fresh != 'true') }}
     uses: ./.github/workflows/macos.yml
+    with:
+      pr-checks: true
     permissions:
       contents: read
 

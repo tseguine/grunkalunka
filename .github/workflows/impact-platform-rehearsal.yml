@@ -1,25 +1,7 @@
 name: Cross-platform partial-PR execution rehearsal
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      # Only changes to executable planning/gating logic need an extra
-      # three-native-host rehearsal; ordinary descriptor/test additions are
-      # already checked by canonical CI and planner regression tests.
-      - 'ci/impact/pr-gate.mjs'
-      - 'ci/impact/cargo-scope.mjs'
-      - 'ci/impact/canonical.mjs'
-      - 'ci/impact/impact.mjs'
-      - 'ci/impact/platform-rehearsal.mjs'
-      - 'ci/impact/plan.mjs'
-      - 'ci/impact/added-checks.mjs'
-      - 'ci/impact/source-dependency-audit.mjs'
-      - 'ci/impact/cargo-test-nodes.mjs'
-      - 'ci/impact/collect-checks.mjs'
-      - 'ci/impact/external-workflows.mjs'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/impact-platform-rehearsal.yml'
+  # Diagnostic control: explicitly replay a known partial selection when needed.
   workflow_dispatch:
 
 permissions:
@@ -29,8 +11,8 @@ jobs:
   rehearsal:
     name: Scoped PR gate (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    # The selected closure includes the existing native A1 integration suites.
-    timeout-minutes: 35
+    # Rehearse the same bounded profile used by production PR gates.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

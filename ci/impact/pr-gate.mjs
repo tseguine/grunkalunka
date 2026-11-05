@@ -1,12 +1,14 @@
 // Cross-platform PR impact gate: selectively run the validated dependency plan
-// on native Linux, Windows and macOS; all other events fall back to full CI.
+// on native Linux, Windows and macOS. PR fallbacks run the complete bounded PR
+// profile; other events retain the full canonical suite.
 // Only planning failures fall back. A selected check failure is always fatal.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { verifyCanonicalChecks } from './canonical.mjs';
+import { commandTimeoutMs, projectPrCommands } from '../../scripts/check-catalog.mjs';
+import { verifyCanonicalChecks, verifyPrChecks } from './canonical.mjs';
 import { previewCargoScope } from './cargo-scope.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -15,6 +17,8 @@ const fullCommands = [
   ['cargo', 'build', '--workspace', '--locked', '--offline', '-j', '4'],
   ['node', 'scripts/check.mjs'],
 ];
+const prCommands = [fullCommands[0], ['node', 'scripts/check.mjs', '--profile=pr']];
+const prCargoTests = { command: 'node', args: ['scripts/pr-cargo-tests.mjs'] };
 const workspaceChecks = Object.freeze({
   'check:workspace-format': 'format',
   'check:workspace-clippy': 'clippy',
@@ -25,23 +29,26 @@ const sorted = values => [...values].sort();
 const nativePlatforms = new Set(['Linux', 'Windows', 'macOS']);
 const selectivePr = (eventName, runnerOS, enabled) =>
   eventName === 'pull_request' && nativePlatforms.has(runnerOS) && enabled === true;
+const eventProfile = eventName => eventName === 'pull_request' ? 'pr' : 'full';
+const completeCommands = profile => profile === 'pr' ? prCommands : fullCommands;
 
-function fallback(reason) {
-  return { mode: 'full', reason, commands: structuredClone(fullCommands) };
+function fallback(reason, profile) {
+  return { mode: 'full', profile, reason, commands: structuredClone(completeCommands(profile)) };
 }
 
 // No path, package or workstream whitelist: the real plan owns selection.
 // The canonical check inventory and Cargo metadata independently guard the
 // translation from advisory check IDs into executable commands.
 export function choosePrChecks({
-  eventName, runnerOS, enabled, plan, declared, observed, workspacePackages,
+  eventName, runnerOS, enabled, plan, declared, observed, prObserved, workspacePackages,
 }) {
+  const profile = eventProfile(eventName);
   if (!selectivePr(eventName, runnerOS, enabled)) {
-    return fallback('only enabled native-platform pull requests use partial verification');
+    return fallback('only enabled native-platform pull requests use partial verification', profile);
   }
   if (!plan || plan.mode !== 'shadow' || plan.advisoryOnly !== true ||
       plan.full !== false || !Array.isArray(plan.reasons) || plan.reasons.length) {
-    return fallback('planner requires complete verification');
+    return fallback('planner requires complete verification', profile);
   }
   try {
     if (!Array.isArray(plan.changedPaths) || !plan.changedPaths.length ||
@@ -52,6 +59,7 @@ export function choosePrChecks({
       throw new Error('missing or duplicated impact inputs');
     }
     const coverage = verifyCanonicalChecks(observed, declared);
+    verifyPrChecks(prObserved, declared);
     if (!same(coverage, plan.canonicalCoverage)) {
       throw new Error('planner command inventory differs from live canonical runner');
     }
@@ -84,6 +92,7 @@ export function choosePrChecks({
       JSON.stringify([d.command, ...d.args]), d,
     ]));
     const selected = new Set(plan.selectedCommands);
+    const mapped = new Set();
     const commands = [];
     if (preview.commands.build) commands.push(preview.commands.build);
 
@@ -94,9 +103,23 @@ export function choosePrChecks({
         observedCheck.command, ...observedCheck.args,
       ]));
       if (!descriptor || !selected.has(descriptor.id)) continue;
+      if (mapped.has(descriptor.id)) throw new Error('duplicated selected command mapping');
+      mapped.add(descriptor.id);
+      const projected = projectPrCommands(descriptor);
       if (Object.hasOwn(workspaceChecks, descriptor.id)) {
         if (descriptor.scope !== 'workspace') {
           throw new Error('workspace Cargo descriptor lost its scope');
+        }
+        if (descriptor.id === 'check:workspace-tests') {
+          if (!same(projected, [prCargoTests]) || !preview.selectedTestPackages.length) {
+            throw new Error('workspace tests lost their bounded PR helper');
+          }
+          commands.push([prCargoTests.command, ...prCargoTests.args,
+            ...preview.selectedTestPackages.flatMap(name => ['--package', name])]);
+          continue;
+        }
+        if (!same(projected, [{ command: descriptor.command, args: descriptor.args }])) {
+          throw new Error('unsupported workspace Cargo PR projection: ' + descriptor.id);
         }
         const replacement = preview.commands[workspaceChecks[descriptor.id]];
         if (!replacement) throw new Error('missing scoped Cargo replacement: ' + descriptor.id);
@@ -105,15 +128,16 @@ export function choosePrChecks({
         if (descriptor.scope === 'workspace') {
           throw new Error('unrecognized workspace-wide command: ' + descriptor.id);
         }
-        commands.push([descriptor.command, ...descriptor.args]);
+        commands.push(...projected.map(({ command, args }) => [command, ...args]));
       }
     }
-    if (commands.length !== selected.size + (preview.commands.build ? 1 : 0)) {
+    if (mapped.size !== selected.size) {
       throw new Error('incomplete or duplicated selected command mapping');
     }
     return {
       mode: 'partial',
-      reason: 'all selected canonical checks and scoped Cargo packages',
+      profile,
+      reason: 'bounded PR variants of selected canonical checks and scoped Cargo packages',
       changedPaths: [...plan.changedPaths],
       selectedTests: [...plan.tests],
       selectedPackages: [...preview.selectedTestPackages],
@@ -123,13 +147,14 @@ export function choosePrChecks({
       externalJobsVerified: false,
     };
   } catch (error) {
-    return fallback('unsafe partial plan: ' + error.message);
+    return fallback('unsafe partial plan: ' + error.message, profile);
   }
 }
 
 function invoke(command, args, { capture = false, timeout = 30_000 } = {}) {
   const result = spawnSync(command === 'node' ? process.execPath : command, args, {
     cwd: root, shell: false, timeout, maxBuffer: 16 * 1024 * 1024,
+    ...(timeout ? { killSignal: 'SIGKILL' } : {}),
     encoding: capture ? 'utf8' : undefined,
     stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
   });
@@ -155,27 +180,31 @@ function captureInputs() {
     plan,
     declared: readCatalog('checks'),
     observed: JSON.parse(invoke('node', ['ci/impact/collect-checks.mjs'], { capture: true })),
+    prObserved: JSON.parse(invoke('node', ['ci/impact/collect-checks.mjs', '--profile=pr'],
+      { capture: true })),
     workspacePackages: packages.map(pkg => pkg.name),
   };
 }
 
 export function chooseWithFallback({ eventName, runnerOS, enabled, capture = captureInputs }) {
+  const profile = eventProfile(eventName);
   if (!selectivePr(eventName, runnerOS, enabled)) {
-    return fallback('only enabled native-platform pull requests use partial verification');
+    return fallback('only enabled native-platform pull requests use partial verification', profile);
   }
   try {
     return choosePrChecks({ eventName, runnerOS, enabled, ...capture() });
   } catch (error) {
-    return fallback('impact planning unavailable: ' + error.message);
+    return fallback('impact planning unavailable: ' + error.message, profile);
   }
 }
 
 export function runDecision(decision, execute) {
   if (!decision || !['full', 'partial'].includes(decision.mode) ||
+      !['full', 'pr'].includes(decision.profile) ||
       !Array.isArray(decision.commands) || typeof execute !== 'function') {
     throw new Error('invalid CI decision');
   }
-  if (decision.mode === 'full' && !same(decision.commands, fullCommands)) {
+  if (decision.mode === 'full' && !same(decision.commands, completeCommands(decision.profile))) {
     throw new Error('full CI command contract was modified');
   }
   const receipts = [];
@@ -185,11 +214,13 @@ export function runDecision(decision, execute) {
       throw new Error('invalid selected executable command');
     }
     const [command, ...args] = entry;
-    // The full canonical runner aggregates many checks. Its total deadline is
-    // the existing workflow job watchdog, just as on master; applying the
-    // selected-command cap here cuts off healthy full runs on slower hosts.
-    const fullAggregate = decision.mode === 'full' && same(entry, fullCommands[1]);
-    const elapsedMs = execute(command, args, { timeout: fullAggregate ? 0 : 45 * 60_000 });
+    // Aggregate runners own their per-command bounds; the hosted job owns the
+    // total deadline. Every PR planning fallback uses the bounded PR profile.
+    const fullAggregate = decision.mode === 'full' &&
+      same(entry, completeCommands(decision.profile)[1]);
+    const timeout = fullAggregate ? 0 : decision.profile === 'pr'
+      ? commandTimeoutMs(command, args, 'pr') : 45 * 60_000;
+    const elapsedMs = execute(command, args, { timeout });
     receipts.push({ command, args, elapsedMs, status: 'passed' });
     // Failure propagates. Do not retry with full CI after a partial test fails.
   }
@@ -218,7 +249,7 @@ function main() {
   const receipts = runDecision(decision, execute);
   console.log('PASS PR CI ' + JSON.stringify({
     runnerOS: process.env.RUNNER_OS,
-    mode: decision.mode, receipts,
+    mode: decision.mode, profile: decision.profile, receipts,
     externalJobsVerified: decision.externalJobsVerified ?? false,
   }));
 }

@@ -2,5 +2,17 @@
   "command": "node",
   "args": [
     "scripts/check-document-outline.mjs"
-  ]
+  ],
+  "pr": {
+    "reason": "PRs retain all document fixtures and driver checks; repeated cost/capture benchmarks remain in full verification.",
+    "commands": [
+      {
+        "command": "node",
+        "args": [
+          "scripts/check-document-outline.mjs",
+          "--pr"
+        ]
+      }
+    ]
+  }
 }

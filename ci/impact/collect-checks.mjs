@@ -2,7 +2,9 @@
 // Runs in an isolated Node process; neither modifies nor wraps production check files.
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
+import { parseCheckProfile } from '../../scripts/check-catalog.mjs';
 
+const profile = parseCheckProfile(process.argv.slice(2));
 const originalSpawn = childProcess.spawnSync;
 const originalLog = console.log;
 const commands = [];
@@ -24,5 +26,5 @@ try {
   childProcess.spawnSync = originalSpawn;
   syncBuiltinESMExports();
 }
-if (!commands.length) throw new Error('canonical runner has no instrumentable commands');
+if (!commands.length && profile === 'full') throw new Error('canonical runner has no instrumentable commands');
 process.stdout.write(JSON.stringify(commands) + '\n');

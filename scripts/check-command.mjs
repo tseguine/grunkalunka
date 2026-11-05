@@ -1,11 +1,15 @@
-// Internal canonical-check subprocess runner. Logging does not change exit policy.
+// Internal canonical-check subprocess runner. The caller supplies the profile's
+// watchdog; failures and timeouts both stop the canonical sequence.
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 
-export function runCheck(command, args, cwd) {
-  console.log('\nCHECK START ' + JSON.stringify({ command, args }));
+export function runCheck(command, args, cwd, { timeout = 0 } = {}) {
+  if (!Number.isSafeInteger(timeout) || timeout < 0) throw new Error('invalid canonical check timeout');
+  console.log('\nCHECK START ' + JSON.stringify({ command, args,
+    ...(timeout ? { timeoutMs: timeout } : {}) }));
   const started = performance.now();
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false });
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false,
+    ...(timeout ? { timeout, killSignal: 'SIGKILL' } : {}) });
   // Start on a new line even when the child did not terminate its last output line.
   console.log('\nCHECK END ' + JSON.stringify({
     command, args, elapsedMs: Math.round(performance.now() - started),

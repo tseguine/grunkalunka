@@ -9,5 +9,16 @@
   ],
   "paths": [
     "scripts/poc.mjs"
-  ]
+  ],
+  "pr": {
+    "reason": "The exhaustive compatibility replay remains in full verification; its independent license inventory still runs on PRs.",
+    "commands": [
+      {
+        "command": "node",
+        "args": [
+          "scripts/licenses.mjs"
+        ]
+      }
+    ]
+  }
 }

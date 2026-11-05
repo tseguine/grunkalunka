@@ -4,12 +4,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
+import { checkNodes, verifyCanonicalChecks, verifyPrChecks } from './canonical.mjs';
 import { cargoTestNodes } from './cargo-test-nodes.mjs';
 import { auditBrowserWorkflows } from './external-workflows.mjs';
 import { planImpact } from './impact.mjs';
 import { assertLayoutRehearsal } from './platform-rehearsal.mjs';
 import { choosePrChecks } from './pr-gate.mjs';
+import { projectPrCommands } from '../../scripts/check-catalog.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const directory = fileURLToPath(new URL('./', import.meta.url));
@@ -38,20 +39,29 @@ const packageGraph = [
 const workspacePackages = packageGraph.map(([id]) => id);
 const modules = [
   ...packageGraph.map(([id, dependsOn]) => ({ id, paths: ['crates/' + id + '/'], dependsOn })),
-  ...['a1-note-preview', 'browser-oracles', 'node-build', 'node-runtime']
+  ...['a1-note-preview', 'browser-oracles', 'node-build', 'node-runtime',
+    'canonical-scripts', 'node-bench', 'build-test-sources']
     .map(id => read('owners/' + id + '.json')),
 ];
 const group = read('targets/a1-note-preview.json');
 const browserGroup = read('targets/browser-oracle-contracts.json');
+const markdownGroup = read('targets/markdown-integration.json');
 const declared = catalog('checks').filter(check => check.scope === 'workspace' ||
   check.dependsOn.includes('test:a1-note-preview') ||
-  ['check:a1-ui-service', 'check:browser-oracle-contracts'].includes(check.id));
+  ['check:a1-ui-service', 'check:browser-oracle-contracts',
+    'check:impact-planner-regressions', 'check:document-outline'].includes(check.id));
 const commandKey = ({ command, args }) => JSON.stringify([command, ...args]);
 const relevantCommands = new Set(declared.map(commandKey));
 const observed = JSON.parse(execFileSync(process.execPath, ['ci/impact/collect-checks.mjs'], {
   cwd: root, encoding: 'utf8', timeout: 20_000, maxBuffer: 16 * 1024 * 1024,
 })).filter(command => relevantCommands.has(commandKey(command)));
 const canonicalCoverage = verifyCanonicalChecks(observed, declared);
+const relevantPrCommands = new Set(declared.flatMap(projectPrCommands).map(commandKey));
+const prObserved = JSON.parse(execFileSync(process.execPath,
+  ['ci/impact/collect-checks.mjs', '--profile=pr'], {
+    cwd: root, encoding: 'utf8', timeout: 20_000, maxBuffer: 16 * 1024 * 1024,
+  })).filter(command => relevantPrCommands.has(commandKey(command)));
+verifyPrChecks(prObserved, declared);
 const cargoTests = cargoTestNodes(workspacePackages.map(name => ({ name })));
 const tests = [
   ...cargoTests,
@@ -60,7 +70,7 @@ const tests = [
 const externalWorkflows = auditBrowserWorkflows(changedPaths, catalog('workflows'),
   path => readFileSync(join(root, path), 'utf8'));
 
-function selection({ runnerOS = 'Linux', groups = [group, browserGroup], mutate = () => {} } = {}) {
+function selection({ runnerOS = 'Linux', groups = [group, browserGroup, markdownGroup], mutate = () => {} } = {}) {
   const impact = planImpact({ changedPaths, modules, groups, tests, ignored: ['docs/'] });
   assert.equal(impact.full, false, impact.reasons.join('; '));
   mutate(impact);
@@ -69,7 +79,7 @@ function selection({ runnerOS = 'Linux', groups = [group, browserGroup], mutate 
     selectedCommands: impact.tests.filter(id => id.startsWith('check:')).sort(),
   };
   const choice = choosePrChecks({ eventName: 'pull_request', runnerOS, enabled: true,
-    plan, declared, observed, workspacePackages });
+    plan, declared, observed, prObserved, workspacePackages });
   assert.equal(choice.mode, 'partial', choice.reason);
   return choice;
 }
@@ -88,10 +98,10 @@ test('current A1 consumers build their prerequisites while only layout Cargo tes
   }
 });
 
-test('removing the A1 layout dependency exposes the obsolete four-command selection', () => {
+test('removing the A1 layout dependency removes application checks while keeping Cargo and policy regressions', () => {
   const choice = selection({ groups: [{ ...group,
-    dependsOn: group.dependsOn.filter(id => id !== 'grunkalunka-layout') }, browserGroup] });
-  assert.equal(choice.commands.length, 4);
+    dependsOn: group.dependsOn.filter(id => id !== 'grunkalunka-layout') }, browserGroup, markdownGroup] });
+  assert.equal(choice.commands.length, 5);
   assert.throws(() => assertLayoutRehearsal(choice), /every downstream A1 consumer/);
 });
 

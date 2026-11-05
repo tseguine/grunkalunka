@@ -3,5 +3,9 @@
   "args": [
     "--test",
     "tests/applications/a1-live-session.test.mjs"
-  ]
+  ],
+  "pr": {
+    "reason": "The exhaustive native live-session matrix runs in full verification; PRs retain transport, client and actual HTTP synchronization smoke tests.",
+    "commands": []
+  }
 }
