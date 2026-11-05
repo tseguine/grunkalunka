@@ -4,9 +4,9 @@ use oxc_ast::ast::{BindingIdentifier, ForOfStatement, ForStatementLeft};
 
 /// Planning does not admit the iterable, await mode or body. The source cursor
 /// checks those before scheduling any execution or publishing this binding.
-pub(super) fn for_of_binding<'n, 'a>(
+pub(super) fn for_of_pattern<'n, 'a>(
     source: &'n ForOfStatement<'a>,
-) -> Option<&'n BindingIdentifier<'a>> {
+) -> Option<&'n BindingPattern<'a>> {
     let ForStatementLeft::VariableDeclaration(declaration) = &source.left else {
         return None;
     };
@@ -23,7 +23,13 @@ pub(super) fn for_of_binding<'n, 'a>(
     if local.definite || local.init.is_some() {
         return None;
     }
-    match &local.id {
+    Some(&local.id)
+}
+
+pub(super) fn for_of_binding<'n, 'a>(
+    source: &'n ForOfStatement<'a>,
+) -> Option<&'n BindingIdentifier<'a>> {
+    match for_of_pattern(source)? {
         BindingPattern::BindingIdentifier(identifier) => Some(identifier),
         _ => None,
     }

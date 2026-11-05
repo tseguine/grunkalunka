@@ -24,6 +24,7 @@ pub(super) enum Origin {
 type Alternatives = BTreeSet<Origin>;
 type Key = Vec<u16>;
 enum Rule {
+    Iterated(NodeId),
     Copy(Vec<NodeId>),
     Symbol(SymbolId),
     Member(NodeId, Key),
@@ -205,6 +206,27 @@ impl Fields {
             .collect::<Vec<_>>();
         let mut rules = Vec::new();
         let mut pattern_rules = Vec::new();
+        let patterned_iterations = semantic
+            .nodes()
+            .iter()
+            .filter_map(|node| {
+                let AstKind::ForOfStatement(source) = node.kind() else {
+                    return None;
+                };
+                let pattern = iteration::for_of_pattern(source)?;
+                (!matches!(pattern, BindingPattern::BindingIdentifier(_)))
+                    .then_some((pattern, source.right.node_id()))
+            })
+            .collect::<Vec<_>>();
+        let has_iterations = !iterations.is_empty() || !patterned_iterations.is_empty();
+        for (pattern, receiver) in patterned_iterations {
+            pattern_definitions(
+                pattern,
+                Rule::Iterated(receiver),
+                &mut definitions,
+                &mut pattern_rules,
+            );
+        }
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
@@ -543,6 +565,9 @@ impl Fields {
             let mut additions = Vec::new();
             for (id, rule) in &rules {
                 let found = match rule {
+                    Rule::Iterated(receiver) => {
+                        elements.select(*receiver, &values, &fields, &index_deletes)
+                    }
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
                     Rule::Symbol(symbol) => bindings.get(symbol).cloned().unwrap_or_default(),
                     Rule::StringConcat(left, right) => {
@@ -610,7 +635,7 @@ impl Fields {
                     | Origin::Array(object) = origin
                     {
                         write_additions.push(((object, key.clone()), get(value)));
-                        if !iterations.is_empty() && matches!(origin, Origin::Array(_)) {
+                        if has_iterations && matches!(origin, Origin::Array(_)) {
                             changed |= elements.write(object, key, get(value), &fields);
                         }
                         if matches!(origin, Origin::Array(_))
@@ -653,7 +678,7 @@ impl Fields {
                             | Origin::Array(object) = origin
                             {
                                 wildcard_additions.push((object, get(value)));
-                                if !iterations.is_empty() && matches!(origin, Origin::Array(_)) {
+                                if has_iterations && matches!(origin, Origin::Array(_)) {
                                     changed |= elements.wildcard(object, get(value));
                                 }
                             }
@@ -676,7 +701,7 @@ impl Fields {
             for (key, found) in write_additions {
                 changed |= extend(&mut field_writes, key, found);
             }
-            if !changed && (has_patterns || !iterations.is_empty()) && !finalized_unresolved {
+            if !changed && (has_patterns || has_iterations) && !finalized_unresolved {
                 finalized_unresolved = true;
                 // Bottom can be an unresolved cyclic value, not evidence that
                 // no element exists. Finalize only after ordinary convergence

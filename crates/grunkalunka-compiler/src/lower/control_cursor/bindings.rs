@@ -11,12 +11,14 @@ pub(super) struct DefaultBinding<'n, 'a> {
 
 pub(super) enum BindingResume<'n, 'a> {
     Declaration(Box<DeclarationSequence<'n, 'a>>),
+    ForOf(Box<ForOfFrame<'n, 'a>>),
 }
 
 impl BindingResume<'_, '_> {
     pub(super) fn depth(&self) -> usize {
         match self {
             Self::Declaration(sequence) => sequence.depth,
+            Self::ForOf(frame) => frame.depth,
         }
     }
 }
@@ -224,6 +226,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             BindingResume::Declaration(mut sequence) => {
                 sequence.index += 1;
                 self.advance_declaration(sequence, state.output, cursor)
+            }
+            BindingResume::ForOf(frame) => {
+                self.begin_for_of_body(frame, state.output, cursor);
+                Ok(())
             }
         }
     }

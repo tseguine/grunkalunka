@@ -13,17 +13,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if source.r#await {
             return Err(unsupported(source, "for-await-of is not yet admitted"));
         }
-        let identifier = iteration::for_of_binding(source).ok_or_else(|| {
-            unsupported(
-                source,
-                "for-of requires one const or let identifier binding",
-            )
-        })?;
+        let pattern = iteration::for_of_pattern(source)
+            .ok_or_else(|| unsupported(source, "for-of requires one const or let binding"))?;
         let ForStatementLeft::VariableDeclaration(declaration) = &source.left else {
             unreachable!("checked lexical for-of binding");
         };
         self.charge_statement(declaration.as_ref())?;
-        self.charge_declaration_bindings(identifier, 1)?;
+        if let BindingPattern::BindingIdentifier(identifier) = pattern {
+            self.charge_declaration_bindings(identifier.as_ref(), 1)?;
+        }
         let ty = self.managed_source_type(&source.right, 0);
         if ty != Some(Type::ManagedArray)
             && !(ty == Some(Type::ManagedValue)
@@ -166,20 +164,50 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 index: position,
             },
         );
-        let identifier = iteration::for_of_binding(source).expect("admitted for-of binding");
+        let pattern = iteration::for_of_pattern(source).expect("admitted for-of binding");
         let ForStatementLeft::VariableDeclaration(declaration) = &source.left else {
             unreachable!("checked lexical for-of binding");
         };
         // A body-owned Initialize allocates a fresh captured cell each time,
         // for const as well as let. No classic for-header renewal is needed.
-        self.commit_binding_value(
-            identifier,
-            identifier.symbol_id.get().ok_or("missing for-of binding")?,
-            &mut body,
-            Type::ManagedValue,
-            selected,
-            declaration.kind == VariableDeclarationKind::Let,
-        )?;
+        let mutable = declaration.kind == VariableDeclarationKind::Let;
+        if let BindingPattern::BindingIdentifier(identifier) = pattern {
+            self.commit_binding_value(
+                identifier.as_ref(),
+                identifier.symbol_id.get().ok_or("missing for-of binding")?,
+                &mut body,
+                Type::ManagedValue,
+                selected,
+                mutable,
+            )?;
+            self.begin_for_of_body(frame, body, cursor);
+        } else {
+            let root_type = self.stored.container(pattern.node_id()).ok_or_else(|| {
+                unsupported(
+                    pattern,
+                    "for-of binding patterns require source-proven container elements",
+                )
+            })?;
+            let plan =
+                self.prepare_binding_pattern(pattern, pattern.node_id(), root_type, mutable)?;
+            self.start_binding_pattern(
+                bindings::BindingResume::ForOf(frame),
+                plan,
+                body,
+                selected,
+                cursor,
+            )?;
+        }
+        Ok(())
+    }
+
+    pub(in super::super) fn begin_for_of_body<'n>(
+        &mut self,
+        frame: Box<ForOfFrame<'n, 'ast>>,
+        body: Region,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) {
+        let source = frame.source;
         let depth = frame.depth;
         cursor.pending.push(Frame::ForOf(frame));
         self.in_loop_body = true;
@@ -188,7 +216,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             output: body,
             depth: depth + 1,
         });
-        Ok(())
     }
 
     pub(super) fn finish_for_of<'n>(
