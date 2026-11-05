@@ -320,7 +320,10 @@ impl Emitter<'_> {
                 self.get(*object);
                 self.output.push_str("ref.null $gc_rest_key\n");
                 for key in excluded {
-                    self.managed_key(key);
+                    match key {
+                        ir::RestKey::Literal(key) => self.managed_key(key),
+                        ir::RestKey::String(value) => self.managed_key_value(*value),
+                    }
                     self.output.push_str("struct.new $gc_rest_key\n");
                 }
                 self.output.push_str("call $gc_object_rest\n");
@@ -1757,7 +1760,7 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
         needed |= match op {
             Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
             Op::ManagedObjectRest { excluded, .. } => {
-                excluded.iter().any(|key| key.len() > MAX_FIXED_TEXT_UNITS)
+                excluded.iter().any(|key| matches!(key, ir::RestKey::Literal(text) if text.len() > MAX_FIXED_TEXT_UNITS))
             }
             Op::ManagedGetOwn { key, .. }
             | Op::ManagedSetOwn { key, .. }

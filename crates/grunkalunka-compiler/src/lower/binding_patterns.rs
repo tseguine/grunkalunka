@@ -56,14 +56,16 @@ pub(super) enum BindingStep<'n, 'a> {
         source: &'n BindingProperty<'a>,
         key: Vec<u16>,
     },
+    ComputedField {
+        source: &'n BindingProperty<'a>,
+        key: &'n Expression<'a>,
+        depth: usize,
+    },
     Element {
         source: &'n BindingPattern<'a>,
         index: u32,
     },
-    ObjectRest {
-        source: &'n BindingRestElement<'a>,
-        excluded: Vec<Vec<u16>>,
-    },
+    ObjectRest(&'n BindingRestElement<'a>),
     ArrayRest {
         source: &'n BindingRestElement<'a>,
         start: u32,
@@ -73,6 +75,16 @@ pub(super) enum BindingStep<'n, 'a> {
         identifier: &'n BindingIdentifier<'a>,
     },
     Leave,
+}
+
+// A default or computed field can change any ancestor array before its next
+// step. Each such iterator must observe growth only until its own exhaustion.
+fn mark_live_arrays(containers: &[usize], steps: &mut [BindingStep<'_, '_>]) {
+    for &index in containers {
+        if let BindingStep::Array { live, .. } = &mut steps[index] {
+            *live = true;
+        }
+    }
 }
 
 pub(super) struct BindingPlan<'n, 'a> {
@@ -152,7 +164,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Pattern(&'n BindingPattern<'a>, NodeId, usize),
             Field(&'n BindingProperty<'a>, bool, usize),
             Element(&'n BindingPattern<'a>, u32, usize),
-            ObjectRest(&'n ObjectPattern<'a>, &'n BindingRestElement<'a>, usize),
+            ObjectRest(&'n BindingRestElement<'a>, usize),
             ArrayRest(&'n BindingRestElement<'a>, u32, usize),
             Leave,
         }
@@ -171,15 +183,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             continue;
                         }
                         BindingPattern::AssignmentPattern(assignment) => {
-                            // A descendant's default can mutate any ancestor
-                            // array before its next step. Each ancestor keeps
-                            // its own independent sticky exhaustion state, even
-                            // when the default's left pattern has no leaves.
-                            for &index in &containers {
-                                if let BindingStep::Array { live, .. } = &mut steps[index] {
-                                    *live = true;
-                                }
-                            }
+                            mark_live_arrays(&containers, &mut steps);
                             steps.push(BindingStep::Default(assignment));
                             // The left subtree consumes the selected/default
                             // result and uses its post-default source origins.
@@ -214,7 +218,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             }
                             steps.push(BindingStep::Object(object));
                             if let Some(rest) = &object.rest {
-                                pending.push(Work::ObjectRest(object, rest, depth));
+                                pending.push(Work::ObjectRest(rest, depth));
                             }
                             let dictionary = self.stored.dictionary(origin);
                             pending.extend(
@@ -264,17 +268,31 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     }
                 }
                 Work::Field(property, dictionary, depth) => {
-                    let key = static_keys::property(&property.key, property.computed, depth).ok_or_else(|| {
-                        unsupported(
+                    if let Some(key) =
+                        static_keys::property(&property.key, property.computed, depth)
+                    {
+                        let key = evaluate::managed_member_key(property, key, false, dictionary)?;
+                        steps.push(BindingStep::Field {
+                            source: property,
+                            key,
+                        });
+                    } else if dictionary
+                        && property.computed
+                        && let Some(key) = property.key.as_expression()
+                        && self.stored.string(key.node_id())
+                    {
+                        mark_live_arrays(&containers, &mut steps);
+                        steps.push(BindingStep::ComputedField {
+                            source: property,
+                            key,
+                            depth,
+                        });
+                    } else {
+                        return Err(unsupported(
                             property,
-                            "object binding keys require a static identifier, String or numeric literal",
-                        )
-                    })?;
-                    let key = evaluate::managed_member_key(property, key, false, dictionary)?;
-                    steps.push(BindingStep::Field {
-                        source: property,
-                        key,
-                    });
+                            "dynamic object binding keys require a proven dictionary and String key",
+                        ));
+                    }
                     pending.push(Work::Pattern(
                         &property.value,
                         property.value.node_id(),
@@ -285,18 +303,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     steps.push(BindingStep::Element { source, index });
                     pending.push(Work::Pattern(source, source.node_id(), depth));
                 }
-                Work::ObjectRest(object, source, depth) => {
-                    // The field steps already validated these keys. Only this
-                    // pattern's directly selected keys are excluded.
-                    let excluded = object
-                        .properties
-                        .iter()
-                        .map(|property| {
-                            static_keys::property(&property.key, property.computed, depth)
-                                .expect("validated binding key")
-                        })
-                        .collect();
-                    steps.push(BindingStep::ObjectRest { source, excluded });
+                Work::ObjectRest(source, depth) => {
+                    steps.push(BindingStep::ObjectRest(source));
                     pending.push(Work::Pattern(
                         &source.argument,
                         source.argument.node_id(),
