@@ -657,3 +657,43 @@ fn has_own_rejects_unproven_receivers_keys_and_spread_calls() {
         }
     }
 }
+
+#[test]
+fn has_own_uses_the_same_numeric_names_as_property_reads_and_writes() {
+    for body in [
+        "const x=[,a];x[-1]=undefined;x[1.5]=b;return !Object.hasOwn(x,-0)&&Object.hasOwn(x,+1)&&Object.hasOwn(x,-1)&&Object.hasOwn(x,1.5)&&!Object.hasOwn(x,'-0')?1:0;",
+        "const o={1e21:a,'01':b,0:a,[1e999]:b};return Object.hasOwn(o,1e21)&&Object.hasOwn(o,-0)&&Object.hasOwn(o,1e999)&&Object.hasOwn(o,'01')&&!Object.hasOwn(o,1)?1:0;",
+        "const d=Object.create(null);d[4294967295]=a;return Object.hasOwn(d,0xffffffff)&&!Object.hasOwn(d,4294967294)?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn has_own_uses_primitive_and_missing_keys_without_losing_effects() {
+    for body in [
+        "const o={true:undefined,false:b,null:a,undefined:b};return Object.hasOwn(o,true)&&Object.hasOwn(o,false)&&Object.hasOwn(o,null)&&Object.hasOwn(o,undefined)&&Object.hasOwn(o)?1:0;",
+        "let n=0;const o={};const has=Object.hasOwn(o,void (n=1), (n=n*10+2,o.undefined=a));return has&&n===12?1:0;",
+        "const undefined='real';const o={real:a};return Object.hasOwn(o,undefined)&&!Object.hasOwn(o)?1:0;",
+        "const o={undefined:a};return Object.hasOwn.call(b,o)&&!Object.hasOwn.call(a,o,null)?1:0;",
+    ] {
+        compare(body);
+    }
+    let js = "export function run(a,b){const o={1:a};return Object.hasOwn(o,-0)?a:Object.hasOwn(o,1)?b:a;}";
+    let ts = "export function run(a:number,b:number){const o={1:a};return Object.hasOwn(o,(-0 as string))?a:Object.hasOwn(o,(1 as boolean))?b:a;}";
+    common::compare_sources(js, ts);
+}
+
+#[test]
+fn has_own_returns_a_boolean_through_the_primitive_export() {
+    for ts in [false, true] {
+        let source =
+            "export function run(a,b){const o={undefined:a};return Object.hasOwn(o,void b);}";
+        let artifact = compile_value(source, ts).unwrap();
+        let mut instance = ValueInstance::new(&artifact.wasm).unwrap();
+        assert!(matches!(
+            instance.run(4.0, 2.0).unwrap(),
+            Value::Boolean(true)
+        ));
+    }
+}

@@ -83,7 +83,7 @@ fn computed_rest_exclusions_require_visible_managed_values() {
                 _ => None,
             })
             .unwrap();
-        let [RestKey::String(key)] = rest.2.as_mut_slice() else {
+        let [ManagedKey::String(key)] = rest.2.as_mut_slice() else {
             panic!("missing computed exclusion")
         };
         *key = if fault == 0 { *rest.1 } else { *rest.0 };

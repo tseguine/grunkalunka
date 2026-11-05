@@ -27,7 +27,7 @@ impl BindingResume<'_, '_> {
 enum Container {
     Object {
         value: ValueId,
-        excluded: Option<Vec<ir::RestKey>>,
+        excluded: Option<Vec<ir::ManagedKey>>,
     },
     Array {
         value: ValueId,
@@ -160,7 +160,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         unreachable!("object field has an object receiver");
                     };
                     if let Some(excluded) = excluded {
-                        excluded.push(ir::RestKey::Literal(key.clone()));
+                        excluded.push(ir::ManagedKey::Literal(key.clone()));
                     }
                     let selected = self.value(Type::ManagedValue);
                     let op = if self.values[object.0] == Type::ManagedArray {
@@ -331,7 +331,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             unreachable!("computed binding field has an object receiver");
         };
         if let Some(excluded) = excluded {
-            excluded.push(ir::RestKey::String(key));
+            excluded.push(ir::ManagedKey::String(key));
         }
         let selected = self.value(Type::ManagedValue);
         Self::push(
