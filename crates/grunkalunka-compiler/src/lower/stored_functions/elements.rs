@@ -78,6 +78,10 @@ impl Elements {
         while let Some(step) = work.pop().or_else(|| roots.next()) {
             let (array, start) = match step {
                 Step::Read(Origin::Array(array), start) => (array, start),
+                Step::Read(Origin::String, _) => {
+                    found.insert(Origin::String);
+                    continue;
+                }
                 Step::Read(_, _) => {
                     found.insert(Origin::Other);
                     continue;
