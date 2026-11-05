@@ -1,9 +1,10 @@
 # Object binding declarations
 
-Local `const` and `let` declarations admit flat object binding patterns over
+Local `const` and `let` declarations admit object binding patterns over
 source-proven managed objects. This supports shorthand fields, renamed fields,
 and identifier or String-literal property names, including literal-computed
-String keys. Identifier leaves may have lazy defaults. The same declaration path applies in ordinary blocks, helpers,
+String keys and nested object patterns. Identifier leaves may have lazy defaults.
+The same declaration path applies in ordinary blocks, helpers,
 async activations and traditional `for` initializers.
 
 ## Evaluation and representation
@@ -13,6 +14,14 @@ property is read in source order and its lexical binding is initialized before
 the next property or declarator. Empty object patterns still evaluate their
 initializer. Missing own properties produce Undefined through the existing
 managed object operation.
+
+Nested object fields are selected once and retain their original receiver while
+their leaves finish in source order. A default inside a nested pattern completes
+before the next outer property is read. Replacing an outer property or rebinding the original
+source does not redirect a nested selection already in progress. Empty nested
+patterns still select and validate their receiver. Each nested receiver requires
+an all-object source proof; missing, nullable, array or unknown alternatives do
+not satisfy that proof.
 
 A default runs only when that property's selected value is Undefined. Null,
 false, zero, NaN and empty Strings keep their values. The check uses intrinsic
@@ -42,21 +51,24 @@ selection into a proven String or container. A missing-field String default can
 be observed with equality and other managed consumers, but that default alone
 does not yet admit String methods.
 
-The source-local budget counts each bound identifier. Pattern processing is
-iterative, and evaluation uses the existing source cursor. This slice adds no
-runtime imports, public ABI, IR operation or native recursion proportional to
-pattern size.
+The source-local budget counts each bound identifier across the complete pattern;
+empty patterns do not consume locals. Pattern processing is iterative, with at
+most 128 nested binding-container levels, and evaluation uses the existing source
+cursor. This slice adds no runtime imports, public ABI, IR operation or native
+recursion proportional to pattern size.
 
 ## Admission limits
 
-This slice covers declarations with identifier leaves and optional defaults. Nested
-patterns, rest properties, destructuring assignment and parameter patterns
-remain separate work. Flat [array declarations](array-binding-patterns.md) have
+This slice covers declarations with identifier leaves, their optional defaults
+and nested object patterns. Defaults on whole nested patterns, nested array
+patterns, rest properties, destructuring assignment and parameter patterns remain
+separate work. Flat [array declarations](array-binding-patterns.md) have
 their own source-proven array admission. Dynamic property names and primitive
 RHS coercion are also outside this slice.
 
 Ordinary objects retain the existing intrinsic-prototype-key guard. Proven
 null-prototype dictionaries may bind keys such as `constructor` and `__proto__`.
+That proof is checked separately for every nested object receiver.
 This does not introduce general prototype lookup or foreign object access.
 
 A selected Number is still a managed field value. Equality, truthiness, storage

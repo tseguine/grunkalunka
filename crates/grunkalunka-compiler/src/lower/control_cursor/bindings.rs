@@ -4,11 +4,16 @@ use super::*;
 use oxc_ast::ast::BindingIdentifier;
 
 pub(super) struct DefaultBinding<'n, 'a> {
-    binding: binding_patterns::ObjectBinding<'n, 'a>,
-    output: Region,
-    object: ValueId,
+    state: ObjectBindingState<'n, 'a>,
     pending: LazyDefault,
     identifier: &'n BindingIdentifier<'a>,
+}
+
+struct ObjectBindingState<'n, 'a> {
+    binding: binding_patterns::ObjectBinding<'n, 'a>,
+    output: Region,
+    objects: Vec<ValueId>,
+    selected: Option<ValueId>,
 }
 
 pub(super) struct LazyDefault {
@@ -19,53 +24,114 @@ pub(super) struct LazyDefault {
 impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn resume_object_binding_source<'n>(
         &mut self,
-        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
-        mut binding: binding_patterns::ObjectBinding<'n, 'ast>,
-        mut output: Region,
+        sequence: Box<DeclarationSequence<'n, 'ast>>,
+        binding: binding_patterns::ObjectBinding<'n, 'ast>,
+        output: Region,
         object: ValueId,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
     {
-        while let Some(field) = binding.fields.next() {
-            let selected = self.value(Type::ManagedValue);
-            Self::push(
-                &mut output,
-                field.source,
-                Op::ManagedGetOwn {
-                    result: selected,
-                    object,
-                    key: field.key,
-                },
-            );
-            if let Some(source) = field.default {
-                let undefined = self.binding_undefined(field.source, &mut output);
-                let pending =
-                    self.prepare_binding_default(field.source, &mut output, selected, undefined);
-                let child = self.region(source);
-                cursor.pending.push(Frame::ObjectBindingDefault {
-                    sequence,
-                    active: Box::new(DefaultBinding {
-                        binding,
-                        output,
-                        object,
-                        pending,
-                        identifier: field.identifier,
-                    }),
-                });
-                cursor.next = Some(Next::Expression {
-                    source,
-                    output: child,
-                    depth: 0,
-                    mode: evaluate::Mode::Managed,
-                });
-                return Ok(());
+        self.advance_object_binding(
+            sequence,
+            ObjectBindingState {
+                binding,
+                output,
+                objects: Vec::new(),
+                selected: Some(object),
+            },
+            cursor,
+        )
+    }
+
+    fn advance_object_binding<'n>(
+        &mut self,
+        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
+        mut state: ObjectBindingState<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        use binding_patterns::ObjectBindingStep;
+        while let Some(step) = state.binding.steps.next() {
+            match step {
+                ObjectBindingStep::Enter(source) => {
+                    let selected = state.selected.take().expect("selected object binding");
+                    let object = if self.values[selected.0] == Type::ManagedObject {
+                        selected
+                    } else {
+                        let result = self.value(Type::ManagedObject);
+                        Self::push(
+                            &mut state.output,
+                            source,
+                            Op::ManagedToObject {
+                                result,
+                                input: selected,
+                            },
+                        );
+                        result
+                    };
+                    state.objects.push(object);
+                }
+                ObjectBindingStep::Field { source, key } => {
+                    let selected = self.value(Type::ManagedValue);
+                    Self::push(
+                        &mut state.output,
+                        source,
+                        Op::ManagedGetOwn {
+                            result: selected,
+                            object: *state.objects.last().expect("current binding object"),
+                            key,
+                        },
+                    );
+                    state.selected = Some(selected);
+                }
+                ObjectBindingStep::Bind {
+                    identifier,
+                    default,
+                } => {
+                    let selected = state.selected.take().expect("selected binding value");
+                    if let Some(source) = default {
+                        let undefined = self.binding_undefined(identifier, &mut state.output);
+                        let pending = self.prepare_binding_default(
+                            identifier,
+                            &mut state.output,
+                            selected,
+                            undefined,
+                        );
+                        let child = self.region(source);
+                        cursor.pending.push(Frame::ObjectBindingDefault {
+                            sequence,
+                            active: Box::new(DefaultBinding {
+                                state,
+                                pending,
+                                identifier,
+                            }),
+                        });
+                        cursor.next = Some(Next::Expression {
+                            source,
+                            output: child,
+                            depth: 0,
+                            mode: evaluate::Mode::Managed,
+                        });
+                        return Ok(());
+                    }
+                    self.publish_pattern_binding(
+                        identifier,
+                        &mut state.output,
+                        selected,
+                        state.binding.mutable,
+                    )?;
+                }
+                ObjectBindingStep::Leave => {
+                    state.objects.pop().expect("balanced object binding plan");
+                }
             }
-            self.publish_pattern_binding(field.identifier, &mut output, selected, binding.mutable)?;
         }
         sequence.index += 1;
-        self.advance_declaration(sequence, output, cursor)
+        self.advance_declaration(sequence, state.output, cursor)
     }
 
     pub(super) fn resume_object_binding_default<'n>(
@@ -80,16 +146,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         let DefaultBinding {
-            binding,
-            mut output,
-            object,
+            mut state,
             pending,
             identifier,
         } = active;
-        let result =
-            self.finish_binding_default(identifier, &mut output, pending, consequent, default);
-        self.publish_pattern_binding(identifier, &mut output, result, binding.mutable)?;
-        self.resume_object_binding_source(sequence, binding, output, object, cursor)
+        let result = self.finish_binding_default(
+            identifier,
+            &mut state.output,
+            pending,
+            consequent,
+            default,
+        );
+        self.publish_pattern_binding(identifier, &mut state.output, result, state.binding.mutable)?;
+        self.advance_object_binding(sequence, state, cursor)
     }
 
     pub(super) fn binding_undefined(

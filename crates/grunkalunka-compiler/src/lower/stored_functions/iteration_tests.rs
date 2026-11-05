@@ -237,3 +237,36 @@ fn iteration_analysis_handles_nested_sources_on_a_small_native_stack() {
         .expect("iteration provenance must not overflow the native stack");
     assert_eq!(observed, STRING);
 }
+
+#[test]
+fn nested_binding_origins_follow_projections_helpers_and_defaults() {
+    for source in [
+        "export function run(a,b){const {row:{label}}={row:{label:'text'}};const observed=label;return a;}",
+        "export function run(a,b){const source={row:{label:'text'}};const alias=source;const {row:{label='fallback'}}=alias;const observed=label;return a;}",
+        "function identity(value){return value;}export function run(a,b){const {row:{label}}=identity({row:{label:'text'}});const read=()=>label;const observed=read();return a;}",
+    ] {
+        assert_eq!(observe_source(source), STRING, "{source}");
+    }
+    assert_eq!(
+        observe("const {row:{items}}={row:{items:[a,b]}};const observed=items;return a;"),
+        Observation {
+            string: false,
+            container: Some(Type::ManagedArray),
+            callable: false,
+            other: false,
+        },
+    );
+}
+
+#[test]
+fn nested_binding_origins_keep_alias_writes_missing_paths_and_unknown_cycles() {
+    for body in [
+        "const source={row:{label:'text'}};const alias=source.row;alias.label=a;const {row:{label}}=source;const observed=label;return a;",
+        "const source={row:{label:'text'}};const alias=source;alias.row=null;const {row:{label}}=source;const observed=label;return a;",
+        "const {row:{label='fallback'}}={row:{}};const observed=label;return a;",
+        "const pending=()=>pending();const {row:{label}}={row:{label:a?'text':pending()}};const observed=label;return a;",
+        "const pending=()=>pending();const {row:{label}}={row:a?{label:'text'}:pending()};const observed=label;return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+    }
+}

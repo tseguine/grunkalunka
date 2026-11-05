@@ -32,7 +32,6 @@ enum Rule {
 }
 enum Definition {
     Value(SymbolId, NodeId),
-    Member(SymbolId, NodeId, Key, Option<NodeId>),
     Iterated(SymbolId, NodeId),
 }
 struct FunctionFlow {
@@ -66,6 +65,58 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
     entry.extend(values);
     before != entry.len()
 }
+
+/// Pattern nodes retain the same source alternatives as each ordered member
+/// projection. Keeping intermediate nodes makes nested receiver proofs available
+/// without treating a binding's syntax or annotation as a runtime kind.
+fn pattern_definitions(
+    pattern: &BindingPattern<'_>,
+    initializer: NodeId,
+    definitions: &mut Vec<Definition>,
+    rules: &mut Vec<(NodeId, Rule)>,
+) {
+    if matches!(pattern, BindingPattern::BindingIdentifier(_)) {
+        return;
+    }
+    let mut pending = vec![(pattern, Rule::Copy(vec![initializer]))];
+    while let Some((pattern, rule)) = pending.pop() {
+        let id = pattern.node_id();
+        rules.push((id, rule));
+        match pattern {
+            BindingPattern::BindingIdentifier(identifier) => {
+                if let Some(symbol) = identifier.symbol_id.get() {
+                    definitions.push(Definition::Value(symbol, id));
+                }
+            }
+            BindingPattern::AssignmentPattern(assignment) => {
+                // Other includes Undefined and other primitives. A default
+                // adds alternatives without removing a possibly missing value.
+                pending.push((
+                    &assignment.left,
+                    Rule::Copy(vec![id, assignment.right.node_id()]),
+                ));
+            }
+            BindingPattern::ObjectPattern(object) => {
+                for property in object.properties.iter().rev() {
+                    if let Some(key) = binding_patterns::key(property) {
+                        pending.push((&property.value, Rule::Member(id, key)));
+                    }
+                }
+            }
+            BindingPattern::ArrayPattern(array) => {
+                for (index, element) in array.elements.iter().enumerate().rev() {
+                    if let Some(element) = element {
+                        pending.push((
+                            element,
+                            Rule::Member(id, index.to_string().encode_utf16().collect()),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl Fields {
     pub(super) fn dictionary(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
@@ -153,6 +204,7 @@ impl Fields {
             .map(|(symbol, receiver)| Definition::Iterated(*symbol, *receiver))
             .collect::<Vec<_>>();
         let mut rules = Vec::new();
+        let mut pattern_rules = Vec::new();
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
@@ -309,40 +361,12 @@ impl Fields {
                         }
                     }
                     if let Some(initializer) = &declaration.init {
-                        for (name, property) in binding_patterns::object_leaves(&declaration.id) {
-                            if let Some(symbol) = name.symbol_id.get()
-                                && let Some(key) = binding_patterns::key(property)
-                            {
-                                definitions.push(Definition::Member(
-                                    symbol,
-                                    initializer.node_id(),
-                                    key,
-                                    match &property.value {
-                                        BindingPattern::AssignmentPattern(pattern) => {
-                                            Some(pattern.right.node_id())
-                                        }
-                                        _ => None,
-                                    },
-                                ));
-                            }
-                        }
-                        for (index, name, pattern) in
-                            binding_patterns::array_leaves(&declaration.id)
-                        {
-                            if let Some(symbol) = name.symbol_id.get() {
-                                definitions.push(Definition::Member(
-                                    symbol,
-                                    initializer.node_id(),
-                                    index.to_string().encode_utf16().collect(),
-                                    match pattern {
-                                        BindingPattern::AssignmentPattern(pattern) => {
-                                            Some(pattern.right.node_id())
-                                        }
-                                        _ => None,
-                                    },
-                                ));
-                            }
-                        }
+                        pattern_definitions(
+                            &declaration.id,
+                            initializer.node_id(),
+                            &mut definitions,
+                            &mut pattern_rules,
+                        );
                     }
                     None
                 }
@@ -461,6 +485,13 @@ impl Fields {
                 rules.push((id, rule));
             }
         }
+        let has_patterns = !pattern_rules.is_empty();
+        for (id, rule) in pattern_rules {
+            // The ordinary AST pass does not interpret binding nodes as values.
+            // Their original-source rules replace its generic Other seed.
+            values.remove(&id);
+            rules.push((id, rule));
+        }
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
@@ -503,16 +534,6 @@ impl Fields {
                 .iter()
                 .map(|definition| match definition {
                     Definition::Value(symbol, id) => (*symbol, get(id)),
-                    Definition::Member(symbol, receiver, key, default) => {
-                        let mut found = member(receiver, key);
-                        if let Some(default) = default {
-                            // Other includes Undefined and other primitive
-                            // values. A default adds alternatives; it cannot
-                            // remove Other or prove which branch will execute.
-                            found.extend(get(default));
-                        }
-                        (*symbol, found)
-                    }
                     Definition::Iterated(symbol, receiver) => (
                         *symbol,
                         elements.select(*receiver, &values, &fields, &index_deletes),
@@ -655,7 +676,7 @@ impl Fields {
             for (key, found) in write_additions {
                 changed |= extend(&mut field_writes, key, found);
             }
-            if !changed && !iterations.is_empty() && !finalized_unresolved {
+            if !changed && (has_patterns || !iterations.is_empty()) && !finalized_unresolved {
                 finalized_unresolved = true;
                 // Bottom can be an unresolved cyclic value, not evidence that
                 // no element exists. Finalize only after ordinary convergence
