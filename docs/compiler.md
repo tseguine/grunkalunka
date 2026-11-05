@@ -35,7 +35,8 @@ See the [bounded source contract](#immutable-boolean-predicate-locals).
 Local `const` and `let` declarations support nested and mixed
 [object](object-binding-patterns.md) and [array](array-binding-patterns.md) binding
 patterns, including defaults on leaves or whole nested patterns, literal object
-keys, array elisions and empty patterns. They work in ordinary declarations and traditional `for`
+keys, array elisions, empty patterns and identifier rest elements in arrays.
+They work in ordinary declarations and traditional `for`
 initializers. [Intrinsic-array `for...of`](array-iteration.md) also accepts these
 patterns in a `const` or `let` head, completing every leaf before the loop body
 and allocating fresh cells for captured leaves each iteration.
@@ -48,6 +49,12 @@ length and exhaustion state, including when descendant defaults mutate an
 ancestor array. An abrupt default stops the remaining pattern and, in a loop
 head, prevents entry into the body.
 
+Array rest consumes the remaining positions into a fresh dense array after
+earlier defaults finish. Holes become own Undefined entries, references retain
+identity and element slots are independent of the source. Rest preserves the
+saved receiver and persistent exhaustion state. Its result is a proven Array;
+the copied element origins remain conservative.
+
 Every receiver needs a positive source proof of its object or array kind.
 Unknown, nullable and incompatible alternatives remain conservative, including
 through aliases, helpers and captures. A binding default replaces only a proven
@@ -58,8 +65,8 @@ carrier, so selected Numbers do not acquire numeric unboxing. The existing
 128-source-local budget counts identifier leaves, and iterative pattern
 processing admits at most 128 nested object/array container levels.
 
-Rest bindings, parameter and assignment patterns, dynamic object keys and
-primitive RHS coercion remain outside this admission.
+Object rest, array rest with pattern targets, parameter and assignment patterns,
+dynamic object keys and primitive RHS coercion remain outside this admission.
 Iteration is limited to source-proven managed arrays with their intrinsic
 iterator; general iterables, `for-in`, `for await...of` and `var` or assignment
 heads remain separate work. These features do not change the public call ABI.

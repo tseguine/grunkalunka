@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn array_rest_bindings_keep_snapshots_and_abrupt_defaults_across_await() {
+    compare_promises(
+        &[
+            "const child={tag:a};let source=[undefined,,child];const original=source;const [head=(await a,source=[b],b),...rest]=source;const copied=rest[0]===undefined&&rest[1]===child;await b;const keys=Object.keys(rest);original[2]={tag:b};return copied&&rest.length===2&&keys.length===2&&keys[0]==='0'&&keys[1]==='1'&&rest[0]===undefined&&rest[1]===child&&source!==original?1:0;",
+            "const source=[];const [head=(await a,source[1]=b,a),...rest]=source;await b;return rest.length+(rest!==source?10:0);",
+            "let n=0;try{const [first=(await Promise.reject(a),1),...rest]=[];n=rest.length+1;}catch(e){await b;return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn whole_array_defaults_keep_empty_patterns_and_saved_iterators_across_await() {
     compare_promises(
         &[

@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn array_rest_heads_keep_fresh_arrays_and_mutable_captures_across_await() {
+    compare_promises(
+        &[
+            "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {items:[head,...rest]=(await a,[a,b]),after=(await b,last=()=>+rest.length,0)} of [{},{items:[a,b,a]}]){if(n===0){first=last;change=()=>{rest=[a,a,a];return 0;};}n++;}await a;change();return +first()*10+(+last());",
+            "const row=[a,b];let first=[];let n=0;for(const [head,...rest] of [row,row]){await a;if(n===0){first=rest;rest[1]=a;}else{await b;return rest!==first&&rest.length===1&&first.length===2?1:0;}n++;}return 0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn whole_pattern_defaults_in_for_of_heads_keep_fresh_cells_and_abrupt_completion() {
     compare_promises(
         &[

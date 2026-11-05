@@ -2,7 +2,8 @@
 //! position in order. Origins prove receiver kinds; annotations never do.
 use super::*;
 use oxc_ast::ast::{
-    ArrayPattern, AssignmentPattern, BindingIdentifier, BindingProperty, ObjectPattern, PropertyKey,
+    ArrayPattern, AssignmentPattern, BindingIdentifier, BindingProperty, BindingRestElement,
+    ObjectPattern, PropertyKey,
 };
 use oxc_syntax::node::NodeId;
 
@@ -31,6 +32,9 @@ pub(super) fn leaves<'n, 'a>(
                     );
                 }
                 BindingPattern::ArrayPattern(array) => {
+                    if let Some(rest) = &array.rest {
+                        pending.push(&rest.argument);
+                    }
                     pending.extend(array.elements.iter().rev().flatten());
                 }
             }
@@ -62,6 +66,10 @@ pub(super) enum BindingStep<'n, 'a> {
     Element {
         source: &'n BindingPattern<'a>,
         index: u32,
+    },
+    ArrayRest {
+        source: &'n BindingRestElement<'a>,
+        start: u32,
     },
     Default(&'n AssignmentPattern<'a>),
     Bind {
@@ -147,6 +155,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Pattern(&'n BindingPattern<'a>, NodeId, usize),
             Field(&'n BindingProperty<'a>, bool, usize),
             Element(&'n BindingPattern<'a>, u32, usize),
+            ArrayRest(&'n BindingRestElement<'a>, u32, usize),
             Leave,
         }
         let root = pattern.node_id();
@@ -222,10 +231,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             );
                         }
                         BindingPattern::ArrayPattern(array) => {
-                            if array.rest.is_some() {
+                            if let Some(rest) = &array.rest
+                                && !matches!(rest.argument, BindingPattern::BindingIdentifier(_))
+                            {
                                 return Err(unsupported(
-                                    array.as_ref(),
-                                    "array rest bindings are not yet admitted",
+                                    rest.as_ref(),
+                                    "array rest bindings require an identifier target",
                                 ));
                             }
                             if proven != Some(Type::ManagedArray) {
@@ -234,13 +245,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     "nested array bindings require a source-proven managed array",
                                 ));
                             }
-                            u32::try_from(array.elements.len()).map_err(|_| {
+                            let fixed = u32::try_from(array.elements.len()).map_err(|_| {
                                 unsupported(array.as_ref(), "array binding length exceeds u32")
                             })?;
                             steps.push(BindingStep::Array {
                                 source: array,
                                 live: false,
                             });
+                            if let Some(rest) = &array.rest {
+                                // Rest follows every fixed position, including
+                                // trailing elisions, and precedes the Leave.
+                                pending.push(Work::ArrayRest(rest, fixed, depth));
+                            }
                             pending.extend(array.elements.iter().enumerate().rev().filter_map(
                                 |(index, element)| {
                                     element
@@ -273,6 +289,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 Work::Element(source, index, depth) => {
                     steps.push(BindingStep::Element { source, index });
                     pending.push(Work::Pattern(source, source.node_id(), depth));
+                }
+                Work::ArrayRest(source, start, depth) => {
+                    steps.push(BindingStep::ArrayRest { source, start });
+                    pending.push(Work::Pattern(
+                        &source.argument,
+                        source.argument.node_id(),
+                        depth,
+                    ));
                 }
                 Work::Leave => {
                     containers.pop().expect("balanced binding plan");

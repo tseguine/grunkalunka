@@ -2,6 +2,147 @@
 use super::SCHEDULED_DECLARATION_VALUES;
 
 #[test]
+fn array_rest_bindings_compose_with_defaults_captures_and_iteration() {
+    for (body, asynchronous) in [
+        (
+            "const [head,...rest]=[a,b];return rest.length+(head===a?1:0);",
+            false,
+        ),
+        ("const [,,...rest]=[a,b,a];return rest.length;", false),
+        ("const [[...rest]=[]]=[];return a;", false),
+        (
+            "const {items:[first,...rest]=[a,b]}={};return rest.length;",
+            false,
+        ),
+        ("const [...rest]=Object.keys(a);return rest.length;", false),
+        (
+            "const source=[];const [head=(source[1]=b,a),,...rest]=source;return rest.length;",
+            false,
+        ),
+        (
+            "let first=()=>0,last=()=>0,n=0;for(const [head,...rest] of [[a,b],[b,a,b]]){const read=()=>+rest.length;if(n===0)first=read;last=read;n++;}return first()*10+last();",
+            false,
+        ),
+        (
+            "const source=[,];const [head=(await a,source[1]=b,a),...rest]=source;await b;return rest.length;",
+            true,
+        ),
+    ] {
+        let source = format!(
+            "export {}function run(a,b){{{body}}}",
+            if asynchronous { "async " } else { "" }
+        );
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, asynchronous, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+}
+
+#[test]
+fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
+    for body in [
+        "const [...[value]]=[a];return a;",
+        "const [...{length}]=[a];return a;",
+        "const {...rest}={value:a};return a;",
+        "const [...rest]=a;return a;",
+        "const [...rest]='text';return a;",
+        "const [first=rest,...rest]=[];return a;",
+        "const [...rest]=rest;return a;",
+        "const [...rest]=[];rest=[];return a;",
+        "const [...rest]=['text'];return rest[0].trim().length;",
+        "const [...rest]=[[a]];const [[value]]=rest;return a;",
+        "const [...rest]=['text'];const [label='fallback']=rest;return label.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let error = on_small_stack(&source, false, false)
+            .0
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+    let typed = "export function run(a:number,b:number){const [...rest]:string[]=['text'];return rest[0].trim().length;}";
+    let error = on_small_stack(typed, false, true)
+        .0
+        .err()
+        .unwrap_or_else(|| panic!("admitted {typed}"));
+    assert!(error.contains("unsupported"), "{error}");
+}
+
+#[test]
+fn array_rest_own_keys_uses_positive_container_proofs_without_losing_nullable_guards() {
+    for body in [
+        "const [...rest]=[,a];return Object.keys(rest).length;",
+        "const [...rest]=Object.keys(a);return Object.keys(rest).length;",
+        "const [items]=[[a]];return Object.keys(items).length;",
+        "const {record={value:a}}={};return Object.keys(record).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let (result, _) = on_small_stack(&source, false, false);
+        assert!(result.is_ok(), "{source}: {result:?}");
+    }
+    for body in [
+        "let [...rest]=[a];rest=null;return Object.keys(rest).length;",
+        "let [...rest]=[a];rest=a;return Object.keys(rest).length;",
+        "let [...rest]=[a];rest=a?rest:null;return Object.keys(rest).length;",
+        "let [...rest]=[a];return Object.keys(rest,rest=null).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let error = on_small_stack(&source, false, false)
+            .0
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("nullable Object.keys"), "{source}: {error}");
+    }
+    // The async profile retains its runtime check on the original saved value,
+    // including after a surplus argument changes the source variable.
+    let source = "export async function run(a,b){let [...rest]=[a];return Object.keys(rest,rest=null).length;}";
+    let (result, _) = on_small_stack(source, true, false);
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn array_rest_counts_one_leaf_without_an_extra_container_level() {
+    for count in [128, 129] {
+        let prefix = (0..count - 1)
+            .map(|index| format!("value{index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let source =
+            format!("export function run(a,b){{const [{prefix},...rest]=[];return rest.length;}}");
+        let (result, _) = on_small_stack(&source, false, false);
+        if count == 128 {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(error.contains("at most 128 source locals"), "{error}");
+        }
+    }
+    for depth in [128, 129] {
+        let mut pattern = String::from("[...rest]");
+        let mut initializer = String::from("[a]");
+        for _ in 1..depth {
+            pattern = format!("[{pattern}]");
+            initializer = format!("[{initializer}]");
+        }
+        let source = format!(
+            "export function run(a,b){{const {pattern}={initializer};return rest.length;}}"
+        );
+        let (result, _) = on_small_stack(&source, false, false);
+        if depth == 128 {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("binding pattern nesting exceeds 128"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
 fn identifier_defaults_admit_consumers_of_proven_missing_values() {
     for (body, asynchronous) in [
         ("const {label=' x '}={};return label.trim().length;", false),
@@ -139,7 +280,6 @@ fn nested_pattern_defaults_keep_kind_tdz_and_unsupported_pattern_guards() {
         "const {child:{value}={value:value}}={};return a;",
         "const {child:{}=(later,{}),later=a}={};return a;",
         "const {child:{...rest}={}}={};return a;",
-        "const [[...rest]=[]]=[];return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         let error = on_small_stack(&source, false, false)

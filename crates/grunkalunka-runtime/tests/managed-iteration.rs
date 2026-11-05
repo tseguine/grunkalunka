@@ -336,6 +336,19 @@ fn whole_pattern_defaults_in_for_of_heads_keep_laziness_and_fresh_captures() {
 }
 
 #[test]
+fn array_rest_heads_keep_fresh_captures_and_support_identifier_iteration() {
+    for body in [
+        // Preserve the exact former rejection for an array-rest loop head.
+        "for(const [first,...rest] of [[a,b]]){}return a;",
+        "const [,...rest]=[a,b,undefined];let n=0;for(const value of rest)n=n*10+(value===undefined?2:1);return n;",
+        "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {items:[head,...rest]=[a,b],after=(last=()=>+rest.length,0)} of [{},{items:[a,b,a]}]){if(n===0){first=last;change=()=>{rest=[a,a,a];return 0;};}n++;}change();return +first()*10+(+last());",
+        "let first=()=>0,last=()=>0;for(let [...tail]=[a],i=0;i<2;i++,tail=[a,b]){if(i===0)first=()=>+tail.length;last=()=>+tail.length;}return +first()*10+(+last());",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn destructuring_for_of_allocates_fresh_leaf_cells_and_preserves_loop_control() {
     for body in [
         "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {label,unused=(last=()=>label.trim().length,0)} of [{label:' a '},{label:' bb '}]){if(n===0){first=last;change=()=>{label=' ccc ';return 0;};}n++;}change();return first()*10+last();",
@@ -370,7 +383,11 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(const {value} of [{value:a}])value=b;return a;",
         "for(var {value} of [{value:a}]){}return a;",
         "for(const {...rest} of [{value:a}]){}return a;",
-        "for(const [first,...rest] of [[a,b]]){}return a;",
+        "for(const [...[tail]] of [[a]]){}return a;",
+        "for(const [...rest] of [[a],null]){}return a;",
+        "for(const [...rest] of [[a]])rest=[];return a;",
+        "for(const [head=rest,...rest] of [[]]){}return a;",
+        "const [...rest]=['x'];for(const item of rest)return item.trim().length;return 0;",
         "for(const {row:{x}={x:a}} of [{row:null}]){}return a;",
         "for(const [[x]=[a]] of [[b]]){}return a;",
         "for(const {row:{x}={x}} of [{}]){}return a;",

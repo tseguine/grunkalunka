@@ -26,6 +26,7 @@ type Alternatives = BTreeSet<Origin>;
 type Key = Vec<u16>;
 enum Rule {
     Iterated(NodeId),
+    ArrayRest(NodeId),
     Copy(Vec<NodeId>),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
@@ -105,6 +106,11 @@ fn pattern_definitions(
                 }
             }
             BindingPattern::ArrayPattern(array) => {
+                if let Some(rest) = &array.rest {
+                    // Rest constructs a fresh array allocation. Its copied
+                    // element origins remain opaque, so it gets no field map.
+                    pending.push((&rest.argument, Rule::ArrayRest(rest.node_id())));
+                }
                 for (index, element) in array.elements.iter().enumerate().rev() {
                     if let Some(element) = element {
                         pending.push((
@@ -183,6 +189,7 @@ impl Fields {
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some())
+                || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
         }) {
             return Self::default();
         }
@@ -658,6 +665,7 @@ impl Fields {
                     Rule::Iterated(receiver) => {
                         elements.select(*receiver, &values, &fields, &index_deletes)
                     }
+                    Rule::ArrayRest(allocation) => BTreeSet::from([Origin::Array(*allocation)]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
                     Rule::Default(selected, fallback) => {
                         // Only positively known Undefined is replaced. Other

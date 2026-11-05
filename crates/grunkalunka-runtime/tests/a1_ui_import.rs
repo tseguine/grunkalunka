@@ -604,3 +604,19 @@ fn imported_handler_defaults_optional_action_records_and_heading_options() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_uses_an_independent_rest_list_with_shared_heading_values() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const heading = {label:' first '};
+            const source = [{label:' title '},heading,{label:' second '}];
+            const [title,...headings] = source;
+            source[1] = {label:' replacement '};
+            const retained = headings.at(0) === heading;
+            const count = Object.keys(headings).length;
+            return choose(a > 0 && retained && title.label.trim().length > 0 ? 1 : 0, count);
+        }"#,
+    );
+}

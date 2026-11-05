@@ -148,9 +148,10 @@ not a prerequisite.
 
 Local `const` and `let` declarations now extract nested records and lists through
 mixed object/array binding patterns. Object shorthand, renaming and literal keys
-compose with array elisions, empty patterns and lazy defaults on identifiers or
-whole nested patterns. The same declaration path works in ordinary blocks, helpers, supported async
-activations and traditional `for` initializers. See
+compose with array elisions, empty patterns, identifier rest elements and lazy
+defaults on identifiers or whole nested patterns. The same declaration path works
+in ordinary blocks, helpers, supported async activations and traditional `for`
+initializers. See
 [object bindings](object-binding-patterns.md) and
 [array bindings](array-binding-patterns.md) for the admitted surface and its
 differential coverage.
@@ -169,10 +170,17 @@ and then stays finished through later growth. A default in a descendant pattern
 can change an ancestor array's length; the ancestor observes that change on its
 next active step. Inner exhaustion does not finish a parent or sibling pattern.
 
+Array rest collects the remaining values after earlier defaults into a fresh
+dense array. Holes become own Undefined entries, references retain identity and
+the copied slots are independent of the source. Rest observes the original
+receiver's live length while active and stays empty after exhaustion. The rest
+receiver has an Array proof; its copied element origins remain opaque.
+
 Array `for...of` accepts a `const` or `let` identifier or a supported object/array
-pattern, including mixed nesting and defaults on identifiers or nested patterns.
-It evaluates the iterable once and initializes every head leaf before entering the body. Captured
-leaves receive fresh cells each iteration. Existing completion machinery handles
+pattern, including mixed nesting, identifier rest in arrays and defaults on
+identifiers or nested patterns. It evaluates the iterable once and initializes
+every head leaf before entering the body. Captured leaves receive fresh cells
+each iteration. Existing completion machinery handles
 unlabelled loop control and supported suspension in the RHS, head defaults or
 body. See [array iteration](array-iteration.md) for its intrinsic-array scope.
 
@@ -186,8 +194,9 @@ stay boxed; this work adds no numeric unboxing. Pattern preparation and lowering
 remain iterative, with the existing
 128-local budget counting leaves and a shared 128-level container nesting limit.
 
-Rest bindings, parameter and assignment patterns, dynamic object keys, primitive
-RHS coercion and general iterators remain follow-on work.
+Object rest, array rest with pattern targets, parameter and assignment patterns,
+dynamic object keys, primitive RHS coercion and general iterators remain
+follow-on work.
 `for-in`, `for await...of` and `var` or assignment loop heads are also outside this
 slice. The compiler work does not alter the concurrent A1 application's session,
 native view, service or packaging interfaces, or the browser stream's native
@@ -232,6 +241,8 @@ arrays stay within the guest. These cases exercise the new authoring surface
 without introducing a typed public A1 payload or resource boundary.
 An optional-action case also applies whole-pattern defaults to missing view,
 group and heading-option records before calling the service.
+A rest case derives its count from a fresh heading list and verifies that
+replacing a source slot leaves the copied heading reference intact.
 
 Application validation and acceptance for source-imported input, the shared
 state/reflow/repaint path, readable glyphs and equivalent native Rust behavior

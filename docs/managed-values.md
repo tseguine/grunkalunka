@@ -189,6 +189,13 @@ snapshots. Reads of `length` produce a managed Number. Canonical decimal indices
 in storage from explicitly stored Undefined. Both read as Undefined through these
 own-property operations.
 
+`ManagedArrayRest` copies the remaining intrinsic-iterator values from an unsigned
+start position into a fresh dense array. Holes become own Undefined entries,
+named properties are omitted, and fresh property cells retain the original value
+references. The iterative helper takes linear work in the result length plus
+the source's stored property count. Binding lowering separately preserves an
+already exhausted iterator by allocating an empty result.
+
 `ManagedArrayResize` accepts an already validated immediate `u32` length. Shrinking
 removes indexed own properties at or above that length while retaining named
 properties; growing creates holes and does not restore deleted entries. Generic

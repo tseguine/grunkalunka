@@ -2,8 +2,8 @@
 
 Local `const` and `let` declarations admit array binding patterns over
 source-proven managed arrays. Identifier leaves and nested object/array patterns
-with optional lazy defaults, elisions and empty patterns work in blocks,
-helpers, async activations and traditional `for` initializers. Objects can also
+with optional lazy defaults, elisions, empty patterns and identifier rest elements
+work in blocks, helpers, async activations and traditional `for` initializers. Objects can also
 contain nested array patterns through the same binding cursor.
 
 ## Evaluation and representation
@@ -59,6 +59,21 @@ not execute user hooks in this surface, so a check at the next bound index also
 observes exhaustion within a run of holes.
 This is not general iterable destructuring.
 
+An identifier rest element consumes the remaining positions after all preceding
+bindings and defaults finish. It creates a fresh dense array: each hole becomes
+an own entry containing Undefined, and named source properties are omitted.
+References to objects, arrays and functions retain their identity, while the
+new array has independent element slots. Replacing a source or result element
+does not replace the corresponding element in the other array.
+
+Rest uses the saved original receiver and the current live length. Earlier
+defaults may grow or shrink an active array, including across an await. Once
+the pattern's iterator has finished, rest stays empty even if a later default
+regrows the source. Trailing elisions count toward the consumed positions.
+Repeated evaluations, including loop heads, allocate distinct rest arrays.
+The rest binding is initialized after collection; an earlier abrupt default
+prevents both collection and its binding initialization.
+
 Every leaf uses the managed value carrier, including selected Numbers. Existing
 equality, truthiness, storage and managed consumers apply; arithmetic does not
 acquire unchecked numeric unboxing. Fixed-position source facts retain proven
@@ -72,18 +87,29 @@ Undefined alternative; unknown values and conservative mutation effects remain
 in the proof. A fallback cannot turn an unproven value into a safe specialized
 receiver.
 
+The rest result has a proven Array receiver, so its length, existing array
+operations, `Object.keys` and generic iteration are available. `Object.keys`
+uses the positive container proof even though the binding stays boxed; unknown
+or nullable alternatives retain their existing completion-profile boundary.
+The rest result's element origins remain
+opaque: copying known source values does not yet prove String or container kinds
+for selections from the result. Equality, truthiness, storage and reference
+identity remain available through the managed carrier.
+
 Mutable leaves use the existing lexical slots and captured cells. Traditional
 `for` headers and declarations in loop bodies retain their existing iteration
-cell behavior. The 128-source-local budget counts identifiers, not elisions;
-pattern preparation and lowering are iterative. Object and array nesting share
-one 128-container-level limit. No runtime imports, public ABI or IR operations
-are added.
+cell behavior. The 128-source-local budget counts identifiers, including each
+rest identifier once, not elisions. Pattern preparation and lowering are
+iterative. Object and array nesting share
+one 128-container-level limit. The private `ManagedArrayRest` IR operation copies
+the remaining values with iterative WasmGC loops and fresh property entries.
+It adds no runtime import or public ABI.
 
 ## Admission limits
 
-Rest elements, destructuring assignment and parameter patterns remain separate
-work. Strings, ordinary objects with numeric fields, unknown parameters and
-nullable array alternatives do not satisfy the
+Rest elements with a pattern target, object rest, destructuring assignment and
+parameter patterns remain separate work. Strings, ordinary objects with numeric
+fields, unknown parameters and nullable array alternatives do not satisfy the
 array proof. The intrinsic-iterator boundary also excludes user-defined
 iteration and observable iterator closing.
 
@@ -93,7 +119,9 @@ iteration and observable iterator closing.
 JavaScript, Node-Wasm and Wasmtime for JS and erased TS. It covers sparse
 positions, lazy defaults, live growth, persistent exhaustion, evaluation order,
 references, helpers, captures, traditional loop headers, rejection boundaries
-and 2 MiB native-stack local-budget probes.
+and 2 MiB native-stack local-budget probes. Rest cases check dense holes, copied
+reference identity, independent slots, saved receivers, live defaults and
+persistent exhaustion, including trailing elisions.
 `crates/grunkalunka-runtime/tests/async-suspension/array_bindings.rs` covers
 saved references, initializer/default suspension, iterator state and abrupt
 completion in the existing async suite. Local receipts and hosted results are

@@ -16,6 +16,73 @@ fn array_bindings_select_positions_holes_and_missing_elements() {
 }
 
 #[test]
+fn array_rest_bindings_admit_original_sources_and_compose_with_patterns() {
+    for body in [
+        // Preserve the three exact formerly rejected identifier-rest sources.
+        "const [x,...rest]=[a,b];return a;",
+        "const [[x,...rest]]=[[a,b]];return a;",
+        "const [x=a,...rest]=[];return a;",
+        "let n=0;const {group:[,,...rest]=(n++,[a,,b])}={};const [...again]=rest;return n*100+rest.length*10+again.length+(again!==rest&&again[0]===b?1000:0);",
+    ] {
+        compare(body);
+    }
+    // Rest provenance must not depend on an Array or Object expression in the source.
+    let source = "function size(items){return +items.length;}export function run(a,b){const [...rest]=Object.keys('ab');return +size(rest)+(rest[0]==='0'?10:0)+(rest[1]==='1'?100:0);}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn array_rest_bindings_copy_dense_shallow_values_and_keep_slots_independent() {
+    compare(
+        "const child={tag:a};const values=[b];const fn=()=>a;const source=[a,,undefined,child,values,fn];source.named=b;const [first,...rest]=source;const keys=Object.keys(rest);const copied=rest[0]===undefined&&rest[1]===undefined&&rest[2]===child&&rest[3]===values&&rest[4]===fn;const replacement={tag:b};source[3]=replacement;source[4]=[];source[5]=()=>b;const retained=rest[2]===child&&rest[3]===values&&rest[4]===fn;rest[0]=b;rest[2]=null;return copied&&retained&&rest!==source&&rest.length===5&&keys.length===5&&keys[0]==='0'&&keys[1]==='1'&&keys[4]==='4'&&source[1]===undefined&&source[3]===replacement&&rest.named===undefined?1:0;",
+    );
+}
+
+#[test]
+fn array_rest_bindings_keep_original_sources_and_permanent_exhaustion() {
+    for body in [
+        "let source=[undefined,a,b];const original=source;const [first=(source=[b,b,b],original[1]=b,a),...rest]=source;const copied=rest[0]===b&&rest[1]===b;original[2]=a;rest[0]=a;return first===a&&copied&&rest.length===2&&rest[0]===a&&rest[1]===b&&original[1]===b&&original[2]===a&&source!==original&&rest!==original?1:0;",
+        "let [...rest]=[a];const original=rest;const grown=Object.keys(rest,rest[2]=b);const saved=Object.keys(rest,rest=[b,b]);return grown.length*100+saved.length*10+rest.length+(grown[0]==='0'&&grown[1]==='2'&&saved[1]==='2'&&rest!==original?1000:0);",
+        "const source=[];const [first=(source[1]=b,a),...rest]=source;const [...other]=[];return rest.length*100+(rest.at(0)===b?10:0)+(rest!==source&&rest!==other?1:0);",
+        "const source=[,];const [first=(source[1]=b,a),...rest]=source;const [...other]=[];return rest.length*100+(rest.at(0)===b?10:0)+(rest!==source&&rest!==other?1:0);",
+        // A zero-leaf descendant default can grow the ancestor before an elision.
+        "const source=[];const [[]=(source[2]=9,[]),,...rest]=source;return rest.length*10+(rest[0]===9?1:0);",
+        "const source=[,];const [[]=(source[2]=9,[]),,...rest]=source;return rest.length*10+(rest[0]===9?1:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn array_rest_bindings_keep_receiver_and_leaf_proofs_conservative() {
+    for body in [
+        "const [...rest]=a;return a;",
+        "const [...rest]=null;return a;",
+        "const [...rest]='abc';return a;",
+        "const {items:[...rest]}={items:a};return a;",
+        "const [...[x]]=[a];return a;",
+        "const [...{length}]=[a];return a;",
+        "const [x=rest,...rest]=[];return a;",
+        "const [...rest]=rest;return a;",
+        "const [f=()=>rest,...rest]=[];return a;",
+        "const [...rest]=[a];rest=[];return a;",
+        "let [...rest]=[a];const read=()=>+rest.length;rest=b;return +read();",
+        "const [...rest]=Object.keys('ab');const [text]=rest;return text.trim().length;",
+        "const [...rest]=[a];const [text='fallback']=rest;return text.trim().length;",
+        "const [...rest]=[[a]];const [[x]]=rest;return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
 fn nested_array_bindings_admit_original_patterns_and_select_mixed_records() {
     for body in [
         // These three exact sources previously documented rejected patterns.
@@ -136,7 +203,6 @@ fn nested_array_bindings_preserve_receiver_proof_tdz_and_pattern_limits() {
         "const [[x=x]]=[[]];return a;",
         "const [[x=y],y=a]=[[]];return a;",
         "const [x=y,[y=a]]=[undefined,[]];return a;",
-        "const [[x,...rest]]=[[a,b]];return a;",
         "const [{x,...rest}]=[{x:a,y:b}];return a;",
         "const [[]=[]]=[null];return a;",
         "const [[x]=[a]]=[b];return a;",
@@ -276,7 +342,6 @@ fn array_binding_annotations_are_erased_without_proving_values() {
 #[test]
 fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
     for body in [
-        "const [x,...rest]=[a,b];return a;",
         "const [x]=a;return a;",
         "const [x]={0:a,length:1};return a;",
         "const [x]='abc';return a;",
@@ -454,7 +519,6 @@ fn array_binding_defaults_keep_tdz_and_conservative_origin_guards() {
         "const [x=undefined,undefined=a]=[];return a;",
         "const [x=a]=[];x=b;return a;",
         "const [x=a]=[];return x+1;",
-        "const [x=a,...rest]=[];return a;",
         "const [text='fallback']=[a];return text.trim().length;",
         "const [text='fallback']=[null];return text.trim().length;",
         "const source=[];const alias=source;alias[0]=a;const [text='fallback']=source;return text.trim().length;",
