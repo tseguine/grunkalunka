@@ -214,7 +214,12 @@ An array rest target can destructure the completed tail with another array
 pattern, including elisions, defaults and nested containers. Mutating the
 original array from an inner default leaves the captured tail slots independent.
 
-Object-pattern rest targets, parameter and assignment patterns,
+Object patterns read indexed and named fields on proven arrays, including
+their current length. Object rest copies enumerable own entries from the
+sparse array backing store. An array-rest target can likewise use an object
+pattern on its freshly collected dense tail.
+
+Parameter and assignment patterns,
 general property-key conversion, primitive RHS coercion and general iterators remain
 follow-on work.
 `for-in`, `for await...of` and `var` or assignment loop heads are also outside this

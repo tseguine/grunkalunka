@@ -2,7 +2,7 @@
 
 Local `const` and `let` declarations admit array binding patterns over
 source-proven managed arrays. Identifier leaves and nested object/array patterns
-with optional lazy defaults, elisions, empty patterns and rest elements targeting identifiers or array patterns
+with optional lazy defaults, elisions, empty patterns and rest elements targeting identifiers, arrays or object patterns
 work in blocks, helpers, async activations and traditional `for` initializers. Objects can also
 contain nested array patterns through the same binding cursor.
 
@@ -74,7 +74,11 @@ Repeated evaluations, including loop heads, allocate distinct rest arrays.
 The rest binding is initialized after collection; an earlier abrupt default
 prevents both collection and its binding initialization.
 
-A rest target may itself be an array pattern. In `const [header, ...[first,
+A rest target may itself be an array or object pattern. The object form
+reads properties of the fresh dense tail, so `const [header, ...{length}] =
+items` binds its remaining length. Holes copied to the tail are now own
+Undefined entries, and the original array's named properties are absent.
+The array form starts a new iterator. In `const [header, ...[first,
 second]] = source`, the outer pattern collects the entire tail before the
 inner pattern takes its first step. An inner default may change the original
 array or suspend without changing the copied slots. Each nested container
@@ -119,7 +123,7 @@ It adds no runtime import or public ABI.
 
 ## Admission limits
 
-Object-pattern rest targets, destructuring assignment and
+Destructuring assignment and
 parameter patterns remain separate work. Strings, ordinary objects with numeric
 fields, unknown parameters and nullable array alternatives do not satisfy the
 array proof. The intrinsic-iterator boundary also excludes user-defined

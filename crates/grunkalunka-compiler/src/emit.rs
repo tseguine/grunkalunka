@@ -318,6 +318,10 @@ impl Emitter<'_> {
                 excluded,
             } => {
                 self.get(*object);
+                if self.function.values[object.0] == Type::ManagedArray {
+                    // Only the sparse own-property table is enumerable; length is separate.
+                    self.output.push_str("struct.get $gc_array 1\n");
+                }
                 self.output.push_str("ref.null $gc_rest_key\n");
                 for key in excluded {
                     match key {

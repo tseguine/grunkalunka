@@ -135,7 +135,6 @@ fn nested_object_bindings_preserve_empty_receiver_tdz_and_alias_guards() {
     for body in [
         "const {child:{}}={};return a;",
         "const {child:{}}={child:null};return a;",
-        "const {child:{}}={child:[]};return a;",
         "const {child:{x}}={child:a?{x:a}:null};return a;",
         "const root={child:{x:a}};const alias=root;alias.child=null;const {child:{x}}=root;return a;",
         "const root={child:{text:'ready'}};const alias=root.child;alias.text=a;const {child:{text}}=root;return text.length;",
@@ -152,7 +151,6 @@ fn nested_object_bindings_preserve_empty_receiver_tdz_and_alias_guards() {
         "const {child:{}={}}={child:undefined,...{child:a}};return a;",
         "const source={};const alias=source;alias.child=a;const {child:{x}={x:b}}=source;return a;",
         "const {child:{}=null}={};return a;",
-        "const {child:{}=[]}={};return a;",
         "const {child:{x}={x}}={};return a;",
         "const {child:{x}=later,later={x:a}}={};return a;",
     ] {
@@ -474,7 +472,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {x}=undefined;return a;",
         "const {}=null;return a;",
         "const {}='abc';return a;",
-        "const {length}=[a,b];return a;",
         "const source=a?{x:a}:null;const {x}=source;return a;",
         "const items=[{x:a}];const {x}=items.at(0);return a;",
         "const {constructor}={};return a;",
@@ -584,6 +581,21 @@ fn dictionary_binding_keys_run_once_and_exclude_their_saved_strings() {
         r"const d=Object.create(null);const k='\ud800';d[k]=a;d['\ufffd']=b;d.__proto__=a;const {[k]:x,[('__'+'proto__')]:y,...rest}=d;const keys=Object.keys(rest);return x===a&&y===a&&keys.length===1&&keys[0]==='\ufffd'&&rest['\ufffd']===b?1:0;",
         "const d=Object.create(null);d.tag=a;const source=[d];const [{[(source[1]=b,'tag')]:value},...tail]=source;return value===a&&tail.length===1&&tail[0]===b?1:0;",
         "const d=Object.create(null);d.key='value';d.value=a;let n=0;for(const {key='fallback',[key]:value,...rest} of [d,d]){if(value===a&&Object.keys(rest).length===0)n++;}return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_patterns_select_array_length_indices_and_remaining_enumerable_fields() {
+    for body in [
+        "const {length}=[a,b];return a;",
+        "const {child:{}=[]}={};return a;",
+        "const {child:{}}={child:[]};return a;",
+        "const source=[a,,b];source.named=a;const {0:first,1:missing=' empty ',length:n,...rest}=source;const keys=Object.keys(rest);source[2]=a;return first===a&&missing.trim()==='empty'&&n===3&&rest[2]===b&&rest.named===a&&rest.length===undefined&&keys.length===2&&keys[0]==='2'&&keys[1]==='named'?1:0;",
+        "const source=[a];const {...rest}=source;const {length:label=' absent '}=rest;return label.trim()==='absent'&&rest[0]===a?1:0;",
+        "const src=[undefined,b];const {0:first=(src.length=0,src[2]=a,1),length:n,...rest}=src;return first===1&&n===3&&Object.keys(rest).length===1&&rest[2]===a?1:0;",
+        "for(const {0:first,length:n,...others} of [[' title ',a]])return first.trim().length+(n===2&&others[1]===a?10:0);return 0;",
     ] {
         compare(body);
     }

@@ -60,7 +60,6 @@ fn array_rest_bindings_keep_receiver_and_leaf_proofs_conservative() {
         "const [...rest]=null;return a;",
         "const [...rest]='abc';return a;",
         "const {items:[...rest]}={items:a};return a;",
-        "const [...{length}]=[a];return a;",
         "const [x=rest,...rest]=[];return a;",
         "const [...rest]=rest;return a;",
         "const [f=()=>rest,...rest]=[];return a;",
@@ -631,6 +630,18 @@ fn array_rest_pattern_targets_destructure_the_fresh_copy() {
         "const src=[a,undefined,' old '];const [,...[first=(src[2]='new',b),second]]=src;return first===b&&second.trim()==='old'&&src[2]==='new'?1:0;",
         "const [,...[,...[{title},...tail]]]=[a,b,{title:' title '},,a];return title.trim().length+tail.length+(tail[0]===undefined&&tail[1]===a?10:0);",
         "let n=0;const [...[]]=(n++,[a,b]);const [...[x='fallback']]=[];return n+x.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn object_rest_targets_read_the_fresh_dense_tail_as_an_array() {
+    for body in [
+        "const [...{length}]=[a];return a;",
+        "const src=[a,,{label:' heading '}];const [,...{0:first=(src[2]={label:'changed'},1),1:row,length:size,...other}]=src;return first===1&&row.label.trim()==='heading'&&size===2&&Object.keys(other).length===0?1:0;",
+        "const src=[,a];src.named=b;const [...{...rest}]=src;const keys=Object.keys(rest);return rest[0]===undefined&&rest[1]===a&&rest.named===undefined&&keys[0]==='0'&&keys[1]==='1'?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&source, &source);

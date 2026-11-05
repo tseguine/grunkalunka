@@ -1,6 +1,8 @@
 //! Select property origins for reads and binding patterns at one solver iteration.
 use super::*;
 
+const LENGTH: &[u16] = &[108, 101, 110, 103, 116, 104];
+
 pub(super) struct Rest {
     pub receiver: NodeId,
     pub excluded: BTreeSet<Key>,
@@ -54,9 +56,7 @@ impl Members<'_, '_> {
             };
             let array = matches!(origin, Origin::Array(_));
             let dictionary = matches!(origin, Origin::NullObject(_));
-            if (array
-                && (self.open_fields.contains(&object)
-                    || key.as_slice() == [108, 101, 110, 103, 116, 104]))
+            if (array && (self.open_fields.contains(&object) || key.as_slice() == LENGTH))
                 || evaluate::managed_member_key(
                     &self.semantic.nodes().kind(object),
                     key.clone(),
@@ -119,7 +119,15 @@ impl Members<'_, '_> {
                     // allocation. Only equal projections share a finished result.
                     active.insert(object);
                     work.push(Step::FinishRest(object, shifted));
-                    work.extend(origins(source).map(|origin| Step::Read(origin, source_index)));
+                    for origin in origins(source) {
+                        if key.as_slice() == LENGTH && matches!(origin, Origin::Array(_)) {
+                            // Object rest copies the array's enumerable own
+                            // fields. Its intrinsic length is never copied.
+                            found.insert(Origin::Undefined);
+                        } else {
+                            work.push(Step::Read(origin, source_index));
+                        }
+                    }
                 }
                 continue;
             }

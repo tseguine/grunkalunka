@@ -1395,7 +1395,16 @@ impl Verifier<'_> {
                 object,
                 excluded,
             } => {
-                self.value(*object, Type::ManagedObject, visible, span)?;
+                let ty = self
+                    .function
+                    .values
+                    .get(object.0)
+                    .copied()
+                    .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
+                    .ok_or_else(|| {
+                        invalid(span, "object rest needs an object or array receiver")
+                    })?;
+                self.value(*object, ty, visible, span)?;
                 for key in excluded {
                     match key {
                         RestKey::Literal(key) => {

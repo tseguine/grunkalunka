@@ -47,7 +47,10 @@ pub(super) fn leaves<'n, 'a>(
 }
 
 pub(super) enum BindingStep<'n, 'a> {
-    Object(&'n ObjectPattern<'a>),
+    Object {
+        source: &'n ObjectPattern<'a>,
+        receiver: Type,
+    },
     Array {
         source: &'n ArrayPattern<'a>,
         live: bool,
@@ -94,11 +97,12 @@ pub(super) struct BindingPlan<'n, 'a> {
 
 pub(super) struct PatternBinding<'n, 'a> {
     pub(super) source: &'n Expression<'a>,
+    pub(super) mode: evaluate::Mode,
     pub(super) plan: BindingPlan<'n, 'a>,
 }
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn prepare_array_binding<'n, 'a>(
+    pub(super) fn prepare_local_pattern<'n, 'a>(
         &mut self,
         local: &'n VariableDeclarator<'a>,
         mutable: bool,
@@ -106,48 +110,31 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let source = local
             .init
             .as_ref()
-            .ok_or_else(|| unsupported(local, "array binding patterns require an initializer"))?;
-        let ty = self.managed_source_type(source, 0);
-        if ty != Some(Type::ManagedArray)
-            && !(ty == Some(Type::ManagedValue)
-                && self.stored.container(source.node_id()) == Some(Type::ManagedArray))
-        {
-            return Err(unsupported(
-                source,
-                "array bindings require a source-proven managed array",
-            ));
-        }
-        let plan =
-            self.prepare_binding_pattern(&local.id, source.node_id(), Type::ManagedArray, mutable)?;
-        Ok(PatternBinding { source, plan })
-    }
-
-    pub(super) fn prepare_object_binding<'n, 'a>(
-        &mut self,
-        local: &'n VariableDeclarator<'a>,
-        mutable: bool,
-    ) -> Result<PatternBinding<'n, 'a>, String> {
-        let source = local
-            .init
-            .as_ref()
-            .ok_or_else(|| unsupported(local, "object binding patterns require an initializer"))?;
-        let ty = self.managed_source_type(source, 0);
-        if ty != Some(Type::ManagedObject)
-            && !(ty == Some(Type::ManagedValue)
-                && self.stored.container(source.node_id()) == Some(Type::ManagedObject))
-        {
-            return Err(unsupported(
-                source,
-                "object bindings require a source-proven managed object",
-            ));
-        }
-        let plan = self.prepare_binding_pattern(
-            &local.id,
-            source.node_id(),
-            Type::ManagedObject,
-            mutable,
-        )?;
-        Ok(PatternBinding { source, plan })
+            .ok_or_else(|| unsupported(local, "binding patterns require an initializer"))?;
+        let receiver = match self.managed_source_type(source, 0) {
+            Some(Type::ManagedValue) => self.stored.container(source.node_id()),
+            ty => ty,
+        };
+        let (root_type, mode) = match (&local.id, receiver) {
+            (_, Some(Type::ManagedArray)) => (Type::ManagedArray, evaluate::Mode::Array),
+            (BindingPattern::ObjectPattern(_), Some(Type::ManagedObject)) => {
+                (Type::ManagedObject, evaluate::Mode::Object)
+            }
+            (BindingPattern::ArrayPattern(_), _) => {
+                return Err(unsupported(
+                    source,
+                    "array bindings require a source-proven managed array",
+                ));
+            }
+            _ => {
+                return Err(unsupported(
+                    source,
+                    "object bindings require a source-proven managed object or array",
+                ));
+            }
+        };
+        let plan = self.prepare_binding_pattern(&local.id, source.node_id(), root_type, mutable)?;
+        Ok(PatternBinding { source, mode, plan })
     }
 
     /// Prepare a pattern independently of evaluating its original source. The
@@ -162,7 +149,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     ) -> Result<BindingPlan<'n, 'a>, String> {
         enum Work<'n, 'a> {
             Pattern(&'n BindingPattern<'a>, NodeId, usize),
-            Field(&'n BindingProperty<'a>, bool, usize),
+            Field(&'n BindingProperty<'a>, Type, bool, usize),
             Element(&'n BindingPattern<'a>, u32, usize),
             ObjectRest(&'n BindingRestElement<'a>, usize),
             ArrayRest(&'n BindingRestElement<'a>, u32, usize),
@@ -210,38 +197,27 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     pending.push(Work::Leave);
                     match pattern {
                         BindingPattern::ObjectPattern(object) => {
-                            if proven != Some(Type::ManagedObject) {
+                            let Some(receiver @ (Type::ManagedObject | Type::ManagedArray)) =
+                                proven
+                            else {
                                 return Err(unsupported(
                                     object.as_ref(),
-                                    "nested object bindings require a source-proven managed object",
+                                    "nested object bindings require a source-proven managed object or array",
                                 ));
-                            }
-                            steps.push(BindingStep::Object(object));
+                            };
+                            steps.push(BindingStep::Object {
+                                source: object,
+                                receiver,
+                            });
                             if let Some(rest) = &object.rest {
                                 pending.push(Work::ObjectRest(rest, depth));
                             }
                             let dictionary = self.stored.dictionary(origin);
-                            pending.extend(
-                                object
-                                    .properties
-                                    .iter()
-                                    .rev()
-                                    .map(|property| Work::Field(property, dictionary, depth)),
-                            );
+                            pending.extend(object.properties.iter().rev().map(|property| {
+                                Work::Field(property, receiver, dictionary, depth)
+                            }));
                         }
                         BindingPattern::ArrayPattern(array) => {
-                            if let Some(rest) = &array.rest
-                                && !matches!(
-                                    rest.argument,
-                                    BindingPattern::BindingIdentifier(_)
-                                        | BindingPattern::ArrayPattern(_)
-                                )
-                            {
-                                return Err(unsupported(
-                                    rest.as_ref(),
-                                    "array rest bindings require an identifier or array pattern target",
-                                ));
-                            }
                             if proven != Some(Type::ManagedArray) {
                                 return Err(unsupported(
                                     array.as_ref(),
@@ -271,11 +247,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         _ => unreachable!("identifiers and defaults were planned above"),
                     }
                 }
-                Work::Field(property, dictionary, depth) => {
+                Work::Field(property, receiver, dictionary, depth) => {
                     if let Some(key) =
                         static_keys::property(&property.key, property.computed, depth)
                     {
-                        let key = evaluate::managed_member_key(property, key, false, dictionary)?;
+                        let key = evaluate::managed_member_key(
+                            property,
+                            key,
+                            receiver == Type::ManagedArray,
+                            dictionary,
+                        )?;
                         steps.push(BindingStep::Field {
                             source: property,
                             key,

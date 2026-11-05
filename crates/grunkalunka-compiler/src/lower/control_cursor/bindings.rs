@@ -103,24 +103,28 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         use binding_patterns::BindingStep;
         while let Some(step) = state.plan.steps.next() {
             match step {
-                BindingStep::Object(source) => {
+                BindingStep::Object { source, receiver } => {
                     let selected = state.selected.take().expect("selected object binding");
-                    let object = if self.values[selected.0] == Type::ManagedObject {
+                    let value = if self.values[selected.0] == receiver {
                         selected
                     } else {
-                        let result = self.value(Type::ManagedObject);
-                        Self::push(
-                            &mut output,
-                            source,
-                            Op::ManagedToObject {
+                        let result = self.value(receiver);
+                        let op = match receiver {
+                            Type::ManagedArray => Op::ManagedToArray {
                                 result,
                                 input: selected,
                             },
-                        );
+                            Type::ManagedObject => Op::ManagedToObject {
+                                result,
+                                input: selected,
+                            },
+                            _ => unreachable!("planned property binding requires a container"),
+                        };
+                        Self::push(&mut output, source, op);
                         result
                     };
                     state.containers.push(Container::Object {
-                        value: object,
+                        value,
                         excluded: source.rest.as_ref().map(|_| Vec::new()),
                     });
                 }
@@ -159,15 +163,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         excluded.push(ir::RestKey::Literal(key.clone()));
                     }
                     let selected = self.value(Type::ManagedValue);
-                    Self::push(
-                        &mut output,
-                        source,
+                    let op = if self.values[object.0] == Type::ManagedArray {
+                        Op::ManagedArrayGetOwn {
+                            result: selected,
+                            array: *object,
+                            key,
+                        }
+                    } else {
                         Op::ManagedGetOwn {
                             result: selected,
                             object: *object,
                             key,
-                        },
-                    );
+                        }
+                    };
+                    Self::push(&mut output, source, op);
                     state.selected = Some(selected);
                 }
                 BindingStep::ComputedField { source, key, depth } => {
