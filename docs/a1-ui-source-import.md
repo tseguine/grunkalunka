@@ -73,14 +73,25 @@ include copying collections between invocations. This does not add host-retained
 callbacks, asynchronous imported calls, managed service payloads or a shared
 application heap across independently instantiated entries.
 
+Nested-binding composition cases use the same native JavaScript, Node-Wasm and
+Rust WIT comparison. One helper extracts a nested action record and captures its
+Boolean/String leaves in a handler. Another handler extracts grouped heading
+records through a mixed object/array declaration, then uses a destructuring
+`for...of` head with a lazy identifier default to compute the visible count.
+These records and boxed leaves stay within compiled source; the handler passes
+derived numeric arguments through the unchanged scalar service. The cases add
+no numeric unboxing, typed public A1 payload or resource interface.
+
 From the repository root, after fetching locked dependencies, run:
 
 ```sh
 cargo test -p grunkalunka-runtime --test a1_ui_import --locked
 ```
 
-Next A1 work needs a stable UI action/view resource, frontend wiring through
-this source import, a native Rust application using the same service, real
-input-to-reflow/repaint integration and separately measured marshalling cost.
-The earlier host-managed hit/repaint test remains valid but does not yet
-exercise this imported service.
+The separate [A1 source-driven interaction](a1-service-interaction.md) tracks
+application input, native Rust control and reflow/repaint integration. The source
+composition tests here do not establish those application acceptance gates.
+A typed UI action/view resource remains separately scoped in
+[#483](https://github.com/tseguine/grunkalunka/issues/483), including its authority,
+ownership, lifetime and failure contract. The scalar import does not settle that
+public boundary or its marshalling cost.

@@ -714,7 +714,7 @@
     {
       "id": "destructuring",
       "kind": "open-requirement",
-      "assessment": "Flat local const/let object binding patterns over proven managed objects execute with ordered own-property reads and lazy identifier-leaf defaults. Flat local array patterns over proven managed arrays admit identifier leaves, holes, empty patterns and lazy identifier-leaf defaults. Array iteration reads live length between defaults and remains finished after exhaustion, even if a default grows the array. The exact gap-local-destructure source still requires numeric consumption of its boxed selected field; for-destructure and declarators-later-destructure still require an iterable RHS instead of their original numeric parameters. Nested, rest, parameter and assignment patterns, general iterators and primitive RHS coercion remain separate requirements; rejection of these sources does not establish support for them.",
+      "assessment": "Local const/let object and array binding declarations now admit mixed nesting, empty patterns and lazy identifier-leaf defaults over source-proven containers. Ordered nested reads preserve each selected receiver; every array pattern owns independent live-length/exhaustion state, including when a descendant default changes an ancestor array. The same supported patterns also work in const/let heads of intrinsic-array for-of loops, with a positive container proof for every selected receiver. The exact gap-local-destructure source still requires numeric consumption of its boxed selected field; for-destructure and declarators-later-destructure still use numeric parameters where the pattern requires an array. Whole-pattern defaults, rest, parameter and assignment patterns, dynamic object keys, general iterators and primitive RHS coercion remain separate requirements; rejection of these exact sources is not evidence that those forms execute.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-destructuring-assignment",
@@ -894,7 +894,7 @@
     {
       "id": "for-in-of",
       "kind": "open-requirement",
-      "assessment": "Local const/let identifier for-of bindings now iterate over source-proven managed arrays with ordered element selection and fresh lexical bindings. The exact for-of fixture remains rejected because returning its boxed selected element requires numeric consumption in the numeric ABI. for-in, general iterables, for-await-of and the other iteration binding forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
+      "assessment": "Local const/let for-of bindings now admit identifiers and supported object/array patterns, including mixed nesting and lazy identifier-leaf defaults, over source-proven managed arrays. Pattern heads require each selected container kind to be proven and initialize every leaf before the body, with fresh captured const/let cells per iteration. The exact for-of fixture remains rejected because returning its boxed selected element requires numeric consumption in the numeric ABI. for-in, general iterables, for-await-of, var or assignment heads and unsupported pattern forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements",
