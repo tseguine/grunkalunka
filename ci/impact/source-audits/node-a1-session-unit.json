@@ -1,0 +1,6 @@
+{
+  "source": "tests/applications/a1-session-unit.test.mjs",
+  "requiredChecks": [
+    "check:a1-session-units"
+  ]
+}

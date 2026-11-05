@@ -164,6 +164,22 @@ fallback also uses the PR profile.
 A regression test must not require its own Actions workflow merely because it
 originated in a research or implementation workstream.
 
+**Build broad, fast source-level coverage.** Test validation, ownership, policy,
+state transitions and error handling directly in the production implementation.
+Use small deterministic fakes at expensive process, worker, browser, clock or I/O
+boundaries, and assert observable results and invariants. Keep the decision under
+test real; avoid reproducing it in the fake or coupling assertions to private
+call sequences. Unit tests should need no native build unless native code is the
+unit under test. Register their source dependencies for impact selection while
+keeping unnecessary native build dependencies out of the unit check.
+
+Retain focused real boundary/feature smoke checks on PRs and exhaustive feature
+verification on master. When an integration suite moves to master, cover its
+host-side decision branches with fast units where practical. Report mocked,
+native and end-to-end evidence separately. Measure coverage on the production
+modules, inspect uncovered branches, and use behavioral assertions to establish
+correctness; test/fake code must not inflate the reported coverage.
+
 **Keep PR tests short.** Trim repeated compilation, setup and workload repetition
 first. Tests that still cannot fit a two-minute command execution budget belong
 in the full master/manual profile, with an explicit reason and useful fast smoke
