@@ -71,14 +71,14 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
 /// without treating a binding's syntax or annotation as a runtime kind.
 fn pattern_definitions(
     pattern: &BindingPattern<'_>,
-    initializer: NodeId,
+    root: Rule,
     definitions: &mut Vec<Definition>,
     rules: &mut Vec<(NodeId, Rule)>,
 ) {
     if matches!(pattern, BindingPattern::BindingIdentifier(_)) {
         return;
     }
-    let mut pending = vec![(pattern, Rule::Copy(vec![initializer]))];
+    let mut pending = vec![(pattern, root)];
     while let Some((pattern, rule)) = pending.pop() {
         let id = pattern.node_id();
         rules.push((id, rule));
@@ -363,7 +363,7 @@ impl Fields {
                     if let Some(initializer) = &declaration.init {
                         pattern_definitions(
                             &declaration.id,
-                            initializer.node_id(),
+                            Rule::Copy(vec![initializer.node_id()]),
                             &mut definitions,
                             &mut pattern_rules,
                         );

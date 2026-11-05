@@ -270,3 +270,23 @@ fn nested_binding_origins_keep_alias_writes_missing_paths_and_unknown_cycles() {
         assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }
+
+#[test]
+fn mixed_binding_origins_follow_each_array_and_object_selection() {
+    for body in [
+        "const [[label]]=[['text']];const observed=label;return a;",
+        "const {items:[{label}]}={items:[{label:'text'}]};const observed=label;return a;",
+        "const [{items:[label]}]=[{items:['text']}];const observed=label;return a;",
+        "const [[label='fallback']]=[['text']];const observed=label;return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const items=[{label:'text'}];const alias=items;alias[0]=null;const [{label}]=items;const observed=label;return a;",
+        "const items=[['text']];const alias=items[0];alias[0]=a;const [[label]]=items;const observed=label;return a;",
+        "const {items:[label='fallback']}={items:[]};const observed=label;return a;",
+        "const pending=()=>pending();const [[label]]=[[a?'text':pending()]];const observed=label;return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+    }
+}

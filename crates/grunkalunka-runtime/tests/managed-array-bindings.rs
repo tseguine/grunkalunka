@@ -16,6 +16,165 @@ fn array_bindings_select_positions_holes_and_missing_elements() {
 }
 
 #[test]
+fn nested_array_bindings_admit_original_patterns_and_select_mixed_records() {
+    for body in [
+        // These three exact sources previously documented rejected patterns.
+        "const [[x]]=[[a]];return a;",
+        "const [{x}]=[{x:a}];return a;",
+        "const {items:[x]}={items:[a]};return a;",
+        "const child={tag:b};const [{row:[label,{values:[first,,last]},ref]},[]]=[{row:[' Ready ',{values:[a,,b]},child]},[]];return label.trim()==='Ready'&&first===a&&last===b&&ref===child?1:0;",
+        "let n=0;const make=()=>{n++;return [[],{empty:[]}];};const [[],{empty:[]}]=make();return n;",
+    ] {
+        compare(body);
+    }
+    let source = "function identity(value){return value;}export function run(a,b){const source=[{row:{items:[' x ',a,b]}}];const alias=identity(source);const [{row:{items:[label,first,last]}}]=alias;return label.trim()==='x'&&first===a&&last===b?1:0;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn nested_array_bindings_retain_original_receivers_and_read_after_nested_defaults() {
+    compare(
+        "const inner=[undefined,a];let outer=[inner,b];const original=outer;const [[x=(outer[0]=[b,b],outer=[[],a],inner[1]=b,a),y],z]=outer;return x===a&&y===b&&z===b&&original[0]!==inner&&outer!==original?1:0;",
+    );
+}
+
+#[test]
+fn nested_array_binding_defaults_keep_ancestor_iterators_live() {
+    for body in [
+        "const inner=[];const outer=[inner];const [[x=(inner[1]=7,outer[1]=9,1),y],z]=outer;return (x===1?100:0)+(y===7?10:0)+(z===9?1:0);",
+        "const inner=[,];const outer=[inner];const [[x=(inner[1]=7,outer[1]=9,1),y],z]=outer;return (x===1?100:0)+(y===7?10:0)+(z===9?1:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn nested_array_bindings_distinguish_elisions_from_permanent_exhaustion() {
+    for body in [
+        "const inner=[,];const outer=[inner];const [[x=(inner[1]=7,1),y],,seed=(outer[3]=9,2),tail]=outer;return (x===1?1000:0)+(y===7?100:0)+(seed===2?10:0)+(tail===9?1:0);",
+        "const inner=[,];const outer=[inner,,,];const [[x=(inner[1]=7,1),y],,seed=(outer[3]=9,2),tail]=outer;return (x===1?1000:0)+(y===7?100:0)+(seed===2?10:0)+(tail===9?1:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn nested_array_bindings_own_exhaustion_per_iterator_not_per_receiver() {
+    for body in [
+        "const empty=[];const hole=[,];const outer=[empty,hole];const [[x=(empty[1]=7,1),y],[z=(hole[1]=8,2),w]]=outer;return (x===1?1000:0)+(y===undefined?100:0)+(z===2?10:0)+(w===8?1:0);",
+        "const inner=[];const outer=[inner,inner];const [[x=(inner[0]=7,1),y],[z,w]]=outer;return (x===1?1000:0)+(y===undefined?100:0)+(z===7?10:0)+(w===undefined?1:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn nested_array_binding_leaves_retain_fresh_header_and_body_capture_cells() {
+    for body in [
+        "let first=()=>0;let second=()=>0;for(let i=0;i<2;i++){let [{items:[x=i]}]=[{items:[]}];const read=()=>x===0?1:2;if(i===0)first=read;else second=read;}return first()*10+second();",
+        "let first=()=>0;let last=()=>0;for(let [{items:[x=1]}]=[{items:[]}],i=0;i<2;i++,x=2){if(i===0)first=()=>x===1?1:10;last=()=>x===2?1:10;}return first()+last();",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn nested_array_binding_annotations_are_erased_without_proving_receivers() {
+    let js = "export function run(a,b){let [{row:[value,label]}]=[{row:[a,' ab ']}];value=b;return value===b&&label.trim()==='ab'?1:0;}";
+    let ts = "type Shape=never;export function run(a:string,b:boolean):void{let [{row:[value,label]}]:Shape=([{row:[a,' ab ']}] as unknown);value=b;return (value as number)===b&&(label as number).trim()==='ab'?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    let source = "export function run(a,b){const source:[{items:number[]}]=[{items:a}];const [{items:[x]}]=source;return x===a?1:0;}";
+    let error = compile(source, true)
+        .err()
+        .unwrap_or_else(|| panic!("admitted {source}"));
+    assert!(error.contains("unsupported"), "{source}: {error}");
+    assert!(!error.contains("internal IR"), "{source}: {error}");
+}
+
+#[test]
+fn nested_array_bindings_preserve_receiver_proof_tdz_and_pattern_limits() {
+    for body in [
+        "const [[]]=[];return a;",
+        "const [[]]=[null];return a;",
+        "const [[]]=[{}];return a;",
+        "const [{items:[]}]=[{items:undefined}];return a;",
+        "const {items:[]}={items:a?[a]:null};return a;",
+        "const [[x]]=[a];return a;",
+        "const [{x}]=[a?{x:a}:null];return a;",
+        "const source=[[a]];const alias=source;alias[0]=a;const [[x]]=source;return a;",
+        "const source=[['ready']];const alias=source[0];alias[0]=a;const [[text]]=source;return text.length;",
+        "const source=[[a]];source.length=0;const [[x]]=source;return a;",
+        "const [[x=x]]=[[]];return a;",
+        "const [[x=y],y=a]=[[]];return a;",
+        "const [x=y,[y=a]]=[undefined,[]];return a;",
+        "const [[x,...rest]]=[[a,b]];return a;",
+        "const [{x,...rest}]=[{x:a,y:b}];return a;",
+        "const [{x}={x:a}]=[];return a;",
+        "const {items:[x]=[a]}={};return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn nested_array_binding_budgets_count_leaves_and_bound_mixed_source_depth() {
+    for count in [128, 129] {
+        let leaves = (0..count)
+            .map(|index| format!("v{index}"))
+            .collect::<Vec<_>>()
+            .join(",,");
+        let source = format!(
+            "export function run(a,b){{const [[],{{items:[{leaves}]}}]=[[],{{items:[a]}}];return v0===a&&v127===undefined?1:0;}}"
+        );
+        for typed in [false, true] {
+            let result = compile_on_small_stack(source.clone(), typed);
+            if count == 128 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("at most 128 source locals"), "{error}");
+            }
+        }
+    }
+    for depth in [32, 160] {
+        let mut pattern = "value".to_owned();
+        let mut value = "a".to_owned();
+        for index in 0..depth {
+            if index % 2 == 0 {
+                pattern = format!("[{pattern}]");
+                value = format!("[{value}]");
+            } else {
+                pattern = format!("{{next:{pattern}}}");
+                value = format!("{{next:{value}}}");
+            }
+        }
+        let source =
+            format!("export function run(a,b){{const {pattern}={value};return value===a?1:0;}}");
+        for typed in [false, true] {
+            let result = compile_on_small_stack(source.clone(), typed);
+            if depth == 32 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("nesting"), "{error}");
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
 fn array_bindings_evaluate_one_rhs_and_publish_declarators_in_order() {
     for body in [
         "let n=0;const make=()=>{n++;return [a,b];};const [x,y]=make();return n===1&&x===a&&y===b?1:0;",
@@ -85,8 +244,6 @@ fn array_binding_annotations_are_erased_without_proving_values() {
 fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
     for body in [
         "const [x,...rest]=[a,b];return a;",
-        "const [[x]]=[[a]];return a;",
-        "const [{x}]=[{x:a}];return a;",
         "const [x]=a;return a;",
         "const [x]={0:a,length:1};return a;",
         "const [x]='abc';return a;",
@@ -315,7 +472,7 @@ fn compile_on_small_stack(source: String, typed: bool) -> Result<(), String> {
         .spawn(move || compile(&source, typed).map(|_| ()))
         .unwrap()
         .join()
-        .expect("flat array bindings must not overflow the native stack")
+        .expect("array binding traversal must not overflow the native stack")
 }
 
 fn compare(body: &str) {

@@ -8,8 +8,8 @@ use super::*;
 pub(super) enum DeclarationInitializer<'n, 'a> {
     Complete,
     Value(DeclarationValue<'n, 'a>),
-    Object(binding_patterns::ObjectBinding<'n, 'a>),
-    Array(binding_patterns::ArrayBinding<'n, 'a>),
+    Object(binding_patterns::PatternBinding<'n, 'a>),
+    Array(binding_patterns::PatternBinding<'n, 'a>),
     CheckClosure {
         local: &'n VariableDeclarator<'a>,
         closure: closures::LocalClosure,
@@ -107,14 +107,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 "definite-assignment assertions are not admitted",
             ));
         }
-        if let BindingPattern::ObjectPattern(pattern) = &local.id {
+        if matches!(&local.id, BindingPattern::ObjectPattern(_)) {
             return self
-                .prepare_object_binding(local, pattern, mutable)
+                .prepare_object_binding(local, mutable)
                 .map(DeclarationInitializer::Object);
         }
-        if let BindingPattern::ArrayPattern(pattern) = &local.id {
+        if matches!(&local.id, BindingPattern::ArrayPattern(_)) {
             return self
-                .prepare_array_binding(local, pattern, mutable)
+                .prepare_array_binding(local, mutable)
                 .map(DeclarationInitializer::Array);
         }
         let BindingPattern::BindingIdentifier(_) = &local.id else {

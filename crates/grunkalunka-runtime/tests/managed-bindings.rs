@@ -367,7 +367,6 @@ fn object_binding_annotations_are_erased_without_proving_values() {
 fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
     for body in [
         "const {x,...rest}={x:a,y:b};return a;",
-        "const {items:[x]}={items:[a]};return a;",
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",
         "const {1:x}={'1':a};return a;",

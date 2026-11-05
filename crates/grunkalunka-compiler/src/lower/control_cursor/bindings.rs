@@ -4,15 +4,35 @@ use super::*;
 use oxc_ast::ast::BindingIdentifier;
 
 pub(super) struct DefaultBinding<'n, 'a> {
-    state: ObjectBindingState<'n, 'a>,
+    state: BindingState<'n, 'a>,
     pending: LazyDefault,
     identifier: &'n BindingIdentifier<'a>,
 }
 
-struct ObjectBindingState<'n, 'a> {
-    binding: binding_patterns::ObjectBinding<'n, 'a>,
+pub(super) enum BindingResume<'n, 'a> {
+    Declaration(Box<DeclarationSequence<'n, 'a>>),
+}
+
+impl BindingResume<'_, '_> {
+    pub(super) fn depth(&self) -> usize {
+        match self {
+            Self::Declaration(sequence) => sequence.depth,
+        }
+    }
+}
+
+enum Container {
+    Object(ValueId),
+    Array {
+        value: ValueId,
+        iterator: Option<array_bindings::IteratorState>,
+    },
+}
+
+struct BindingState<'n, 'a> {
+    plan: binding_patterns::BindingPlan<'n, 'a>,
     output: Region,
-    objects: Vec<ValueId>,
+    containers: Vec<Container>,
     selected: Option<ValueId>,
 }
 
@@ -22,42 +42,62 @@ pub(super) struct LazyDefault {
 }
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn resume_object_binding_source<'n>(
+    pub(super) fn resume_pattern_binding_source<'n>(
         &mut self,
         sequence: Box<DeclarationSequence<'n, 'ast>>,
-        binding: binding_patterns::ObjectBinding<'n, 'ast>,
+        binding: binding_patterns::PatternBinding<'n, 'ast>,
         output: Region,
-        object: ValueId,
+        value: ValueId,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
     {
-        self.advance_object_binding(
-            sequence,
-            ObjectBindingState {
-                binding,
+        self.start_binding_pattern(
+            BindingResume::Declaration(sequence),
+            binding.plan,
+            output,
+            value,
+            cursor,
+        )
+    }
+
+    pub(super) fn start_binding_pattern<'n>(
+        &mut self,
+        resume: BindingResume<'n, 'ast>,
+        plan: binding_patterns::BindingPlan<'n, 'ast>,
+        output: Region,
+        value: ValueId,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        self.advance_binding_pattern(
+            resume,
+            BindingState {
+                plan,
                 output,
-                objects: Vec::new(),
-                selected: Some(object),
+                containers: Vec::new(),
+                selected: Some(value),
             },
             cursor,
         )
     }
 
-    fn advance_object_binding<'n>(
+    fn advance_binding_pattern<'n>(
         &mut self,
-        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
-        mut state: ObjectBindingState<'n, 'ast>,
+        resume: BindingResume<'n, 'ast>,
+        mut state: BindingState<'n, 'ast>,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
     {
-        use binding_patterns::ObjectBindingStep;
-        while let Some(step) = state.binding.steps.next() {
+        use binding_patterns::BindingStep;
+        while let Some(step) = state.plan.steps.next() {
             match step {
-                ObjectBindingStep::Enter(source) => {
+                BindingStep::Object(source) => {
                     let selected = state.selected.take().expect("selected object binding");
                     let object = if self.values[selected.0] == Type::ManagedObject {
                         selected
@@ -73,28 +113,78 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         );
                         result
                     };
-                    state.objects.push(object);
+                    state.containers.push(Container::Object(object));
                 }
-                ObjectBindingStep::Field { source, key } => {
+                BindingStep::Array { source, live } => {
+                    let selected = state.selected.take().expect("selected array binding");
+                    let array = if self.values[selected.0] == Type::ManagedArray {
+                        selected
+                    } else {
+                        let result = self.value(Type::ManagedArray);
+                        Self::push(
+                            &mut state.output,
+                            source,
+                            Op::ManagedToArray {
+                                result,
+                                input: selected,
+                            },
+                        );
+                        result
+                    };
+                    let iterator =
+                        live.then(|| self.begin_array_binding_iterator(source, &mut state.output));
+                    state.containers.push(Container::Array {
+                        value: array,
+                        iterator,
+                    });
+                }
+                BindingStep::Field { source, key } => {
+                    let Some(Container::Object(object)) = state.containers.last() else {
+                        unreachable!("object field has an object receiver");
+                    };
                     let selected = self.value(Type::ManagedValue);
                     Self::push(
                         &mut state.output,
                         source,
                         Op::ManagedGetOwn {
                             result: selected,
-                            object: *state.objects.last().expect("current binding object"),
+                            object: *object,
                             key,
                         },
                     );
                     state.selected = Some(selected);
                 }
-                ObjectBindingStep::Bind {
+                BindingStep::Element { source, index } => {
+                    let Some(Container::Array { value, iterator }) = state.containers.last_mut()
+                    else {
+                        unreachable!("array element has an array receiver");
+                    };
+                    let selected = if let Some(iterator) = iterator {
+                        self.select_array_binding_step(
+                            source,
+                            &mut state.output,
+                            *value,
+                            iterator,
+                            index,
+                        )
+                    } else {
+                        self.read_array_binding_element(source, &mut state.output, *value, index)
+                    };
+                    state.selected = Some(selected);
+                }
+                BindingStep::Bind {
                     identifier,
                     default,
                 } => {
                     let selected = state.selected.take().expect("selected binding value");
                     if let Some(source) = default {
-                        let undefined = self.binding_undefined(identifier, &mut state.output);
+                        let undefined = match state.containers.last() {
+                            Some(Container::Array {
+                                iterator: Some(iterator),
+                                ..
+                            }) => iterator.undefined,
+                            _ => self.binding_undefined(identifier, &mut state.output),
+                        };
                         let pending = self.prepare_binding_default(
                             identifier,
                             &mut state.output,
@@ -102,8 +192,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             undefined,
                         );
                         let child = self.region(source);
-                        cursor.pending.push(Frame::ObjectBindingDefault {
-                            sequence,
+                        cursor.pending.push(Frame::PatternBindingDefault {
+                            resume,
                             active: Box::new(DefaultBinding {
                                 state,
                                 pending,
@@ -122,21 +212,25 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         identifier,
                         &mut state.output,
                         selected,
-                        state.binding.mutable,
+                        state.plan.mutable,
                     )?;
                 }
-                ObjectBindingStep::Leave => {
-                    state.objects.pop().expect("balanced object binding plan");
+                BindingStep::Leave => {
+                    state.containers.pop().expect("balanced binding plan");
                 }
             }
         }
-        sequence.index += 1;
-        self.advance_declaration(sequence, state.output, cursor)
+        match resume {
+            BindingResume::Declaration(mut sequence) => {
+                sequence.index += 1;
+                self.advance_declaration(sequence, state.output, cursor)
+            }
+        }
     }
 
-    pub(super) fn resume_object_binding_default<'n>(
+    pub(super) fn resume_pattern_binding_default<'n>(
         &mut self,
-        sequence: Box<DeclarationSequence<'n, 'ast>>,
+        resume: BindingResume<'n, 'ast>,
         active: DefaultBinding<'n, 'ast>,
         consequent: Region,
         default: ValueId,
@@ -157,8 +251,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             consequent,
             default,
         );
-        self.publish_pattern_binding(identifier, &mut state.output, result, state.binding.mutable)?;
-        self.advance_object_binding(sequence, state, cursor)
+        self.publish_pattern_binding(identifier, &mut state.output, result, state.plan.mutable)?;
+        self.advance_binding_pattern(resume, state, cursor)
     }
 
     pub(super) fn binding_undefined(

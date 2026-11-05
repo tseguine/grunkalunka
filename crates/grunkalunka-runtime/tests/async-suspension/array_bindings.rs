@@ -1,6 +1,30 @@
 use super::*;
 
 #[test]
+fn nested_array_binding_defaults_keep_each_iterator_live_or_exhausted_across_await() {
+    compare_promises(
+        &[
+            "const inner=[];const outer=[inner];const [[x=(await a,inner[1]=7,outer[1]=9,1),y],z]=outer;await b;return (x===1?100:0)+(y===7?10:0)+(z===9?1:0);",
+            "const inner=[,];const outer=[inner];const [[x=(await a,inner[1]=7,outer[1]=9,1),y],z]=outer;await b;return (x===1?100:0)+(y===7?10:0)+(z===9?1:0);",
+            "const inner=[];const outer=[inner,inner];const [[x=(await a,inner[0]=7,1),y],[z,w]]=outer;await b;return (x===1?1000:0)+(y===undefined?100:0)+(z===7?10:0)+(w===undefined?1:0);",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn mixed_binding_patterns_retain_receivers_captures_and_abrupt_defaults_across_await() {
+    compare_promises(
+        &[
+            "const inner=[undefined,a];const record={items:inner};const root=[record,b];const [{items:[x=(await a,record.items=[b,b],inner[1]=b,a),y]},z]=root;await b;return x===a&&y===b&&z===b&&record.items!==inner?1:0;",
+            "let [{label}]=[{label:'before'}];const read=()=>label;await a;label='after';await b;return read()==='after'?1:0;",
+            "let n=0;try{const [{items:[x=(n=1,await Promise.reject(a)),y=(n=2)]},z=(n=3)]=[{items:[]}];n=4;}catch(e){return n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_binding_defaults_suspend_only_on_undefined() {
     compare_promises(
         &[

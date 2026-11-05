@@ -3,8 +3,8 @@
 Local `const` and `let` declarations admit object binding patterns over
 source-proven managed objects. This supports shorthand fields, renamed fields,
 and identifier or String-literal property names, including literal-computed
-String keys and nested object patterns. Identifier leaves may have lazy defaults.
-The same declaration path applies in ordinary blocks, helpers,
+String keys and nested object or array patterns. Identifier leaves may have lazy
+defaults. The same declaration path applies in ordinary blocks, helpers,
 async activations and traditional `for` initializers.
 
 ## Evaluation and representation
@@ -15,13 +15,15 @@ the next property or declarator. Empty object patterns still evaluate their
 initializer. Missing own properties produce Undefined through the existing
 managed object operation.
 
-Nested object fields are selected once and retain their original receiver while
+Nested fields are selected once and retain their original receiver while
 their leaves finish in source order. A default inside a nested pattern completes
-before the next outer property is read. Replacing an outer property or rebinding the original
-source does not redirect a nested selection already in progress. Empty nested
-patterns still select and validate their receiver. Each nested receiver requires
-an all-object source proof; missing, nullable, array or unknown alternatives do
-not satisfy that proof.
+before the next outer property is read. Replacing an outer property or rebinding
+the original source does not redirect a nested selection already in progress. Empty nested
+patterns still select and validate their receiver. Each nested object pattern
+requires an all-object source proof; missing, nullable, array or unknown
+alternatives do not satisfy that proof. Nested array patterns use their own
+all-array proof and independent iterator state described in
+[array bindings](array-binding-patterns.md).
 
 A default runs only when that property's selected value is Undefined. Null,
 false, zero, NaN and empty Strings keep their values. The check uses intrinsic
@@ -60,10 +62,10 @@ recursion proportional to pattern size.
 ## Admission limits
 
 This slice covers declarations with identifier leaves, their optional defaults
-and nested object patterns. Defaults on whole nested patterns, nested array
-patterns, rest properties, destructuring assignment and parameter patterns remain
-separate work. Flat [array declarations](array-binding-patterns.md) have
-their own source-proven array admission. Dynamic property names and primitive
+and nested object or array patterns. Defaults on whole nested patterns, rest
+properties, destructuring assignment and parameter patterns remain separate
+work. [Array declarations](array-binding-patterns.md) have their own source-proven
+array admission. Dynamic property names and primitive
 RHS coercion are also outside this slice.
 
 Ordinary objects retain the existing intrinsic-prototype-key guard. Proven

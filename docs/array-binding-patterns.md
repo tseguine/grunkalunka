@@ -1,9 +1,10 @@
 # Array binding declarations
 
-Local `const` and `let` declarations admit flat array binding patterns over
+Local `const` and `let` declarations admit array binding patterns over
 source-proven managed arrays. Identifier leaves with optional lazy defaults,
-elisions and empty patterns work in blocks, helpers, async activations and
-traditional `for` initializers.
+elisions, empty patterns and nested object/array patterns work in blocks,
+helpers, async activations and traditional `for` initializers. Objects can also
+contain nested array patterns through the same binding cursor.
 
 ## Evaluation and representation
 
@@ -14,6 +15,11 @@ patterns still evaluate their initializer. A default completes before its leaf
 is published and before the next position is selected. Earlier leaves and
 declarators are visible to later defaults; a saved selection keeps its identity
 when a later expression mutates the source array.
+
+Every nested selection retains its original object or array and finishes before
+the next outer selection. Each nested receiver needs a source proof of the
+required container kind, even for an empty pattern. Rebinding a source or
+replacing a parent field does not redirect an already-selected inner receiver.
 
 Defaults run only for Undefined, including sparse holes and exhausted steps.
 Null, false, zero, NaN and empty Strings preserve their value. A source binding
@@ -29,15 +35,21 @@ array is already exhausted before its first default runs, while an array with
 one hole is still active after yielding that hole's Undefined value. Truncation
 and regrowth before the next step differ from regrowth after exhaustion.
 Source rebinding does not replace the saved array. The receiver, selected value
-and activity state survive supported awaits in defaults.
+and activity state survive supported awaits in defaults. Every nested array
+owns a separate iterator state, even when two patterns consume the same array
+object. Exhausting an inner array does not finish its parent or a later sibling.
+A default inside a descendant pattern can change an ancestor's live length;
+the ancestor observes that change at its next step while retaining its own
+exhaustion state.
 
 This admission uses the intrinsic iterator of an array created within the
 supported source surface. That surface cannot install a custom iterator, modify
 the array prototype, add accessors or import a foreign array. Patterns without
-defaults have no source effects between steps and keep the direct own-index
-read path. Patterns with defaults retain an explicit activity value and guarded
-live-length checks. Elisions do not execute user hooks in this surface, so a
-check at the next bound index also observes exhaustion within a run of holes.
+defaults anywhere in their nested subtree have no source effects between steps
+and keep the direct own-index read path. Arrays containing any descendant default
+retain an explicit activity value and guarded live-length checks. Elisions do
+not execute user hooks in this surface, so a check at the next bound index also
+observes exhaustion within a run of holes.
 This is not general iterable destructuring.
 
 Every leaf uses the managed value carrier, including selected Numbers. Existing
@@ -53,16 +65,17 @@ element alone therefore does not justify a String-only consumer.
 Mutable leaves use the existing lexical slots and captured cells. Traditional
 `for` headers and declarations in loop bodies retain their existing iteration
 cell behavior. The 128-source-local budget counts identifiers, not elisions;
-pattern preparation and lowering are iterative. No runtime imports, public ABI
-or IR operations are added.
+pattern preparation and lowering are iterative. Object and array nesting share
+one 128-container-level limit. No runtime imports, public ABI or IR operations
+are added.
 
 ## Admission limits
 
-Nested patterns, rest elements, destructuring assignment and parameter patterns
-remain separate work. Strings, ordinary objects with numeric fields,
-unknown parameters and nullable array alternatives do not satisfy the array
-proof. The intrinsic-iterator boundary also excludes user-defined iteration and
-observable iterator closing.
+Defaults on whole nested patterns, rest elements, destructuring assignment and
+parameter patterns remain separate work. Strings, ordinary objects with numeric
+fields, unknown parameters and nullable array alternatives do not satisfy the
+array proof. The intrinsic-iterator boundary also excludes user-defined
+iteration and observable iterator closing.
 
 ## Executable evidence
 

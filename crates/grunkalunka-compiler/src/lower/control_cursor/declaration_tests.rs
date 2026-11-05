@@ -40,6 +40,49 @@ fn nested_object_bindings_preserve_admission_and_small_stack_depth_boundaries() 
 }
 
 #[test]
+fn mixed_binding_patterns_share_the_small_stack_depth_and_receiver_guards() {
+    for (depth, admitted) in [(32, true), (128, true), (129, false)] {
+        let mut pattern = String::from("value");
+        let mut initializer = String::from("a");
+        for index in 0..depth {
+            if index % 2 == 0 {
+                pattern = format!("[{pattern}]");
+                initializer = format!("[{initializer}]");
+            } else {
+                pattern = format!("{{next:{pattern}}}");
+                initializer = format!("{{next:{initializer}}}");
+            }
+        }
+        let source = format!(
+            "export function run(a,b){{const {pattern}={initializer};return value===a?1:0;}}"
+        );
+        let (result, _) = on_small_stack(&source, false, false);
+        if admitted {
+            assert!(result.is_ok(), "{depth}: {result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("binding pattern nesting exceeds 128"),
+                "{error}"
+            );
+        }
+    }
+    for body in [
+        "const [[]]=[];return a;",
+        "const [[]]=[null];return a;",
+        "const {items:[]}={items:{}};return a;",
+        "const [[x]=[a]]=[[b]];return a;",
+        "const [{x}={x:a}]=[{x:b}];return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let (result, _) = on_small_stack(&source, false, false);
+        let error = result.err().unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
 fn for_headers_schedule_all_initializers_before_the_test() {
     for (source, asynchronous, expected) in [
         (
