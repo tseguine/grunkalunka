@@ -13,8 +13,8 @@ const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
 const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "relative", "clipped", "scrolled", "justifyEnd", "justifyCenter", "spaceBetween",
-  "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "relativeAlign",
-  "clippedAlign", "scrolledAlign", "restored"];
+  "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
+  "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const computedFields = ["display", "boxSizing", "width", "height", "flexDirection",
   "flexWrap", "alignItems", "alignContent", "justifyContent", "columnGap", "rowGap",
@@ -56,7 +56,13 @@ function states() {
     wrapSingle: [[20, 20, 232, 72], [26, 44, 64, 24], [105, 28, 56, 36],
       [108, 31, 25, 8], [174, 50, 42, 18], [0, 98, 180, 12]],
     safeOverflow: [[20, 20, 162, 32], [26, 26, 64, 24], [105, 28, 56, 36],
-      [108, 31, 25, 8], [174, 28, 42, 18], [0, 68, 180, 12]],
+      [108, 31, 25, 8], [174, 28, 42, 18], [0, 58, 180, 12]],
+    overlapClipped: [[20, 20, 162, 32], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [174, 28, 42, 18], [0, 58, 180, 12]],
+    nestedOverlap: [[20, 20, 162, 52], [26, 26, 64, 24], [105, 26, 56, 36],
+      [108, 29, 100, 8], [174, 26, 42, 18], [0, 78, 180, 12]],
+    nestedOverflow: [[20, 20, 162, 32], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 100, 40], [174, 28, 42, 18], [0, 58, 180, 12]],
     relativeAlign: [[20, 20, 232, 72], [41, 44, 64, 24], [128, 46, 56, 36],
       [131, 49, 25, 8], [189, 47, 42, 18], [0, 98, 180, 12]],
     clippedAlign: [[20, 20, 228, 40], [39, 30, 64, 24], [118, 28, 56, 36],
@@ -80,6 +86,9 @@ function states() {
     wrapAlign: ["row-host", "row-host", "row-host", "row-c", "row-b", "row-after", "row-host", "row-host", null],
     wrapSingle: ["row-host", "row-inner", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
     safeOverflow: ["row-a", "row-inner", "row-c", null, "row-b", null, "row-host", "row-host", null],
+    overlapClipped: ["row-a", "row-inner", "row-host", null, "row-after", null, "row-host", "row-host", null],
+    nestedOverlap: ["row-a", "row-inner", "row-c", "row-after", "row-host", null, "row-host", "row-host", null],
+    nestedOverflow: ["row-a", "row-inner", "row-c", null, "row-inner", null, "row-host", "row-host", null],
     relativeAlign: ["row-host", "row-host", "row-host", "row-host", "row-host", null, "row-host", "row-host", "row-host"],
     clippedAlign: ["row-host", "row-host", "row-host", null, null, null, "row-host", "row-a", null],
     scrolledAlign: ["row-host", "row-inner", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
@@ -130,7 +139,7 @@ function receipts(engine = "chromium") {
 
 const compare = pair => compareNativeFlexBridge(pair.native, pair.browser, fixture);
 
-test("complete fixed-row and alignment receipts agree for each identified reference-engine family", () => {
+test("complete fixed-row, alignment and overlap receipts agree for each identified reference-engine family", () => {
   for (const engine of ["chromium", "firefox", "webkit"]) {
     const report = compare(receipts(engine));
     assert.equal(report.status, "equal");
@@ -138,8 +147,8 @@ test("complete fixed-row and alignment receipts agree for each identified refere
     assert.equal(report.sourceSha256, sha(fixture));
     assert.deepEqual([report.invalid, report.incompatible, report.differences], [[], [], []]);
     assert.deepEqual(Object.keys(report.native.states), phases);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 126);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 189);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 144);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 216);
   }
 });
 
@@ -163,6 +172,7 @@ test("missing, extra and malformed phase data cannot become equality", () => {
     r => { r.states.wrap.boxes["row-c"].height = Infinity; },
     r => { r.states.wrap.boxes["row-c"].y = Number.MAX_SAFE_INTEGER + 1; },
     r => { r.states.alignEnd.boxes["row-b"].y = 46.5; },
+    r => { r.states.nestedOverlap.boxes["row-inner"] = null; },
     r => { delete r.states.wrap.hits.outside; },
     r => { r.states.wrap.hits.extra = null; },
     r => { r.states.wrap.hits.a = "row-contents"; },
@@ -214,13 +224,33 @@ test("valid geometry and hit differences are exact and independently reported", 
   ]);
 });
 
-test("restoration and document-space scroll invariants apply to each receipt independently", () => {
+test("overlap hits distinguish tree order and incorrect nested item grouping without geometry drift", () => {
+  for (const [phase, probe, incorrect, expected] of [
+    ["safeOverflow", "gap-wrap", "row-after", "row-b"],
+    ["nestedOverflow", "gap-wrap", "row-after", "row-inner"],
+    ["nestedOverlap", "nowrap", "row-inner", "row-c"],
+    ["overlapClipped", "gap-wrap", "row-b", "row-after"]
+  ]) {
+    const pair = receipts();
+    pair.native.states[phase].hits[probe] = incorrect;
+    const report = compare(pair);
+    assert.equal(report.status, "different");
+    assert.deepEqual(report.invalid, []);
+    assert.deepEqual(report.incompatible, []);
+    assert.deepEqual(report.differences, [
+      { kind: "hit", path: `$.states.${phase}.hits.${probe}`, left: incorrect, right: expected }
+    ]);
+  }
+});
+
+test("restoration, scroll and overlap clipping invariants apply to each receipt independently", () => {
   const mutations = [
     r => { r.states.restored.boxes["row-c"].y += 1; },
     r => { r.states.restored.hits.a = "row-host"; },
     r => { r.states.scrolled.boxes["row-c"].y -= 10; },
     r => { r.states.scrolledAlign.boxes["row-b"].y -= 10; },
     r => { r.states.alignCenter.boxes["row-inner"].x += 1; },
+    r => { r.states.overlapClipped.boxes["row-b"].height -= 1; },
   ];
   for (const mutate of mutations) {
     for (const owners of [["native"], ["browser"], ["native", "browser"]]) {
@@ -329,6 +359,27 @@ test("justification source mutation authenticates its changed bytes and detects 
     { kind: "hit", path: "$.states.justifyEnd.hits.nowrap", left: "row-b", right: "row-c" },
     { kind: "hit", path: "$.states.justifyEnd.hits.gap-wrap", left: "row-host", right: "row-b" },
     { kind: "hit", path: "$.states.justifyEnd.hits.gap", left: "row-a", right: "row-host" }
+  ]);
+  assert.equal(compare(pair).status, "incompatible", "mutated capture must not authenticate as original source");
+});
+
+test("positioned-after source mutation authenticates one changed overlap hit without reflow", () => {
+  const originalRule = '  after.style.position = "static";\n  states.safeOverflow = sample();';
+  const changedRule = '  after.style.position = "relative";\n  states.safeOverflow = sample();';
+  const source = fixture.toString("utf8");
+  assert.equal(source.split(originalRule).length, 2, "one reviewed safeOverflow paint-order assignment");
+  const changed = Buffer.from(source.replace(originalRule, changedRule));
+  const pair = receipts();
+  pair.browser.states.safeOverflow.hits["gap-wrap"] = "row-after";
+  assert.equal(compareNativeFlexBridge(pair.native, pair.browser, changed).status, "incompatible");
+  pair.browser.provenance.fixtureSha256 = sha(changed);
+  const report = compareNativeFlexBridge(pair.native, pair.browser, changed);
+  assert.equal(report.status, "different");
+  assert.equal(report.conformance, "not-assessed");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "hit", path: "$.states.safeOverflow.hits.gap-wrap", left: "row-b", right: "row-after" }
   ]);
   assert.equal(compare(pair).status, "incompatible", "mutated capture must not authenticate as original source");
 });

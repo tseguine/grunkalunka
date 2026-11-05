@@ -2,6 +2,7 @@
 //! parser or browser receipt is used to construct these native boxes or hits.
 
 use grunkalunka_layout::hit_test::{HitNode, hit_test_scrolled};
+use grunkalunka_layout::paint::{PaintNode, Rgb, paint_scrolled};
 use grunkalunka_layout::{
     Block, DescendantClip, Display, Edges, FlexAlign, FlexJustify, FlexWrap, Frame, Length, Rect,
     RelativeOffset, Style, layout,
@@ -26,7 +27,7 @@ const PROBES: [(&str, u32, u32); 9] = [
     ("gap", 95, 30),
     ("outside", 250, 50),
 ];
-const PHASES: [&str; 21] = [
+const PHASES: [&str; 24] = [
     "nowrap",
     "wrap",
     "wide",
@@ -44,6 +45,9 @@ const PHASES: [&str; 21] = [
     "wrapAlign",
     "wrapSingle",
     "safeOverflow",
+    "overlapClipped",
+    "nestedOverlap",
+    "nestedOverflow",
     "relativeAlign",
     "clippedAlign",
     "scrolledAlign",
@@ -199,14 +203,17 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
             blocks[1].style.justify_content = FlexJustify::SpaceBetween;
             blocks[1].style.align_items = FlexAlign::SafeCenter;
         }
-        "safeOverflow" => {
+        "safeOverflow" | "overlapClipped" | "nestedOverflow" => {
             blocks[1].style.height = Length::Px(20);
             blocks[1].style.justify_content = FlexJustify::SafeEnd;
             blocks[1].style.align_items = FlexAlign::SafeEnd;
-            // Isolate alignment from the unimplemented flex-item versus
-            // following-block paint-order rule by keeping their boxes apart.
-            blocks[7].style.margin.top = 16;
+            if phase == "overlapClipped" {
+                blocks[1].style.descendant_clip = DescendantClip::PaddingBox;
+            } else if phase == "nestedOverflow" {
+                blocks[5].style.height = Length::Px(40);
+            }
         }
+        "nestedOverlap" => blocks[4].style.margin.top = 0,
         "relativeAlign" | "clippedAlign" => {
             blocks[1].style.width = Length::Px(220);
             blocks[1].style.justify_content = FlexJustify::SafeCenter;
@@ -223,6 +230,10 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
         }
         "nowrap" | "wrap" | "scrolled" | "restored" => {}
         _ => panic!("unknown native flex phase"),
+    }
+    if matches!(phase, "nestedOverlap" | "nestedOverflow") {
+        blocks[4].style.display = Display::FlexRow;
+        blocks[5].style.width = Length::Px(100);
     }
     (
         blocks,
@@ -342,10 +353,19 @@ fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
             expected[4] = rect(174, 50, 42, 18);
             expected[5] = rect(0, 98, 180, 12);
         }
-        "safeOverflow" => {
+        "safeOverflow" | "overlapClipped" | "nestedOverflow" => {
             expected[0] = rect(20, 20, 162, 32);
             expected[4] = rect(174, 28, 42, 18);
-            expected[5] = rect(0, 68, 180, 12);
+            expected[5] = rect(0, 58, 180, 12);
+            if phase == "nestedOverflow" {
+                expected[3] = rect(108, 31, 100, 40);
+            }
+        }
+        "nestedOverlap" => {
+            expected[0] = rect(20, 20, 162, 52);
+            expected[2] = rect(105, 26, 56, 36);
+            expected[3] = rect(108, 29, 100, 8);
+            expected[5] = rect(0, 78, 180, 12);
         }
         "relativeAlign" => {
             expected[0] = rect(20, 20, 232, 72);
@@ -503,7 +523,7 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
                 Some("row-host"),
             ]
         }
-        "safeOverflow" => {
+        "safeOverflow" | "overlapClipped" | "nestedOverflow" => {
             expected = [
                 Some("row-a"),
                 Some("row-inner"),
@@ -514,8 +534,15 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
                 Some("row-host"),
                 Some("row-host"),
                 None,
-            ]
+            ];
+            if phase == "overlapClipped" {
+                expected[2] = Some("row-host");
+                expected[4] = Some("row-after");
+            } else if phase == "nestedOverflow" {
+                expected[4] = Some("row-inner");
+            }
         }
+        "nestedOverlap" => expected[4] = Some("row-host"),
         "relativeAlign" => {
             expected = [
                 Some("row-host"),
@@ -557,6 +584,40 @@ fn box_json(value: Option<Rect>) -> String {
     }
 }
 
+fn assert_order_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_y: u32) {
+    const BLUE: Rgb = Rgb::new(0, 0, 255);
+    const GREEN: Rgb = Rgb::new(0, 255, 0);
+    const PURPLE: Rgb = Rgb::new(128, 0, 128);
+    const ORANGE: Rgb = Rgb::new(255, 128, 0);
+    let (x, y, expected) = match phase {
+        "safeOverflow" => (118, 62, BLUE),
+        "overlapClipped" => (118, 62, ORANGE),
+        "nestedOverlap" => (180, 30, PURPLE),
+        "nestedOverflow" => (118, 62, GREEN),
+        _ => return,
+    };
+    let paints: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| PaintNode {
+            parent: block.parent,
+            background: match index {
+                1 => Some(Rgb::WHITE),
+                2 => Some(Rgb::new(255, 0, 0)),
+                4 => Some(BLUE),
+                5 => Some(GREEN),
+                6 => Some(PURPLE),
+                7 => Some(ORANGE),
+                _ => None,
+            },
+            border: Some(Rgb::BLACK),
+        })
+        .collect();
+    let canvas =
+        paint_scrolled(frame, &paints, Rgb::WHITE, 0, scroll_y).expect("native flex-order paint");
+    assert_eq!(canvas.pixel(x, y), Some(expected), "{phase}: overlap pixel");
+}
+
 fn receipt(phase: &str) -> (Frame, String) {
     let (blocks, scroll_y) = phase_source(phase);
     let frame = layout(&blocks, 800, 600).expect("native fixed-row layout");
@@ -596,6 +657,7 @@ fn receipt(phase: &str) -> (Frame, String) {
         })
         .collect::<Vec<_>>()
         .join(",");
+    assert_order_pixels(&frame, &blocks, phase, scroll_y);
     (
         frame,
         format!(r#""{phase}":{{"scrollY":{scroll_y},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#),

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<title>Native fixed-size flex row and alignment reference observations</title>
+<title>Native fixed-size flex row, alignment and overlap reference observations</title>
 <style>
   html, body { margin: 0; padding: 0; }
   html { scroll-behavior: auto; }
@@ -56,6 +56,7 @@
   const host = document.getElementById("row-host");
   const b = document.getElementById("row-b");
   const after = document.getElementById("row-after");
+  const inner = document.getElementById("row-inner");
 
   function box(element) {
     // getClientRects detects suppressed descendants as well as display:none
@@ -81,6 +82,7 @@
     host.removeAttribute("style");
     b.removeAttribute("style");
     after.removeAttribute("style");
+    inner.removeAttribute("style");
     if (wrap) host.style.flexWrap = "wrap";
     window.scrollTo(0, 0);
   }
@@ -159,8 +161,34 @@
   host.style.height = "20px";
   host.style.justifyContent = "safe flex-end";
   host.style.alignItems = "safe flex-end";
-  after.style.marginTop = "16px";
+  after.style.position = "static";
   states.safeOverflow = sample();
+  reset();
+  host.style.height = "20px";
+  host.style.justifyContent = "safe flex-end";
+  host.style.alignItems = "safe flex-end";
+  host.style.overflow = "clip";
+  states.overlapClipped = sample();
+  reset();
+  b.style.display = "flex";
+  b.style.alignItems = "flex-start";
+  b.style.marginTop = "0px";
+  inner.style.flex = "none";
+  inner.style.minWidth = "0px";
+  inner.style.width = "100px";
+  inner.style.height = "8px";
+  states.nestedOverlap = sample();
+  reset();
+  host.style.height = "20px";
+  host.style.justifyContent = "safe flex-end";
+  host.style.alignItems = "safe flex-end";
+  b.style.display = "flex";
+  b.style.alignItems = "flex-start";
+  inner.style.flex = "none";
+  inner.style.minWidth = "0px";
+  inner.style.width = "100px";
+  inner.style.height = "40px";
+  states.nestedOverflow = sample();
   reset();
   host.style.width = "220px";
   host.style.height = "60px";

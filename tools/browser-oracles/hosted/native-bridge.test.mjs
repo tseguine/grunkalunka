@@ -156,4 +156,33 @@ test('live native/browser parity and independent negative controls',
         { kind: 'hit', path: '$.states.justifyEnd.hits.gap', left: 'row-a', right: 'row-host' },
       ]);
     });
+
+    await t.test('real flex paint-order mutation changes one overlapping target without reflow', async () => {
+      const original = (await readFile(flexSourceFile)).toString('utf8');
+      const originalRule = '  after.style.position = "static";\n  states.safeOverflow = sample();';
+      const changedRule = '  after.style.position = "relative";\n  states.safeOverflow = sample();';
+      assert.equal(original.split(originalRule).length, 2, 'one reviewed safeOverflow paint-order assignment');
+      const mutated = Buffer.from(original.replace(originalRule, changedRule));
+      const directory = join(out, 'flex-paint-order-sensitivity');
+      await mkdir(directory, { recursive: true });
+      const snapshot = join(directory, 'positioned-after-mutation.html');
+      await writeFile(snapshot, mutated, { flag: 'wx', mode: 0o444 });
+      // Only the reference source becomes positioned. Native input stays in
+      // the non-positioned profile; this control does not admit native z-order.
+      const capture = await collectOne(engine, {
+        browserTypes, playwrightVersion: version, fixturePath: snapshot,
+      });
+      await writeFile(join(directory, 'capture.json'),
+        JSON.stringify(capture, null, 2) + '\n', { flag: 'wx' });
+      const report = compareNativeFlexBridge(flexNative, capture, mutated);
+      await writeFile(join(directory, 'comparison.json'),
+        JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+      assert.equal(report.status, 'different', 'real CSS paint-order mutation must be detected');
+      assert.equal(report.conformance, 'not-assessed');
+      assert.deepEqual(report.invalid, []);
+      assert.deepEqual(report.incompatible, []);
+      assert.deepEqual(report.differences, [
+        { kind: 'hit', path: '$.states.safeOverflow.hits.gap-wrap', left: 'row-b', right: 'row-after' },
+      ]);
+    });
   });
