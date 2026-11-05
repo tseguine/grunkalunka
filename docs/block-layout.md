@@ -16,6 +16,9 @@ of visible blocks, plus scroll extents.
   integral percentages. [The row contract](native-flex-rows.md) defines sizing,
   line collection, used versus natural line heights, boxless wrappers and
   unsupported cases.
+- Shared paint/input order for the selected non-positioned block/row profile:
+  ordinary descendants paint in tree order, while actual flex-item subtrees
+  form deferred scopes completed in source order.
 - Auto widths fill the available content width after edges; explicitly fixed
   content widths may overflow. Auto heights contain laid-out children and
   an optional caller-supplied intrinsic content height.
@@ -358,6 +361,41 @@ A separate [source-checked browser hit witness](browser-native-padding-clip-brid
 compares one CSS `overflow: clip` reference shape with the native
 padding-box clipping policy without claiming full CSS overflow handling.
 
+## Selected flex-item paint scopes
+
+`Frame::paint_roles` records `PaintRole::Ordinary` or `PaintRole::FlexItem` for
+each source node. Actual items are generated boxes whose nearest generated
+parent is a `Display::FlexRow`; active `Contents` wrappers pass that relationship
+through without becoming items themselves. The document root and display-none
+subtrees retain ordinary roles. Visibility, input eligibility and positive
+relative offsets do not change the resolved role.
+
+The shared iterative planner visits ordinary descendants depth-first within the
+root or current item scope, defers actual item subtrees, then completes those
+item scopes in source order. Nested item scopes finish before a later sibling
+item. Thus an overflowing item can cover a following ordinary block outside its
+row, while later sibling items retain precedence over earlier item subtrees.
+The selected [row painting contract](native-flex-rows.md#paint-and-input-order)
+defines the bounded non-positioned semantics and links the CSS reference rule.
+Ordinary block trees keep their existing depth-first order.
+
+Forward RGB paint and reverse hit selection use the same planned boxes and
+original-ancestry clip intersections. Deferred items retain ancestor clips;
+empty intersections stay active, and a node's own clip still affects only its
+descendants. Per-node visibility and input filters remain independent, so an
+explicitly visible descendant of a hidden item can still paint and receive
+input. Layout geometry, flow, semantic anchors and scroll extents are unchanged.
+Missing role metadata or an item role on a root, contents wrapper or absent box
+is rejected rather than guessed.
+
+The independent `tests/flex_paint_order.rs` covers pixels and topmost hits for
+outside-row overflow, nested scopes, boxless source ancestry, hidden and
+transparent boxes, clipping, scrolling and ordinary-tree compatibility.
+`tests/flex_paint_metadata.rs` covers role resolution, display changes,
+malformed metadata and bounded native-stack execution. This does not introduce
+CSS `z-index`, general stacking contexts or positioned-descendant behavior;
+`RelativeOffset` remains a geometry-only operation.
+
 ## What is deliberately NOT implemented
 
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
@@ -366,7 +404,7 @@ fractional percentage margins or padding, collapsed vertical margins,
 floats, general CSS positioned layout (negative relative offsets,
 absolute/fixed/sticky, stacking contexts), fractional percent widths,
 percentage heights under indefinite auto-height parents, scrollbars,
-CSS paint/style processing, DOM event dispatch or native window. Input text heights are
+general CSS paint/style processing, DOM event dispatch or native window. Input text heights are
 provided by a separate caller, not guessed. All coordinates are unsigned
 integers. This is a small, experimental implementation component, NOT an
 A1 application or a commitment to the final renderer architecture.
