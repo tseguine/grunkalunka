@@ -8,6 +8,17 @@ pub fn compare_sources(js: &str, ts: &str) {
 // Large literal semantic oracles can use a bounded core-engine budget. None
 // retains the public NumericInstance path and its production per-call limit.
 pub fn compare_sources_with_fuel(js: &str, ts: &str, fuel: Option<u64>) {
+    compare_sources_with_fuel_and_goldens(js, ts, fuel, &[]);
+}
+
+// Fixed integer regressions supplement the shared edge grid without widening
+// the inputs of every managed-source test.
+pub fn compare_sources_with_fuel_and_goldens(
+    js: &str,
+    ts: &str,
+    fuel: Option<u64>,
+    goldens: &[[i32; 3]],
+) {
     use std::{
         io::Write,
         process::{Command, Stdio},
@@ -31,8 +42,10 @@ const native=new Function({native:?})();
 const bytes=new Uint8Array({wasm:?});
 const run=new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports.run;
 const inputs=[0,-0,1,-7,Infinity,-Infinity,NaN,Number.MIN_VALUE];
+const goldens={goldens:?};
 const bits=x=>{{if(Number.isNaN(x))return 'NaN';const v=new DataView(new ArrayBuffer(8));v.setFloat64(0,x);return v.getBigUint64(0).toString(16);}};
-for(const a of inputs)for(const b of inputs){{const expected=native(a,b);assert.equal(bits(run(a,b)),bits(expected));console.log(bits(expected));}}"#,
+for(const a of inputs)for(const b of inputs){{const expected=native(a,b);assert.equal(bits(run(a,b)),bits(expected));console.log(bits(expected));}}
+for(const [a,b,expected] of goldens){{assert.equal(bits(native(a,b)),bits(expected));assert.equal(bits(run(a,b)),bits(expected));}}"#,
             native = format!("{};return run;", js.replace("export function", "function")),
             wasm = artifact.wasm
         );
@@ -105,5 +118,13 @@ for(const a of inputs)for(const b of inputs){{const expected=native(a,b);assert.
             }
         }
         assert!(expected.next().is_none());
+        for &[a, b, expected] in goldens {
+            let actual = run(f64::from(a), f64::from(b)).unwrap();
+            assert_eq!(
+                actual.to_bits(),
+                f64::from(expected).to_bits(),
+                "{source}: {a},{b}"
+            );
+        }
     }
 }

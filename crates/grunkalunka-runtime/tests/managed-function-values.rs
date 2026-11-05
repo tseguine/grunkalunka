@@ -97,13 +97,18 @@ fn former_function_container_guards_execute_unchanged() {
 }
 
 #[test]
+fn stored_function_header_capture_keeps_its_final_iteration_cell() {
+    let source = "export function run(a,b){let first=()=>a;for(let i=0;i<3;i++){first=()=>i;}const o={first};return first();}";
+    common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 2], [0, 0, 2]]);
+}
+
+#[test]
 fn function_data_keeps_unimplemented_boundaries_explicit() {
     for body in [
         "const f=()=>a;const o={f};return f;",
         "const o={f:()=>Symbol()};return a;",
         "const o={f:async()=>{await 0;return a;}};return a;",
         "function f(){return a;}const o={f};return a;",
-        "let first=()=>a;for(let i=0;i<3;i++){first=()=>i;}const o={first};return first();",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {

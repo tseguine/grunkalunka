@@ -87,8 +87,10 @@ captures, managed arguments/results, callable known function fields, canonical
 module declaration identities and effect/snapshot ordering. This is evidence for
 the admitted static-own-property/known-signature subset, **not** dynamic property
 access, prototype semantics, arbitrary JS errors or the public reference ABI.
-The [for-let header capture mismatch #334](https://github.com/tseguine/grunkalunka/issues/334)
-is a known accepted-source semantic defect and must not be counted as coverage.
+[#374](https://github.com/tseguine/grunkalunka/pull/374) corrected the original
+numeric `for-let` header mismatch. [#334](https://github.com/tseguine/grunkalunka/issues/334)
+adds the two unchanged managed-result and stored-function sources to execution
+coverage using the same per-iteration cell renewal.
 
 The bounded [async profile](async.md) has Promise/job, return/adoption,
 catch/finally and continuation tests; it does not provide traced managed
@@ -573,10 +575,12 @@ callbacks/factories, implicit undefined, alias mutation, annotations and native-
 limits. Exact former private-result guards are promoted to positive cases. A
 returned cyclic object's generated call result is retained by a test-only traced
 observer across forced copying collection after source calls finish; clearing the
-root is a negative control. New managed-returning function values with direct
-for-let header captures reject pending #334; body-local snapshots remain positive.
-The existing numeric header-capture defect is recorded in that issue, not counted
-as compatibility. The versioned corpus also includes these supported source cases.
+root is a negative control. The unchanged #334 header-capture fixture saves
+object-returning closures from iterations 0 and 2 and expects `a`: `4` for
+`(4, 2)` and `0` for `(0, 0)`. JS/TS comparisons use native JS, Node-Wasm and
+Wasmtime. Body-local snapshots and the four existing numeric iteration-cell
+cases remain separate regressions. The versioned corpus retains its existing
+supported-source cases.
 
 `managed-function-values` executes known source functions in object/array storage
 against native JS, Node-Wasm and Wasmtime. It checks canonical identity across
@@ -584,8 +588,11 @@ aliases, reboxing, fresh factories, reassignment and argument snapshots, factory
 effects exactly once, mixed function signatures, cycles and annotation erasure.
 An actual generated carrier is retained after source returns and exercised through
 forced copying GC, with a cleared-root trap control. Two-megabyte native-stack
-and unsupported stored-call/public-reference/async/header-capture guards remain.
-Supported fixtures also participate in the versioned compatibility corpus.
+and unsupported stored-call/public-reference/async guards remain. The unchanged
+#334 fixture captures a `for-let` header, stores the closure in an object after
+the loop and expects `2` for both `(4, 2)` and `(0, 0)` in the same JS/TS and
+three-engine comparisons.
+The versioned compatibility corpus retains its existing supported fixtures.
 
 `module-declaration-values` adds source declaration adapters to that path. Native
 JS, Node-Wasm and Wasmtime compare hoisted/aliased declarations, distinct targets,
