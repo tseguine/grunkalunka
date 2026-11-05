@@ -44,7 +44,7 @@ mod string_methods;
 pub(super) use managed_calls::infer as infer_managed_calls;
 mod module_functions;
 mod object_create;
-mod object_keys;
+mod object_intrinsics;
 pub(super) use module_functions::plan as plan_module_functions;
 mod pending;
 mod promises;

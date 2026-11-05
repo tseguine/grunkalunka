@@ -325,6 +325,23 @@ exceptions. A private Wasmtime test exercises arithmetic boundaries without
 allocating enormous arrays. Source differential tests compare operand effects,
 saved values, erased annotations and async results/traces with native JavaScript.
 
+## Own-property presence
+
+`Object.hasOwn(receiver, key)` tests whether a proven record, dictionary or
+array has the String key, including when the stored value is Undefined. This
+also works for inherited-looking names: an ordinary empty object has no own
+`constructor`, while a dictionary can explicitly own that key. An array owns
+its non-enumerable `length`; holes are absent and a slot set to Undefined is
+present. The guest checks the existing property table directly.
+
+The call saves its receiver and key in source order and tests presence after
+all surplus arguments have executed. Later arguments may mutate the original
+receiver. Direct calls, literal member names and the existing `.call` form
+share this behavior across helpers and supported suspension. The result is a
+Boolean. The initial slice requires an explicit proven String key and a known
+container. The semantic reference is
+[Object.hasOwn](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.hasown).
+
 ## Synchronous source arrays
 
 Array literals construct traced references on the same expression cursor as

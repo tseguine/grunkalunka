@@ -1,7 +1,7 @@
 //! Intrinsic recognition is independent of representation planning.
 use super::*;
 
-pub(super) fn is_call(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> bool {
+pub(super) fn is_method(call: &CallExpression<'_>, semantic: &Semantic<'_>, name: &str) -> bool {
     if call.optional {
         return false;
     }
@@ -9,12 +9,12 @@ pub(super) fn is_call(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> boo
         return false;
     };
     let object = match callee {
-        Expression::StaticMemberExpression(m) if !m.optional && m.property.name == "keys" => {
+        Expression::StaticMemberExpression(m) if !m.optional && m.property.name == name => {
             &m.object
         }
         Expression::ComputedMemberExpression(m)
             if !m.optional
-                && matches!(closures::unwrapped_at(&m.expression,0),Some((Expression::StringLiteral(s),_))if s.value=="keys") =>
+                && matches!(closures::unwrapped_at(&m.expression,0),Some((Expression::StringLiteral(s),_))if s.value==name) =>
         {
             &m.object
         }

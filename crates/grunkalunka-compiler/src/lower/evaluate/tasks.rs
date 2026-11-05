@@ -11,6 +11,7 @@ pub(super) enum Work<'e, 'a> {
     Dictionary(dictionary::Task<'e, 'a>),
     StringMethod(string_methods::Task<'e, 'a>),
     OwnKeys(own_keys::Task<'e, 'a>),
+    HasOwn(has_own::Task<'e, 'a>),
     Managed(managed::ManagedWork<'e, 'a>),
     Eval(&'e Expression<'a>, usize, Mode),
     AwaitOperand {

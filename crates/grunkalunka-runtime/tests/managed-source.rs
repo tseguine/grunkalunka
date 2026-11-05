@@ -607,3 +607,53 @@ fn compare_typed(body: &str, typed: &str) {
     let ts = format!("export function run(a,b){{{typed}}}");
     common::compare_sources(&js, &ts);
 }
+
+#[test]
+fn has_own_tests_presence_independently_of_the_stored_value() {
+    for body in [
+        "const o={enabled:undefined,zero:0};return Object.hasOwn(o,'enabled')&&Object.hasOwn(o,'zero')&&!Object.hasOwn(o,'missing')&&!Object.hasOwn(o,'constructor')?1:0;",
+        "const d=Object.create(null);d.__proto__=undefined;d.constructor=null;return Object.hasOwn(d,'__proto__')&&Object.hasOwn(d,'constructor')&&!Object.hasOwn(d,'toString')?1:0;",
+        "const x=[,undefined];x.named=false;const before=Object.hasOwn(x,'1');x.length=1;return before&&Object.hasOwn(x,'length')&&Object.hasOwn(x,'named')&&!Object.hasOwn(x,'0')&&!Object.hasOwn(x,'1')&&!Object.hasOwn(x,'pop')?1:0;",
+        "const x=[a,,];const [...dense]=x;return !Object.hasOwn(x,'1')&&Object.hasOwn(dense,'1')&&Object.hasOwn([], 'length')&&!Object.hasOwn({},'length')?1:0;",
+        r"const d=Object.create(null);const key='\ud800\0';d[key]=a;return Object['hasOwn'](d,key)&&!Object.hasOwn(d,'\ufffd\0')?1:0;",
+        "const Object={hasOwn:(x,y)=>x+y};return Object.hasOwn(a,b);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn has_own_saves_operands_but_tests_presence_after_all_argument_effects() {
+    for body in [
+        "let n=0,key='x',o={};const old=o;const found=Object.hasOwn((n=n*10+1,o),(n=n*10+2,key),(n=n*10+3,old.x=undefined,key='y',o={}));return found&&n===123&&!Object.hasOwn(o,'x')&&key==='y'?1:0;",
+        "let n=0;const x=[a];const found=Object.hasOwn.call((n=1,null),(n=n*10+2,x),(n=n*10+3,'0'),(n=n*10+4,x.length=0));return !found&&n===1234?1:0;",
+        "const o={yes:true};let flag=Object.hasOwn(o,'yes');const box={flag};flag=Object.hasOwn(o,'no');return box.flag===true&&flag===false&&box.flag!==1?1:0;",
+        "let n=0;const d={};Object.hasOwn(d,'x',n++);return n;",
+    ] {
+        compare(body);
+    }
+    let source = "function check(items,key){return Object.hasOwn(items,key);}export function run(a,b){const x={value:undefined};return check(x,'value')&&!check(x,'absent')?1:0;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn has_own_rejects_unproven_receivers_keys_and_spread_calls() {
+    for body in [
+        "return Object.hasOwn(null,'x')?1:0;",
+        "return Object.hasOwn(a?{}:null,'x')?1:0;",
+        "return Object.hasOwn({x:a},b)?1:0;",
+        "return Object.hasOwn({},...['x'])?1:0;",
+        "return Object.hasOwn({},'x',...[])?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let error = compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                error.contains("unsupported") && !error.contains("internal IR"),
+                "{source}: {error}"
+            );
+        }
+    }
+}

@@ -272,7 +272,7 @@ fn assignment_member<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
-    fn receiver_type(&self, node: &Expression<'_>, depth: usize) -> Option<Type> {
+    pub(super) fn receiver_type(&self, node: &Expression<'_>, depth: usize) -> Option<Type> {
         match self.managed_source_type(node, depth) {
             Some(Type::ManagedValue) => self.stored.container(node.node_id()),
             ty => ty,
@@ -444,7 +444,7 @@ impl Lowering<'_, '_> {
                             values.push(Some(Type::ManagedValue));
                         }
                         Expression::CallExpression(call)
-                            if object_keys::is_call(call, self.semantic) =>
+                            if object_intrinsics::is_method(call, self.semantic, "keys") =>
                         {
                             values.push(Some(Type::ManagedArray))
                         }
@@ -641,6 +641,16 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if let Expression::CallExpression(call) = node
+            && object_intrinsics::is_method(call, self.semantic, "hasOwn")
+            && matches!(
+                mode,
+                Mode::Predicate | Mode::General | Mode::Managed | Mode::Number | Mode::Discard
+            )
+        {
+            self.schedule_has_own(node, call, depth, mode, work)?;
+            return Ok(true);
+        }
+        if let Expression::CallExpression(call) = node
             && let Some((receiver, method)) = crate::lower::string_methods::call(call)
             && self.stored.string(receiver.node_id())
             && (matches!(mode, Mode::Managed)
@@ -804,7 +814,7 @@ impl Lowering<'_, '_> {
         }
         if matches!(mode, Mode::Array)
             && let Expression::CallExpression(call) = node
-            && object_keys::is_call(call, self.semantic)
+            && object_intrinsics::is_method(call, self.semantic, "keys")
         {
             work.push(Work::OwnKeys(super::own_keys::Task {
                 node,

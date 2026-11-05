@@ -99,6 +99,11 @@ the assigned value. Lookup and pop results stay boxed and are observed through
 equality; those operations do not promise a String or callable result merely
 because one tested entry has that type.
 
+A1 action metadata can distinguish a missing override from an explicit Undefined
+value using `Object.hasOwn` on a proven record, dictionary or array. The same
+presence check distinguishes sparse holes from dense Undefined entries in a
+rest list and recognizes the array's own non-enumerable length.
+
 ### Deliberate remaining limits
 
 Runtime dictionary keys require a proven String and an all-null-prototype

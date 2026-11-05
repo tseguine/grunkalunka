@@ -83,3 +83,61 @@ fn fallible_own_keys_checks_all_completion_outputs_and_cannot_use_sync_emission(
         );
     }
 }
+
+#[test]
+fn has_own_checks_receiver_key_visibility_and_boolean_result() {
+    let source = "export function run(a,b){const d={x:undefined};return Object.hasOwn(d,'x')?1:0;}";
+    for fault in 0..4 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (input, key, result) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                Op::ManagedHasOwn { input, key, result } => Some((input, key, result)),
+                _ => None,
+            })
+            .expect("source own-property operation");
+        match fault {
+            0 => *input = *key,
+            1 => *key = *input,
+            2 => *key = *result,
+            _ => function.values[result.0] = Type::Number,
+        }
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
+fn has_own_admits_string_keys_on_known_arrays_and_objects_only() {
+    for (body, admitted) in [
+        (
+            "const d=Object.create(null);return Object.hasOwn(d,'toString')?1:0;",
+            true,
+        ),
+        ("return Object['hasOwn'].call(null,[,],'0')?1:0;", true),
+        (
+            "const {row}={row:[a]};return Object.hasOwn(row,'length')?1:0;",
+            true,
+        ),
+        ("return Object.hasOwn({},a)?1:0;", false),
+        ("return Object.hasOwn(a?{}:null,'x')?1:0;", false),
+        ("return Object.hasOwn(...[{},'x'])?1:0;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let result = crate::compile(&source, ts);
+            if admitted {
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            } else {
+                let err = result.err().expect("unsupported input");
+                assert!(
+                    err.contains("unsupported") && !err.contains("internal IR"),
+                    "{source}: {err}"
+                );
+            }
+        }
+    }
+}

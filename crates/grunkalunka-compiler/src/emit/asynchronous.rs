@@ -1588,6 +1588,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         }
         output.push_str(super::managed_spread::runtime(module));
         output.push_str(super::object_rest::runtime(module));
+        output.push_str(super::has_own::runtime(module));
         output.push_str(super::own_keys::runtime(module));
         output.push_str(super::array_at::runtime(module));
         output.push_str(super::array_pop::runtime(module));
