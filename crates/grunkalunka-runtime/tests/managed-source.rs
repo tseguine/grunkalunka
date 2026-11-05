@@ -697,3 +697,14 @@ fn has_own_returns_a_boolean_through_the_primitive_export() {
         ));
     }
 }
+
+#[test]
+fn has_own_known_scalar_receivers_still_evaluate_keys_and_extra_arguments() {
+    for body in [
+        "return !Object.hasOwn(0,'constructor')&&!Object.hasOwn(a,'toString')&&!Object.hasOwn(true,'valueOf')&&!Object.hasOwn(false,0)?1:0;",
+        "let n=0;const key='x';const found=Object.hasOwn(++n,key,n=n*10+2);return !found&&n===12?1:0;",
+        "let n=0;const found=Object.hasOwn((++n)>0,void(n=n*10+2),n=n*10+3);return !found&&n===123?1:0;",
+    ] {
+        compare(body);
+    }
+}

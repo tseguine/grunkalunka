@@ -327,8 +327,7 @@ saved values, erased annotations and async results/traces with native JavaScript
 
 ## Own-property presence
 
-`Object.hasOwn(receiver, key)` tests whether a proven record, dictionary or
-array has the requested key, including when the stored value is Undefined. This
+`Object.hasOwn(receiver, key)` tests whether a supported receiver has the requested own key, including when the stored value is Undefined. This
 also works for inherited-looking names: an ordinary empty object has no own
 `constructor`, while a dictionary can explicitly own that key. An array owns
 its non-enumerable `length`; holes are absent and a slot set to Undefined is
@@ -344,7 +343,12 @@ literals reuse the JavaScript spelling used by member access, including
 omitted key, the intrinsic Undefined value or a `void` expression uses
 `"undefined"`. The operand of `void` still runs at the key's position,
 including across an await. Other runtime coercions need their own semantics.
-The receiver must be a known container. The semantic reference is
+A proven String owns `length` and the canonical indices of its UTF-16 code
+units. Surrogate halves occupy separate positions. Noncanonical numeric text,
+such as `"01"` or `"-0"`, has no corresponding character property. Known
+Number and Boolean primitives have no own properties, and their operand and
+argument effects still execute. Nullable or otherwise unproven receivers
+require additional handling. The semantic reference is
 [Object.hasOwn](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.hasown).
 
 ## Synchronous source arrays

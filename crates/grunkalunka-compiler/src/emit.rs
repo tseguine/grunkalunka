@@ -337,14 +337,34 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_object_spread\n");
             }
             Op::ManagedHasOwn { result, input, key } => {
-                self.get(*input);
-                self.property_key(key);
-                self.output
-                    .push_str(if self.function.values[input.0] == Type::ManagedArray {
-                        "call $gc_array_has_own\n"
-                    } else {
-                        "call $gc_has_own\n"
-                    });
+                let ty = self.function.values[input.0];
+                if matches!(ty, Type::Number | Type::Predicate) {
+                    // These primitive wrappers have no own properties. The
+                    // source cursor already evaluated the receiver and all arguments.
+                    if let ir::ManagedKey::String(_) = key {
+                        self.property_key(key);
+                        self.output.push_str("drop\n");
+                    }
+                    self.output.push_str("i32.const 0\n");
+                } else {
+                    let helper = match ty {
+                        Type::ManagedValue => {
+                            self.managed_key_value(*input);
+                            "$gc_string_has_own"
+                        }
+                        Type::ManagedObject => {
+                            self.get(*input);
+                            "$gc_has_own"
+                        }
+                        Type::ManagedArray => {
+                            self.get(*input);
+                            "$gc_array_has_own"
+                        }
+                        _ => unreachable!("verified has-own receiver"),
+                    };
+                    self.property_key(key);
+                    writeln!(self.output, "call {helper}").unwrap();
+                }
                 self.set(*result);
             }
             Op::ManagedOwnKeys { result, input } => {
@@ -1779,7 +1799,10 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
     let mut needed = false;
     ir::visit_operations(&function.body, &mut |op| {
         needed |= match op {
-            Op::ManagedString { units, .. } | Op::ManagedHasOwn {key: ir::ManagedKey::Literal(units),..} => units.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedHasOwn { input, key: ir::ManagedKey::Literal(units), .. } => {
+                function.values[input.0].is_managed() && units.len() > MAX_FIXED_TEXT_UNITS
+            }
             Op::ManagedObjectRest { excluded, .. } => {
                 excluded.iter().any(|key| matches!(key, ir::ManagedKey::Literal(text) if text.len() > MAX_FIXED_TEXT_UNITS))
             }

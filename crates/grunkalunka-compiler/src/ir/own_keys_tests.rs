@@ -104,7 +104,7 @@ fn has_own_checks_receiver_key_visibility_and_boolean_result() {
             panic!("source dynamic key")
         };
         match fault {
-            0 => *input = *key,
+            0 => *input = ValueId(usize::MAX),
             1 => *key = *input,
             2 => *key = *result,
             _ => function.values[result.0] = Type::Number,
@@ -152,5 +152,19 @@ fn has_own_can_emit_a_key_longer_than_the_fixed_wasm_constructor_limit() {
     for ts in [false, true] {
         let artifact = crate::compile(&source, ts).unwrap();
         assert!(artifact.wat.contains("local.set $gc_literal"));
+    }
+}
+
+#[test]
+fn scalar_receiver_with_numeric_key_keeps_the_scalar_wasm_lane() {
+    let source = "export function run(a,b){return Object.hasOwn(a,0)||Object.hasOwn(true,1)?a:b;}";
+    for ts in [false, true] {
+        let artifact = crate::compile(source, ts).unwrap();
+        assert!(!artifact.wat.contains("$gc_has_own"), "{}", artifact.wat);
+        assert!(
+            !artifact.wat.contains("(type $gc_value"),
+            "{}",
+            artifact.wat
+        );
     }
 }

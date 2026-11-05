@@ -441,3 +441,14 @@ fn has_own_runs_void_key_effects_before_ignored_arguments() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn has_own_string_receivers_keep_their_utf16_snapshot_across_await() {
+    compare_promises(
+        &[
+            "let s='abc',key='2';const present=Object.hasOwn(s,(await a,s='',key),(await b,key='missing'));return present&&s.length===0?1:0;",
+            r"const s='\u{1f600}';await b;return Object.hasOwn(s,1)&&!Object.hasOwn(s,2)?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
