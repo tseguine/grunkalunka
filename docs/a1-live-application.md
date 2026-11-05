@@ -214,11 +214,14 @@ Reopen the complete launch link after clearing that storage or losing access.
 The server checks the exact loopback Host header and rejects a foreign Origin
 before reading a body or calling the session. It sends no CORS permission,
 disables caching and referrers, and limits scripts/styles/connections to itself.
-The client supplies an empty fetch referrer with a same-origin referrer policy:
-this suppresses `Referer` while preserving the actual loopback `Origin` on POST.
-A `no-referrer` request policy would instead produce an opaque `Origin: null`
-under [Fetch's origin-header rules](https://fetch.spec.whatwg.org/#append-a-request-origin-header),
-which the strict host correctly rejects.
+The client resolves each fixed route to an absolute URL and verifies that its
+origin equals the current page's origin before attaching the session token.
+It uses CORS fetch mode with a `no-referrer` policy to preserve the actual
+loopback `Origin` on POST while suppressing `Referer`. This follows
+[Fetch's origin-header rules](https://fetch.spec.whatwg.org/#append-a-request-origin-header);
+the same-origin destination check, rejected redirects and `connect-src 'self'`
+still restrict every request to this host. The server grants no cross-origin
+access. Opaque `Origin: null` and foreign origins remain rejected.
 All five POST bodies are at most 128 bytes, require JSON and have a five-second
 completion deadline. `POST /input` accepts exactly `x` and `y` integer coordinates
 inside the native frame. `POST /scroll` accepts exactly one `y` integer from zero

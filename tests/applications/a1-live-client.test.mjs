@@ -185,7 +185,7 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     },
   };
   const data = new Map(stored === undefined ? [] : [[tokenKey, stored]]);
-  const location = { hash, pathname: '/', search: '' };
+  const location = { hash, pathname: '/', search: '', origin: 'http://127.0.0.1:41234' };
   const window = {
     location,
     history: { replaceState: (_state, _title, path) => {
@@ -200,8 +200,10 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   };
   const requests = [];
   const replies = [];
-  const fetch = async (path, options) => {
-    requests.push({ path, ...options });
+  const fetch = async (url, options) => {
+    const target = new URL(url);
+    assert.equal(target.origin, location.origin, 'authority is sent only to the current origin');
+    requests.push({ url, path: target.pathname, ...options });
     const reply = replies.shift();
     assert.ok(reply, 'unexpected browser request');
     return reply;
@@ -343,10 +345,10 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.deepEqual(b.requests[0].headers, { 'x-a1-session': token, accept: 'application/json',
     'content-type': 'application/json' });
   assert.equal(b.requests[0].credentials, 'omit');
-  assert.equal(b.requests[0].mode, 'same-origin');
+  assert.equal(b.requests[0].url, b.window.location.origin + '/sync');
+  assert.equal(b.requests[0].mode, 'cors');
   assert.equal(b.requests[0].redirect, 'error');
-  assert.equal(b.requests[0].referrerPolicy, 'same-origin');
-  assert.equal(b.requests[0].referrer, '');
+  assert.equal(b.requests[0].referrerPolicy, 'no-referrer');
   assert.equal(b.painted.length, 1);
   assert.deepEqual([...b.painted[0].data.subarray(0, 4)], [0, 82, 166, 255]);
   assert.equal(b.attributes.get('aria-expanded'), 'true');
@@ -364,8 +366,9 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.equal(b.requests[1].body, '{"x":24,"y":16}');
   assert.equal(b.requests[1].headers['content-type'], 'application/json');
   assert.equal(b.requests[1].headers['x-a1-input-generation'], '1');
-  assert.equal(b.requests[1].referrerPolicy, 'same-origin');
-  assert.equal(b.requests[1].referrer, '');
+  assert.equal(b.requests[1].url, b.window.location.origin + '/input');
+  assert.equal(b.requests[1].mode, 'cors');
+  assert.equal(b.requests[1].referrerPolicy, 'no-referrer');
   input.resolve(response(frame({ sequence: 1, expanded: 0, visibleCount: 0, remainingEvents: 255 })));
   await settle();
   assert.equal(b.painted.length, 2);

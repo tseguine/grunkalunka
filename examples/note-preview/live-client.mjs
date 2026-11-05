@@ -252,6 +252,11 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   }
 
   async function request(path, input) {
+    // CORS mode preserves Origin even when referrers are suppressed in Firefox
+    // and WebKit. Resolve and pin the destination before attaching authority.
+    const origin = window.location.origin;
+    const target = new URL(path, origin);
+    if (target.origin !== origin) throw new Error('A1 live destination must remain same-origin');
     const abort = new AbortController();
     let rejectCancellation;
     const cancellation = new Promise((_resolve, reject) => { rejectCancellation = reject; });
@@ -275,17 +280,15 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     activeRequest = transfer;
     deadline = timers.setTimeout(transfer.stop, REQUEST_TIMEOUT_MS);
     const receive = (async () => {
-      const response = await fetch(path, {
+      const response = await fetch(target.href, {
         method: input === undefined ? 'GET' : 'POST',
         headers: { 'x-a1-session': token, accept: 'application/json',
           ...(input === undefined ? {} : { 'content-type': 'application/json' }),
           ...(input === undefined || path === '/sync' ? {} :
             { 'x-a1-input-generation': String(current.inputGeneration) }) },
         ...(input === undefined ? {} : { body: JSON.stringify(input) }),
-        credentials: 'omit', mode: 'same-origin', cache: 'no-store', redirect: 'error',
-        // Preserve the same-origin POST Origin header; a no-referrer policy
-        // makes it "null" in conforming engines. Suppress Referer explicitly.
-        referrerPolicy: 'same-origin', referrer: '', signal: abort.signal,
+        credentials: 'omit', mode: 'cors', cache: 'no-store', redirect: 'error',
+        referrerPolicy: 'no-referrer', signal: abort.signal,
       });
       transfer.response = response;
       if (!transfer.active || disposed || activeRequest !== transfer) {
