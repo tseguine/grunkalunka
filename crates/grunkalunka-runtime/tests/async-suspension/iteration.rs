@@ -91,3 +91,30 @@ fn array_for_of_routes_async_control_and_abrupt_completion() {
         assert!(!error.contains("internal IR"), "{source}: {error}");
     }
 }
+
+#[test]
+fn destructuring_for_of_suspends_in_heads_and_retains_nested_receivers() {
+    compare_promises(
+        &[
+            "let n=0;for(const {first=(await a,1),next=first} of [{},{first:null}]){await b;n=n*10+(first===next?1:2);}return n;",
+            "const row={inner:{first:undefined,next:a},tail:a};let n=0;for(const {inner:{first=(await a,row.inner={next:b},row.tail=b,1),next},tail} of [row]){await b;n=(first===1?100:0)+(next===a?10:0)+(tail===b?1:0);}return n;",
+            "let n=0;for(const [first=(await a,1),next=first] of [[],[null]]){await b;n=n*10+(first===next?1:2);}return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn destructuring_for_of_keeps_fresh_cells_and_abrupt_head_completion() {
+    compare_promises(
+        &[
+            "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {label,unused=(await a,last=()=>label.trim().length,0)} of [{label:' a '},{label:' bb '}]){if(n===0){first=last;change=()=>{label=' ccc ';return 0;};}n++;}await b;change();return first()*10+last();",
+            "let read=()=>0,n=0;try{for(const {label,check=(read=()=>label.trim().length,await Promise.reject(a)),last=(n=99)} of [{label:' abc '}])n=100;}catch(e){await b;return read()*10+n+(e===a?1:0);}return 0;",
+            "let n=0;for(const {tag} of [{tag:0},{tag:1}]){try{for(const {x=await Promise.reject(a),y=(n=99)} of [{}])n=100;}catch(e){await a;n=n*10+(e===a?1:2);continue;}finally{await b;n=n*10+3;}}return n;",
+            "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {label} of [{label:' a '},{label:' bb '}]){const read=()=>label.trim().length;await a;if(n===0){first=read;change=()=>{label=' ccc ';return 0;};n++;continue;}last=read;}await b;change();return first()*10+last();",
+            "let n=0;try{for(const {first=await Promise.reject(a),next=(n=99)} of [{}])n=100;}catch(e){await b;return n===0&&e===a?1:0;}return -1;",
+            "let n=0;for(const {value} of [{value:0},{value:1}]){try{await a;if(value===0)continue;break;}finally{await b;n=n*10+(value===0?1:2);}}return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

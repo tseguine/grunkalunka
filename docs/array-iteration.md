@@ -1,8 +1,10 @@
 # Array iteration
 
-Synchronous `for...of` admits one local `const` or `let` identifier over a
-source-proven managed array. The loop works in ordinary source functions,
-helpers and supported async activations. The iterable expression is evaluated
+Synchronous `for...of` admits one local `const` or `let` declaration over a
+source-proven managed array. Its binding may be an identifier or a supported
+object/array pattern, including mixed nesting and identifier-leaf defaults.
+The loop works in ordinary source functions, helpers and supported async
+activations. The iterable expression is evaluated
 once; later reassignment of its source variable cannot redirect the loop.
 
 ## Iteration and control
@@ -20,12 +22,22 @@ finally use the same completion machinery, including a finalizer that overrides
 a pending loop completion. Supported awaits in the RHS or body retain the
 saved array, cursor, selected values and captured cells.
 
-Each iteration initializes a new lexical binding. Captured `const` and `let`
-bindings receive fresh cells; escaped closures keep the cells from their own
+Each iteration initializes new lexical bindings. Captured `const` and `let`
+leaves receive fresh cells; escaped closures keep the cells from their own
 iterations, including later writes to an escaped `let`. A source binding that
 shadows the RHS name is not initialized during RHS evaluation and retains the
-existing controlled TDZ rejection. The loop binding leaves scope when the loop
+existing controlled TDZ rejection. The loop bindings leave scope when the loop
 finishes.
+
+A destructuring head consumes the selected item through the same ordered pattern
+cursor as an ordinary declaration. Nested receivers remain saved, defaults run
+only for Undefined, and earlier leaves are initialized before later defaults.
+The body begins after the entire head finishes. A supported await in a default
+retains the selected item and nested iterator states; an abrupt default prevents
+the body from running. Each nested array pattern has its own exhaustion state,
+separate from the outer `for...of` cursor and from other patterns over the same
+array. See [object bindings](object-binding-patterns.md) and
+[array bindings](array-binding-patterns.md) for the shared pattern contract.
 
 ## Representation and admission
 
@@ -67,14 +79,21 @@ length and element operations therefore preserve the intrinsic iterator's
 observable behavior without allocating a runtime iterator object. Extending
 this scope will require preserving user iteration hooks and iterator closing.
 
-This slice rejects `for await...of`, `var`, assignment targets, destructuring
-headers, Strings, unproven iterable values and labels. Synchronous source
+Each destructured item must have the object or array kind required by its head,
+and every nested receiver needs its own positive source proof. Missing, nullable,
+mixed-kind and unresolved alternatives retain their conservative rejection.
+Defaults on a whole pattern, rest bindings and dynamic object keys remain outside
+the shared pattern admission.
+
+This slice rejects `for await...of`, `var`, assignment targets,
+Strings, unproven iterable values and labels. Synchronous source
 try/catch/finally retain their existing admission boundary.
 
 The index slot and generated header regions do not count as source locals or
-source statements. The source head identifier counts once against the existing
-128-local limit. All source traversal remains on the heap-owned cursor; the
-existing 64-level source statement nesting limit still applies. No new IR
+source statements. Every head leaf counts once against the existing
+128-local limit; empty patterns consume no locals. Mixed patterns retain the
+128-level binding-container limit. All source traversal remains on the heap-owned
+cursor; the existing 64-level source statement nesting limit still applies. No new IR
 operation, runtime import or application ABI is introduced.
 
 ## Executable evidence

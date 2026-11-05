@@ -2,6 +2,48 @@
 use super::SCHEDULED_DECLARATION_VALUES;
 
 #[test]
+fn for_of_patterns_use_the_shared_cursor_with_lexical_admission() {
+    for (body, asynchronous) in [
+        (
+            "let n=0;for(const {row:{label},items:[value]} of [{row:{label:' x '},items:[a]}])n+=label.trim().length+(value===a?1:0);return n;",
+            false,
+        ),
+        (
+            "let n=0;for(const {first=(await a,1),next=first} of [{}]){await b;n+=first===next?1:0;}return n;",
+            true,
+        ),
+        (
+            "let first=()=>0,last=()=>0;let n=0;for(let [label] of [[' x '],[' yy ']]){const read=()=>label.trim().length;if(n===0)first=read;last=read;n++;}return first()*10+last();",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "export {}function run(a,b){{{body}}}",
+            if asynchronous { "async " } else { "" }
+        );
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, asynchronous, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+    for body in [
+        "for(const {value} of [a]){}return a;",
+        "for(const {value=value} of [{}]){}return a;",
+        "for(const {first=next,next=a} of [{}]){}return a;",
+        "for(const [value] of [[a]]){}return value;",
+        "for(const {value} of [{value:a}])value=b;return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let error = on_small_stack(&source, false, false)
+            .0
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
 fn nested_object_bindings_preserve_admission_and_small_stack_depth_boundaries() {
     for (depth, admitted) in [(32, true), (128, true), (129, false)] {
         let mut pattern = String::from("value");

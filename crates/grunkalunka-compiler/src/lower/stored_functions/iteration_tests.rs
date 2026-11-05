@@ -272,6 +272,35 @@ fn nested_binding_origins_keep_alias_writes_missing_paths_and_unknown_cycles() {
 }
 
 #[test]
+fn iteration_patterns_project_element_origins_through_nested_shapes() {
+    for source in [
+        "export function run(a,b){for(const {row:{label}} of [{row:{label:'text'}}]){const observed=label;}return a;}",
+        "export function run(a,b){for(const [label] of [['text']]){const observed=label;}return a;}",
+        "export function run(a,b){for(const {items:[label]} of [{items:['text']}]){const observed=label;}return a;}",
+        "export function run(a,b){for(const {label} of (a?[]:[{label:'text'}])){const observed=label;}return a;}",
+        "function inspect(rows){for(const {label} of rows){const observed=label;}return 0;}export function run(a,b){return inspect([{label:'text'}]);}",
+        "export function run(a,b){const rows=[{label:'text'}];rows[0]={label:'other'};for(const {label} of rows){const observed=label;}return a;}",
+    ] {
+        assert_eq!(observe_source(source), STRING, "{source}");
+    }
+}
+
+#[test]
+fn iteration_patterns_retain_mutation_missing_and_unresolved_alternatives() {
+    for body in [
+        "for(const {label='fallback'} of [{}]){const observed=label;}return a;",
+        "for(const [label='fallback'] of [[]]){const observed=label;}return a;",
+        "const rows=[{label:'text'}];const alias=rows;alias[0].label=a;for(const {label} of rows){const observed=label;}return a;",
+        "const rows=[{label:'text'}];rows.length=2;for(const {label} of rows){const observed=label;}return a;",
+        "for(let {label} of [{label:'text'}]){const change=()=>{label=a;};change();const observed=label;}return a;",
+        "const pending=()=>pending();for(const {label} of [{label:'text'},pending()]){const observed=label;}return a;",
+        "const pending=()=>pending();for(const {nested:{label}} of [{nested:a?{label:'text'}:pending()}]){const observed=label;}return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+    }
+}
+
+#[test]
 fn mixed_binding_origins_follow_each_array_and_object_selection() {
     for body in [
         "const [[label]]=[['text']];const observed=label;return a;",

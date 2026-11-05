@@ -213,8 +213,6 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "for(var item of [a]){}return a;",
         "let item=a;for(item of [b]){}return a;",
         "const row={value:a};for(row.value of [b]){}return a;",
-        "for(const [item] of [[a]]){}return a;",
-        "for(const {item} of [{item:a}]){}return a;",
         "for(const item of a){}return a;",
         "for(const item of 'abc'){}return a;",
         "for(const item of {0:a,length:1}){}return a;",
@@ -295,4 +293,103 @@ fn assert_rejected(source: &str, typed: bool) {
 fn compare(body: &str) {
     let source = format!("export function run(a,b){{{body}}}");
     common::compare_sources(&source, &source);
+}
+
+#[test]
+fn destructuring_for_of_reads_records_arrays_and_nested_values() {
+    for body in [
+        "for(const [item] of [[a]]){}return a;",
+        "for(const {item} of [{item:a}]){}return a;",
+        "let n=0;for(const {label,value} of [{label:' a ',value:a},{label:' bb ',value:b}])n=n*10+label.trim().length+(value===a?3:0);return n;",
+        "let n=0;for(const [label,,value] of [[' a ',0,a],[' bb ',0,b]])n=n*10+label.trim().length+(value===a?3:0);return n;",
+        "let n=0;for(const {row:{label},flags:[flag]} of [{row:{label:' a '},flags:[a]},{row:{label:' bb '},flags:[b]}])n=n*10+label.trim().length+(flag===a?3:0);return n;",
+        "let n=0;for(const {} of [{},{}])n++;for(const [] of [[],[a]])n+=10;return n;",
+    ] {
+        compare(body);
+    }
+    let source = "function count(rows){let n=0;for(const {label} of rows)n+=label.trim().length;return n;}export function run(a,b){return count([{label:' a '},{label:' bb '}]);}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn destructuring_for_of_orders_defaults_and_keeps_original_selections() {
+    for body in [
+        "const inner=[];const rows=[inner,inner];let n=0;for(const [x=(inner[0]=7,1),y] of rows)n=n*10+(x===7?2:1)+(y===undefined?0:5);return n;",
+        "const rows=[{first:undefined,next:a},{first:undefined,next:b}];let n=0;for(const {first=(rows[1].next=a,1),next} of rows)n=n*10+(first===1?1:0)+(next===a?2:0);return n;",
+        "let rows=[{value:a},{value:b}];const original=rows;let calls=0,n=0;for(const {value} of (calls++,rows)){rows=[{value:0}];n=n*10+(value===a?1:2);}return calls*100+n+(rows!==original?1000:0);",
+        "let n=0;for(const {first=a,next=first} of [{},{first:null},{first:false}])n=n*10+(first===next?1:2);return n;",
+        "const row={inner:{first:undefined,next:a},tail:a};let n=0;for(const {inner:{first=(row.inner={next:b},row.tail=b,1),next},tail} of [row])n=(first===1?100:0)+(next===a?10:0)+(tail===b?1:0);return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn destructuring_for_of_allocates_fresh_leaf_cells_and_preserves_loop_control() {
+    for body in [
+        "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {label,unused=(last=()=>label.trim().length,0)} of [{label:' a '},{label:' bb '}]){if(n===0){first=last;change=()=>{label=' ccc ';return 0;};}n++;}change();return first()*10+last();",
+        "let first=()=>0,last=()=>0;let n=0;for(const {label} of [{label:' a '},{label:' bb '}]){const read=()=>label.trim().length;if(n===0)first=read;last=read;n++;}return first()*10+last();",
+        "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let [label] of [[' a '],[' bb ']]){const read=()=>label.trim().length;if(n===0){first=read;change=()=>{label=' ccc ';return 0;};n++;continue;}last=read;}change();return first()*10+last();",
+        "let n=0;for(const {value} of [{value:0},{value:1},{value:2}]){try{if(value===0)continue;break;}finally{n=n*10+(value===0?1:2);}}return n;",
+        "for(const [value] of [[a],[b]]){if(value===a)return 1;return 2;}return 3;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
+    let js = "export function run(a,b){let n=0;for(const {row:{label},values:[value]} of [{row:{label:' x '},values:[a]}])n+=label.trim().length+(value===a?1:0);return n;}";
+    let ts = "type Rows=never;export function run(a:string,b:boolean):void{let n:number=0;for(const {row:{label},values:[value]} of ([{row:{label:' x '},values:[a]}] as Rows))n+=(label as number).trim().length+((value as string)===a?1:0);return n;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    for body in [
+        "for(const {value} of [a]){}return a;",
+        "for(const [value] of [[a],null]){}return a;",
+        "for(const {nested:{value}} of [{nested:{value:a}},{}]){}return a;",
+        "const rows=[{nested:{value:a}}];const alias=rows;alias[0].nested=b;for(const {nested:{value}} of rows){}return a;",
+        "const rows=[{value:a}];rows.length=2;for(const {value} of rows){}return a;",
+        "for(const {value} of [{value}]){}return a;",
+        "for(const {value=value} of [{}]){}return a;",
+        "for(const {first=next,next=a} of [{}]){}return a;",
+        "for(const [value] of [[a]]){}return value;",
+        "for(const {value} of [{value:a}])value=b;return a;",
+        "for(var {value} of [{value:a}]){}return a;",
+        "for(const {...rest} of [{value:a}]){}return a;",
+        "for(const [first,...rest] of [[a,b]]){}return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_rejected(&source, typed);
+        }
+    }
+}
+
+#[test]
+fn destructuring_for_of_counts_each_leaf_against_the_source_local_budget() {
+    for count in [128, 129] {
+        let names = (0..count)
+            .map(|index| format!("v{index}"))
+            .collect::<Vec<_>>();
+        let pattern = names.join(",");
+        let fields = names
+            .iter()
+            .map(|name| format!("{name}:a"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = format!(
+            "export function run(a,b){{for(const {{{pattern}}} of [{{{fields}}}])return v0===a?1:0;return b;}}"
+        );
+        for typed in [false, true] {
+            let result = compile_on_small_stack(source.clone(), typed);
+            if count == 128 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                assert!(result.unwrap_err().contains("at most 128 source locals"));
+            }
+        }
+    }
 }
