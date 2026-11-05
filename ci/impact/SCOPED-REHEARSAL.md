@@ -28,6 +28,14 @@ The script verifies real Cargo metadata, the live canonical catalog and independ
 browser triggers before checking and executing its pinned selection. Its receipt
 does not establish that a separate browser workflow ran or replace canonical CI.
 
+Selected commands have a ten-minute execution limit within a 35-minute hosted
+job. Discovery retains its shorter limit. The former five-minute command limit
+terminated the Linux live-session suite after 21 passing cases in
+[run 41989066588](https://github.com/tseguine/grunkalunka/actions/runs/41989066588),
+while the Windows rehearsal completed its full selected closure. These bounds
+accommodate the existing native/WIT consumers without changing the selected
+tests, packages, host matrix or canonical test timeouts.
+
 [`platform-rehearsal.test.mjs`](platform-rehearsal.test.mjs) runs the production
 planner and executor selection over a bounded unit graph with the current A1
 descriptors. It detects a missing layout-consumer edge, omitted application

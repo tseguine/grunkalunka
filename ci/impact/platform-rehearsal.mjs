@@ -126,7 +126,11 @@ function main() {
     affectedTests: choice.selectedTests, selectedPackages: choice.selectedPackages,
     canonicalCoverage: coverage, externalWorkflows, commands: choice.commands,
   }));
-  const receipts = runDecision(choice, (command, args) => invoke(command, args));
+  // The selected A1 suites contain many real native/WIT sessions. A complete
+  // suite exceeds the former five-minute layout-only command budget on Linux.
+  // Keep discovery short and execution bounded independently of the job limit.
+  const receipts = runDecision(choice, (command, args) =>
+    invoke(command, args, { timeout: 10 * 60_000 }));
   console.log('PASS native-platform partial rehearsal ' + JSON.stringify({
     revision, nativePlatform, receipts,
     elapsedMs: receipts.reduce((sum, r) => sum + r.elapsedMs, 0),
