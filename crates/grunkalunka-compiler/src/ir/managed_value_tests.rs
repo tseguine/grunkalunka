@@ -1189,6 +1189,22 @@ fn managed_nullish_predicate_keeps_the_carrier_type_boundary() {
 }
 
 #[test]
+fn array_brand_requires_a_boxed_input_and_a_predicate_result() {
+    let mut module = primitive_comparison();
+    let check = |input| Op::ManagedIsArray {
+        result: ValueId(6),
+        input,
+    };
+    module.functions[0].body.operations[6].kind = check(ValueId(4));
+    verify_module(&module).unwrap();
+    module.functions[0].body.operations[6].kind = check(ValueId(1));
+    assert!(verify_module(&module).is_err());
+    module.functions[0].body.operations[6].kind = check(ValueId(4));
+    module.functions[0].values[6] = Type::Number;
+    assert!(verify_module(&module).is_err());
+}
+
+#[test]
 fn managed_typeof_requires_a_managed_input_and_managed_text_result() {
     let mut module = primitive_comparison();
     module.functions[0].body.operations[5].kind = Op::ManagedTypeof {

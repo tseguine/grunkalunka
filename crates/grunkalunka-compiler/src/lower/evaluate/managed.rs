@@ -578,6 +578,40 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if let Expression::CallExpression(call) = node
+            && object_intrinsics::is_array_test(call, self.semantic)
+            && matches!(
+                mode,
+                Mode::Predicate | Mode::General | Mode::Managed | Mode::Number | Mode::Discard
+            )
+        {
+            boolean_consumer(node, mode, "Array.isArray produces a Boolean", work)?;
+            if call.arguments.len() > 1000 {
+                return Err(unsupported(
+                    node,
+                    "at most 1000 Array.isArray arguments are admitted",
+                ));
+            }
+            let first = invocation::offset(call);
+            work.push(Work::ArrayIsArray {
+                node,
+                has_input: first < call.arguments.len(),
+            });
+            // Only the tested argument leaves a value on the stack. Evaluate
+            // the ignored thisArg and surplus arguments for their source effects.
+            for (index, argument) in call.arguments.iter().enumerate().rev() {
+                let expr = argument
+                    .as_expression()
+                    .ok_or_else(|| unsupported(node, "spread call arguments are not admitted"))?;
+                let mode = if index == first {
+                    Mode::Managed
+                } else {
+                    Mode::Discard
+                };
+                work.push(Work::Eval(expr, depth + 1, mode));
+            }
+            return Ok(true);
+        }
+        if let Expression::CallExpression(call) = node
             && object_intrinsics::is_method(call, self.semantic, "hasOwn")
             && matches!(
                 mode,

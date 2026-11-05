@@ -396,3 +396,41 @@ fn array_source_and_key_queries_keep_depth_off_the_native_stack() {
         }
     }
 }
+
+#[test]
+fn array_is_array_checks_the_saved_value_across_managed_kinds() {
+    for body in [
+        "const values=[[],{},Object.create(null),'x',null,undefined,a,false,()=>b];let n=0;for(const value of values){n=n*2+(Array.isArray(value)?1:0);}return n;",
+        "const options={items:a?[b]:{length:1,0:b}};return Array['isArray'](options.items)?1:0;",
+        "let n=0;const x={items:[a]};const test=Array.isArray.call((n=1,null),(n=n*10+2,x.items),(n=n*10+3,x.items={}));return test&&n===123&&!Array.isArray(x.items)?1:0;",
+        "let n=0;Array.isArray((n=1,[]),(n=n*10+2,b));return n;",
+        "return !Array.isArray()&&!Array.isArray.call([])&&Array.isArray(Object.entries({x:b}))?1:0;",
+        "const Array={isArray:x=>x};return Array.isArray(a);",
+        "return +Array.isArray(a?[b]:{});",
+        "const box={ok:Array.isArray([b])};return box.ok===true?1:0;",
+        "const array=[];array[4294967294]=b;array.length=0;return Array.isArray(array)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    common::compare_sources(
+        "export function run(a,b){return Array.isArray(a?[b]:{})?1:0;}",
+        "type Array = number; export function run(a:string,b:boolean):void{return Array.isArray((a?[b]:{}) as string)?1:0;}",
+    );
+}
+
+#[test]
+fn array_is_array_rejects_optional_calls_and_spread_arguments() {
+    for body in [
+        "return Array.isArray(...[[a]])?1:0;",
+        "return Array.isArray?.([a])?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, ts)
+                .err()
+                .expect("unsupported call");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}

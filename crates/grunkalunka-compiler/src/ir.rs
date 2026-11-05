@@ -719,6 +719,10 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    ManagedIsArray {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedIsNullish {
         result: ValueId,
         input: ValueId,
@@ -1672,7 +1676,9 @@ impl Verifier<'_> {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
-            Op::ManagedTruthy { result, input } | Op::ManagedIsNullish { result, input } => {
+            Op::ManagedTruthy { result, input }
+            | Op::ManagedIsNullish { result, input }
+            | Op::ManagedIsArray { result, input } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }

@@ -461,7 +461,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     |binding| !binding.mutable && self.slots[binding.slot.0].ty == Type::Predicate,
                 );
             } else {
-                return boolean_shape(expression, depth);
+                return matches!(expression, Expression::CallExpression(call) if object_intrinsics::is_array_test(call, self.semantic))
+                    || boolean_shape(expression, depth);
             }
             depth += 1;
         }

@@ -116,7 +116,9 @@ ordered action values into a fresh array for iteration, including explicit
 Undefined fields. `Object.entries` lets the handler destructure each fresh
 key/value pair and compare its name before invoking the service. A handler
 that needs only names can iterate `Object.keys(actions)` and use String
-operations on each yielded name.
+operations on each yielded name. `Array.isArray(options.items)` lets an A1
+handler choose a service argument according to whether the current value is
+a list or a single action record.
 
 ### Deliberate remaining limits
 

@@ -1,7 +1,11 @@
 //! Intrinsic recognition is independent of representation planning.
 use super::*;
 
-fn method_name<'e>(call: &'e CallExpression<'_>, semantic: &Semantic<'_>) -> Option<&'e str> {
+fn method_name<'e>(
+    call: &'e CallExpression<'_>,
+    semantic: &Semantic<'_>,
+    owner: &str,
+) -> Option<&'e str> {
     if call.optional {
         return None;
     }
@@ -22,7 +26,7 @@ fn method_name<'e>(call: &'e CallExpression<'_>, semantic: &Semantic<'_>) -> Opt
     let (Expression::Identifier(id), _) = closures::unwrapped_at(object, 0)? else {
         return None;
     };
-    (id.name == "Object"
+    (id.name == owner
         && id
             .reference_id
             .get()
@@ -32,14 +36,18 @@ fn method_name<'e>(call: &'e CallExpression<'_>, semantic: &Semantic<'_>) -> Opt
 }
 
 pub(super) fn is_method(call: &CallExpression<'_>, semantic: &Semantic<'_>, name: &str) -> bool {
-    method_name(call, semantic) == Some(name)
+    method_name(call, semantic, "Object") == Some(name)
+}
+
+pub(super) fn is_array_test(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> bool {
+    method_name(call, semantic, "Array") == Some("isArray")
 }
 
 pub(super) fn enumeration(
     call: &CallExpression<'_>,
     semantic: &Semantic<'_>,
 ) -> Option<ir::OwnEnumeration> {
-    match method_name(call, semantic)? {
+    match method_name(call, semantic, "Object")? {
         "keys" => Some(ir::OwnEnumeration::Keys),
         "values" => Some(ir::OwnEnumeration::Values),
         "entries" => Some(ir::OwnEnumeration::Entries),

@@ -523,3 +523,15 @@ fn object_entries_retains_pairs_over_await_and_catches_nullable_receivers() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_is_array_retains_its_argument_over_await_and_abrupt_extras() {
+    compare_promises(
+        &[
+            "const row={value:[a]};const result=Array.isArray(row.value,(await b,row.value={}));await a;return result&&!Array.isArray(row.value)?1:0;",
+            "let n=0;try{Array.isArray((n=1,[]),(await Promise.reject(b),n=2));}catch(e){return n===1&&e===b?1:0;}return -1;",
+            "try{Object.keys(null);}catch(error){await a;return Array.isArray(error)?-1:1;}return 0;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
