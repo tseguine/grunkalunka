@@ -5,12 +5,15 @@ const HEIGHT = 160;
 const RGB_BYTES = WIDTH * HEIGHT * 3;
 const BASE64_LENGTH = RGB_BYTES / 3 * 4;
 const MAX_REPLY_BYTES = 220_000;
-// Allow the native action's 60-second budget, then bound transport and body reads.
+// Bound presentation even when native work or the transport does not finish.
 const REQUEST_TIMEOUT_MS = 65_000;
 const SCROLL_LINE = 16;
 const MAX_WHEEL_DELTA = 4096;
 const MAX_WHEEL_PIXELS = HEIGHT * 16;
 const TOKEN_KEY = 'grunkalunka:a1:session';
+const EXPIRED = 'Session access expired. Reopen the session link to reconnect.';
+const CLOSED = 'Session closed. Start a new session to continue.';
+const INTERRUPTED = 'Connection interrupted. Reconnect to continue.';
 const validToken = value => typeof value === 'string' && /^[A-Za-z0-9_-]{32,128}$/.test(value);
 
 export function pointerToNative({ clientX, clientY }, rect) {
@@ -53,6 +56,7 @@ export function decodeLiveFrame(frame) {
   if (frame === null || typeof frame !== 'object' || Array.isArray(frame) ||
       frame.schemaVersion !== 4 || frame.width !== WIDTH || frame.height !== HEIGHT ||
       !Number.isSafeInteger(frame.sequence) || frame.sequence < 0 || frame.sequence > 256 ||
+      !Number.isSafeInteger(frame.inputGeneration) || frame.inputGeneration < 0 ||
       ![0, 1].includes(frame.expanded) ||
       !Number.isSafeInteger(frame.visibleCount) || frame.visibleCount < 0 || frame.visibleCount > 64 ||
       (frame.expanded === 0 && frame.visibleCount !== 0) ||
@@ -84,7 +88,7 @@ export function decodeLiveFrame(frame) {
     rgba[pixel * 4 + 2] = rgb.charCodeAt(pixel * 3 + 2);
     rgba[pixel * 4 + 3] = 255;
   }
-  return { sequence: frame.sequence, expanded: frame.expanded,
+  return { sequence: frame.sequence, inputGeneration: frame.inputGeneration, expanded: frame.expanded,
     visibleCount: frame.visibleCount, canActivate: frame.canActivate,
     canScroll: frame.canScroll, canReload: frame.canReload, canSelectNote: frame.canSelectNote,
     noteChoices: choices.map(({ id, label }) => ({ id, label })), selectedNoteId: frame.selectedNoteId,
@@ -160,6 +164,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   const canvas = document.getElementById('note-frame');
   const status = document.getElementById('session-status');
   const reloadButton = document.getElementById('reload-note');
+  const reconnectButton = document.getElementById('reconnect-view');
   const noteChoice = document.getElementById('note-choice');
   const context = canvas.getContext('2d', { alpha: false });
   let current = null;
@@ -172,6 +177,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   let pendingScroll = null;
   let wheelRemainder = 0;
   const { token, storage } = sessionToken(window);
+  let authorityAvailable = Boolean(token);
+  let sessionClosed = false;
+  let recoverable = false;
 
   function updateControl() {
     const enabled = connected && !busy && (current?.canActivate || current?.canScroll) &&
@@ -186,6 +194,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     else canvas.removeAttribute('aria-expanded');
     reloadButton.disabled = !connected || busy || !current?.canReload || current.remainingEvents === 0;
     reloadButton.setAttribute('aria-busy', String(activeKind === 'reload'));
+    reconnectButton.hidden = !recoverable;
+    reconnectButton.disabled = disposed || busy || !recoverable;
+    reconnectButton.setAttribute('aria-busy', String(activeKind === 'sync'));
     noteChoice.disabled = !connected || busy || !current?.canSelectNote || current.remainingEvents === 0;
     noteChoice.setAttribute('aria-busy', String(activeKind === 'select'));
     noteChoice.value = current?.selectedNoteId == null ? '' : String(current.selectedNoteId);
@@ -193,7 +204,8 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
 
   function paint(value) {
     const next = decodeLiveFrame(value);
-    if (current && next.sequence < current.sequence) throw new Error('Stale A1 live frame');
+    if (current && (next.sequence < current.sequence ||
+        next.inputGeneration < current.inputGeneration)) throw new Error('Stale A1 live frame');
     const pixels = context.createImageData(WIDTH, HEIGHT);
     pixels.data.set(next.rgba);
     context.putImageData(pixels, 0, 0);
@@ -255,7 +267,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
       const response = await fetch(path, {
         method: input === undefined ? 'GET' : 'POST',
         headers: { 'x-a1-session': token, accept: 'application/json',
-          ...(input === undefined ? {} : { 'content-type': 'application/json' }) },
+          ...(input === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(input === undefined || path === '/sync' ? {} :
+            { 'x-a1-input-generation': String(current.inputGeneration) }) },
         ...(input === undefined ? {} : { body: JSON.stringify(input) }),
         credentials: 'omit', mode: 'same-origin', cache: 'no-store', redirect: 'error',
         referrerPolicy: 'no-referrer', signal: abort.signal,
@@ -279,19 +293,25 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
       const { response, reply } = await Promise.race([receive, cancellation]);
       transfer.check();
       if (response.status === 401 || response.status === 403) {
+        authorityAvailable = false;
         forgetToken(storage);
-        throw new Error('Session access expired. Reopen the session link to reconnect.');
+        throw new Error(EXPIRED);
       }
       if (!response.ok) {
+        if (response.status === 503) sessionClosed = true;
         if (reply === null || typeof reply !== 'object' || !reply.frame) {
-          throw new Error('Connection interrupted. Reopen the session link to reconnect.');
+          throw new Error(sessionClosed ? CLOSED : INTERRUPTED);
         }
         paint(reply.frame);
         if (response.status === 503) {
-          throw new Error('Connection interrupted. Reopen the session link to reconnect.');
+          throw new Error(CLOSED);
         }
+        if (reply.requiresSync === true) throw new Error(INTERRUPTED);
         return { ok: false, message: typeof reply.error === 'string' && reply.error.length <= 256
           ? reply.error : 'The action failed. The last completed view is shown.' };
+      }
+      if (path === '/sync' && reply?.inputGeneration <= (current?.inputGeneration ?? 0)) {
+        throw new Error('Stale A1 synchronization generation');
       }
       paint(reply);
       return { ok: true, message: null };
@@ -307,8 +327,8 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     connected = false;
     pendingScroll = null;
     wheelRemainder = 0;
-    status.textContent = error.message === 'Session access expired. Reopen the session link to reconnect.'
-      ? error.message : 'Connection interrupted. Reopen the session link to reconnect.';
+    recoverable = authorityAvailable && !sessionClosed && Boolean(context);
+    status.textContent = !authorityAvailable ? EXPIRED : sessionClosed ? CLOSED : INTERRUPTED;
   }
 
   async function perform(kind, input) {
@@ -439,9 +459,11 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   canvas.addEventListener('keydown', keyboard);
   canvas.addEventListener('wheel', wheel, { passive: false });
   reloadButton.addEventListener('click', reload);
+  reconnectButton.addEventListener('click', reconnect);
   noteChoice.addEventListener('change', selectNote);
   updateControl();
-  const ready = (async () => {
+
+  async function connectView() {
     if (!token || !context) {
       busy = false;
       status.textContent = token ? 'This browser cannot display the note view.'
@@ -449,19 +471,38 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
       updateControl();
       return;
     }
+    busy = true;
+    connected = false;
+    activeKind = 'sync';
+    activeScrollTarget = null;
+    pendingScroll = null;
+    wheelRemainder = 0;
+    status.textContent = recoverable ? 'Reconnecting to your note…' : 'Connecting to your note…';
+    updateControl();
     try {
-      const result = await request('/frame');
+      // Sync fences old HTTP inputs and waits for earlier admitted actions.
+      // It reads their committed result; it never repeats an uncertain action.
+      const result = await request('/sync', {});
       if (disposed) return;
-      if (!result.ok) throw new Error('Initial frame unavailable');
+      if (!result.ok) throw new Error('Settled frame unavailable');
       connected = true;
+      recoverable = false;
       if (!disposed) status.textContent = describeFrame();
     } catch (error) {
       if (!disposed) failed(error);
     } finally {
+      activeKind = null;
       busy = false;
       if (!disposed) updateControl();
     }
-  })();
+  }
+
+  function reconnect() {
+    if (disposed || busy || !recoverable) return;
+    return connectView();
+  }
+
+  const ready = connectView();
 
   function dispose() {
     disposed = true;
@@ -476,6 +517,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     canvas.removeEventListener('keydown', keyboard);
     canvas.removeEventListener('wheel', wheel);
     reloadButton.removeEventListener('click', reload);
+    reconnectButton.removeEventListener('click', reconnect);
     noteChoice.removeEventListener('change', selectNote);
     updateControl();
   }

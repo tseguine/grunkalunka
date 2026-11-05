@@ -17,7 +17,7 @@ const pixels = rgb.toString('base64');
 function frame(overrides = {}) {
   const sequence = overrides.sequence ?? 0;
   const remainingEvents = overrides.remainingEvents ?? 256 - sequence;
-  return { schemaVersion: 4, width: 320, height: 160, sequence,
+  return { schemaVersion: 4, width: 320, height: 160, sequence, inputGeneration: 1,
     expanded: 1, visibleCount: 2, canActivate: remainingEvents > 0, remainingEvents,
     scrollY: 0, maxScrollY: 0, canScroll: false, controlPoint: { x: 24, y: 16 },
     canReload: remainingEvents > 0, noteChoices: [{ id: 0, label: 'note.md' }],
@@ -120,6 +120,8 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   const listenerOptions = new Map();
   const reloadListeners = new Map();
   const reloadAttributes = new Map();
+  const reconnectListeners = new Map();
+  const reconnectAttributes = new Map();
   const choiceListeners = new Map();
   const choiceAttributes = new Map();
   const painted = [];
@@ -161,6 +163,14 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     replaceChildren(...options) { this.options = options; this.value = options[0]?.value ?? ''; },
     set innerHTML(_value) { throw new Error('Note choices must use text nodes'); },
   };
+  const reconnectButton = {
+    disabled: true, hidden: true,
+    setAttribute: (name, value) => reconnectAttributes.set(name, value),
+    addEventListener: (name, fn) => reconnectListeners.set(name, fn),
+    removeEventListener: (name, fn) => {
+      if (reconnectListeners.get(name) === fn) reconnectListeners.delete(name);
+    },
+  };
   const data = new Map(stored === undefined ? [] : [[tokenKey, stored]]);
   const location = { hash, pathname: '/', search: '' };
   const window = {
@@ -184,7 +194,8 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     return reply;
   };
   const document = { getElementById: id => ({
-    'note-frame': canvas, 'session-status': status, 'reload-note': reloadButton, 'note-choice': noteChoice,
+    'note-frame': canvas, 'session-status': status, 'reload-note': reloadButton,
+    'reconnect-view': reconnectButton, 'note-choice': noteChoice,
   })[id], createElement: name => {
     assert.equal(name, 'option');
     return { value: '', textContent: '',
@@ -207,6 +218,8 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   }
   return { window, document, fetch, attributes, listeners, listenerOptions, painted, status,
     reloadButton, reloadListeners, reloadAttributes, reload: () => reloadListeners.get('click')?.(),
+    reconnectButton, reconnectListeners, reconnectAttributes,
+    reconnect: () => reconnectListeners.get('click')?.(),
     noteChoice, choiceListeners, choiceAttributes, select: id => {
       noteChoice.value = String(id);
       return choiceListeners.get('change')?.();
@@ -269,6 +282,8 @@ test('frame decoding preserves supplied native RGB and rejects malformed or unbo
   assert.deepEqual(supplied.controlPoint, { x: 85, y: 0 });
   for (const invalid of [null, [], frame({ schemaVersion: 1 }), frame({ schemaVersion: 2 }),
     frame({ schemaVersion: 3 }),
+    ...[undefined, null, -1, 0.5, '1', Number.MAX_SAFE_INTEGER + 1]
+      .map(inputGeneration => frame({ inputGeneration })),
     frame({ width: 640 }),
     frame({ height: 159 }), frame({ sequence: -1 }), frame({ sequence: '0' }),
     frame({ sequence: 257, remainingEvents: 0 }), frame({ expanded: 2 }),
@@ -303,8 +318,11 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.equal(b.window.location.hash, '');
   assert.equal(b.data.get(tokenKey), token);
   await client.ready;
-  assert.equal(b.requests[0].path, '/frame');
-  assert.deepEqual(b.requests[0].headers, { 'x-a1-session': token, accept: 'application/json' });
+  assert.equal(b.requests[0].path, '/sync');
+  assert.equal(b.requests[0].method, 'POST');
+  assert.equal(b.requests[0].body, '{}');
+  assert.deepEqual(b.requests[0].headers, { 'x-a1-session': token, accept: 'application/json',
+    'content-type': 'application/json' });
   assert.equal(b.requests[0].credentials, 'omit');
   assert.equal(b.requests[0].mode, 'same-origin');
   assert.equal(b.requests[0].redirect, 'error');
@@ -324,6 +342,7 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.equal(b.requests[1].method, 'POST');
   assert.equal(b.requests[1].body, '{"x":24,"y":16}');
   assert.equal(b.requests[1].headers['content-type'], 'application/json');
+  assert.equal(b.requests[1].headers['x-a1-input-generation'], '1');
   input.resolve(response(frame({ sequence: 1, expanded: 0, visibleCount: 0, remainingEvents: 255 })));
   await settle();
   assert.equal(b.painted.length, 2);
@@ -1005,7 +1024,7 @@ test('a failed action may publish its retained frame, but an older reply never r
   assert.equal(b.painted.length, 2);
   assert.equal(b.attributes.get('aria-expanded'), 'true');
   assert.equal(b.attributes.get('aria-disabled'), 'true');
-  assert.match(b.status.textContent, /Reopen the session link/);
+  assert.match(b.status.textContent, /Reconnect to continue/);
 });
 
 test('an older scroll reply preserves committed viewport pixels and native control availability', async t => {
@@ -1027,7 +1046,7 @@ test('an older scroll reply preserves committed viewport pixels and native contr
   assert.equal(b.key('Enter'), false, 'the stale visible title point is not retained');
   assert.equal(b.key('Home'), false);
   assert.equal(b.requests.length, 2, 'the queued target is discarded on stale-frame failure');
-  assert.match(b.status.textContent, /Reopen the session link/);
+  assert.match(b.status.textContent, /Reconnect to continue/);
 });
 
 test('uncertain, oversized or closed responses preserve the last frame and stop further input', async t => {
@@ -1070,7 +1089,7 @@ test('a terminal response applies its newest retained snapshot before disabling 
   assert.equal(b.attributes.get('role'), 'img', 'control state comes from the final snapshot');
   assert.equal(b.attributes.get('aria-disabled'), 'true');
   assert.equal(b.attributes.get('aria-busy'), 'false');
-  assert.match(b.status.textContent, /Connection interrupted.*Reopen the session link/);
+  assert.match(b.status.textContent, /Session closed.*Start a new session/);
   b.click();
   b.key('Enter');
   assert.equal(b.requests.length, 2);
@@ -1339,12 +1358,214 @@ test('authorization failure settles even when response-body cancellation never c
   assert.match(b.status.textContent, /Session access expired/);
 });
 
+test('explicit reconnect reconciles a lost action reply without replay and uses the new input generation', async t => {
+  const b = browser();
+  b.replies.push(response(frame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const committed = b.painted[0];
+  b.replies.push(Promise.reject(new Error('reply lost after native commit')));
+  b.click();
+  await settle();
+  assert.deepEqual(b.painted, [committed]);
+  assert.equal(b.reconnectButton.hidden, false);
+  assert.equal(b.reconnectButton.disabled, false);
+  assert.equal(b.reloadButton.disabled, true);
+  assert.equal(b.attributes.get('aria-disabled'), 'true');
+  assert.match(b.status.textContent, /Reconnect to continue/);
+  const sync = deferred();
+  b.replies.push(sync.promise);
+  const reconnecting = b.reconnect();
+  assert.equal(b.reconnectButton.disabled, true);
+  assert.equal(b.reconnectAttributes.get('aria-busy'), 'true');
+  b.reconnect();
+  b.click();
+  b.reload();
+  b.key('End');
+  b.wheel();
+  assert.deepEqual(b.requests.map(request => request.path), ['/sync', '/input', '/sync']);
+  assert.equal(b.requests[2].body, '{}');
+  assert.equal(b.requests[2].headers['x-a1-input-generation'], undefined);
+  sync.resolve(response(frame({ inputGeneration: 2, sequence: 1, expanded: 0, visibleCount: 0 })));
+  await reconnecting;
+  assert.equal(b.painted.length, 2);
+  assert.equal(b.attributes.get('aria-expanded'), 'false');
+  assert.equal(b.attributes.get('aria-disabled'), 'false');
+  assert.equal(b.reconnectButton.hidden, true);
+  assert.equal(b.reconnectAttributes.get('aria-busy'), 'false');
+  assert.equal(b.requests.length, 3, 'reconciliation reads the committed action without replay');
+  b.replies.push(response(frame({ inputGeneration: 2, sequence: 2 })));
+  b.click();
+  await settle();
+  assert.equal(b.requests[3].path, '/input');
+  assert.equal(b.requests[3].headers['x-a1-input-generation'], '2');
+  assert.equal(b.attributes.get('aria-expanded'), 'true');
+});
+
+test('a stale-generation rejection displays its retained frame but requires explicit synchronization', async t => {
+  const b = browser();
+  b.replies.push(response(frame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  b.replies.push(response({ error: 'Input generation expired', requiresSync: true,
+    frame: frame({ inputGeneration: 2, sequence: 1, expanded: 0, visibleCount: 0 }) }, 409));
+  await b.reload();
+  assert.equal(b.painted.length, 2);
+  assert.equal(b.attributes.get('aria-expanded'), 'false');
+  assert.equal(b.reloadButton.disabled, true);
+  assert.equal(b.reconnectButton.hidden, false);
+  b.click();
+  assert.equal(b.requests.length, 2);
+  b.replies.push(response(frame({ inputGeneration: 3, sequence: 1, expanded: 0, visibleCount: 0 })));
+  await b.reconnect();
+  assert.equal(b.reloadButton.disabled, false);
+  assert.equal(b.reconnectButton.hidden, true);
+  assert.equal(b.requests.length, 3);
+});
+
+test('initial and retained-frame synchronization failures never enable input before a successful barrier', async t => {
+  const b = browser();
+  b.replies.push(Promise.reject(new Error('offline')));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  assert.equal(b.painted.length, 0);
+  assert.equal(b.reconnectButton.hidden, false);
+  b.replies.push(response({ error: 'Queue full', requiresSync: true,
+    frame: frame({ inputGeneration: 2 }) }, 429));
+  await b.reconnect();
+  assert.equal(b.painted.length, 1);
+  assert.equal(b.reloadButton.disabled, true);
+  assert.equal(b.reconnectButton.hidden, false);
+  b.click();
+  assert.equal(b.requests.length, 2);
+  b.replies.push(response(frame({ inputGeneration: 3 })));
+  await b.reconnect();
+  assert.equal(b.reloadButton.disabled, false);
+  assert.equal(b.requests.length, 3);
+});
+
+test('synchronization refuses an unchanged generation and action frames cannot regress it', async t => {
+  const b = browser();
+  b.replies.push(response(frame({ inputGeneration: 5 })));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const committed = b.painted[0];
+  b.replies.push(response(frame({ inputGeneration: 4, sequence: 1 })));
+  await b.reload();
+  assert.deepEqual(b.painted, [committed]);
+  assert.equal(b.reconnectButton.hidden, false);
+  b.replies.push(response(frame({ inputGeneration: 5, sequence: 1 })));
+  await b.reconnect();
+  assert.deepEqual(b.painted, [committed]);
+  assert.equal(b.reloadButton.disabled, true);
+  b.replies.push(response(frame({ inputGeneration: 6, sequence: 1 })));
+  await b.reconnect();
+  assert.equal(b.reloadButton.disabled, false);
+});
+
+test('late timed-out authorization cannot overwrite a successfully reconnected view or its authority', async t => {
+  const b = browser();
+  const timers = deadlineClock();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient({ ...b, timers });
+  t.after(client.dispose);
+  await client.ready;
+  const old = deferred();
+  b.replies.push(old.promise);
+  b.wheel();
+  b.key('End');
+  timers.advance(65_000);
+  await settle();
+  assert.equal(b.reconnectButton.hidden, false);
+  b.replies.push(response(scrollingFrame({ inputGeneration: 2, sequence: 1, scrollY: 20 })));
+  await b.reconnect();
+  const settled = b.painted.at(-1);
+  const message = b.status.textContent;
+  old.resolve(response({ error: 'Old session expired' }, 401));
+  await settle();
+  assert.equal(b.painted.at(-1), settled);
+  assert.equal(b.data.get(tokenKey), token);
+  assert.equal(b.status.textContent, message);
+  assert.equal(b.reloadButton.disabled, false);
+  assert.deepEqual(b.requests.map(request => request.path), ['/sync', '/scroll', '/sync']);
+  assert.equal(timers.pending.size, 0);
+});
+
+test('authorization loss and closed sessions do not offer reconnect with unusable authority', async t => {
+  for (const status of [401, 403, 503]) await t.test(String(status), async t => {
+    const b = browser();
+    b.replies.push(response(frame()));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    b.replies.push(response({ error: 'Unavailable', frame: frame() }, status));
+    await b.reload();
+    assert.equal(b.reconnectButton.hidden, true);
+    assert.equal(b.reconnectButton.disabled, true);
+    assert.equal(b.reloadButton.disabled, true);
+    assert.match(b.status.textContent, status === 503 ? /Session closed/ : /Session access expired/);
+    b.reconnect();
+    b.click();
+    assert.equal(b.requests.length, 2);
+    if (status !== 503) assert.equal(b.data.has(tokenKey), false);
+  });
+});
+
+test('reconnecting read-only and exhausted sessions restores the view without manufacturing input authority', async t => {
+  for (const limited of [frame({ canActivate: false, canReload: false }),
+    frame({ sequence: 256, remainingEvents: 0 })]) await t.test(
+    limited.remainingEvents === 0 ? 'exhausted' : 'read-only', async t => {
+      const b = browser();
+      b.replies.push(Promise.reject(new Error('offline')));
+      const client = startLiveClient(b);
+      t.after(client.dispose);
+      await client.ready;
+      b.replies.push(response({ ...limited, inputGeneration: 2 }));
+      await b.reconnect();
+      assert.equal(b.painted.length, 1);
+      assert.equal(b.reconnectButton.hidden, true);
+      assert.equal(b.reloadButton.disabled, true);
+      assert.equal(b.attributes.get('aria-disabled'), 'true');
+      assert.match(b.status.textContent, limited.remainingEvents === 0 ? /input limit reached/ : /View only/);
+      b.click();
+      b.reload();
+      b.wheel();
+      assert.equal(b.requests.length, 2);
+    });
+});
+
+test('disposing during reconnect settles it and removes recovery listeners', async () => {
+  const b = browser();
+  const timers = deadlineClock();
+  b.replies.push(Promise.reject(new Error('offline')));
+  const client = startLiveClient({ ...b, timers });
+  await client.ready;
+  const pending = deferred();
+  b.replies.push(pending.promise);
+  const reconnecting = b.reconnect();
+  client.dispose();
+  await alreadySettled(reconnecting);
+  assert.equal(b.reconnectListeners.size, 0);
+  assert.equal(b.reconnectButton.disabled, true);
+  assert.equal(b.reconnectAttributes.get('aria-busy'), 'false');
+  assert.equal(timers.pending.size, 0);
+  pending.resolve(response(frame({ inputGeneration: 2 })));
+  await settle();
+  assert.equal(b.painted.length, 0);
+  assert.equal(b.requests.length, 2);
+});
+
 test('fixed page assets use external scripts/styles and preserve a borderless native coordinate surface', () => {
   assert.match(livePage, /<script type="module" src="\/client\.mjs"><\/script>/);
   assert.match(livePage, /<link rel="stylesheet" href="\/style\.css">/);
   assert.match(livePage, /id="note-frame" width="320" height="160"/);
   assert.match(livePage, /tabindex="0"/);
   assert.match(livePage, /<button id="reload-note" type="button" disabled[^>]*>Reload note<\/button>/);
+  assert.match(livePage, /<button id="reconnect-view" type="button" disabled hidden>Reconnect<\/button>/);
   assert.match(livePage, /After editing the file, reload to see your changes/);
   assert.match(livePage, /<label for="note-choice">Note<\/label>/);
   assert.match(livePage, /<select id="note-choice" disabled/);
