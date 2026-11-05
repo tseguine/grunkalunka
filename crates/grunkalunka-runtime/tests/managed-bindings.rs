@@ -16,6 +16,149 @@ fn object_bindings_select_shorthand_renamed_and_literal_keys() {
 }
 
 #[test]
+fn nested_object_bindings_select_fields_and_keep_proven_leaf_operations() {
+    for body in [
+        // Preserve the original nested-pattern rejection source as an admission witness.
+        "const {child:{x}}={child:{x:a}};return a;",
+        "const child={tag:b};const {row:{'display-name':label,inner:{value,ref}},empty:{}}={row:{'display-name':' Ready ',inner:{value:a,ref:child}},empty:{}};return label.trim()==='Ready'&&value===a&&ref===child&&ref.tag===b?1:0;",
+    ] {
+        compare(body);
+    }
+    let source = "function identity(value){return value;}export function run(a,b){const record={row:{label:' x ',items:[a,b]}};const alias=identity(record);const {row:{label,items}}=alias;return label.trim()==='x'&&items.length===2&&items.at(-1)===b?1:0;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn nested_object_bindings_finish_each_child_before_reading_the_next_outer_field() {
+    compare(
+        "let n=0;const root={inner:{last:a}};const make=()=>{n=n*10+1;return root;};const {inner:{first=(n=n*10+2,root.inner={last:b},a),last},inner:{last:later},tail=(n=n*10+3,b)}=make();return n+(first===a?1000:0)+(last===a?10000:0)+(later===b?100000:0)+(tail===b?1000000:0);",
+    );
+}
+
+#[test]
+fn nested_object_bindings_retain_each_original_receiver_during_defaults() {
+    compare(
+        "const child={second:a};let root={child,tail:a};const original=root;const {child:{first=(root.child={second:b},root={child:{second:9},tail:b},child.second=b,11),second},tail}=root;return first===11&&second===b&&tail===a&&original.child!==child&&root!==original?1:0;",
+    );
+}
+
+#[test]
+fn nested_object_bindings_keep_mutable_and_per_iteration_capture_cells() {
+    for body in [
+        "let {child:{x=a}}={child:{}};const read=()=>x===b?1:0;x=b;return read();",
+        "let first=()=>0;let second=()=>0;for(let i=0;i<2;i++){let {child:{x=i}}={child:{}};const read=()=>x===0?1:2;if(i===0)first=read;else second=read;}return first()*10+second();",
+        "let first=()=>0;let last=()=>0;for(let {child:{x=1}}={child:{}},i=0;i<2;i++,x=2){if(i===0)first=()=>x===1?1:10;last=()=>x===2?1:10;}return first()+last();",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn nested_object_bindings_check_null_prototype_provenance_at_each_receiver() {
+    compare(
+        "const dictionary=Object.create(null);dictionary.constructor=a;dictionary.__proto__=b;const {entry:{constructor:value,__proto__:raw,toString:missing}}={entry:dictionary};return value===a&&raw===b&&missing===undefined?1:0;",
+    );
+}
+
+#[test]
+fn nested_object_binding_annotations_are_erased_without_proving_receivers() {
+    let js = "export function run(a,b){let {child:{value,label}}={child:{value:a,label:' ab '}};value=b;return value===b&&label.trim()==='ab'?1:0;}";
+    let ts = "type Shape=never;export function run(a:string,b:boolean):void{let {child:{value,label}}:Shape=({child:{value:a,label:' ab '}} as unknown);value=b;return (value as number)===b&&(label as number).trim()==='ab'?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        compile(js, false).unwrap().wasm,
+        compile(ts, true).unwrap().wasm
+    );
+    let source = "export function run(a,b){const source:{child:{value:number}}={child:a};const {child:{value}}=source;return value===a?1:0;}";
+    let error = compile(source, true)
+        .err()
+        .unwrap_or_else(|| panic!("admitted {source}"));
+    assert!(error.contains("unsupported"), "{source}: {error}");
+    assert!(!error.contains("internal IR"), "{source}: {error}");
+}
+
+#[test]
+fn nested_object_bindings_preserve_empty_receiver_tdz_and_alias_guards() {
+    for body in [
+        "const {child:{}}={};return a;",
+        "const {child:{}}={child:null};return a;",
+        "const {child:{}}={child:[]};return a;",
+        "const {child:{x}}={child:a?{x:a}:null};return a;",
+        "const root={child:{x:a}};const alias=root;alias.child=null;const {child:{x}}=root;return a;",
+        "const root={child:{text:'ready'}};const alias=root.child;alias.text=a;const {child:{text}}=root;return text.length;",
+        "const {child:{constructor}}={child:{}};return a;",
+        "const dictionary=Object.create(null);dictionary.child={};const {child:{constructor}}=dictionary;return a;",
+        // Dictionary writes retain a possible missing value in the existing origin proof.
+        "const dictionary=Object.create(null);dictionary.constructor={value:a};dictionary.__proto__=b;const {entry:{constructor:{value},__proto__:raw,toString:missing}}={entry:dictionary};return value===a&&raw===b&&missing===undefined?1:0;",
+        "const {child:{x=x}}={child:{}};return a;",
+        "const {child:{x=later},later=a}={child:{}};return a;",
+        "const {first=later,child:{later=a}}={child:{}};return a;",
+        "const {child:{f=()=>x,x=a}}={child:{}};return a;",
+        "const {child:{x,...rest}}={child:{x:a}};return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn nested_object_binding_budgets_count_leaves_and_bound_source_depth() {
+    for count in [128, 129] {
+        let fields = (0..count)
+            .map(|index| format!("value:v{index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = format!(
+            "export function run(a,b){{const {{empty:{{}},child:{{{fields}}}}}={{empty:{{}},child:{{value:a}}}};return v0===a&&v127===a?1:0;}}"
+        );
+        for typed in [false, true] {
+            let result = compile_nested_on_small_stack(source.clone(), typed);
+            if count == 128 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("at most 128 source locals"), "{error}");
+            }
+        }
+    }
+    for depth in [32, 160] {
+        let mut pattern = "value".to_owned();
+        let mut value = "a".to_owned();
+        for _ in 0..depth {
+            pattern = format!("{{next:{pattern}}}");
+            value = format!("{{next:{value}}}");
+        }
+        let source =
+            format!("export function run(a,b){{const {pattern}={value};return value===a?1:0;}}");
+        for typed in [false, true] {
+            let result = compile_nested_on_small_stack(source.clone(), typed);
+            if depth == 32 {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(error.contains("nesting"), "{error}");
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}
+
+fn compile_nested_on_small_stack(source: String, typed: bool) -> Result<(), String> {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || compile(&source, typed).map(|_| ()))
+        .unwrap()
+        .join()
+        .expect("nested binding traversal must not overflow the native stack")
+}
+
+#[test]
 fn object_bindings_evaluate_one_rhs_and_publish_declarators_in_order() {
     for body in [
         "let n=0;const make=()=>{n++;return {x:a,y:b};};const {x,y}=make();return n===1&&x===a&&y===b?1:0;",
@@ -224,7 +367,6 @@ fn object_binding_annotations_are_erased_without_proving_values() {
 fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
     for body in [
         "const {x,...rest}={x:a,y:b};return a;",
-        "const {child:{x}}={child:{x:a}};return a;",
         "const {items:[x]}={items:[a]};return a;",
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",

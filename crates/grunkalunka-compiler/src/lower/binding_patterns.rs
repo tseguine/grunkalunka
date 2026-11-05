@@ -1,45 +1,40 @@
-//! Flat binding plans borrow the original source and select each own field or
-//! array position in order. Origins prove receiver kinds; annotations never do.
+//! Binding plans borrow the original source and select each own field or array
+//! position in order. Origins prove receiver kinds; annotations never do.
 use super::*;
 use oxc_ast::ast::{ArrayPattern, BindingIdentifier, BindingProperty, ObjectPattern, PropertyKey};
+use oxc_syntax::node::NodeId;
 
-/// Original-source leaves for representation and origin planning. This is not
-/// admission: the declaration path still checks the entire pattern and RHS.
-pub(super) fn object_leaves<'n, 'a>(
-    pattern: &'n BindingPattern<'a>,
-) -> impl Iterator<Item = (&'n BindingIdentifier<'a>, &'n BindingProperty<'a>)> {
-    let object = match pattern {
-        BindingPattern::ObjectPattern(object) => Some(object),
-        _ => None,
-    };
-    object
-        .into_iter()
-        .flat_map(|object| object.properties.iter())
-        .filter_map(|property| leaf(&property.value).map(|(identifier, _)| (identifier, property)))
-}
-
-pub(super) fn array_leaves<'n, 'a>(
-    pattern: &'n BindingPattern<'a>,
-) -> impl Iterator<Item = (usize, &'n BindingIdentifier<'a>, &'n BindingPattern<'a>)> {
-    let array = match pattern {
-        BindingPattern::ArrayPattern(array) => Some(array),
-        _ => None,
-    };
-    array
-        .into_iter()
-        .flat_map(|array| array.elements.iter().enumerate())
-        .filter_map(|(index, element)| {
-            let pattern = element.as_ref()?;
-            leaf(pattern).map(|(identifier, _)| (index, identifier, pattern))
-        })
-}
-
+/// Original-source pattern leaves for representation planning. Plain identifier
+/// declarations have their own planners. This walk does not admit a pattern.
 pub(super) fn leaves<'n, 'a>(
     pattern: &'n BindingPattern<'a>,
 ) -> impl Iterator<Item = &'n BindingIdentifier<'a>> {
-    object_leaves(pattern)
-        .map(|(identifier, _)| identifier)
-        .chain(array_leaves(pattern).map(|(_, identifier, _)| identifier))
+    let mut pending = if matches!(pattern, BindingPattern::BindingIdentifier(_)) {
+        Vec::new()
+    } else {
+        vec![pattern]
+    };
+    std::iter::from_fn(move || {
+        while let Some(pattern) = pending.pop() {
+            match pattern {
+                BindingPattern::BindingIdentifier(identifier) => return Some(identifier.as_ref()),
+                BindingPattern::AssignmentPattern(assignment) => pending.push(&assignment.left),
+                BindingPattern::ObjectPattern(object) => {
+                    pending.extend(
+                        object
+                            .properties
+                            .iter()
+                            .rev()
+                            .map(|property| &property.value),
+                    );
+                }
+                BindingPattern::ArrayPattern(array) => {
+                    pending.extend(array.elements.iter().rev().flatten());
+                }
+            }
+        }
+        None
+    })
 }
 
 fn leaf<'n, 'a>(
@@ -67,16 +62,22 @@ pub(super) fn key(property: &BindingProperty<'_>) -> Option<Vec<u16>> {
     }
 }
 
-pub(super) struct PropertyBinding<'n, 'a> {
-    pub(super) source: &'n BindingProperty<'a>,
-    pub(super) identifier: &'n BindingIdentifier<'a>,
-    pub(super) key: Vec<u16>,
-    pub(super) default: Option<&'n Expression<'a>>,
+pub(super) enum ObjectBindingStep<'n, 'a> {
+    Enter(&'n ObjectPattern<'a>),
+    Field {
+        source: &'n BindingProperty<'a>,
+        key: Vec<u16>,
+    },
+    Bind {
+        identifier: &'n BindingIdentifier<'a>,
+        default: Option<&'n Expression<'a>>,
+    },
+    Leave,
 }
 
 pub(super) struct ObjectBinding<'n, 'a> {
     pub(super) source: &'n Expression<'a>,
-    pub(super) fields: std::vec::IntoIter<PropertyBinding<'n, 'a>>,
+    pub(super) steps: std::vec::IntoIter<ObjectBindingStep<'n, 'a>>,
     pub(super) mutable: bool,
 }
 
@@ -151,12 +152,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         pattern: &'n ObjectPattern<'a>,
         mutable: bool,
     ) -> Result<ObjectBinding<'n, 'a>, String> {
-        if pattern.rest.is_some() {
-            return Err(unsupported(
-                pattern,
-                "object rest bindings are not yet admitted",
-            ));
-        }
         let source = local
             .init
             .as_ref()
@@ -171,33 +166,77 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 "object bindings require a source-proven managed object",
             ));
         }
-        self.charge_declaration_bindings(pattern, pattern.properties.len())?;
-        let dictionary = self.stored.dictionary(source.node_id());
-        let mut fields = Vec::with_capacity(pattern.properties.len());
-        for property in &pattern.properties {
-            let Some((identifier, default)) = leaf(&property.value) else {
-                return Err(unsupported(
-                    property,
-                    "object bindings currently require identifier leaves",
-                ));
-            };
-            let key = key(property).ok_or_else(|| {
-                unsupported(
-                    property,
-                    "object binding keys require an identifier or String literal",
-                )
-            })?;
-            let key = evaluate::managed_member_key(property, key, false, dictionary)?;
-            fields.push(PropertyBinding {
-                source: property,
-                identifier,
-                key,
-                default,
-            });
+        enum Work<'n, 'a> {
+            Object(&'n ObjectPattern<'a>, NodeId, usize),
+            Field(&'n BindingProperty<'a>, bool, usize),
+            Leave,
         }
+        let mut pending = vec![Work::Object(pattern, source.node_id(), 1)];
+        let mut steps = Vec::new();
+        let mut count = 0;
+        while let Some(work) = pending.pop() {
+            match work {
+                Work::Object(object, origin, depth) => {
+                    if depth > 128 {
+                        return Err(unsupported(object, "binding pattern nesting exceeds 128"));
+                    }
+                    if object.rest.is_some() {
+                        return Err(unsupported(
+                            object,
+                            "object rest bindings are not yet admitted",
+                        ));
+                    }
+                    if depth > 1 && self.stored.container(origin) != Some(Type::ManagedObject) {
+                        return Err(unsupported(
+                            object,
+                            "nested object bindings require a source-proven managed object",
+                        ));
+                    }
+                    steps.push(ObjectBindingStep::Enter(object));
+                    pending.push(Work::Leave);
+                    let dictionary = self.stored.dictionary(origin);
+                    pending.extend(
+                        object
+                            .properties
+                            .iter()
+                            .rev()
+                            .map(|property| Work::Field(property, dictionary, depth)),
+                    );
+                }
+                Work::Field(property, dictionary, depth) => {
+                    let key = key(property).ok_or_else(|| {
+                        unsupported(
+                            property,
+                            "object binding keys require an identifier or String literal",
+                        )
+                    })?;
+                    let key = evaluate::managed_member_key(property, key, false, dictionary)?;
+                    steps.push(ObjectBindingStep::Field {
+                        source: property,
+                        key,
+                    });
+                    if let Some((identifier, default)) = leaf(&property.value) {
+                        count += 1;
+                        steps.push(ObjectBindingStep::Bind {
+                            identifier,
+                            default,
+                        });
+                    } else if let BindingPattern::ObjectPattern(object) = &property.value {
+                        pending.push(Work::Object(object, object.node_id(), depth + 1));
+                    } else {
+                        return Err(unsupported(
+                            property,
+                            "object bindings currently require identifier leaves or nested object patterns",
+                        ));
+                    }
+                }
+                Work::Leave => steps.push(ObjectBindingStep::Leave),
+            }
+        }
+        self.charge_declaration_bindings(pattern, count)?;
         Ok(ObjectBinding {
             source,
-            fields: fields.into_iter(),
+            steps: steps.into_iter(),
             mutable,
         })
     }

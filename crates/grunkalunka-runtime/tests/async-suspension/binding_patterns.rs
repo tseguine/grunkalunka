@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn nested_object_binding_defaults_keep_receivers_order_and_captures_across_await() {
+    compare_promises(
+        &[
+            "const child={y:a};let source={child,tail:b};const old=source;const {child:{x=(await a,source.child={y:b},source={child:{y:b},tail:a},child.y=b,a),y},tail}=source;await b;return x===a&&y===b&&tail===b&&source!==old?1:0;",
+            "let n=0;const {left:{x=(await a,n=n*10+1,a)},right:{y=(await b,n=n*10+2,x)}}={left:{},right:{}};await a;return n+(x===a?100:0)+(y===x?1000:0);",
+            "let {child:{label}}={child:{label:'before'}};const read=()=>label;await a;label='after';await b;return read()==='after'?1:0;",
+            "let n=0;try{const {before=(n=1,a),child:{x=await Promise.reject(b),y=(n=2)},after=(n=3)}={child:{}};n=4;}catch(e){return n===1&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn object_binding_defaults_suspend_only_on_undefined() {
     compare_promises(
         &[
