@@ -58,6 +58,60 @@ function deferred() {
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+function deadlineClock() {
+  let now = 0;
+  let nextId = 0;
+  const pending = new Map();
+  const delays = [];
+  return {
+    pending, delays,
+    setTimeout(callback, delay) {
+      delays.push(delay);
+      const id = ++nextId;
+      pending.set(id, { at: now + delay, callback });
+      return id;
+    },
+    clearTimeout(id) { pending.delete(id); },
+    advance(milliseconds) {
+      now += milliseconds;
+      for (const [id, task] of [...pending]) {
+        if (task.at <= now && pending.delete(id)) task.callback();
+      }
+    },
+  };
+}
+
+// Deliberately ignores transport abort and never settles cancellation. A client
+// deadline must retire its own wait without relying on either transport promise.
+function stalledBody(status = 200) {
+  const first = deferred();
+  let reads = 0;
+  let cancellations = 0;
+  let releases = 0;
+  const cancel = () => { cancellations++; return new Promise(() => {}); };
+  const reader = {
+    read: () => ++reads === 1 ? first.promise : Promise.resolve({ done: true }),
+    cancel,
+    releaseLock: () => { releases++; },
+  };
+  return {
+    response: { status, ok: status >= 200 && status < 300,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      body: { getReader: () => reader, cancel } },
+    complete: value => first.resolve({ done: false,
+      value: new TextEncoder().encode(JSON.stringify(value)) }),
+    reads: () => reads, cancellations: () => cancellations, releases: () => releases,
+  };
+}
+
+async function alreadySettled(promise) {
+  let completed = false;
+  promise.then(() => { completed = true; });
+  await settle();
+  assert.equal(completed, true, 'the client settles independently of the stalled transport');
+  await promise;
+}
+
 // This harness checks browser adapter logic. Real native frame production and
 // actual browser-engine input/paint are separate integration evidence.
 function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
@@ -1060,6 +1114,229 @@ test('disposing the adapter aborts a pending request and removes all input handl
   pending.resolve(response(frame()));
   await client.ready;
   assert.equal(b.painted.length, 0);
+});
+
+test('the initial deadline settles stalled headers and ignores late pixels, authorization or rejection', async t => {
+  for (const late of ['frame', 'authorization', 'rejection']) await t.test(late, async t => {
+    const b = browser();
+    const timers = deadlineClock();
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    const client = startLiveClient({ ...b, timers });
+    t.after(client.dispose);
+    assert.deepEqual(timers.delays, [65_000]);
+    timers.advance(64_999);
+    await settle();
+    assert.equal(b.attributes.get('aria-busy'), 'true');
+    assert.equal(b.requests[0].signal.aborted, false);
+    timers.advance(1);
+    await alreadySettled(client.ready);
+    assert.equal(timers.pending.size, 0);
+    assert.equal(b.requests[0].signal.aborted, true);
+    assert.equal(b.attributes.get('aria-busy'), 'false');
+    assert.equal(b.attributes.get('aria-disabled'), 'true');
+    assert.equal(b.painted.length, 0);
+    assert.equal(b.data.get(tokenKey), token);
+    assert.match(b.status.textContent, /Connection interrupted/);
+    const message = b.status.textContent;
+    if (late === 'rejection') pending.reject(new Error('late transport failure'));
+    else {
+      const body = stalledBody(late === 'authorization' ? 403 : 200);
+      pending.resolve(body.response);
+      await settle();
+      assert.equal(body.reads(), 0, 'a retired reply never starts its body reader');
+      assert.ok(body.cancellations() > 0);
+    }
+    await settle();
+    assert.equal(b.painted.length, 0);
+    assert.equal(b.data.get(tokenKey), token, 'late authorization cannot erase current tab authority');
+    assert.equal(b.status.textContent, message);
+    b.click();
+    b.reload();
+    assert.equal(b.requests.length, 1, 'a deadline does not retry or admit new input');
+  });
+});
+
+test('one deadline covers headers and a stalled body while preserving the committed frame', async t => {
+  const b = browser();
+  const timers = deadlineClock();
+  b.replies.push(response(frame()));
+  const client = startLiveClient({ ...b, timers });
+  t.after(client.dispose);
+  await client.ready;
+  assert.equal(timers.pending.size, 0);
+  const committed = b.painted[0];
+  const headers = deferred();
+  const body = stalledBody();
+  b.replies.push(headers.promise);
+  const reloading = b.reload();
+  timers.advance(40_000);
+  headers.resolve(body.response);
+  await settle();
+  assert.equal(body.reads(), 1);
+  assert.equal(timers.pending.size, 1);
+  timers.advance(24_999);
+  await settle();
+  assert.equal(b.attributes.get('aria-busy'), 'true');
+  timers.advance(1);
+  await alreadySettled(reloading);
+  assert.equal(b.requests[1].signal.aborted, true);
+  assert.ok(body.cancellations() > 0);
+  assert.equal(timers.pending.size, 0);
+  assert.deepEqual(b.painted, [committed]);
+  assert.equal(b.attributes.get('aria-busy'), 'false');
+  assert.equal(b.reloadAttributes.get('aria-busy'), 'false');
+  assert.equal(b.reloadButton.disabled, true);
+  const message = b.status.textContent;
+  body.complete(frame({ sequence: 1, expanded: 0, visibleCount: 0,
+    pixels: Buffer.alloc(rgb.length, 90).toString('base64') }));
+  await settle();
+  assert.equal(body.reads(), 1, 'late chunks cannot resume an abandoned body loop');
+  assert.equal(body.releases(), 1);
+  assert.deepEqual(b.painted, [committed]);
+  assert.equal(b.attributes.get('aria-expanded'), 'true');
+  assert.equal(b.status.textContent, message);
+  b.reload();
+  assert.equal(b.requests.length, 2, 'an uncertain reload is never replayed');
+});
+
+test('a scroll body deadline discards the coalesced target without sending another POST', async t => {
+  const b = browser();
+  const timers = deadlineClock();
+  b.replies.push(response(scrollingFrame()));
+  const client = startLiveClient({ ...b, timers });
+  t.after(client.dispose);
+  await client.ready;
+  const committed = b.painted[0];
+  const body = stalledBody();
+  b.replies.push(body.response);
+  b.wheel();
+  b.wheel();
+  b.key('End');
+  await settle();
+  assert.equal(body.reads(), 1);
+  timers.advance(65_000);
+  await settle();
+  assert.equal(timers.pending.size, 0);
+  assert.equal(b.requests[1].signal.aborted, true);
+  assert.equal(b.attributes.get('aria-busy'), 'false');
+  assert.equal(b.attributes.get('aria-disabled'), 'true');
+  assert.deepEqual(b.painted, [committed]);
+  body.complete(scrollingFrame({ sequence: 1, scrollY: 20 }));
+  await settle();
+  b.wheel();
+  b.key('Home');
+  assert.equal(b.requests.length, 2, 'neither queued nor fresh input retries the uncertain action');
+  assert.deepEqual(b.painted, [committed]);
+});
+
+test('a real response stream is released when its cancellation callback stalls', async t => {
+  const b = browser();
+  const timers = deadlineClock();
+  let cancellations = 0;
+  const stream = new ReadableStream({
+    cancel() { cancellations++; return new Promise(() => {}); },
+  });
+  b.replies.push(new Response(stream, { headers: { 'content-type': 'application/json' } }));
+  const client = startLiveClient({ ...b, timers });
+  t.after(client.dispose);
+  await settle();
+  assert.equal(stream.locked, true);
+  timers.advance(65_000);
+  await alreadySettled(client.ready);
+  assert.equal(cancellations, 1);
+  assert.equal(stream.locked, false);
+  assert.equal(timers.pending.size, 0);
+  assert.equal(b.attributes.get('aria-busy'), 'false');
+  assert.equal(b.painted.length, 0);
+});
+
+test('disposal settles stalled headers immediately and late authorization cannot erase a replacement token', async () => {
+  const b = browser();
+  const timers = deadlineClock();
+  const pending = deferred();
+  b.replies.push(pending.promise);
+  const client = startLiveClient({ ...b, timers });
+  client.dispose();
+  assert.equal(timers.pending.size, 0);
+  assert.equal(b.attributes.get('aria-busy'), 'false');
+  await alreadySettled(client.ready);
+  const replacementToken = 'b'.repeat(64);
+  b.data.set(tokenKey, replacementToken);
+  const late = stalledBody(401);
+  pending.resolve(late.response);
+  await settle();
+  assert.equal(late.reads(), 0);
+  assert.ok(late.cancellations() > 0);
+  assert.equal(b.data.get(tokenKey), replacementToken);
+  assert.equal(b.painted.length, 0);
+});
+
+test('disposal settles a stalled selection body without waiting for reader cancellation', async () => {
+  const b = browser();
+  const timers = deadlineClock();
+  b.replies.push(response(selectionFrame()));
+  const client = startLiveClient({ ...b, timers });
+  await client.ready;
+  const body = stalledBody();
+  b.replies.push(body.response);
+  const selecting = b.select(1);
+  await settle();
+  assert.equal(body.reads(), 1);
+  client.dispose();
+  assert.equal(timers.pending.size, 0);
+  assert.equal(b.requests[1].signal.aborted, true);
+  assert.equal(b.attributes.get('aria-busy'), 'false');
+  assert.equal(b.choiceAttributes.get('aria-busy'), 'false');
+  await alreadySettled(selecting);
+  body.complete(selectionFrame({ sequence: 1, selectedNoteId: 1 }));
+  await settle();
+  assert.equal(body.reads(), 1);
+  assert.equal(body.releases(), 1);
+  assert.equal(b.painted.length, 1);
+  assert.equal(b.noteChoice.value, '0');
+  assert.equal(b.noteChoice.disabled, true);
+  assert.equal(b.requests.length, 2);
+});
+
+test('completed replies and local failures release their deadlines', async t => {
+  for (const outcome of ['success', 'retained-error', 'network', 'invalid-frame']) await t.test(outcome, async t => {
+    const b = browser();
+    const timers = deadlineClock();
+    b.replies.push(response(frame()));
+    const client = startLiveClient({ ...b, timers });
+    t.after(client.dispose);
+    await client.ready;
+    assert.equal(timers.pending.size, 0);
+    b.replies.push(outcome === 'network' ? Promise.reject(new Error('connection lost'))
+      : outcome === 'invalid-frame' ? response(frame({ width: 400 }))
+      : outcome === 'retained-error' ? response({ error: 'Reload failed', frame: frame({ sequence: 1 }) }, 500)
+      : response(frame({ sequence: 1 })));
+    await b.reload();
+    assert.equal(timers.pending.size, 0);
+    const message = b.status.textContent;
+    timers.advance(65_000);
+    await settle();
+    assert.equal(b.status.textContent, message);
+    assert.equal(b.attributes.get('aria-busy'), 'false');
+    assert.equal(b.requests.length, 2);
+  });
+});
+
+test('authorization failure settles even when response-body cancellation never completes', async t => {
+  const b = browser();
+  const timers = deadlineClock();
+  const body = stalledBody(403);
+  b.replies.push(body.response);
+  const client = startLiveClient({ ...b, timers });
+  t.after(client.dispose);
+  await alreadySettled(client.ready);
+  assert.equal(timers.pending.size, 0);
+  assert.equal(body.reads(), 0);
+  assert.ok(body.cancellations() > 0);
+  assert.equal(b.data.size, 0);
+  assert.equal(b.attributes.get('aria-busy'), 'false');
+  assert.match(b.status.textContent, /Session access expired/);
 });
 
 test('fixed page assets use external scripts/styles and preserve a borderless native coordinate surface', () => {
