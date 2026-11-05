@@ -1,6 +1,6 @@
 // Real native-platform execution of a historic layout impact selection against
-// current source. Validates the exact shared PR executor on Linux, Windows and
-// macOS. The canonical full suite runs separately on the same PR.
+// current source. The hosted rehearsal covers Linux and Windows; the shared
+// executor also accepts a manual native macOS run. Canonical CI runs separately.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -40,66 +40,98 @@ function invoke(command, args, { capture = false, timeout = 300000 } = {}) {
   return capture ? result.stdout : elapsedMs;
 }
 
-if (process.argv.length !== 2) throw new Error('unexpected CLI arguments');
-const nativePlatform = process.env.RUNNER_OS;
-if (!['Linux', 'Windows', 'macOS'].includes(nativePlatform)) {
-  throw new Error('rehearsal requires a supported native CI platform');
+// Keep these expectations independent of the graph/command translation. A1's
+// integration checks consume layout, so their forward build closure is wider
+// than the reverse selection of Cargo tests. Build-only packages stay untested.
+export function assertLayoutRehearsal(choice) {
+  assert.equal(choice.mode, 'partial', choice.reason);
+  assert.deepEqual(choice.selectedPackages, ['grunkalunka-layout'],
+    'the rehearsal must retain layout-only Cargo test and Clippy scope');
+  assert.deepEqual(choice.selectedTests, [
+    'cargo-test:grunkalunka-layout',
+    'check:a1-interaction-run',
+    'check:a1-live-application',
+    'check:a1-live-session',
+    'check:a1-note-preview',
+    'check:a1-service-interaction',
+    'check:workspace-clippy',
+    'check:workspace-format',
+    'check:workspace-tests',
+  ], 'the rehearsal must retain every downstream A1 consumer');
+  assert.deepEqual(choice.commands, [
+    ['cargo', 'build', '--locked', '--offline', '-j', '4',
+      '-p', 'grunkalunka-cli', '-p', 'grunkalunka-compiler',
+      '-p', 'grunkalunka-layout', '-p', 'grunkalunka-markdown',
+      '-p', 'grunkalunka-runtime', '-p', 'grunkalunka-wasm-link'],
+    ['cargo', 'fmt', '--all', '--check'],
+    ['cargo', 'clippy', '--all-targets', '--locked', '--offline', '-j', '4',
+      '-p', 'grunkalunka-layout', '--', '-D', 'warnings'],
+    ['cargo', 'test', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout'],
+    ['node', '--test', 'tests/applications/note-preview.test.mjs'],
+    ['node', '--test', 'tests/applications/a1-service-interaction.test.mjs'],
+    ['node', '--test', 'tests/applications/a1-interaction-run.test.mjs'],
+    ['node', '--test', 'tests/applications/a1-live-session.test.mjs'],
+    ['node', '--test', 'tests/applications/a1-live-client.test.mjs',
+      'tests/applications/a1-live-run.test.mjs'],
+  ], 'the rehearsal must execute the independent build and A1 command contract');
 }
-const historicalPaths = [
-  // Exact source-file changes in merged browser/layout PR #75.
-  'crates/grunkalunka-layout/examples/click_reflow_ppm.rs',
-  'crates/grunkalunka-layout/tests/headless_input_reflow.rs',
-  'docs/headless-hit-test.md',
-];
-const metadata = JSON.parse(invoke('cargo',
-  ['metadata', '--format-version', '1', '--no-deps', '--offline'], { capture: true }));
-const packages = metadata.packages.filter(p => metadata.workspace_members.includes(p.id));
-const workspacePackages = packages.map(p => p.name);
-const declared = readCatalog('checks');
-const observed = JSON.parse(invoke('node',
-  ['ci/impact/collect-checks.mjs'], { capture: true }));
-const coverage = verifyCanonicalChecks(observed, declared);
-const modules = [...cargoModules(metadata, root), ...readCatalog('owners')];
-const groups = readCatalog('targets');
-const cargoTests = cargoTestNodes(packages, readCatalog('cargo-tests'));
-const tests = [
-  ...cargoTests,
-  ...checkNodes(declared, workspacePackages, cargoTests.map(t => t.id)),
-];
-const externalWorkflows = auditBrowserWorkflows(historicalPaths, readCatalog('workflows'),
-  file => readFileSync(join(root, file), 'utf8'));
-const impact = planImpact({
-  changedPaths: historicalPaths, modules, groups, tests,
-  ignored: ['docs/'], global: ['.github/', 'ci/impact/', 'Cargo.toml', 'Cargo.lock'],
-});
-const plan = {
-  mode: 'shadow', advisoryOnly: true, ...impact,
-  canonicalCoverage: coverage, externalWorkflows,
-  selectedCommands: impact.full ? declared.map(d => d.id).sort() :
-    impact.tests.filter(id => id.startsWith('check:')),
-};
-const choice = choosePrChecks({
-  eventName: 'pull_request', runnerOS: nativePlatform, enabled: true,
-  plan, declared, observed, workspacePackages,
-});
-assert.equal(choice.mode, 'partial', choice.reason);
-assert.deepEqual(choice.selectedPackages, ['grunkalunka-layout']);
-assert.deepEqual(choice.commands, [
-  ['cargo', 'build', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout'],
-  ['cargo', 'fmt', '--all', '--check'],
-  ['cargo', 'clippy', '--all-targets', '--locked', '--offline', '-j', '4',
-    '-p', 'grunkalunka-layout', '--', '-D', 'warnings'],
-  ['cargo', 'test', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout'],
-]);
-const revision = invoke('git', ['rev-parse', 'HEAD'], { capture: true }).trim();
-console.log('PLATFORM REHEARSAL PLAN ' + JSON.stringify({
-  revision, nativePlatform, advisoryOnly: true, historicalPaths,
-  affectedTests: choice.selectedTests, selectedPackages: choice.selectedPackages,
-  canonicalCoverage: coverage, externalWorkflows, commands: choice.commands,
-}));
-const receipts = runDecision(choice, (command, args) => invoke(command, args));
-console.log('PASS native-platform partial rehearsal ' + JSON.stringify({
-  revision, nativePlatform, receipts,
-  elapsedMs: receipts.reduce((sum, r) => sum + r.elapsedMs, 0),
-  caveat: 'historical changed paths replayed against current source; full PR CI is authoritative',
-}));
+
+function main() {
+  if (process.argv.length !== 2) throw new Error('unexpected CLI arguments');
+  const nativePlatform = process.env.RUNNER_OS;
+  if (!['Linux', 'Windows', 'macOS'].includes(nativePlatform)) {
+    throw new Error('rehearsal requires a supported native CI platform');
+  }
+  const historicalPaths = [
+    // Exact source-file changes in merged browser/layout PR #75.
+    'crates/grunkalunka-layout/examples/click_reflow_ppm.rs',
+    'crates/grunkalunka-layout/tests/headless_input_reflow.rs',
+    'docs/headless-hit-test.md',
+  ];
+  const metadata = JSON.parse(invoke('cargo',
+    ['metadata', '--format-version', '1', '--no-deps', '--offline'], { capture: true }));
+  const packages = metadata.packages.filter(p => metadata.workspace_members.includes(p.id));
+  const workspacePackages = packages.map(p => p.name);
+  const declared = readCatalog('checks');
+  const observed = JSON.parse(invoke('node',
+    ['ci/impact/collect-checks.mjs'], { capture: true }));
+  const coverage = verifyCanonicalChecks(observed, declared);
+  const modules = [...cargoModules(metadata, root), ...readCatalog('owners')];
+  const groups = readCatalog('targets');
+  const cargoTests = cargoTestNodes(packages, readCatalog('cargo-tests'));
+  const tests = [
+    ...cargoTests,
+    ...checkNodes(declared, workspacePackages, cargoTests.map(t => t.id)),
+  ];
+  const externalWorkflows = auditBrowserWorkflows(historicalPaths, readCatalog('workflows'),
+    file => readFileSync(join(root, file), 'utf8'));
+  const impact = planImpact({
+    changedPaths: historicalPaths, modules, groups, tests,
+    ignored: ['docs/'], global: ['.github/', 'ci/impact/', 'Cargo.toml', 'Cargo.lock'],
+  });
+  const plan = {
+    mode: 'shadow', advisoryOnly: true, ...impact,
+    canonicalCoverage: coverage, externalWorkflows,
+    selectedCommands: impact.full ? declared.map(d => d.id).sort() :
+      impact.tests.filter(id => id.startsWith('check:')),
+  };
+  const choice = choosePrChecks({
+    eventName: 'pull_request', runnerOS: nativePlatform, enabled: true,
+    plan, declared, observed, workspacePackages,
+  });
+  assertLayoutRehearsal(choice);
+  const revision = invoke('git', ['rev-parse', 'HEAD'], { capture: true }).trim();
+  console.log('PLATFORM REHEARSAL PLAN ' + JSON.stringify({
+    revision, nativePlatform, advisoryOnly: true, historicalPaths,
+    affectedTests: choice.selectedTests, selectedPackages: choice.selectedPackages,
+    canonicalCoverage: coverage, externalWorkflows, commands: choice.commands,
+  }));
+  const receipts = runDecision(choice, (command, args) => invoke(command, args));
+  console.log('PASS native-platform partial rehearsal ' + JSON.stringify({
+    revision, nativePlatform, receipts,
+    elapsedMs: receipts.reduce((sum, r) => sum + r.elapsedMs, 0),
+    caveat: 'historical changed paths replayed against current source; full PR CI is authoritative',
+  }));
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
