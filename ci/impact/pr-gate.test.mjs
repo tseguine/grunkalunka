@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   choosePrChecks, chooseWithFallback, runDecision,
 } from './pr-gate.mjs';
@@ -219,6 +221,82 @@ test('selected command failure is terminal and is not turned into full fallback'
   }), /test failure/);
   assert.equal(called.length, 5);
   assert.ok(!called.some(x => x.includes('scripts/check.mjs')));
+});
+
+test('full fallback gives the aggregate the job budget while bounding its build', () => {
+  const choice = choosePrChecks({ eventName: 'push', runnerOS: 'Linux', enabled: true });
+  const called = [];
+  const receipts = runDecision(choice, (command, args, options = { timeout: 45 * 60_000 }) => {
+    called.push({ command, args, options });
+    // A healthy full run can exceed the selected-command watchdog. The
+    // workflow still owns the total job deadline, as it does on master.
+    const elapsedMs = command === 'node' ? 50 * 60_000 : 60_000;
+    if (options.timeout !== 0 && elapsedMs >= options.timeout) {
+      throw new Error('aggregate interrupted by selected-command watchdog');
+    }
+    return elapsedMs;
+  });
+  assert.deepEqual(called.map(call => call.options), [
+    { timeout: 45 * 60_000 }, { timeout: 0 },
+  ]);
+  assert.equal(receipts.length, 2);
+  assert.equal(receipts[1].elapsedMs, 50 * 60_000);
+  assert.equal(receipts[1].status, 'passed');
+});
+
+test('partial execution retains its watchdog even for a canonical-runner command', () => {
+  const choice = choose(compiler());
+  choice.commands.push(['node', 'scripts/check.mjs']);
+  const called = [];
+  runDecision(choice, (command, args, options) => {
+    called.push({ command, args, options });
+    return 1;
+  });
+  assert.equal(called.length, choice.commands.length);
+  assert.ok(called.every(call => call.options.timeout === 45 * 60_000));
+});
+
+test('production full execution forwards budgets and propagates aggregate failure', () => {
+  const gate = new URL('./pr-gate.mjs', import.meta.url);
+  for (const aggregateStatus of [0, 7]) {
+    // Isolate the subprocess stand-in in a child so the real main/execute/invoke
+    // path runs without changing this test process or compiling native code.
+    const source = `
+      import childProcess from 'node:child_process';
+      import { syncBuiltinESMExports } from 'node:module';
+      const calls = [];
+      childProcess.spawnSync = (command, args, options) => {
+        calls.push({ command, args, timeout: options.timeout });
+        return { status: command === process.execPath ? ${aggregateStatus} : 0 };
+      };
+      syncBuiltinESMExports();
+      process.argv = [process.execPath, ${JSON.stringify(fileURLToPath(gate))}];
+      process.env.GITHUB_EVENT_NAME = 'workflow_dispatch';
+      try {
+        await import(${JSON.stringify(gate.href)});
+      } finally {
+        console.log('PR GATE SPAWNS ' + JSON.stringify(calls));
+      }
+    `;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
+      encoding: 'utf8', timeout: 10_000,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null);
+    const receipt = result.stdout.split('\n').find(line => line.startsWith('PR GATE SPAWNS '));
+    assert.ok(receipt, result.stdout + result.stderr);
+    assert.deepEqual(JSON.parse(receipt.slice('PR GATE SPAWNS '.length)), [
+      { command: 'cargo', args: ['build', '--workspace', '--locked', '--offline', '-j', '4'],
+        timeout: 45 * 60_000 },
+      { command: process.execPath, args: ['scripts/check.mjs'], timeout: 0 },
+    ]);
+    assert.equal(result.status, aggregateStatus === 0 ? 0 : 1, result.stderr);
+    if (aggregateStatus === 0) assert.match(result.stdout, /PASS PR CI /);
+    else {
+      assert.doesNotMatch(result.stdout, /PASS PR CI /);
+      assert.match(result.stderr, /node scripts\/check\.mjs failed: 7/);
+    }
+  }
 });
 
 test('invalid executable decisions are rejected before execution', () => {

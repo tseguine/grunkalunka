@@ -88,8 +88,12 @@ kernel tests have short build watchdogs that must not include a cold dependency
 build. For a Linux/Windows PR partial mode, the dependency graph determines
 prebuild packages. `node scripts/check.mjs` remains the source of truth for canonical
 Clippy, Rust and JS checks. The per-command descriptors are verified against
-its live command inventory before selection. No tests, assertions or timeouts
-are relaxed.
+its live command inventory before selection. Test assertions and individual
+test deadlines are unchanged. Selected commands and the full workspace build
+retain a 45-minute subprocess cap. The aggregate `node scripts/check.mjs` in
+full fallback uses the existing 60-minute job watchdog, like full verification
+on `master`, without an additional PR-only aggregate deadline. A failed command
+still fails the gate immediately.
 
 A local reproduction, after installing the toolchain and Node, is:
 

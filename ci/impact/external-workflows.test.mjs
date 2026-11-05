@@ -86,6 +86,28 @@ test('tool-only source change triggers live smoke and the canonical offline suit
   assert.ok(result.expectedToTrigger.includes('workflow:browser-smoke'));
 });
 
+test('production A1 presenter and its controlled backend require the existing smoke engines only', () => {
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  for (const path of [
+    'examples/note-preview/live-client.mjs',
+    'examples/note-preview/live-page.mjs',
+    'tools/browser-oracles/a1-presenter-fixture.mjs',
+    'tools/browser-oracles/a1-presenter.mjs',
+    'tools/browser-oracles/hosted/a1-presenter.test.mjs',
+  ]) {
+    const result = auditBrowserWorkflows([path], entries, file => readFileSync(join(root, file), 'utf8'));
+    assert.equal(result.valid, true, result.errors.join('; '));
+    assert.deepEqual(result.requiredNotTriggered, []);
+    assert.deepEqual(result.expectedToTrigger, ['workflow:browser-smoke'], path);
+  }
+  const drift = sources();
+  drift['.github/workflows/browser-smoke.yml'] = drift['.github/workflows/browser-smoke.yml']
+    .replace(' tools/browser-oracles/hosted/a1-presenter.test.mjs', '');
+  const result = audit(['examples/note-preview/live-client.mjs'], drift);
+  assert.equal(result.valid, false, 'dropping presenter execution cannot imply verified coverage');
+  assert.ok(result.errors.length);
+});
+
 test('native width sensitivity tools require the native bridge only', () => {
   for (const changed of [
     ['tools/browser-oracles/native-bridge-sensitivity.mjs'],
@@ -251,6 +273,7 @@ test('offline-only tests never allocate hosted browser jobs', () => {
     'tests/browser-oracles/workflow-node-version.test.mjs',
     'tests/browser-oracles/workflow-browser-image.test.mjs',
     'tools/browser-oracles/verify-baseline.test.mjs',
+    'tools/browser-oracles/a1-presenter.test.mjs',
   ]) {
     const result = audit([path]);
     assert.equal(result.valid, true, JSON.stringify(result.errors));
@@ -265,6 +288,8 @@ test('the real-engine smoke source trigger tracks its complete consumed inputs',
   assert.deepEqual(smoke.requiredFor, smoke.paths,
     'every live source input must be audited against its workflow trigger');
   for (const input of [
+    'examples/note-preview/live-client.mjs',
+    'examples/note-preview/live-page.mjs',
     'tests/browser-oracles/layout-baseline.html',
     'tests/browser-oracles/cascade-mutations.html',
     'tests/browser-oracles/event-dispatch.html',
@@ -276,6 +301,8 @@ test('the real-engine smoke source trigger tracks its complete consumed inputs',
     'tests/browser-oracles/compare.mjs',
     'tests/browser-oracles/cross-engine.mjs',
     'tools/browser-oracles/smoke.mjs',
+    'tools/browser-oracles/a1-presenter-fixture.mjs',
+    'tools/browser-oracles/a1-presenter.mjs',
     'tools/browser-oracles/collect.mjs',
     'tools/browser-oracles/diagnostic-isolation.mjs',
     'tools/browser-oracles/cascade.mjs',
@@ -287,6 +314,7 @@ test('the real-engine smoke source trigger tracks its complete consumed inputs',
     'tools/browser-oracles/grid-placement.mjs',
     'tools/browser-oracles/verify-baseline.mjs',
     'tools/browser-oracles/hosted/smoke.test.mjs',
+    'tools/browser-oracles/hosted/a1-presenter.test.mjs',
     'tools/browser-oracles/hosted/cross-engine.test.mjs',
     'tools/browser-oracles/package.json',
     '.gitattributes',

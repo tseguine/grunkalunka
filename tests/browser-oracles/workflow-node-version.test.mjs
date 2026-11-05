@@ -19,7 +19,7 @@ test("browser producers and report job use one exact Node version", async () => 
   for (const job of jobs) {
     assert.ok(job.includes("uses: actions/setup-node@"));
   }
-  for (const file of ["smoke.test.mjs", "cross-engine.test.mjs"]) {
+  for (const file of ["smoke.test.mjs", "a1-presenter.test.mjs", "cross-engine.test.mjs"]) {
     const source = await readFile(new URL("../../tools/browser-oracles/hosted/" + file,
       import.meta.url), "utf8");
     assert.ok(source.includes("process.versions.node"));

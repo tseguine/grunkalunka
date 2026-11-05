@@ -185,17 +185,21 @@ export function runDecision(decision, execute) {
       throw new Error('invalid selected executable command');
     }
     const [command, ...args] = entry;
-    const elapsedMs = execute(command, args);
+    // The full canonical runner aggregates many checks. Its total deadline is
+    // the existing workflow job watchdog, just as on master; applying the
+    // selected-command cap here cuts off healthy full runs on slower hosts.
+    const fullAggregate = decision.mode === 'full' && same(entry, fullCommands[1]);
+    const elapsedMs = execute(command, args, { timeout: fullAggregate ? 0 : 45 * 60_000 });
     receipts.push({ command, args, elapsedMs, status: 'passed' });
     // Failure propagates. Do not retry with full CI after a partial test fails.
   }
   return receipts;
 }
 
-function execute(command, args) {
+function execute(command, args, options) {
   const started = performance.now();
-  console.log('PR CI START ' + JSON.stringify({ command, args }));
-  invoke(command, args, { timeout: 45 * 60_000 });
+  console.log('PR CI START ' + JSON.stringify({ command, args, timeoutMs: options.timeout }));
+  invoke(command, args, options);
   const elapsedMs = Math.round(performance.now() - started);
   console.log('\nPR CI END ' + JSON.stringify({ command, args, elapsedMs, status: 'passed' }));
   return elapsedMs;
