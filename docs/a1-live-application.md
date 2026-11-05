@@ -26,12 +26,26 @@ offscreen title back into view. Heading rows remain inert. The presenter scales
 pointer coordinates from the current canvas rectangle into native pixels, so
 resizing the page does not move the hit target.
 
-After editing the note in another editor, select **Reload note**. The application
-reopens the same path selected at startup, including a file replaced by an
-editor's atomic save. It retains the session, launch URL, component and input
-budget. The browser cannot choose another path or upload note contents. Reload
-is explicit; refreshing the browser page reconnects to the retained session
-without rereading the file.
+Repeat `--note` to make up to eight notes available in one session:
+
+```sh
+node examples/note-preview/live-run.mjs --profile granted --note ./work.md --note ./ideas.md
+```
+
+The **Note** chooser lists only those launch-defined notes. Startup reads the
+first note; another is read only when selected. A successful switch updates the
+selected label and native pixels together, starts at the top, and preserves the
+session's expanded/collapsed preference. The chooser continues to work when the
+current note is empty or its title is offscreen. While a switch is pending, the
+chooser continues to show the committed note. A failed switch retains it.
+
+After editing the selected note in another editor, select **Reload note**. The
+application reopens that note's launch-defined path, including a file replaced by
+an editor's atomic save. Selecting the already active note is a no-op and does
+not reread it. Reload is explicit; refreshing the browser page reconnects to the
+retained session without rereading the file. Selection and reload retain the
+session, launch URL, component and input budget. The browser cannot supply
+another path or upload note contents.
 
 The process listens on `127.0.0.1` and chooses an available port. `--port NUMBER`
 can select a particular port; there is no external bind option. Stop the command
@@ -49,30 +63,48 @@ Other explicit options:
 - `--component HANDLER.wasm` runs an already-built portable action component.
   Otherwise startup compiles the checked-in `activate.js` once.
 
+Launch paths are resolved and copied before asynchronous startup; exact duplicate
+resolved paths and more than eight notes are rejected. Other flags remain
+single-use. Display labels default to bounded, sanitized basenames. Programmatic
+hosts may pass `notes: [path, { note: path, label: 'Display name' }]` instead of
+`note: path`; the two forms are exclusive. Explicit labels must contain 1–256
+UTF-8 bytes and no C0 or DEL control characters. Labels are shown as text, and
+frame metadata contains their ordinal IDs and labels without the source paths.
+Document denial does not inspect either note argument or expose a catalog;
+UI denial preserves the independently granted first note and read-only labels.
+
 Granted notes must be regular files containing at most 4096 valid UTF-8 bytes.
 The regular-file check follows a nonblocking open on hosts that support it, so a
 FIFO cannot stall startup before the check. No note writes are available.
 
 ## Input, frames and failure behavior
 
-An [asynchronous owned session](a1-async-session.md) loads the fixed document
-source and performs native work in a fixed worker module. The HTTP event loop
+An [asynchronous owned session](a1-async-session.md) owns the fixed note catalog,
+loads its selected document and performs native work in a fixed worker module. The HTTP event loop
 can continue serving the last committed frame while the worker executes an
-action or reloads the note. Inputs are serialized; the adapter defaults to at
+action, selects another allowed note or reloads the current note. Inputs are
+serialized; the adapter defaults to at
 most eight queued or executing requests. A session has at most
 256 valid native input attempts, including pointer misses, denied actions,
-traps, denied scrolls, unchanged scroll positions and every admitted reload.
-Pointer, scroll and reload requests share this budget and queue. A reload
-consumes its attempt before file access, including when the file is unchanged,
-unreadable or invalid. The programmatic host can choose smaller positive budgets.
-Both document and UI grants are required to scroll or reload. UI denial still
-permits an independently granted note to be read and displayed at startup.
+traps, denied scrolls, unchanged scroll positions and every admitted reload or
+note selection. Pointer, scroll, reload and selection requests share this budget
+and queue. Reload and selection consume an attempt before file access, including
+when a file is unreadable or invalid. A valid same-ID selection consumes an
+attempt without I/O, including a direct request for the sole note in a one-note
+session. Unknown or malformed IDs are rejected before admission and consume no
+attempt. The programmatic host can choose smaller positive budgets. Both document
+and UI grants are required to scroll, reload or select a note. UI-denied
+selections consume their attempt without accessing a file, even for the active
+ID. UI denial still permits the independently granted first note to be read and
+displayed at startup.
 
 The browser sends only one input at a time and retains at most one coalesced
-scroll target while a pointer or scroll request is pending. Reload is disabled
-while any request is in flight. Starting a reload discards prior scroll intent,
-and wheel or scroll-key movement during that reload is not queued against the
-replacement document. Wheel input accepts pixel, line and page units, bounds
+scroll target while a pointer or scroll request is pending. Reload and the note
+chooser are disabled while any request is in flight. Starting either document
+operation discards prior scroll intent, and wheel or scroll-key movement during
+it is not queued against the replacement document. Ignored or pending chooser
+changes restore the committed ID; another choice is never queued or retried
+automatically. Wheel input accepts pixel, line and page units, bounds
 each movement and clamps the target to the native scroll
 range. Pixel units follow the canvas scale; line and page steps are 16 and 160
 native pixels. Browser zoom gestures are preserved. A wheel or keyboard movement
@@ -80,16 +112,22 @@ that remains at the current edge sends no request. Scroll controls keep working
 when the title is offscreen and activation is unavailable.
 
 The browser never computes expansion, derives headings or substitutes browser
-layout for native pixels. A successful update returns a version-3 frame with
+layout for native pixels. A successful update returns a version-4 frame with
 the authoritative expansion, count and shared attempt sequence, plus `scrollY`,
-`maxScrollY`, `canScroll`, `controlPoint` and `canReload`. The native position and
+`maxScrollY`, `canScroll`, `controlPoint`, `canReload`, `noteChoices`,
+`selectedNoteId` and `canSelectNote`. Each choice has an integer `id` from zero
+through seven and a bounded `label`; the selected ID belongs to that catalog.
+Document denial returns an empty catalog and a null selected ID.
+The native position and
 maximum are unsigned 32-bit integers. `controlPoint` is a point inside the visible title or
 `null` when it cannot be hit. `canActivate` also requires that visible point;
 `canScroll` requires a positive maximum. `canReload` needs neither a visible
 title nor a scroll range, so an empty note can be reloaded after headings are
-added. All three require the grants and remaining input budget. Scrolling
-publishes the native pixels and viewport metadata together, and a collapsed
-outline clamps its scroll position to zero.
+added. `canSelectNote` also works independently of title visibility or scroll
+range, but requires more than one choice. All four availability flags require
+the grants, remaining input budget and a live session. Scrolling publishes the
+native pixels and viewport metadata together, and a collapsed outline clamps
+its scroll position to zero.
 
 A successful reload commits the new owned document, scene, viewport and pixels
 together. It preserves the expanded/collapsed preference and clamps the old
@@ -98,8 +136,18 @@ at offset zero while preserving that preference for later edits. The retained
 source component is not recompiled or invoked by reload itself; later title
 activation uses the current document's heading count.
 
+Selecting a different ID commits its document, selected ID, scene and pixels
+together. It resets the scroll position even if the two notes contain identical
+bytes. The expansion preference is shared across notes and survives an empty
+selection. If opening or rendering a candidate fails, the previous ID and
+document remain committed, so a subsequent reload still reads the previous
+note's path. Selection invokes no source compiler or action component.
+
 The browser validates frame dimensions, RGB byte length, viewport bounds and
-control points before painting, and rejects an older sequence. A trap leaves
+control points, catalog bounds, labels and selected-ID membership before painting,
+and rejects an older sequence. Labels are assigned through `textContent`, never
+parsed as HTML. The existing 220,000-byte response cap includes eight maximally
+escaped labels and an error wrapper around the native RGB frame. A trap leaves
 the committed pixels unchanged but consumes an attempt; its error response
 carries that newer snapshot. Any failed request discards queued movement.
 Transport uncertainty disables further input until reconnecting, so an unknown
@@ -109,10 +157,10 @@ it does not silently create a replacement state.
 Controlled service rejections, including UI denial or an invalid requested
 heading count, return an explicit action error with the preserved frame. They
 do not revoke the independent transport token or become a successful repaint.
-Denied scrolling or reloading returns HTTP 409 with the preserved frame and
+Denied scrolling, reloading or selection returns HTTP 409 with the preserved frame and
 consumed attempt. File read, UTF-8, size, document-processing or native-frame
 failures return 500 with the previous document and view intact. A later explicit
-reload can recover after the file is fixed. Queue or lifetime-budget exhaustion
+reload or selection can recover after the file is fixed. Queue or lifetime-budget exhaustion
 returns 429; a terminal session returns 503. Error messages expose no note path
 or native command details.
 
@@ -124,11 +172,11 @@ cancellation or a strict wall-clock bound for filesystem work.
 
 ## Private loopback transport
 
-Only seven exact routes exist: the fixed page, client module, stylesheet, frame
-read, pointer input, scroll input and note reload. There is no file server, note
-download, component upload or generic command endpoint. The page and assets contain no
-note content, path or launch token. Frame responses carry native RGB and small
-view metadata.
+Only eight exact routes exist: the fixed page, client module, stylesheet, frame
+read, pointer input, scroll input, note reload and note selection. There is no
+file server, note download, component upload or generic command endpoint. The
+page and assets contain no note content, path or launch token. Frame responses
+carry native RGB, bounded display labels and small view metadata.
 
 Every frame/input request needs a random launch token in a custom header. The
 launch link puts that token in its fragment, which the browser removes before
@@ -139,12 +187,14 @@ Reopen the complete launch link after clearing that storage or losing access.
 The server checks the exact loopback Host header and rejects a foreign Origin
 before reading a body or calling the session. It sends no CORS permission,
 disables caching and referrers, and limits scripts/styles/connections to itself.
-All three input bodies are at most 128 bytes, require JSON and have a five-second
+All four input bodies are at most 128 bytes, require JSON and have a five-second
 completion deadline. `POST /input` accepts exactly `x` and `y` integer coordinates
 inside the native frame. `POST /scroll` accepts exactly one `y` integer from zero
 through 4294967295; the native session clamps it to the current maximum.
-`POST /reload` accepts exactly an empty object. Paths, contents, grants, component
-overrides and extra fields are rejected before queue admission or file access.
+`POST /reload` accepts exactly an empty object. `POST /select` accepts exactly
+`{ "id": ordinal }`, where the ID is an integer in the launch-defined catalog.
+Unknown IDs, paths, contents, labels, grants, component overrides and extra
+fields are rejected with 400 before queue admission or file access.
 Sixteen connections and one request per connection bound admission even for pipelined
 HTTP. These controls apply to this private local presenter; the transport is not
 a public WIT interface or general network application service.
@@ -159,11 +209,16 @@ bodies, foreign authority, HTTP pipelining, shared attempt exhaustion and close.
 Reload cases cover file edits and atomic replacement, unchanged bytes, scroll
 clamping, empty-note recovery, preserved expansion preference, both grant
 denials and recovery after missing, oversized, invalid UTF-8 or non-regular files.
-A long-note case scrolls to both ends, activates a partly clipped native title,
-checks offscreen hit behavior and restores the original pixels. The detached
-bundle exercises the same scroll path without build tools. The dependency-free
+Selection cases cover catalog ownership before startup yields, identical-byte
+switches, same-ID no-I/O attempts, global expansion preference, empty transitions,
+retained reload identity after a failed candidate, malformed and unknown IDs,
+grant separation and mixed-operation exhaustion. A long-note case scrolls to
+both ends, activates a partly clipped native title, checks offscreen hit behavior
+and restores the original pixels. The detached bundle selects and reloads two
+external notes through the same session without build tools. The dependency-free
 browser harness covers wheel modes, keyboard controls, native control points,
-bounded coalescing, reload controls and failed-request handling; it does not
+bounded coalescing, reload and selection controls, escaped labels, committed
+chooser state and failed-request handling; it does not
 execute an independent browser engine. Actual browser QA and hosted results are
 reported in the PRs.
 

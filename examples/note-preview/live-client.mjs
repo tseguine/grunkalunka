@@ -37,13 +37,19 @@ export function wheelDeltaToNative({ deltaY, deltaMode, ctrlKey }, rect) {
 }
 
 export function decodeLiveFrame(frame) {
+  const choices = frame?.noteChoices;
+  const validChoices = Array.isArray(choices) && choices.length <= 8 && Array.from(choices).every((choice, id) =>
+    choice !== null && typeof choice === 'object' && !Array.isArray(choice) &&
+    Object.keys(choice).length === 2 && Object.hasOwn(choice, 'id') && Object.hasOwn(choice, 'label') &&
+    choice.id === id && typeof choice.label === 'string' && choice.label.length > 0 &&
+    !/[\x00-\x1f\x7f]/.test(choice.label) && new TextEncoder().encode(choice.label).byteLength <= 256);
   const point = frame?.controlPoint;
   const validPoint = point === null || (typeof point === 'object' && !Array.isArray(point) &&
     Object.keys(point).length === 2 && Object.hasOwn(point, 'x') && Object.hasOwn(point, 'y') &&
     Number.isSafeInteger(point.x) && point.x >= 0 && point.x < WIDTH &&
     Number.isSafeInteger(point.y) && point.y >= 0 && point.y < HEIGHT);
   if (frame === null || typeof frame !== 'object' || Array.isArray(frame) ||
-      frame.schemaVersion !== 3 || frame.width !== WIDTH || frame.height !== HEIGHT ||
+      frame.schemaVersion !== 4 || frame.width !== WIDTH || frame.height !== HEIGHT ||
       !Number.isSafeInteger(frame.sequence) || frame.sequence < 0 || frame.sequence > 256 ||
       ![0, 1].includes(frame.expanded) ||
       !Number.isSafeInteger(frame.visibleCount) || frame.visibleCount < 0 || frame.visibleCount > 64 ||
@@ -53,12 +59,16 @@ export function decodeLiveFrame(frame) {
       !Number.isSafeInteger(frame.maxScrollY) || frame.maxScrollY < 0 || frame.maxScrollY > 0xffffffff ||
       frame.scrollY > frame.maxScrollY || !validPoint ||
       typeof frame.canActivate !== 'boolean' || typeof frame.canScroll !== 'boolean' ||
-      typeof frame.canReload !== 'boolean' ||
+      typeof frame.canReload !== 'boolean' || typeof frame.canSelectNote !== 'boolean' ||
+      !validChoices || (choices.length === 0 ? frame.selectedNoteId !== null
+        : !Number.isSafeInteger(frame.selectedNoteId) || frame.selectedNoteId < 0 ||
+          frame.selectedNoteId >= choices.length) ||
       !Number.isSafeInteger(frame.remainingEvents) || frame.remainingEvents < 0 ||
       frame.sequence + frame.remainingEvents < 1 || frame.sequence + frame.remainingEvents > 256 ||
       (frame.canActivate && (point === null || frame.remainingEvents === 0)) ||
       (frame.canScroll && (frame.maxScrollY === 0 || frame.remainingEvents === 0)) ||
       (frame.canReload && frame.remainingEvents === 0) ||
+      (frame.canSelectNote && (choices.length < 2 || frame.remainingEvents === 0)) ||
       typeof frame.pixels !== 'string' || frame.pixels.length !== BASE64_LENGTH ||
       /[^A-Za-z0-9+/]/.test(frame.pixels)) {
     throw new TypeError('Invalid A1 live frame');
@@ -74,7 +84,8 @@ export function decodeLiveFrame(frame) {
   }
   return { sequence: frame.sequence, expanded: frame.expanded,
     visibleCount: frame.visibleCount, canActivate: frame.canActivate,
-    canScroll: frame.canScroll, canReload: frame.canReload,
+    canScroll: frame.canScroll, canReload: frame.canReload, canSelectNote: frame.canSelectNote,
+    noteChoices: choices.map(({ id, label }) => ({ id, label })), selectedNoteId: frame.selectedNoteId,
     scrollY: frame.scrollY, maxScrollY: frame.maxScrollY,
     controlPoint: point === null ? null : { x: point.x, y: point.y },
     remainingEvents: frame.remainingEvents, rgba };
@@ -137,6 +148,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   const canvas = document.getElementById('note-frame');
   const status = document.getElementById('session-status');
   const reloadButton = document.getElementById('reload-note');
+  const noteChoice = document.getElementById('note-choice');
   const context = canvas.getContext('2d', { alpha: false });
   let current = null;
   let busy = true;
@@ -162,6 +174,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     else canvas.removeAttribute('aria-expanded');
     reloadButton.disabled = !connected || busy || !current?.canReload || current.remainingEvents === 0;
     reloadButton.setAttribute('aria-busy', String(activeKind === 'reload'));
+    noteChoice.disabled = !connected || busy || !current?.canSelectNote || current.remainingEvents === 0;
+    noteChoice.setAttribute('aria-busy', String(activeKind === 'select'));
+    noteChoice.value = current?.selectedNoteId == null ? '' : String(current.selectedNoteId);
   }
 
   function paint(value) {
@@ -171,11 +186,25 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     pixels.data.set(next.rgba);
     context.putImageData(pixels, 0, 0);
     current = next;
+    const options = next.noteChoices.map(({ id, label }) => {
+      const option = document.createElement('option');
+      option.value = String(id);
+      option.textContent = label;
+      return option;
+    });
+    if (options.length === 0) {
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = 'No note available';
+      options.push(empty);
+    }
+    noteChoice.replaceChildren(...options);
+    noteChoice.value = next.selectedNoteId === null ? '' : String(next.selectedNoteId);
   }
 
   function describeFrame() {
     if (current.remainingEvents === 0) return 'Session input limit reached. Start a new session to continue.';
-    if (!current.canActivate && !current.canScroll && !current.canReload) {
+    if (!current.canActivate && !current.canScroll && !current.canReload && !current.canSelectNote) {
       return 'View only. Outline controls are unavailable in this session.';
     }
     if (!current.expanded) return current.controlPoint === null && current.canReload
@@ -232,8 +261,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     activeKind = kind;
     activeScrollTarget = kind === 'scroll' ? input.y : null;
     if (kind !== 'scroll') wheelRemainder = 0;
-    if (kind === 'reload') pendingScroll = null;
-    status.textContent = kind === 'reload' ? 'Reloading note…'
+    if (kind === 'reload' || kind === 'select') pendingScroll = null;
+    status.textContent = kind === 'select' ? 'Opening note…'
+      : kind === 'reload' ? 'Reloading note…'
       : kind === 'scroll' ? 'Scrolling outline…' : 'Updating outline…';
     updateControl();
     let succeeded = false;
@@ -242,7 +272,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
       if (!disposed) {
         succeeded = result.ok;
         status.textContent = result.message ??
-          (kind === 'reload' ? 'Note reloaded. ' : '') + describeFrame();
+          (kind === 'select' ? 'Note opened. ' : kind === 'reload' ? 'Note reloaded. ' : '') + describeFrame();
       }
     } catch (error) {
       if (!disposed) failed(error);
@@ -252,7 +282,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
       activeScrollTarget = null;
       busy = false;
       // A coalesced target is never an automatic retry of failed/uncertain work.
-      if (!succeeded || kind === 'reload') {
+      if (!succeeded || kind === 'reload' || kind === 'select') {
         pendingScroll = null;
         wheelRemainder = 0;
       }
@@ -273,6 +303,17 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     return perform('reload', {});
   }
 
+  function selectNote() {
+    const value = noteChoice.value;
+    // A native select changes its value before the event; keep the committed
+    // note visible until its replacement pixels and selection arrive together.
+    noteChoice.value = current?.selectedNoteId == null ? '' : String(current.selectedNoteId);
+    if (disposed || busy || !connected || !current?.canSelectNote || current.remainingEvents === 0) return;
+    const choice = current.noteChoices.find(note => String(note.id) === value);
+    if (!choice || choice.id === current.selectedNoteId) return;
+    return perform('select', { id: choice.id });
+  }
+
   function mayScroll() {
     return !disposed && connected && current?.canScroll && current.remainingEvents > 0;
   }
@@ -291,7 +332,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   }
 
   function scrollTo(y) {
-    if (!mayScroll() || activeKind === 'reload') return;
+    if (!mayScroll() || activeKind === 'reload' || activeKind === 'select') return;
     // One in-flight request and at most one bounded coalesced target.
     pendingScroll = Math.max(0, Math.min(current.maxScrollY, y));
     flushScroll();
@@ -302,8 +343,8 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     const delta = wheelDeltaToNative(event, canvas.getBoundingClientRect());
     if (delta === null) return;
     event.preventDefault();
-    // Movement against the preceding document must not survive a reload.
-    if (activeKind === 'reload') return;
+    // Movement against the preceding document must not survive a replacement.
+    if (activeKind === 'reload' || activeKind === 'select') return;
     const desired = Math.max(0, Math.min(current.maxScrollY,
       scrollBase() + delta + wheelRemainder));
     const target = Math.round(desired);
@@ -324,7 +365,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
       if (!mayScroll()) return;
       event.preventDefault();
-      if (activeKind === 'reload') return;
+      if (activeKind === 'reload' || activeKind === 'select') return;
       wheelRemainder = 0;
       const base = scrollBase();
       const target = event.key === 'Home' ? 0 : event.key === 'End' ? current.maxScrollY
@@ -344,6 +385,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   canvas.addEventListener('keydown', keyboard);
   canvas.addEventListener('wheel', wheel, { passive: false });
   reloadButton.addEventListener('click', reload);
+  noteChoice.addEventListener('change', selectNote);
   updateControl();
   const ready = (async () => {
     if (!token || !context) {
@@ -378,6 +420,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     canvas.removeEventListener('keydown', keyboard);
     canvas.removeEventListener('wheel', wheel);
     reloadButton.removeEventListener('click', reload);
+    noteChoice.removeEventListener('change', selectNote);
     updateControl();
   }
 

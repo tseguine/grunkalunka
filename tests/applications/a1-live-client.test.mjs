@@ -17,10 +17,11 @@ const pixels = rgb.toString('base64');
 function frame(overrides = {}) {
   const sequence = overrides.sequence ?? 0;
   const remainingEvents = overrides.remainingEvents ?? 256 - sequence;
-  return { schemaVersion: 3, width: 320, height: 160, sequence,
+  return { schemaVersion: 4, width: 320, height: 160, sequence,
     expanded: 1, visibleCount: 2, canActivate: remainingEvents > 0, remainingEvents,
     scrollY: 0, maxScrollY: 0, canScroll: false, controlPoint: { x: 24, y: 16 },
-    canReload: remainingEvents > 0, pixels, ...overrides };
+    canReload: remainingEvents > 0, noteChoices: [{ id: 0, label: 'note.md' }],
+    selectedNoteId: 0, canSelectNote: false, pixels, ...overrides };
 }
 
 function emptyFrame(overrides = {}) {
@@ -34,6 +35,12 @@ function scrollingFrame(overrides = {}) {
   return frame({ visibleCount: 16, scrollY, maxScrollY: 400,
     canScroll: remainingEvents > 0, canActivate: remainingEvents > 0 && scrollY === 0,
     controlPoint: scrollY === 0 ? { x: 24, y: 16 } : null, ...overrides });
+}
+
+function selectionFrame(overrides = {}) {
+  const remainingEvents = overrides.remainingEvents ?? 256 - (overrides.sequence ?? 0);
+  return frame({ noteChoices: [{ id: 0, label: 'First note' }, { id: 1, label: '<b>Second note</b>' }],
+    selectedNoteId: 0, canSelectNote: remainingEvents > 0, ...overrides });
 }
 
 function response(value, status = 200) {
@@ -59,6 +66,8 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   const listenerOptions = new Map();
   const reloadListeners = new Map();
   const reloadAttributes = new Map();
+  const choiceListeners = new Map();
+  const choiceAttributes = new Map();
   const painted = [];
   const status = { textContent: '' };
   let focused = 0;
@@ -88,6 +97,16 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
       if (reloadListeners.get(name) === fn) reloadListeners.delete(name);
     },
   };
+  const noteChoice = {
+    disabled: true, value: '', options: [],
+    setAttribute: (name, value) => choiceAttributes.set(name, value),
+    addEventListener: (name, fn) => choiceListeners.set(name, fn),
+    removeEventListener: (name, fn) => {
+      if (choiceListeners.get(name) === fn) choiceListeners.delete(name);
+    },
+    replaceChildren(...options) { this.options = options; this.value = options[0]?.value ?? ''; },
+    set innerHTML(_value) { throw new Error('Note choices must use text nodes'); },
+  };
   const data = new Map(stored === undefined ? [] : [[tokenKey, stored]]);
   const location = { hash, pathname: '/', search: '' };
   const window = {
@@ -111,8 +130,12 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
     return reply;
   };
   const document = { getElementById: id => ({
-    'note-frame': canvas, 'session-status': status, 'reload-note': reloadButton,
-  })[id] };
+    'note-frame': canvas, 'session-status': status, 'reload-note': reloadButton, 'note-choice': noteChoice,
+  })[id], createElement: name => {
+    assert.equal(name, 'option');
+    return { value: '', textContent: '',
+      set innerHTML(_value) { throw new Error('Note labels must use textContent'); } };
+  } };
   const click = (overrides = {}) => listeners.get('click')?.({
     clientX: 78, clientY: 82, button: 0, isPrimary: true, ...overrides,
   });
@@ -130,6 +153,10 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
   }
   return { window, document, fetch, attributes, listeners, listenerOptions, painted, status,
     reloadButton, reloadListeners, reloadAttributes, reload: () => reloadListeners.get('click')?.(),
+    noteChoice, choiceListeners, choiceAttributes, select: id => {
+      noteChoice.value = String(id);
+      return choiceListeners.get('change')?.();
+    },
     requests, replies, data, click, key, wheel, focused: () => focused };
 }
 
@@ -187,6 +214,7 @@ test('frame decoding preserves supplied native RGB and rejects malformed or unbo
   decodeLiveFrame(supplied).controlPoint.x = 0;
   assert.deepEqual(supplied.controlPoint, { x: 85, y: 0 });
   for (const invalid of [null, [], frame({ schemaVersion: 1 }), frame({ schemaVersion: 2 }),
+    frame({ schemaVersion: 3 }),
     frame({ width: 640 }),
     frame({ height: 159 }), frame({ sequence: -1 }), frame({ sequence: '0' }),
     frame({ sequence: 257, remainingEvents: 0 }), frame({ expanded: 2 }),
@@ -597,6 +625,274 @@ test('disposing during a reload aborts it and removes the reload control handler
   assert.equal(b.requests.length, 2);
 });
 
+test('frame catalogs own bounded labels and require a valid committed selection', () => {
+  const supplied = selectionFrame({ noteChoices: [{ id: 0, label: 'A' }, { id: 1, label: 'é'.repeat(128) }] });
+  const decoded = decodeLiveFrame(supplied);
+  decoded.noteChoices[0].label = 'Changed';
+  decoded.noteChoices.push({ id: 2, label: 'Extra' });
+  assert.deepEqual(supplied.noteChoices, [{ id: 0, label: 'A' }, { id: 1, label: 'é'.repeat(128) }]);
+  assert.doesNotThrow(() => decodeLiveFrame(emptyFrame({
+    noteChoices: [], selectedNoteId: null, canReload: false,
+  })));
+  for (const invalid of [
+    frame({ noteChoices: undefined }), frame({ noteChoices: null }), frame({ noteChoices: {} }),
+    frame({ noteChoices: Array(1) }), frame({ noteChoices: [null] }),
+    selectionFrame({ noteChoices: Array.from({ length: 9 }, (_, id) => ({ id, label: 'Note' })) }),
+    frame({ noteChoices: [{ id: '0', label: 'Note' }] }),
+    frame({ noteChoices: [{ id: 1, label: 'Note' }] }),
+    selectionFrame({ noteChoices: [{ id: 0, label: 'A' }, { id: 0, label: 'B' }] }),
+    frame({ noteChoices: [{ id: 0, label: 'Note', path: '/private/note.md' }] }),
+    frame({ noteChoices: [{ id: 0, label: '' }] }),
+    frame({ noteChoices: [{ id: 0, label: 'é'.repeat(129) }] }),
+    frame({ noteChoices: [{ id: 0, label: 'x'.repeat(257) }] }),
+    frame({ noteChoices: [{ id: 0, label: 'bad\nlabel' }] }),
+    frame({ noteChoices: [{ id: 0, label: 'bad\u007flabel' }] }),
+    frame({ noteChoices: [{ id: 0, label: 12 }] }),
+    frame({ noteChoices: [], selectedNoteId: 0 }),
+    frame({ selectedNoteId: null }), frame({ selectedNoteId: -1 }),
+    frame({ selectedNoteId: 1 }), frame({ selectedNoteId: '0' }),
+    frame({ canSelectNote: true }), selectionFrame({ canSelectNote: 1 }),
+    selectionFrame({ canSelectNote: undefined }),
+    selectionFrame({ sequence: 256, remainingEvents: 0, canSelectNote: true }),
+  ]) assert.throws(() => decodeLiveFrame(invalid), /Invalid A1 live/);
+});
+
+test('the largest escaped note catalog fits the existing bounded response reader', async t => {
+  const label = ('\\' + '"').repeat(128);
+  assert.equal(Buffer.byteLength(label), 256);
+  const noteChoices = Array.from({ length: 8 }, (_, id) => ({ id, label }));
+  const state = selectionFrame({ noteChoices, selectedNoteId: 7 });
+  const failure = { error: '\\'.repeat(256), frame: { ...state, sequence: 1, remainingEvents: 255 } };
+  assert.ok(Buffer.byteLength(JSON.stringify(failure)) < 220_000);
+  const b = browser();
+  b.replies.push(response(state));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  assert.equal(b.painted.length, 1);
+  assert.equal(b.noteChoice.value, '7');
+  assert.equal(b.noteChoice.options.length, 8);
+  assert.ok(b.noteChoice.options.every(option => option.textContent === label));
+  b.replies.push(response(failure, 500));
+  await b.select(0);
+  assert.equal(b.painted.length, 2);
+  assert.equal(b.noteChoice.value, '7');
+  assert.equal(b.noteChoice.disabled, false);
+});
+
+test('the chooser commits the selected note with its native pixels, including empty and offscreen views', async t => {
+  for (const state of [
+    selectionFrame({ expanded: 0, visibleCount: 0, canActivate: false, controlPoint: null }),
+    selectionFrame({ scrollY: 400, maxScrollY: 400, canScroll: true, canActivate: false, controlPoint: null }),
+  ]) {
+    const b = browser();
+    b.replies.push(response(state));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    assert.equal(b.noteChoice.disabled, false);
+    assert.equal(b.noteChoice.value, '0');
+    assert.deepEqual(b.noteChoice.options.map(option => [option.value, option.textContent]),
+      [['0', 'First note'], ['1', '<b>Second note</b>']]);
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    const selecting = b.select(1);
+    assert.equal(b.noteChoice.value, '0', 'the native select is restored before the request settles');
+    assert.equal(b.noteChoice.disabled, true);
+    assert.equal(b.choiceAttributes.get('aria-busy'), 'true');
+    assert.equal(b.reloadButton.disabled, true);
+    assert.equal(b.painted.length, 1);
+    b.select(1);
+    b.reload();
+    b.click();
+    b.key('Enter');
+    b.wheel();
+    b.key('End');
+    assert.equal(b.noteChoice.value, '0', 'ignored changes also restore the committed ID');
+    assert.equal(b.requests.length, 2);
+    assert.equal(b.requests[1].path, '/select');
+    assert.equal(b.requests[1].method, 'POST');
+    assert.equal(b.requests[1].body, '{"id":1}');
+    assert.equal(b.requests[1].headers['x-a1-session'], token);
+    assert.equal(b.requests[1].headers['content-type'], 'application/json');
+    const point = { x: 101, y: 8 };
+    pending.resolve(response(selectionFrame({ sequence: 1, selectedNoteId: 1, visibleCount: 3,
+      controlPoint: point, pixels: Buffer.alloc(rgb.length, 55).toString('base64') })));
+    await selecting;
+    assert.equal(b.requests.length, 2, 'old scroll intent does not follow a document switch');
+    assert.equal(b.noteChoice.value, '1');
+    assert.equal(b.noteChoice.disabled, false);
+    assert.equal(b.choiceAttributes.get('aria-busy'), 'false');
+    assert.deepEqual([...b.painted.at(-1).data.subarray(0, 4)], [55, 55, 55, 255]);
+    assert.match(b.status.textContent, /Note opened.*3 headings/);
+    assert.equal(b.data.get(tokenKey), token);
+    b.select(1);
+    b.select('1.0');
+    b.select(7);
+    assert.equal(b.requests.length, 2, 'same and unknown choices send no browser request');
+    assert.equal(b.noteChoice.value, '1');
+    b.replies.push(response(selectionFrame({ sequence: 2, selectedNoteId: 1,
+      expanded: 0, visibleCount: 0 })));
+    assert.equal(b.key('Enter'), true);
+    await settle();
+    assert.deepEqual(JSON.parse(b.requests[2].body), point);
+  }
+});
+
+test('selection waits for active scrolls and clears fractional movement across documents', async t => {
+  const b = browser();
+  const scrolling = overrides => selectionFrame({ maxScrollY: 400, canScroll: true, ...overrides });
+  b.replies.push(response(scrolling()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  const first = deferred();
+  const queued = deferred();
+  b.replies.push(first.promise, queued.promise);
+  b.wheel();
+  b.wheel();
+  b.select(1);
+  assert.equal(b.noteChoice.value, '0');
+  assert.equal(b.noteChoice.disabled, true);
+  first.resolve(response(scrolling({ sequence: 1, scrollY: 20 })));
+  await settle();
+  assert.equal(b.requests.length, 3);
+  assert.equal(b.requests[2].body, '{"y":40}');
+  b.select(1);
+  queued.resolve(response(scrolling({ sequence: 2, scrollY: 40 })));
+  await settle();
+  assert.equal(b.requests.length, 3, 'busy selection is not queued after scrolling');
+  b.wheel({ deltaY: 0.5 });
+  const replacement = deferred();
+  b.replies.push(replacement.promise);
+  const selecting = b.select(1);
+  assert.equal(b.wheel({ deltaY: 0.5 }), true);
+  assert.equal(b.key('End'), true);
+  assert.equal(b.key('PageDown'), true);
+  assert.equal(b.wheel({ ctrlKey: true }), false);
+  assert.equal(b.key('Home', { ctrlKey: true }), false);
+  replacement.resolve(response(scrolling({ sequence: 3, selectedNoteId: 1, scrollY: 0, maxScrollY: 800 })));
+  await selecting;
+  assert.equal(b.requests.length, 4);
+  b.wheel({ deltaY: 0.5 });
+  assert.equal(b.requests.length, 4, 'fractional movement from the previous note is discarded');
+  b.replies.push(response(scrolling({ sequence: 4, selectedNoteId: 1, scrollY: 1, maxScrollY: 800 })));
+  b.wheel({ deltaY: 0.5 });
+  await settle();
+  assert.equal(b.requests[4].body, '{"y":1}');
+});
+
+test('selection is not queued behind activation or reload', async t => {
+  for (const kind of ['input', 'reload']) {
+    const b = browser();
+    b.replies.push(response(selectionFrame()));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    if (kind === 'input') b.click();
+    else b.reload();
+    b.select(1);
+    assert.equal(b.requests[1].path, '/' + kind);
+    assert.equal(b.requests.length, 2);
+    assert.equal(b.noteChoice.value, '0');
+    assert.equal(b.noteChoice.disabled, true);
+    pending.resolve(response(selectionFrame({ sequence: 1 })));
+    await settle();
+    assert.equal(b.requests.length, 2);
+    assert.equal(b.noteChoice.value, '0');
+    assert.equal(b.noteChoice.disabled, false);
+  }
+});
+
+test('failed selection keeps the committed note and never retries an uncertain switch', async t => {
+  for (const code of [403, 409, 429, 500, 503, 'network', 'stale']) await t.test(String(code), async t => {
+    const b = browser();
+    b.replies.push(response(selectionFrame({ sequence: 2, maxScrollY: 400, scrollY: 400,
+      canScroll: true, canActivate: false, controlPoint: null })));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    const committed = b.painted[0];
+    const pending = deferred();
+    b.replies.push(pending.promise);
+    const selecting = b.select(1);
+    b.wheel();
+    b.key('Home');
+    if (code === 'network') pending.reject(new Error('connection lost after sending selection'));
+    else if (code === 'stale') pending.resolve(response(selectionFrame({ sequence: 1, selectedNoteId: 1,
+      pixels: Buffer.alloc(rgb.length, 90).toString('base64') })));
+    else pending.resolve(response({ error: 'Selection failed', frame: selectionFrame({
+      sequence: 3, maxScrollY: 400, scrollY: 400, canActivate: false, controlPoint: null,
+      canScroll: ![409, 503].includes(code), canReload: ![409, 503].includes(code),
+      canSelectNote: ![409, 503].includes(code),
+    }) }, code));
+    await selecting;
+    assert.equal(b.requests.length, 2);
+    assert.equal(b.noteChoice.value, '0');
+    assert.equal(b.data.has(tokenKey), code !== 403);
+    if ([429, 500].includes(code)) {
+      assert.equal(b.noteChoice.disabled, false);
+      b.replies.push(response(selectionFrame({ sequence: 4, selectedNoteId: 1 })));
+      await b.select(1);
+      assert.equal(b.requests.length, 3);
+      assert.equal(b.noteChoice.value, '1');
+    } else {
+      assert.equal(b.noteChoice.disabled, true);
+      b.select(1);
+      assert.equal(b.requests.length, 2);
+      assert.equal(b.noteChoice.value, '0');
+    }
+    if (code === 'stale') {
+      assert.deepEqual(b.painted, [committed]);
+      assert.equal(b.attributes.get('aria-label'), 'Scrollable note outline');
+      assert.equal(b.key('Enter'), false);
+    }
+  });
+});
+
+test('a single note, denied authority and exhausted budgets disable the chooser without losing metadata', async t => {
+  for (const state of [
+    frame(),
+    emptyFrame({ noteChoices: [], selectedNoteId: null, canReload: false }),
+    selectionFrame({ canSelectNote: false, canActivate: false, canReload: false }),
+    selectionFrame({ sequence: 256, remainingEvents: 0 }),
+  ]) {
+    const b = browser();
+    b.replies.push(response(state));
+    const client = startLiveClient(b);
+    t.after(client.dispose);
+    await client.ready;
+    assert.equal(b.noteChoice.disabled, true);
+    assert.equal(b.noteChoice.value, state.selectedNoteId === null ? '' : String(state.selectedNoteId));
+    assert.deepEqual(b.noteChoice.options.map(option => option.textContent),
+      state.noteChoices.length ? state.noteChoices.map(note => note.label) : ['No note available']);
+    b.select(1);
+    assert.equal(b.requests.length, 1);
+    assert.equal(b.noteChoice.value, state.selectedNoteId === null ? '' : String(state.selectedNoteId));
+  }
+});
+
+test('disposing during selection aborts it and keeps late pixels and choices unpublished', async () => {
+  const b = browser();
+  b.replies.push(response(selectionFrame()));
+  const client = startLiveClient(b);
+  await client.ready;
+  const pending = deferred();
+  b.replies.push(pending.promise);
+  const selecting = b.select(1);
+  client.dispose();
+  assert.equal(b.requests[1].signal.aborted, true);
+  assert.equal(b.choiceListeners.size, 0);
+  assert.equal(b.noteChoice.disabled, true);
+  pending.resolve(response(selectionFrame({ sequence: 1, selectedNoteId: 1 })));
+  await selecting;
+  assert.equal(b.painted.length, 1);
+  assert.equal(b.noteChoice.value, '0');
+  assert.equal(b.requests.length, 2);
+});
+
 test('sessionStorage supports refresh, invalid launch tokens replace old authority, and blocked storage keeps launch working', async t => {
   for (const options of [{ hash: '', stored: token }, { storageThrows: true }]) {
     const b = browser(options);
@@ -757,6 +1053,8 @@ test('disposing the adapter aborts a pending request and removes all input handl
   client.dispose();
   assert.equal(b.requests[0].signal.aborted, true);
   assert.equal(b.listeners.size, 0);
+  assert.equal(b.choiceListeners.size, 0);
+  assert.equal(b.noteChoice.disabled, true);
   assert.equal(b.reloadListeners.size, 0);
   assert.equal(b.reloadButton.disabled, true);
   pending.resolve(response(frame()));
@@ -771,6 +1069,8 @@ test('fixed page assets use external scripts/styles and preserve a borderless na
   assert.match(livePage, /tabindex="0"/);
   assert.match(livePage, /<button id="reload-note" type="button" disabled[^>]*>Reload note<\/button>/);
   assert.match(livePage, /After editing the file, reload to see your changes/);
+  assert.match(livePage, /<label for="note-choice">Note<\/label>/);
+  assert.match(livePage, /<select id="note-choice" disabled/);
   assert.ok(!livePage.includes('<style') && !livePage.includes('onclick='));
   assert.match(liveStyles, /canvas \{[^}]*padding: 0; border: 0;/);
   assert.match(liveStyles, /image-rendering: pixelated/);

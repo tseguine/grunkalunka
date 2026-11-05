@@ -25,7 +25,7 @@ Copy the directory to another location and start the entry from any working
 directory:
 
 ```sh
-node live-note-bundle/examples/note-preview/session-bundle-entry.mjs --profile granted --note ./notes.md
+node live-note-bundle/examples/note-preview/session-bundle-entry.mjs --profile granted --note ./notes.md --note ./ideas.md
 ```
 
 The command prints one JSON object containing a complete loopback `url`. Open
@@ -36,14 +36,22 @@ current native title point while the title is visible; Home returns to it when
 it is offscreen. Ctrl+C stops the local application. The live entry accepts the
 documented live options, including `--profile denied`, `--ui-profile denied`,
 `--collapsed` and `--port`; it does not require replay event or output files.
-Grant decisions and note paths remain explicit launch inputs.
+Grant decisions and note paths remain explicit launch inputs. Repeat `--note`
+for one to eight distinct launch-defined paths. Their basename labels appear in
+the **Note** chooser; a single-note session keeps its one label visible with
+selection disabled. The catalog is owned at launch and notes remain external to
+the bundle. Startup reads the first note, and a successful choice reads another
+allowed note, resets its scroll to the top and preserves the global expansion
+preference. The launch URL, token, worker and retained component stay the same.
 
 After editing the selected file externally, use **Reload note** to update the
-view in the same session. Reload reopens that startup-selected path; it accepts
-no replacement path or uploaded contents from the browser. An empty note can
-be reloaded after headings are added. Reloads share the existing pointer/scroll
-queue and lifetime input budget, and a read or native failure preserves the
-previous document and frame for a later explicit retry.
+view in the same session. Reload reopens that selected note's launch-defined
+path; the browser supplies no path or uploaded contents. An empty note can be
+reloaded or replaced with another allowed choice. Reload and selection share
+the pointer/scroll queue and lifetime input budget. Choosing the already active
+ID consumes a direct HTTP attempt without rereading the file. A read or native
+failure preserves the previous selected ID, document and frame for a later
+explicit retry; reload after a failed switch still reads the previous note.
 
 Packaging normally compiles the checked-in `activate.js` once. To retain an
 already-built component, pass `--component ./handler.component.wasm` to the
@@ -53,8 +61,9 @@ Runtime execution needs no Cargo command, source checkout, source handler file
 or recompilation. An unrelated `CARGO_TARGET_DIR` does not replace the copied
 native hosts. The action executable still contains its development compile mode;
 the packaged live entry uses its run mode.
-Reload also retains the verified component bytes and explicit copied native
-target. It invokes neither a source compiler nor a developer build command.
+Reload and selection retain the verified component bytes and explicit copied
+native target. They invoke neither a source compiler nor a developer build
+command, and need no additional packaged module or executable.
 
 ## Payload and verification
 
@@ -93,11 +102,11 @@ The ordinary canonical live application suite launches the packaged entry as a
 real child process from an unrelated directory, using an absolute Node path,
 an invalid developer build target and no build tools on `PATH`. It requests
 native frames, collapses and reopens a long outline through HTTP, scrolls to its
-bottom and back to the original pixels, edits the external note and reloads its
-new native frame through the same URL/token, checks retained component identity
-and copied browser assets, and verifies the single launch receipt and process
-shutdown. Scrolling and reloading use the existing verified payload without
-another module or executable. A separate custom-component case uses the programmatic entry and
+bottom and back to the original pixels, edits and reloads both external notes,
+and switches between them through the same URL/token. It checks retained
+component identity and copied browser assets, verifies the single launch receipt
+and process shutdown, and keeps the existing verified payload unchanged.
+A separate custom-component case uses the programmatic entry and
 demonstrates source-selected unchanged view state.
 
 Corruption cases fail before live app import or missing-note access, and manifest

@@ -45,7 +45,8 @@ after(async () => {
 });
 
 async function application(t, options = {}) {
-  const app = await startLiveNote({ profile: 'granted', note, componentWasm: component, ...options });
+  const app = await startLiveNote({ profile: 'granted', componentWasm: component,
+    ...(options.notes === undefined ? { note } : {}), ...options });
   t.after(() => app.close());
   const token = new URL(app.url).hash.slice(1);
   const headers = { 'x-a1-session': token, Origin: app.origin };
@@ -64,7 +65,8 @@ async function application(t, options = {}) {
   return { app, token, headers, frame,
     input: (value, extra) => post('/input', value, extra),
     scroll: (value, extra) => post('/scroll', value, extra),
-    reload: (value = {}, extra) => post('/reload', value, extra) };
+    reload: (value = {}, extra) => post('/reload', value, extra),
+    select: (value, extra) => post('/select', value, extra) };
 }
 
 async function fetchStatus(url, options) {
@@ -115,8 +117,10 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     const initial = await frame();
     assert.deepEqual([initial.schemaVersion, initial.width, initial.height, initial.sequence,
       initial.expanded, initial.visibleCount, initial.canActivate, initial.remainingEvents],
-    [3, 320, 160, 0, 1, 2, true, 4]);
+    [4, 320, 160, 0, 1, 2, true, 4]);
     assert.equal(initial.canReload, true);
+    assert.deepEqual(initial.noteChoices, [{ id: 0, label: 'private note with spaces.md' }]);
+    assert.deepEqual([initial.selectedNoteId, initial.canSelectNote], [0, false]);
     assert.deepEqual([initial.scrollY, initial.maxScrollY, initial.canScroll], [0, 0, false]);
     assert.ok(initial.controlPoint.x >= 0 && initial.controlPoint.x < 320);
     assert.ok(initial.controlPoint.y >= 0 && initial.controlPoint.y < 160);
@@ -135,7 +139,8 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
       assert.equal(await fetchStatus(app.origin + path), 200);
     }
     for (const path of ['/note.md', '/manifest.json', '/frame?token=' + token,
-      '/%2e%2e/Cargo.toml', '/input', '/scroll', '/reload', '/reload?note=other.md']) {
+      '/%2e%2e/Cargo.toml', '/input', '/scroll', '/reload', '/reload?note=other.md',
+      '/select', '/select?id=1']) {
       assert.equal(await fetchStatus(app.origin + path, { headers }), 404);
     }
     assert.equal(await fetchStatus(app.origin + '/frame'), 403);
@@ -195,7 +200,7 @@ test('live scrolling traverses native long notes with shared authority, ordering
       { note: longNote, maxEvents: 8 });
     const initial = await frame();
     assert.deepEqual([initial.schemaVersion, initial.sequence, initial.scrollY,
-      initial.visibleCount, initial.canActivate, initial.canScroll], [3, 0, 0, 24, true, true]);
+      initial.visibleCount, initial.canActivate, initial.canScroll], [4, 0, 0, 24, true, true]);
     assert.ok(initial.maxScrollY > initial.height);
     assert.ok(initial.controlPoint.y > 0);
 
@@ -412,6 +417,200 @@ test('live reload rejects uploaded state and retains its native view across inva
     assert.equal(await readFile(editable, 'utf8'), recoveredSource);
   });
 
+test('live note selection commits launch-owned choices and pixels through a shared input budget',
+  { timeout: 180_000 }, async t => {
+    const firstNote = join(scratch, 'first chosen note.md');
+    const secondNote = join(scratch, 'second chosen note.md');
+    await writeFile(firstNote, longSource);
+    await writeFile(secondNote, longSource);
+    const notes = [{ note: firstNote, label: 'First <note>' }, { note: secondNote, label: 'Second note' }];
+    const starting = application(t, { notes, maxEvents: 12 });
+    notes[0].note = join(scratch, 'caller replacement must not open.md');
+    notes[0].label = 'Changed after startup';
+    notes.reverse();
+    const { app, frame, input, scroll, reload, select } = await starting;
+    const launchUrl = app.url;
+    const initial = await frame();
+    assert.deepEqual(initial.noteChoices, [{ id: 0, label: 'First <note>' }, { id: 1, label: 'Second note' }]);
+    assert.deepEqual([initial.schemaVersion, initial.sequence, initial.selectedNoteId,
+      initial.canSelectNote, initial.visibleCount], [4, 0, 0, true, 24]);
+    assert.ok(!JSON.stringify(initial).includes(scratch), 'frames expose labels, not launch paths');
+    const bottom = await scroll({ y: 0xffffffff });
+    assert.equal(bottom.status, 200);
+    assert.equal(bottom.body.scrollY, initial.maxScrollY);
+    await rm(firstNote);
+    const same = await select({ id: 0 });
+    assert.equal(same.status, 200, 'same-note selection does not reopen a now-missing path');
+    assert.deepEqual(same.body, { ...bottom.body, sequence: 2, remainingEvents: 10 });
+    const identical = await select({ id: 1 });
+    assert.equal(identical.status, 200);
+    assert.deepEqual([identical.body.sequence, identical.body.selectedNoteId, identical.body.scrollY,
+      identical.body.pixels], [3, 1, 0, initial.pixels],
+    'different identity resets the viewport even when both notes have identical bytes');
+    const collapsed = await input(identical.body.controlPoint);
+    assert.equal(collapsed.status, 200);
+    assert.deepEqual([collapsed.body.sequence, collapsed.body.selectedNoteId, collapsed.body.expanded], [4, 1, 0]);
+    const firstEdited = '# Chosen Root\n## Chosen Child\n';
+    await writeFile(firstNote, firstEdited);
+    const returned = await select({ id: 0 });
+    assert.equal(returned.status, 200);
+    assert.deepEqual([returned.body.sequence, returned.body.selectedNoteId,
+      returned.body.expanded, returned.body.visibleCount, returned.body.scrollY], [5, 0, 0, 0, 0]);
+    const reopened = await input(returned.body.controlPoint);
+    assert.equal(reopened.status, 200);
+    assert.deepEqual([reopened.body.sequence, reopened.body.selectedNoteId, reopened.body.visibleCount], [6, 0, 2]);
+    assert.notEqual(reopened.body.pixels, initial.pixels);
+
+    await writeFile(secondNote, '');
+    const empty = await select({ id: 1 });
+    assert.equal(empty.status, 200);
+    assert.deepEqual([empty.body.sequence, empty.body.selectedNoteId, empty.body.expanded,
+      empty.body.visibleCount, empty.body.scrollY, empty.body.controlPoint,
+      empty.body.canActivate, empty.body.canSelectNote, empty.body.canReload],
+    [7, 1, 0, 0, 0, null, false, true, true]);
+    await writeFile(secondNote, '# Returned Heading\n');
+    const recovered = await reload();
+    assert.equal(recovered.status, 200);
+    assert.deepEqual([recovered.body.sequence, recovered.body.selectedNoteId,
+      recovered.body.expanded, recovered.body.visibleCount], [8, 1, 1, 1]);
+    const firstAgain = await select({ id: 0 });
+    assert.equal(firstAgain.status, 200);
+    assert.deepEqual([firstAgain.body.sequence, firstAgain.body.selectedNoteId,
+      firstAgain.body.expanded, firstAgain.body.visibleCount], [9, 0, 1, 2]);
+    const hidden = await input(firstAgain.body.controlPoint);
+    assert.equal(hidden.status, 200);
+    assert.equal(hidden.body.expanded, 0);
+    const secondAgain = await select({ id: 1 });
+    assert.equal(secondAgain.status, 200);
+    assert.deepEqual([secondAgain.body.sequence, secondAgain.body.selectedNoteId,
+      secondAgain.body.expanded, secondAgain.body.visibleCount], [11, 1, 0, 0]);
+    const last = await reload();
+    assert.equal(last.status, 200);
+    assert.deepEqual([last.body.sequence, last.body.remainingEvents, last.body.canActivate,
+      last.body.canScroll, last.body.canReload, last.body.canSelectNote], [12, 0, false, false, false, false]);
+    for (const exhausted of [await select({ id: 0 }), await reload(),
+      await scroll({ y: 0 }), await input(last.body.controlPoint)]) {
+      assert.equal(exhausted.status, 429);
+      assert.deepEqual(exhausted.body.frame, last.body);
+    }
+    assert.equal(app.url, launchUrl);
+    assert.equal(await readFile(firstNote, 'utf8'), firstEdited);
+    assert.equal(await readFile(secondNote, 'utf8'), '# Returned Heading\n');
+  });
+
+test('live selection rejects path uploads and retains the active source after failed candidates',
+  { timeout: 180_000 }, async t => {
+    const active = join(scratch, 'selection retained note.md');
+    const candidate = join(scratch, 'selection candidate.md');
+    await writeFile(active, '# Retained A\n');
+    const { app, token, headers, frame, reload, select } = await application(t,
+      { notes: [{ note: active, label: 'Current' }, { note: candidate, label: 'Candidate' }], maxEvents: 10 });
+    const initial = await frame();
+    assert.equal(initial.selectedNoteId, 0, 'unselected notes are not opened during startup');
+    assert.equal((await select({ id: 1 }, { headers: { 'Content-Type': 'application/json' } })).status, 403);
+    for (const forbidden of [{ Origin: 'https://foreign.example' }, { Host: 'foreign.example' }]) {
+      const rejected = await rawRequest(app.origin + '/select', {
+        headers: { ...headers, ...forbidden, 'Content-Type': 'application/json', 'Content-Length': '20' },
+        body: '{', incomplete: true,
+      });
+      assert.equal(rejected.status, 403);
+    }
+    assert.equal((await select({ id: 1 }, {
+      headers: { ...headers, 'Content-Type': 'text/plain' },
+    })).status, 415);
+    for (const value of [null, [], {}, { id: -1 }, { id: 0.5 }, { id: '1' }, { id: 2 }, { id: 7 },
+      { id: 8 }, { id: 0x1_0000_0000 }, { id: 1, note: active }, { id: 1, path: active },
+      { id: 1, label: 'Uploaded' }, { id: 1, source: '# Uploaded' }, { id: 1, profile: 'granted' },
+      { id: 1, uiProfile: 'granted' }, { id: 1, component: 'other.wasm' }]) {
+      assert.equal((await select(value)).status, 400);
+    }
+    assert.equal((await select({}, { body: '' })).status, 400);
+    assert.equal((await select({}, { body: 'x'.repeat(129) })).status, 413);
+    assert.equal((await select({}, { body: Buffer.from([0xff]) })).status, 400);
+    assert.equal((await rawRequest(app.origin + '/select', {
+      headers: { ...headers, 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' },
+      body: 'x'.repeat(129),
+    })).status, 413);
+    const timeout = await rawRequest(app.origin + '/select', {
+      headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': '20' },
+      body: '{', incomplete: true,
+    });
+    assert.equal(timeout.status, 408);
+    await pipelinedInput(app.origin, token, '/select', { id: 1 });
+    assert.deepEqual(await frame(), initial, 'malformed, unknown and pipelined choices consume no attempts');
+
+    const missing = await select({ id: 1 });
+    assert.equal(missing.status, 500);
+    assert.match(missing.body.error, /could not be opened.*previous view/);
+    assert.ok(!missing.body.error.includes(candidate) && !missing.body.error.includes(target));
+    assert.deepEqual(missing.body.frame, { ...initial, sequence: 1, remainingEvents: 9 });
+    await writeFile(active, '# Reloaded A\n## Still A\n');
+    const reloaded = await reload();
+    assert.equal(reloaded.status, 200);
+    assert.deepEqual([reloaded.body.sequence, reloaded.body.selectedNoteId,
+      reloaded.body.visibleCount], [2, 0, 2], 'failed B selection leaves reload bound to A');
+    assert.notEqual(reloaded.body.pixels, initial.pixels);
+    let sequence = 2;
+    for (const prepare of [
+      () => writeFile(candidate, Buffer.alloc(4097, 97)),
+      () => writeFile(candidate, Buffer.from([0xff])),
+      async () => { await rm(candidate); await mkdir(candidate); },
+    ]) {
+      await prepare();
+      const failed = await select({ id: 1 });
+      assert.equal(failed.status, 500);
+      assert.deepEqual(failed.body.frame, { ...reloaded.body,
+        sequence: ++sequence, remainingEvents: 10 - sequence });
+      assert.deepEqual(await frame(), failed.body.frame);
+    }
+    await rm(candidate, { recursive: true });
+    await writeFile(candidate, '# Recovered B\n');
+    const recovered = await select({ id: 1 });
+    assert.equal(recovered.status, 200);
+    assert.deepEqual([recovered.body.sequence, recovered.body.selectedNoteId,
+      recovered.body.visibleCount, recovered.body.scrollY], [6, 1, 1, 0]);
+    await writeFile(candidate, '# Edited B\n## More B\n');
+    const edited = await reload();
+    assert.equal(edited.status, 200);
+    assert.deepEqual([edited.body.sequence, edited.body.selectedNoteId, edited.body.visibleCount], [7, 1, 2]);
+    const returned = await select({ id: 0 });
+    assert.equal(returned.status, 200);
+    assert.deepEqual([returned.body.sequence, returned.body.selectedNoteId,
+      returned.body.pixels], [8, 0, reloaded.body.pixels]);
+  });
+
+test('live selection bounds single-note and document-denied sessions',
+  { timeout: 120_000 }, async t => {
+    const onlyNote = join(scratch, 'single selection.md');
+    await writeFile(onlyNote, '# Single\n');
+    const single = await application(t, { note: onlyNote, maxEvents: 2 });
+    const initial = await single.frame();
+    assert.equal(initial.canSelectNote, false);
+    await rm(onlyNote);
+    const same = await single.select({ id: 0 });
+    assert.equal(same.status, 200);
+    assert.deepEqual(same.body, { ...initial, sequence: 1, remainingEvents: 1 });
+    assert.equal((await single.select({ id: 1 })).status, 400);
+    assert.deepEqual(await single.frame(), same.body);
+    const failed = await single.reload();
+    assert.equal(failed.status, 500);
+    assert.deepEqual([failed.body.frame.sequence, failed.body.frame.selectedNoteId,
+      failed.body.frame.remainingEvents, failed.body.frame.pixels], [2, 0, 0, initial.pixels]);
+
+    const denied = await startLiveNote({ profile: 'denied', componentWasm: component,
+      get note() { throw new Error('Denied single-note getter was touched'); },
+      get notes() { throw new Error('Denied catalog getter was touched'); } });
+    t.after(() => denied.close());
+    const hidden = packagedClient(denied.url);
+    const state = await hidden.frame();
+    assert.deepEqual([state.noteChoices, state.selectedNoteId, state.canSelectNote], [[], null, false]);
+    const rejected = await rawRequest(denied.origin + '/select', {
+      headers: { ...hidden.headers, 'Content-Type': 'application/json' }, body: '{"id":0}',
+    });
+    assert.equal(rejected.status, 400);
+    assert.deepEqual(await hidden.frame(), state, 'an unavailable catalog rejects before admission');
+  });
+
 test('live document and UI grants remain independent and denied paths are never opened',
   { timeout: 180_000 }, async t => {
     const denied = await application(t, { profile: 'denied', note: join(scratch, 'missing-secret.md') });
@@ -419,6 +618,7 @@ test('live document and UI grants remain independent and denied paths are never 
     assert.deepEqual([hidden.visibleCount, hidden.expanded, hidden.canActivate,
       hidden.scrollY, hidden.maxScrollY, hidden.canScroll, hidden.controlPoint], [0, 0, false, 0, 0, false, null]);
     assert.equal(hidden.canReload, false);
+    assert.deepEqual([hidden.noteChoices, hidden.selectedNoteId, hidden.canSelectNote], [[], null, false]);
     const hiddenInput = await denied.input({ x: 24, y: 16 });
     assert.equal(hiddenInput.status, 200);
     assert.deepEqual([hiddenInput.body.sequence, hiddenInput.body.pixels], [1, hidden.pixels]);
@@ -433,11 +633,15 @@ test('live document and UI grants remain independent and denied paths are never 
 
     const readOnlyNote = join(scratch, 'read-only-reload.md');
     await writeFile(readOnlyNote, longSource);
-    const readOnly = await application(t, { uiProfile: 'denied', note: readOnlyNote });
+    const readOnly = await application(t, { uiProfile: 'denied',
+      notes: [readOnlyNote, { note: join(scratch, 'unopened read-only note.md'), label: 'Other note' }] });
     const visible = await readOnly.frame();
     assert.deepEqual([visible.visibleCount, visible.expanded, visible.canActivate,
       visible.scrollY, visible.canScroll], [24, 1, false, 0, false]);
     assert.equal(visible.canReload, false);
+    assert.deepEqual(visible.noteChoices,
+      [{ id: 0, label: 'read-only-reload.md' }, { id: 1, label: 'Other note' }]);
+    assert.deepEqual([visible.selectedNoteId, visible.canSelectNote], [0, false]);
     assert.ok(visible.maxScrollY > visible.height);
     const rejected = await readOnly.input({ x: 24, y: 16 });
     assert.equal(rejected.status, 409);
@@ -453,6 +657,12 @@ test('live document and UI grants remain independent and denied paths are never 
     assert.equal(rejectedReload.status, 409, 'UI denial prevents opening the now-missing note');
     assert.match(rejectedReload.body.error, /Reloading is unavailable/);
     assert.deepEqual([rejectedReload.body.frame.sequence, rejectedReload.body.frame.pixels], [3, visible.pixels]);
+    for (const id of [1, 0]) {
+      const rejectedSelection = await readOnly.select({ id });
+      assert.equal(rejectedSelection.status, 409, 'UI denial precedes file access and same-note handling');
+      assert.deepEqual([rejectedSelection.body.frame.sequence, rejectedSelection.body.frame.selectedNoteId,
+        rejectedSelection.body.frame.pixels], [id === 1 ? 4 : 5, 0, visible.pixels]);
+    }
   });
 
 test('live controlled service rejection is observable without losing the authorized view',
@@ -499,6 +709,11 @@ test('live startup rejects invalid arguments and non-regular note inputs',
       await assert.rejects(startLiveNote({ profile: 'granted', note,
         componentWasm: component, ...options }), /Invalid/);
     }
+    for (const notes of [[], Array(1), Array(9).fill(note), [note, resolve(note)],
+      [{ note, label: '' }], [{ note, label: 'x'.repeat(257) }], [{ note, label: 'bad\nlabel' }]]) {
+      await assert.rejects(startLiveNote({ profile: 'granted', notes, componentWasm: component }));
+    }
+    await assert.rejects(startLiveNote({ profile: 'granted', note, notes: [note], componentWasm: component }));
     await assert.rejects(startLiveNote({ profile: 'granted', note: scratch,
       componentWasm: component }), /regular file|EISDIR|EACCES|EPERM/);
     if (process.platform !== 'win32') {
@@ -511,7 +726,7 @@ test('live startup rejects invalid arguments and non-regular note inputs',
     t.diagnostic('Input validation runs before any server listens.');
   });
 
-test('live CLI has explicit grants and accepts no external bind address or duplicate options', () => {
+test('live CLI bounds repeated note paths and rejects duplicate other options or external binding', () => {
   assert.deepEqual(parseLiveArguments(['--profile', 'denied']), {
     profile: 'denied', note: null, uiProfile: 'granted', expanded: 1, port: 0,
   });
@@ -520,7 +735,18 @@ test('live CLI has explicit grants and accepts no external bind address or dupli
     profile: 'granted', note: 'note.md', uiProfile: 'denied', expanded: 0,
     componentPath: 'action.wasm', port: 12345,
   });
+  const paths = Array.from({ length: 8 }, (_, index) => 'choice-' + index + '.md');
+  assert.deepEqual(parseLiveArguments(['--profile', 'granted', ...paths.flatMap(path => ['--note', path])]), {
+    profile: 'granted', notes: paths, uiProfile: 'granted', expanded: 1, port: 0,
+  });
   for (const args of [[], ['--profile', 'granted'], ['--profile', 'other'],
+    ['--profile', 'granted', '--note', 'note.md', '--note', './note.md'],
+    ['--profile', 'granted', '--note', 'note.md', '--note', resolve('note.md')],
+    ['--profile', 'granted', ...[...paths, 'ninth.md'].flatMap(path => ['--note', path])],
+    ['--profile', 'denied', '--profile', 'denied'],
+    ['--profile', 'denied', '--ui-profile', 'granted', '--ui-profile', 'granted'],
+    ['--profile', 'denied', '--component', 'a.wasm', '--component', 'a.wasm'],
+    ['--profile', 'denied', '--port', '0', '--port', '0'],
     ['--profile', 'denied', '--host', '0.0.0.0'], ['--profile', 'denied', '--port', '01'],
     ['--profile', 'denied', '--port', '65536'], ['--profile', 'denied', '--port', '-1'],
     ['--profile', 'denied', '--collapsed', '--collapsed'],
@@ -621,7 +847,8 @@ function packagedClient(url) {
   return { origin, headers, frame,
     input: (point = { x: 24, y: 16 }) => post('/input', point),
     scroll: y => post('/scroll', { y }),
-    reload: () => post('/reload', {}) };
+    reload: () => post('/reload', {}),
+    select: id => post('/select', { id }) };
 }
 
 test('detached live bundle runs its retained component and native frames outside the checkout',
@@ -632,6 +859,8 @@ test('detached live bundle runs its retained component and native frames outside
     await mkdir(unrelated);
     const detachedNote = join(unrelated, 'note with spaces.md');
     await writeFile(detachedNote, longSource);
+    const secondDetachedNote = join(unrelated, 'second note.md');
+    await writeFile(secondDetachedNote, '# Second Detached Note\n');
     const packaged = await packageNoteSession({ out: bundle, live: true });
     assert.equal(packaged.manifest.kind, 'a1-note-live-host-bundle');
     assert.deepEqual(packaged.manifest.files.map(file => file.path).sort(),
@@ -648,11 +877,14 @@ test('detached live bundle runs its retained component and native frames outside
     }
     const entry = join(bundle, 'examples/note-preview/session-bundle-entry.mjs');
     const detached = await launchDetachedLive(t, entry,
-      ['--profile', 'granted', '--note', 'note with spaces.md'], unrelated);
+      ['--profile', 'granted', '--note', 'note with spaces.md', '--note', 'second note.md'], unrelated);
     const client = packagedClient(detached.url);
     const initial = await client.frame();
     assert.deepEqual([initial.schemaVersion, initial.sequence, initial.expanded, initial.visibleCount,
-      initial.scrollY, initial.canScroll], [3, 0, 1, 24, 0, true]);
+      initial.scrollY, initial.canScroll], [4, 0, 1, 24, 0, true]);
+    assert.deepEqual(initial.noteChoices,
+      [{ id: 0, label: 'note with spaces.md' }, { id: 1, label: 'second note.md' }]);
+    assert.deepEqual([initial.selectedNoteId, initial.canSelectNote], [0, true]);
     assert.ok(initial.maxScrollY > initial.height);
     assert.equal(Buffer.from(initial.pixels, 'base64').length, 320 * 160 * 3);
     const asset = await fetch(client.origin + '/client.mjs');
@@ -680,8 +912,21 @@ test('detached live bundle runs its retained component and native frames outside
     assert.notEqual(reloaded.pixels, initial.pixels);
     assert.equal(reloaded.maxScrollY, 0);
     assert.equal(reloaded.remainingEvents, initial.remainingEvents - 5);
+    const second = await client.select(1);
+    assert.deepEqual([second.sequence, second.selectedNoteId, second.visibleCount, second.scrollY], [6, 1, 1, 0]);
+    assert.notEqual(second.pixels, reloaded.pixels);
+    const secondEdited = '# Second Detached Edit\n## Second Saved Heading\n';
+    await writeFile(secondDetachedNote, secondEdited);
+    const secondReload = await client.reload();
+    assert.deepEqual([secondReload.sequence, secondReload.selectedNoteId,
+      secondReload.visibleCount, secondReload.scrollY], [7, 1, 2, 0]);
+    assert.notEqual(secondReload.pixels, second.pixels);
+    const returned = await client.select(0);
+    assert.deepEqual([returned.sequence, returned.selectedNoteId, returned.pixels], [8, 0, reloaded.pixels]);
+    assert.equal(returned.remainingEvents, initial.remainingEvents - 8);
     assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), retainedComponent);
     assert.equal(await readFile(detachedNote, 'utf8'), edited);
+    assert.equal(await readFile(secondDetachedNote, 'utf8'), secondEdited);
 
     const manifestBytes = await readFile(join(bundle, 'manifest.json'));
     await assert.rejects(packageNoteSession({ out: bundle, live: true }), /already exists/);

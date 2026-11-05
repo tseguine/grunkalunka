@@ -17,6 +17,13 @@ export const livePage = `<!doctype html>
       <p class="introduction">A live view of your Markdown note.</p>
     </header>
     <section class="view" aria-label="Outline view">
+      <div class="note-selection">
+        <label for="note-choice">Note</label>
+        <select id="note-choice" disabled aria-describedby="note-choice-help">
+          <option value="">Connecting…</option>
+        </select>
+        <p id="note-choice-help">Choose a note from this session.</p>
+      </div>
       <div class="surface">
         <canvas id="note-frame" width="320" height="160" role="img" tabindex="0"
           aria-label="Note outline view" aria-disabled="true" aria-busy="true"
@@ -47,6 +54,12 @@ main { width: min(100% - 40px, 736px); margin: clamp(32px, 8vh, 80px) auto; }
 h1 { margin: 0; font-size: clamp(28px, 5vw, 38px); line-height: 1.2; letter-spacing: -.03em; font-weight: 600; }
 .introduction { margin: 10px 0 28px; color: #627168; line-height: 1.5; }
 .view { padding: clamp(16px, 4vw, 32px); background: #fff; border: 1px solid #dce3db; border-radius: 12px; box-shadow: 0 8px 32px #26373207; }
+.note-selection { display: grid; gap: 7px; margin-bottom: 22px; }
+.note-selection label { color: #53665b; font-size: 13px; font-weight: 600; }
+select { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid #bdcbbf; border-radius: 6px; background: #fff; color: #263732; font: inherit; font-size: 14px; }
+select:focus-visible { outline: 3px solid #2a7760; outline-offset: 3px; }
+select:disabled { color: #768078; background: #f4f6f2; }
+#note-choice-help { margin: 0; color: #66766b; font-size: 12px; line-height: 1.5; }
 .surface { background: #fff; }
 canvas { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; padding: 0; border: 0; image-rendering: pixelated; outline: none; }
 canvas[role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
