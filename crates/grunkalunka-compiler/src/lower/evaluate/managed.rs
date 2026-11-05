@@ -640,6 +640,16 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
+        if let Expression::BinaryExpression(binary) = node
+            && binary.operator == BinaryOperator::In
+            && matches!(
+                mode,
+                Mode::Predicate | Mode::General | Mode::Managed | Mode::Number | Mode::Discard
+            )
+        {
+            self.schedule_in(node, binary, depth, mode, work)?;
+            return Ok(true);
+        }
         if let Expression::CallExpression(call) = node
             && object_intrinsics::is_method(call, self.semantic, "hasOwn")
             && matches!(

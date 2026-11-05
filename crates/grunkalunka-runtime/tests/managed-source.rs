@@ -708,3 +708,49 @@ fn has_own_known_scalar_receivers_still_evaluate_keys_and_extra_arguments() {
         compare(body);
     }
 }
+
+#[test]
+fn dictionary_in_checks_presence_for_static_and_runtime_keys() {
+    for body in [
+        "const d=Object.create(null);d.x=undefined;const k='x';const flag=k in d;const box={flag};return box.flag===true&&flag!==1&&!('missing' in d)&&!('constructor' in d)?1:0;",
+        "const d=Object.create(null);d.__proto__=null;d[1.5]=b;d.undefined=a;return '__proto__' in d&&1.5 in d&&undefined in d&&!(false in d)?1:0;",
+        "const d=Object.create(null);const has=k=>k in d;d.y=a;return has('y')&&!has('x')?1:0;",
+        r"const d=Object.create(null);d['\ud800']=a;return '\ud800' in d&&!('\ufffd' in d)?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn dictionary_in_saves_the_key_before_evaluating_the_receiver() {
+    for body in [
+        "const d=Object.create(null);let n=0,k='first';const present=(n=n*10+1,k) in (n=n*10+2,k='other',d.first=undefined,d);return present&&n===12&&!('other' in d)?1:0;",
+        "const d=Object.create(null);let n=0;const present=void(n=1) in (n=n*10+2,d.undefined=a,d);return present&&n===12?1:0;",
+        "const d=Object.create(null);let n=0;(n++,'unused') in (n++,d);return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
+    for body in [
+        "const k='constructor';return k in {}?1:0;",
+        "return 'length' in [a]?1:0;",
+        "return 'x' in (a?Object.create(null):{})?1:0;",
+        "return 'x' in null?1:0;",
+        "return a in Object.create(null)?1:0;",
+        "return {} in Object.create(null)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let err = compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

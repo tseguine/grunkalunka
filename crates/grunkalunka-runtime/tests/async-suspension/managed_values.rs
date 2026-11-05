@@ -452,3 +452,14 @@ fn has_own_string_receivers_keep_their_utf16_snapshot_across_await() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn dictionary_in_saves_the_key_across_receiver_awaits() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);let k='old',n=0;const present=(await a,n=1,k) in (await b,k='new',n=n*10+2,d.old=undefined,d);return present&&n===12?1:0;",
+            "const d=Object.create(null);let n=0;try{(await Promise.reject(a),'x') in (n=1,d);}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

@@ -649,7 +649,7 @@ fn imported_handler_selects_dictionary_state_and_counts_remaining_actions() {
             actions.reload = 1;
             const action = a > 0 ? 'expand' : 'collapse';
             const {[action]:selected,...remaining} = actions;
-            return choose(selected === 1 ? 1 : 0, Object.keys(remaining).length);
+            return choose(action in actions && selected === 1 ? 1 : 0, Object.keys(remaining).length);
         }"#,
     );
 }
