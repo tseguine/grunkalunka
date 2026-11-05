@@ -14,5 +14,37 @@
   ],
   "dependsOn": [
     "test:type-query-contracts"
-  ]
+  ],
+  "pr": {
+    "reason": "Compile the independent type-query spike before bounded test execution so cold compilation uses the build allowance; preserve every test and the single-threaded harness.",
+    "commands": [
+      {
+        "command": "cargo",
+        "args": [
+          "test",
+          "--manifest-path",
+          "spikes/004-tsrs-type-query/Cargo.toml",
+          "--locked",
+          "--offline",
+          "-j",
+          "2",
+          "--no-run"
+        ]
+      },
+      {
+        "command": "cargo",
+        "args": [
+          "test",
+          "--manifest-path",
+          "spikes/004-tsrs-type-query/Cargo.toml",
+          "--locked",
+          "--offline",
+          "-j",
+          "2",
+          "--",
+          "--test-threads=1"
+        ]
+      }
+    ]
+  }
 }
