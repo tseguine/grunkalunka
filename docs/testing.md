@@ -25,6 +25,48 @@ work first, then keep irreducibly long tests on master. The manual partial-build
 rehearsal is available for selector investigations without allocating extra PR
 runners.
 
+## Fast source-level coverage
+
+PR coverage should exercise ordinary decisions close to their implementation.
+Validation, ownership/copying, authority, state transitions, ordering and failure
+handling usually admit small unit tests with deterministic dependencies. Call the
+real production module and control only an external boundary, such as a native
+subprocess, worker, browser, clock or filesystem. Expected state and effects come
+from the behavior contract; a fake must not implement the decision being tested.
+
+| Layer | Purpose | Placement |
+| --- | --- | --- |
+| Source-level unit tests | Cover branches, invalid input, state/ownership invariants and injected failures cheaply | Fast PR and full profiles |
+| Real boundary and feature smoke | Check that actual adapters, formats and representative user operations work together | Bounded PR and full profiles |
+| Exhaustive feature and stress matrices | Preserve broad native/WIT, application, compatibility and resource-limit evidence | Full master/manual profile when too slow for PRs |
+
+Keep all three layers. A fake native response can establish the host's rollback
+behavior, while the native suite establishes that the real provider produces the
+response and the complete feature works. Preserve those distinctions in test
+names and verification reports. Prefer explicit completion signals and controlled
+time over sleeps, and restore substituted dependencies after each test.
+
+The A1 session unit command runs the actual `session.mjs` and
+`async-session.mjs` modules with controlled subprocess and worker boundaries. It
+reports built-in Node coverage for those production files only; the fixture and
+fake implementation are excluded from the percentages. Run it without Cargo:
+
+```sh
+node --test --experimental-test-coverage \
+  --test-coverage-include=examples/note-preview/session.mjs \
+  --test-coverage-include=examples/note-preview/async-session.mjs \
+  tests/applications/a1-session-unit.test.mjs \
+  tests/applications/a1-async-session-unit.test.mjs
+```
+
+Inspect uncovered branches alongside their assertions. Coverage measurements
+describe these files and this invocation, not whole-project coverage or native
+execution. The normal canonical check includes the same reporting in both
+profiles. Its impact descriptor keeps source-selection dependencies but has no
+native build prerequisites, so editing only these unit tests can run them alone.
+Changes to production application sources still select their existing feature
+checks as well.
+
 ## Current verification map (2026-11-01)
 
 The canonical [check catalog](../scripts/checks/README.md) and the

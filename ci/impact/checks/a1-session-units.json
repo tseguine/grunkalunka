@@ -1,0 +1,20 @@
+{
+  "id": "check:a1-session-units",
+  "command": "node",
+  "args": [
+    "--test",
+    "--experimental-test-coverage",
+    "--test-coverage-include=examples/note-preview/session.mjs",
+    "--test-coverage-include=examples/note-preview/async-session.mjs",
+    "tests/applications/a1-session-unit.test.mjs",
+    "tests/applications/a1-async-session-unit.test.mjs"
+  ],
+  "dependsOn": [
+    "a1-note-preview"
+  ],
+  "buildDependsOn": [],
+  "paths": [
+    "tests/applications/a1-session-unit.test.mjs",
+    "tests/applications/a1-async-session-unit.test.mjs"
+  ]
+}
