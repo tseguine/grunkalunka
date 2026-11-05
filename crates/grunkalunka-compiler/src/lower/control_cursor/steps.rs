@@ -264,32 +264,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 value.expect("declaration initializer value"),
                 cursor,
             ),
-            Frame::ObjectBindingSource { sequence, binding } => self.resume_object_binding_source(
-                sequence,
-                binding,
-                output_region,
-                value.expect("object binding source"),
-                cursor,
-            ),
-            Frame::ArrayBindingSource { sequence, binding } => self.resume_array_binding_source(
-                sequence,
-                binding,
-                output_region,
-                value.expect("array binding source"),
-                cursor,
-            ),
-            Frame::ArrayBindingDefault { sequence, active } => self.resume_array_binding_default(
-                sequence,
+            Frame::ObjectBindingSource { sequence, binding }
+            | Frame::ArrayBindingSource { sequence, binding } => self
+                .resume_pattern_binding_source(
+                    sequence,
+                    binding,
+                    output_region,
+                    value.expect("pattern binding source"),
+                    cursor,
+                ),
+            Frame::PatternBindingDefault { resume, active } => self.resume_pattern_binding_default(
+                resume,
                 *active,
                 output_region,
-                value.expect("array binding default"),
-                cursor,
-            ),
-            Frame::ObjectBindingDefault { sequence, active } => self.resume_object_binding_default(
-                sequence,
-                *active,
-                output_region,
-                value.expect("object binding default"),
+                value.expect("pattern binding default"),
                 cursor,
             ),
             Frame::MaterializedDeclaration {
@@ -566,8 +554,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::DeclarationValue { .. }
             | Frame::ObjectBindingSource { .. }
             | Frame::ArrayBindingSource { .. }
-            | Frame::ArrayBindingDefault { .. }
-            | Frame::ObjectBindingDefault { .. }
+            | Frame::PatternBindingDefault { .. }
             | Frame::CheckedDeclarationClosure { .. }
             | Frame::MaterializedDeclaration { .. }
             | Frame::ReturnValue { .. }

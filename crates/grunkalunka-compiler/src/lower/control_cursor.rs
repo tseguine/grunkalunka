@@ -347,23 +347,17 @@ enum Frame<'n, 'a> {
     /// The original object RHS is evaluated once before any field is selected.
     ObjectBindingSource {
         sequence: Box<DeclarationSequence<'n, 'a>>,
-        binding: binding_patterns::ObjectBinding<'n, 'a>,
+        binding: binding_patterns::PatternBinding<'n, 'a>,
     },
     /// The intrinsic array RHS is saved before any indexed binding is published.
     ArrayBindingSource {
         sequence: Box<DeclarationSequence<'n, 'a>>,
-        binding: binding_patterns::ArrayBinding<'n, 'a>,
+        binding: binding_patterns::PatternBinding<'n, 'a>,
     },
-    /// An array default retains the original receiver and the iterator's
-    /// persistent activity state while its selected expression completes.
-    ArrayBindingDefault {
-        sequence: Box<DeclarationSequence<'n, 'a>>,
-        active: Box<array_bindings::DefaultBinding<'n, 'a>>,
-    },
-    /// A lazy default owns its parent output and saved object until the
-    /// expression completes; later properties have not been read yet.
-    ObjectBindingDefault {
-        sequence: Box<DeclarationSequence<'n, 'a>>,
+    /// A default retains every enclosing receiver and independent iterator
+    /// state until its expression completes. Later fields remain unread.
+    PatternBindingDefault {
+        resume: bindings::BindingResume<'n, 'a>,
         active: Box<bindings::DefaultBinding<'n, 'a>>,
     },
     /// Completed metadata resumes its next declarator on the main loop,
@@ -605,8 +599,7 @@ impl Frame<'_, '_> {
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ObjectBindingSource { sequence, .. } => sequence.depth,
             Self::ArrayBindingSource { sequence, .. } => sequence.depth,
-            Self::ArrayBindingDefault { sequence, .. } => sequence.depth,
-            Self::ObjectBindingDefault { sequence, .. } => sequence.depth,
+            Self::PatternBindingDefault { resume, .. } => resume.depth(),
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::MaterializedDeclaration { sequence, .. } => sequence.depth,
