@@ -25,7 +25,7 @@ original complete catalog.
 
 The PR executor projects the workspace-test command through
 `scripts/pr-cargo-tests.mjs`. It keeps all selected non-runtime package tests,
-runtime library tests and 20 fast runtime integration targets. All runtime
+runtime library tests and 21 fast runtime integration targets. All runtime
 integration targets are partitioned explicitly into PR or full-only lists and
 checked against live Cargo metadata. The classification lives in
 `ci/impact/pr-cargo-tests.json`. Unknown, removed or duplicated target

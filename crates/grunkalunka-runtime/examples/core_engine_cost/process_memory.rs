@@ -54,6 +54,31 @@ pub fn observe() -> Result<Option<Snapshot>, String> {
     parse_linux_status(&status).map(Some)
 }
 
+// A successful Windows API call can still yield a pair that fails our
+// consistency check. Resample that pair within a fixed budget; never synthesize
+// a peak or combine counters from different observations. Keeping the policy
+// outside the FFI module lets deterministic tests supply only the raw readings.
+#[cfg(any(target_os = "windows", test))]
+pub fn sample_windows_working_set(
+    mut read: impl FnMut() -> Result<Snapshot, String>,
+) -> Result<Snapshot, String> {
+    const ATTEMPTS: usize = 3;
+    let mut snapshot = read()?;
+    for _ in 1..ATTEMPTS {
+        if snapshot.peak_rss_bytes >= snapshot.rss_bytes {
+            break;
+        }
+        snapshot = read()?;
+    }
+    if snapshot.peak_rss_bytes < snapshot.rss_bytes {
+        return Err(format!(
+            "Windows peak working set below current working set after {ATTEMPTS} samples: current={} bytes, peak={} bytes",
+            snapshot.rss_bytes, snapshot.peak_rss_bytes
+        ));
+    }
+    Ok(snapshot)
+}
+
 #[cfg(target_os = "windows")]
 mod windows {
     use super::Snapshot;
@@ -98,29 +123,28 @@ mod windows {
             return Err("unexpected PROCESS_MEMORY_COUNTERS layout".into());
         }
         let cb = u32::try_from(size).map_err(|_| "Windows counter size overflow")?;
-        let mut counters = ProcessMemoryCounters {
-            cb,
-            ..Default::default()
-        };
-        // SAFETY: the pseudo-handle is this process; counters is an initialized
-        // writable #[repr(C)] structure with the exact API size.
-        let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, cb) };
-        if ok == 0 {
-            return Err(format!(
-                "K32GetProcessMemoryInfo: {}",
-                std::io::Error::last_os_error()
-            ));
-        }
-        let rss_bytes = u64::try_from(counters.working_set_size)
-            .map_err(|_| "Windows working set exceeds u64")?;
-        let peak_rss_bytes = u64::try_from(counters.peak_working_set_size)
-            .map_err(|_| "Windows peak working set exceeds u64")?;
-        if peak_rss_bytes < rss_bytes {
-            return Err("Windows peak working set below current working set".into());
-        }
-        Ok(Snapshot {
-            rss_bytes,
-            peak_rss_bytes,
+        super::sample_windows_working_set(|| {
+            let mut counters = ProcessMemoryCounters {
+                cb,
+                ..Default::default()
+            };
+            // SAFETY: the pseudo-handle is this process; counters is an initialized
+            // writable #[repr(C)] structure with the exact API size on every call.
+            let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, cb) };
+            if ok == 0 {
+                return Err(format!(
+                    "K32GetProcessMemoryInfo: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+            let rss_bytes = u64::try_from(counters.working_set_size)
+                .map_err(|_| "Windows working set exceeds u64")?;
+            let peak_rss_bytes = u64::try_from(counters.peak_working_set_size)
+                .map_err(|_| "Windows peak working set exceeds u64")?;
+            Ok(Snapshot {
+                rss_bytes,
+                peak_rss_bytes,
+            })
         })
     }
 }
