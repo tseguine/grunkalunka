@@ -4,6 +4,7 @@ use std::fmt::Write;
 
 mod array_at;
 mod array_pop;
+mod array_rest;
 mod asynchronous;
 mod cells;
 mod closures;
@@ -500,6 +501,20 @@ impl Emitter<'_> {
             Op::ManagedArrayPop { result, array } => {
                 self.get(*array);
                 self.output.push_str("call $gc_array_pop\n");
+                self.set(*result);
+            }
+            Op::ManagedArrayRest {
+                result,
+                array,
+                start,
+            } => {
+                self.get(*array);
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_array_rest",
+                    *start as i32
+                )
+                .unwrap();
                 self.set(*result);
             }
             Op::ManagedObjectNew { result } => {
@@ -1516,6 +1531,7 @@ fn emit_verified(
         output.push_str(own_keys::runtime(module));
         output.push_str(array_at::runtime(module));
         output.push_str(array_pop::runtime(module));
+        output.push_str(array_rest::runtime(module));
         output.push_str(string_concat::runtime(module));
         output.push_str(string_methods::runtime(module));
     }

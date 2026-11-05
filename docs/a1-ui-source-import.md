@@ -80,6 +80,9 @@ records through a mixed object/array declaration, then uses a destructuring
 `for...of` head with a lazy identifier default to compute the visible count.
 An optional-action case supplies missing view, group and heading-option records
 through whole-pattern defaults before deriving the service arguments.
+An array-rest case separates a title from its heading list, verifies that
+replacing a source slot preserves the copied heading reference, and derives the
+service count from the new list.
 These records and boxed leaves stay within compiled source; the handler passes
 derived numeric arguments through the unchanged scalar service. The cases add
 no numeric unboxing, typed public A1 payload or resource interface.

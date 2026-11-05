@@ -4,8 +4,9 @@ Local `const` and `let` declarations admit object binding patterns over
 source-proven managed objects. This supports shorthand fields, renamed fields,
 and identifier or String-literal property names, including literal-computed
 String keys and nested object or array patterns. Identifier leaves and whole
-nested patterns may have lazy defaults. The same declaration path applies in ordinary blocks, helpers,
-async activations and traditional `for` initializers.
+nested patterns may have lazy defaults, and nested array patterns may end in an
+identifier rest element. The same declaration path applies in ordinary blocks,
+helpers, async activations and traditional `for` initializers.
 
 ## Evaluation and representation
 
@@ -19,8 +20,8 @@ Nested fields are selected once and retain their original receiver while
 their leaves finish in source order. A default inside a nested pattern completes
 before the next outer property is read. Replacing an outer property or rebinding
 the original source does not redirect a nested selection already in progress.
-Empty nested patterns still select and validate their receiver. Each nested object pattern
-requires an all-object source proof after any whole-pattern default; nullable,
+Empty nested patterns still select and validate their receiver. Each nested
+object pattern requires an all-object source proof after any whole-pattern default; nullable,
 array or unknown alternatives do not satisfy that proof. Nested array patterns
 use their own all-array proof and independent iterator state described in
 [array bindings](array-binding-patterns.md).
@@ -67,13 +68,15 @@ its actual source values.
 The source-local budget counts each bound identifier across the complete pattern;
 empty patterns do not consume locals. Pattern processing is iterative, with at
 most 128 nested binding-container levels, and evaluation uses the existing source
-cursor. This slice adds no runtime imports, public ABI, IR operation or native
-recursion proportional to pattern size.
+cursor. This slice adds no runtime imports, public ABI or native recursion
+proportional to pattern size. Nested array rest uses the private operation
+described in [array bindings](array-binding-patterns.md).
 
 ## Admission limits
 
 This slice covers declarations with identifier leaves, nested object or array
-patterns and optional defaults on either. Rest properties, destructuring
+patterns and optional defaults on either, including identifier rest in arrays.
+Object rest properties, destructuring
 assignment and parameter patterns remain separate work.
 [Array declarations](array-binding-patterns.md) have their own source-proven
 array admission. Dynamic property names and primitive RHS coercion are also

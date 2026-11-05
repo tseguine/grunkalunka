@@ -528,6 +528,12 @@ pub(crate) enum Op {
         result: ValueId,
         array: ValueId,
     },
+    // Dense intrinsic-iterator tail: holes become own Undefined entries.
+    ManagedArrayRest {
+        result: ValueId,
+        array: ValueId,
+        start: u32,
+    },
     ManagedArrayGetOwn {
         result: ValueId,
         array: ValueId,
@@ -1315,6 +1321,10 @@ impl Verifier<'_> {
             Op::ManagedArrayPop { result, array } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedArrayRest { result, array, .. } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
             }
             Op::ManagedFromArray { result, input } => {
                 self.value(*input, Type::ManagedArray, visible, span)?;

@@ -8,6 +8,55 @@ pub(super) struct IteratorState {
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn collect_array_binding_rest(
+        &mut self,
+        node: &impl GetSpan,
+        output: &mut Region,
+        array: ValueId,
+        iterator: Option<&IteratorState>,
+        start: u32,
+    ) -> ValueId {
+        let tail = self.value(Type::ManagedArray);
+        let copy = Op::ManagedArrayRest {
+            result: tail,
+            array,
+            start,
+        };
+        let Some(iterator) = iterator else {
+            Self::push(output, node, copy);
+            return tail;
+        };
+        // A preceding default may grow an array after its iterator finished.
+        // Only a still-active iterator may consume the current tail. Elisions
+        // execute no hooks, so start also accounts for trailing skipped steps.
+        let mut active = self.region(node);
+        Self::push(&mut active, node, copy);
+        active.exit = Exit::Yield(tail);
+        let mut exhausted = self.region(node);
+        let empty = self.value(Type::ManagedArray);
+        Self::push(
+            &mut exhausted,
+            node,
+            Op::ManagedArrayNew {
+                result: empty,
+                length: 0,
+            },
+        );
+        exhausted.exit = Exit::Yield(empty);
+        let result = self.value(Type::ManagedArray);
+        Self::push(
+            output,
+            node,
+            Op::If {
+                result: Some(result),
+                condition: iterator.active,
+                consequent: active,
+                alternate: exhausted,
+            },
+        );
+        result
+    }
+
     pub(super) fn begin_array_binding_iterator(
         &mut self,
         node: &impl GetSpan,

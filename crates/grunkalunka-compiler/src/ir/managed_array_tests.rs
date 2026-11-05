@@ -80,6 +80,99 @@ fn array_pop_checks_its_receiver_and_boxed_result_before_emission() {
 }
 
 #[test]
+fn array_rest_checks_its_receiver_and_array_result_before_emission() {
+    for invalid in 0..3 {
+        let mut m = module();
+        let f = &mut m.functions[0];
+        let source = value(f, Type::ManagedArray, |result| Op::ManagedArrayNew {
+            result,
+            length: 2,
+        });
+        let number = value(f, Type::Number, |result| Op::Constant {
+            result,
+            value: 0.0,
+        });
+        let rest = value(f, Type::ManagedArray, |result| Op::ManagedArrayRest {
+            result,
+            array: match invalid {
+                0 => number,
+                1 => ValueId(usize::MAX),
+                _ => source,
+            },
+            start: 0,
+        });
+        if invalid == 2 {
+            f.values[rest.0] = Type::ManagedValue;
+        }
+        f.body.exit = Exit::Return(number);
+        assert!(verify_module(&m).is_err());
+    }
+}
+
+#[test]
+fn array_rest_densifies_holes_and_excludes_named_properties() {
+    for (length, start) in [(0, 0), (4, 0), (4, 1), (4, 4), (4, u32::MAX)] {
+        let mut m = module();
+        let f = &mut m.functions[0];
+        let source = value(f, Type::ManagedArray, |result| Op::ManagedArrayNew {
+            result,
+            length,
+        });
+        let a = primitive(f, 0);
+        if length != 0 {
+            set(f, source, "2", a);
+        }
+        set(f, source, "named", a);
+        let rest = value(f, Type::ManagedArray, |result| Op::ManagedArrayRest {
+            result,
+            array: source,
+            start,
+        });
+        let keys = value(f, Type::ManagedArray, |result| Op::ManagedOwnKeys {
+            result,
+            input: rest,
+        });
+        let count = value(f, Type::Number, |result| Op::ManagedArrayLength {
+            result,
+            array: keys,
+        });
+        f.body.exit = Exit::Return(count);
+        execute(
+            &m,
+            &format!(
+                "(()=>{{const source=new Array({length});if({length})source[2]=a;source.named=a;const rest=Array.from(source).slice({start});return Object.keys(rest).length;}})()"
+            ),
+        );
+    }
+}
+
+#[test]
+fn array_rest_copies_entries_without_aliasing_the_source_slots() {
+    let mut m = module();
+    let f = &mut m.functions[0];
+    let source = value(f, Type::ManagedArray, |result| Op::ManagedArrayNew {
+        result,
+        length: 1,
+    });
+    let a = primitive(f, 0);
+    let b = primitive(f, 1);
+    set(f, source, "0", a);
+    let rest = value(f, Type::ManagedArray, |result| Op::ManagedArrayRest {
+        result,
+        array: source,
+        start: 0,
+    });
+    set(f, rest, "0", b);
+    let original = get(f, source, "0");
+    let result = equal(f, original, a);
+    f.body.exit = Exit::Return(result);
+    execute(
+        &m,
+        "(()=>{const source=[a];const [...rest]=source;rest[0]=b;return source[0]===a?1:0;})()",
+    );
+}
+
+#[test]
 fn array_lengths_include_holes_without_dense_allocation() {
     for length in [0, 2, 1 << 31, u32::MAX] {
         let mut m = module();

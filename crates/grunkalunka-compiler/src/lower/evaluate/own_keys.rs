@@ -110,6 +110,13 @@ impl Lowering<'_, '_> {
                     task.known = true;
                     Mode::Array
                 }
+                Some(Type::ManagedValue) if self.stored.container(argument.node_id()).is_some() => {
+                    // Pattern leaves retain their boxed carrier. A positive
+                    // source container proof still establishes non-nullness;
+                    // unknown or mixed alternatives keep the fallible path.
+                    task.known = true;
+                    Mode::Managed
+                }
                 _ if self.numeric_result_shape(argument, task.depth + 1) => {
                     task.known = true;
                     Mode::Number

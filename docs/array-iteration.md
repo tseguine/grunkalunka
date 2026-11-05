@@ -2,8 +2,8 @@
 
 Synchronous `for...of` admits one local `const` or `let` declaration over a
 source-proven managed array. Its binding may be an identifier or a supported
-object/array pattern, including mixed nesting and defaults on leaves or nested
-patterns.
+object/array pattern, including mixed nesting, identifier rest in arrays and
+defaults on leaves or nested patterns.
 The loop works in ordinary source functions, helpers and supported async
 activations. The iterable expression is evaluated
 once; later reassignment of its source variable cannot redirect the loop.
@@ -39,6 +39,8 @@ the body from running. Each nested array pattern has its own exhaustion state,
 separate from the outer `for...of` cursor and from other patterns over the same
 array. See [object bindings](object-binding-patterns.md) and
 [array bindings](array-binding-patterns.md) for the shared pattern contract.
+An array-rest head binding receives a new dense tail array each iteration;
+captured rest bindings preserve the array and cell from their own iteration.
 
 ## Representation and admission
 
@@ -84,7 +86,8 @@ Each destructured item must have the object or array kind required by its head,
 and every nested receiver needs its own positive source proof after any default.
 A known Undefined nested selection may use a proven fallback; nullable,
 mixed-kind and unresolved alternatives retain their conservative rejection.
-Rest bindings and dynamic object keys remain outside the shared pattern admission.
+Object rest, array rest with pattern targets and dynamic object keys remain
+outside the shared pattern admission.
 
 This slice rejects `for await...of`, `var`, assignment targets,
 Strings, unproven iterable values and labels. Synchronous source
@@ -94,8 +97,9 @@ The index slot and generated header regions do not count as source locals or
 source statements. Every head leaf counts once against the existing
 128-local limit; empty patterns consume no locals. Mixed patterns retain the
 128-level binding-container limit. All source traversal remains on the heap-owned
-cursor; the existing 64-level source statement nesting limit still applies. No new IR
-operation, runtime import or application ABI is introduced.
+cursor; the existing 64-level source statement nesting limit still applies.
+Array rest reuses its shared private IR operation; the loop adds no runtime
+import or application ABI.
 
 ## Executable evidence
 

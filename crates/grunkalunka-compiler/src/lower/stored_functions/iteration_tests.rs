@@ -465,3 +465,35 @@ fn binding_defaults_cannot_infer_absence_from_spread_or_intrinsic_members() {
         assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }
+
+#[test]
+fn array_rest_origins_prove_the_new_receiver_but_keep_copied_elements_opaque() {
+    for body in [
+        "const [head,...rest]=[a,b];const observed=rest;return a;",
+        "const {items:[,...rest]=[a,b]}={};const observed=rest;return a;",
+        "const [...rest]=Object.keys(a);const observed=rest;return a;",
+        "for(const [head,...rest] of [[a,b]]){const observed=rest;}return a;",
+        "const [...rest]=[];const read=()=>rest;const observed=read();return a;",
+    ] {
+        assert_eq!(
+            observe(body),
+            Observation {
+                string: false,
+                container: Some(Type::ManagedArray),
+                callable: false,
+                other: false,
+                undefined: false,
+            },
+            "{body}",
+        );
+    }
+    for body in [
+        "const [...rest]=['text'];const observed=rest[0];return a;",
+        "const [...rest]=['text'];const [label='fallback']=rest;const observed=label;return a;",
+        "const [...rest]=[{label:'text'}];const observed=rest[0].label;return a;",
+        "const [...rest]=['text'];for(const item of rest){const observed=item;}return a;",
+        "let [...rest]=[];rest=a;const observed=rest;return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+    }
+}
