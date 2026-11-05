@@ -183,6 +183,22 @@ slices. This compiler work does not alter the concurrent A1 application's
 session, native view, service or packaging interfaces, or the browser stream's
 native layout and engine-oracle work.
 
+## Synchronous source errors
+
+Ordinary functions now handle primitive policy failures through local
+`try/catch`, including mutable captured reasons, nested rethrows, loops and
+closures. The first slice reuses the existing typed completion seam without
+changing the public call ABI. The original `gap-catch` fixture now executes with
+its source and independent oracle preserved. A1 composition tests recover from
+a local source failure before invoking the existing service, while provider
+denial remains a terminal host outcome.
+
+See [synchronous errors](synchronous-errors.md) for the same-function lexical
+boundary and differential tests. Cross-call errors, broader exception values
+and source-error-producing runtime operations require further slices. In
+particular, catchable intrinsic Errors need coherent value flow and coercion
+before they can safely unlock array `push` overflow or nullable `Object.keys`.
+
 ## A1 scope and existing evidence
 
 The separate A1 application stack, [#477](https://github.com/tseguine/grunkalunka/pull/477)

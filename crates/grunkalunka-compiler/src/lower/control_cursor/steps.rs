@@ -59,12 +59,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 });
             }
             ControlNode::TryCatch(source) => {
-                if !self.allow_await {
-                    return Err(unsupported(
-                        source,
-                        "statement is outside the numeric experiment",
-                    ));
-                }
                 source
                     .handler
                     .as_ref()

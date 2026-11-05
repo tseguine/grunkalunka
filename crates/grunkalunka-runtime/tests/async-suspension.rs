@@ -19,6 +19,9 @@ mod array_bindings;
 #[path = "async-suspension/iteration.rs"]
 mod iteration;
 
+#[path = "async-suspension/sync_catch.rs"]
+mod sync_catch;
+
 #[path = "async-suspension/managed_closures.rs"]
 mod managed_closures;
 
@@ -1910,10 +1913,13 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
     for body in [
         "try{return await a;}catch({x}){return x;}",
         "try{await a;}catch(e){a=+e;}return e;",
-        "const f=()=>{try{return a;}catch(e){return +e;}};return f();",
     ] {
         assert!(compile_async(&source_for(body), false).is_err(), "{body}");
     }
+    compare_promises(
+        &["const f=()=>{try{return a;}catch(e){return +e;}};return f();"],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
     let plain = "export async function run(a,b){try{return await Promise.reject(a);}catch(e){e=b;return await e;}}";
     let typed = "export async function run(a:never,b:Missing):Wrong{try{return await Promise.reject((a as unknown));}catch(e:unknown){e=b;return await(e as number);}}";
     assert_eq!(
@@ -1948,18 +1954,36 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
         }
     }
     let ordinary = "export function run(a,b){try{return a;}catch(e){return +e;}}";
-    assert!(
-        grunkalunka_compiler::compile(ordinary, false)
-            .err()
-            .unwrap()
-            .contains("statement is outside the numeric experiment")
-    );
-    assert!(
-        grunkalunka_compiler::compile_value(ordinary, false)
-            .err()
-            .unwrap()
-            .contains("statement is outside the numeric experiment")
-    );
+    for typed in [false, true] {
+        let numeric = grunkalunka_compiler::compile(ordinary, typed).unwrap();
+        let value = grunkalunka_compiler::compile_value(ordinary, typed).unwrap();
+        let mut numeric_instance =
+            grunkalunka_runtime::NumericInstance::new(&numeric.wasm).unwrap();
+        let mut value_instance = grunkalunka_runtime::ValueInstance::new(&value.wasm).unwrap();
+        for a in [4.0, -0.0, f64::NAN, f64::INFINITY, f64::from_bits(1)] {
+            let numeric_result = numeric_instance.run(a, 2.0).unwrap();
+            let Value::Number(value_result) = value_instance.run(a, 2.0).unwrap() else {
+                panic!("ordinary catch must preserve the Number return kind");
+            };
+            for result in [numeric_result, value_result] {
+                if a.is_nan() {
+                    assert!(result.is_nan());
+                } else {
+                    assert_eq!(result.to_bits(), a.to_bits());
+                }
+            }
+        }
+        run_node(&format!(
+            r#"import assert from 'node:assert/strict';
+{};
+const numeric=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({:?}))).exports.run;
+const value=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({:?}))).exports.run;
+for(const a of [4,-0,NaN,Infinity,Number.MIN_VALUE]){{const expected=run(a,2);assert.ok(Object.is(numeric(a,2),expected));const[tag,payload]=value(a,2);assert.equal(tag,3);assert.ok(Object.is(payload,expected));}}"#,
+            ordinary.replace("export function", "function"),
+            numeric.wasm,
+            value.wasm
+        ));
+    }
     for count in [32, 33] {
         let body = format!(
             "let x=0;for(let i=0;i<{count};i++){{try{{await Promise.reject(i);}}catch(e){{x+=e;}}}}return x;"

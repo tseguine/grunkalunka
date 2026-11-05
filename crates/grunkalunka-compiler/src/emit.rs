@@ -1380,10 +1380,11 @@ fn region_has_await(region: &Region) -> bool {
 
 fn region_has_control(region: &Region, starts: bool) -> bool {
     // The async routing decision is read-only. Traverse the same children in
-    // source order without consuming one native frame per nested region.
-    let mut pending = vec![region];
-    while let Some(region) = pending.pop() {
-        if matches!(region.exit, Exit::Throw(_)) {
+    // source order without consuming one native frame per nested region. A
+    // primitive throw closed by this function's own catch needs no coroutine.
+    let mut pending = vec![(region, false)];
+    while let Some((region, caught)) = pending.pop() {
+        if matches!(region.exit, Exit::Throw(_)) && !caught {
             return true;
         }
         for operation in region.operations.iter().rev() {
@@ -1395,19 +1396,25 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
                 | Op::AwaitClosureCall { .. }
                 | Op::AwaitSettled { .. }
                 | Op::AwaitCall { .. }
-                | Op::TryCatch { .. }
                 | Op::TryFinally { .. } => return true,
                 Op::StartAsyncClosure { .. } if starts => return true,
                 // Settlement bodies close their own throws, and don't await.
                 Op::SettlePromise { .. } | Op::StartAsyncClosure { .. } => {}
-                Op::InlineCall { body, .. } | Op::Block(body) => pending.push(body),
+                // Preserve the separate source-function completion boundary.
+                // A catch inside that body can close its throws independently.
+                Op::InlineCall { body, .. } => pending.push((body, false)),
+                Op::Block(body) => pending.push((body, caught)),
+                Op::TryCatch { body, handler, .. } => {
+                    pending.push((handler, caught));
+                    pending.push((body, true));
+                }
                 Op::If {
                     consequent,
                     alternate,
                     ..
                 } => {
-                    pending.push(alternate);
-                    pending.push(consequent);
+                    pending.push((alternate, caught));
+                    pending.push((consequent, caught));
                 }
                 Op::While {
                     condition,
@@ -1415,14 +1422,14 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
                     step,
                 } => {
                     if let Some(step) = step {
-                        pending.push(step);
+                        pending.push((step, caught));
                     }
-                    pending.push(body);
-                    pending.push(condition);
+                    pending.push((body, caught));
+                    pending.push((condition, caught));
                 }
                 Op::DoWhile { body, condition } => {
-                    pending.push(condition);
-                    pending.push(body);
+                    pending.push((condition, caught));
+                    pending.push((body, caught));
                 }
                 _ => {}
             }
@@ -1627,6 +1634,107 @@ mod control_scan_tests {
         // Scanner-only synthetic IR: settlement bodies are excluded regardless
         // of whether the separately enforced verifier contract would admit them.
         assert!(!region_has_control(&settled, true));
+    }
+
+    fn caught(body: Region, handler: Region) -> Region {
+        region(
+            vec![Op::TryCatch {
+                body,
+                reason: ValueId(0),
+                handler,
+            }],
+            Exit::Fallthrough,
+        )
+    }
+
+    fn thrown() -> Region {
+        region(Vec::new(), Exit::Throw(ValueId(0)))
+    }
+
+    #[test]
+    fn control_scan_closes_protected_throws_and_preserves_outer_handlers() {
+        for starts in [false, true] {
+            assert!(!region_has_control(&caught(thrown(), idle()), starts));
+            assert!(region_has_control(&caught(thrown(), thrown()), starts));
+            assert!(!region_has_control(
+                &caught(caught(thrown(), thrown()), idle()),
+                starts,
+            ));
+            let mut later = caught(thrown(), idle());
+            later.operations.push(ir::Operation {
+                span: Span::new(0, 0),
+                kind: Op::Block(thrown()),
+            });
+            assert!(region_has_control(&later, starts));
+        }
+    }
+
+    #[test]
+    fn control_scan_keeps_awaits_and_inline_function_boundaries() {
+        for starts in [false, true] {
+            for in_handler in [false, true] {
+                let awaiting = region(
+                    vec![Op::Await {
+                        result: ValueId(0),
+                        input: ValueId(0),
+                        rejected: false,
+                    }],
+                    Exit::Fallthrough,
+                );
+                let source = if in_handler {
+                    caught(idle(), awaiting)
+                } else {
+                    caught(awaiting, idle())
+                };
+                assert!(region_has_control(&source, starts));
+            }
+            let inline = |body| {
+                region(
+                    vec![Op::InlineCall {
+                        result: ValueId(0),
+                        body,
+                    }],
+                    Exit::Fallthrough,
+                )
+            };
+            assert!(region_has_control(
+                &caught(inline(thrown()), idle()),
+                starts
+            ));
+            assert!(!region_has_control(
+                &inline(caught(thrown(), idle())),
+                starts,
+            ));
+        }
+    }
+
+    #[test]
+    fn control_scan_deep_catches_use_bounded_native_stack() {
+        const DEPTH: usize = 4096;
+        let mut source = thrown();
+        for _ in 0..DEPTH {
+            source = caught(source, idle());
+        }
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                assert!(!region_has_control(&source, false));
+                assert!(!region_has_control(&source, true));
+                // Isolate the iterative scan from destruction of synthetic IR
+                // whose depth deliberately exceeds source admission limits.
+                let mut current = source;
+                for _ in 0..DEPTH {
+                    let operation = current.operations.pop().expect("nested catch");
+                    let Op::TryCatch { body, .. } = operation.kind else {
+                        panic!("nested catch");
+                    };
+                    current = body;
+                }
+                assert!(matches!(current.exit, Exit::Throw(_)));
+            })
+            .expect("small-stack catch scan thread")
+            .join()
+            .expect("small-stack catch scan completed");
     }
 
     #[test]

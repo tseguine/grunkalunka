@@ -338,6 +338,21 @@ fn compare_composed_source(source: &str) {
 }
 
 #[test]
+fn imported_service_composes_with_locally_caught_source_failures() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            try {
+                if (a < 0) throw a;
+                return choose(a, b);
+            } catch (reason) {
+                return choose(0, b) + (+reason);
+            }
+        }"#,
+    );
+}
+
+#[test]
 fn imported_service_composes_with_named_forward_and_recursive_helpers() {
     for source in [
         // The export, forward helper, and provider all have the same ABI, so

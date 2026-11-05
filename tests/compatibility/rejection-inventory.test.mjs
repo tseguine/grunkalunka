@@ -9,6 +9,7 @@ import { numericMathUnary } from './numeric-math-unary.mjs';
 import { numericCalls } from './numeric-calls.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
+import { syncCatchPrograms, promotedCatchGap } from './sync-catch.mjs';
 import { nullishAssignment, promotedNullishAssignment } from './nullish-assignment.mjs';
 import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullish.mjs';
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
@@ -104,6 +105,20 @@ test('void promotes its exact original source and unchanged Number golden',()=>{
   assert.ok(!catalog.records.some(row=>row.id==='gap-void'));
   const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
   assert.equal(run(...promotedVoidGap.args),promotedVoidGap.expected);
+});
+
+test('synchronous catch promotes its exact original source and unchanged Number golden',()=>{
+  const source=programSources(syncCatchPrograms.find(row=>row[0]==='gap-catch'));
+  assert.equal(source.sourceJS,promotedCatchGap.sourceJS);
+  assert.equal(source.sourceTS,promotedCatchGap.sourceTS);
+  assert.equal(source.oracleSource,promotedCatchGap.oracleSource);
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),promotedCatchGap.sourceSha256);
+  assert.equal(promotedCatchGap.sourceSha256,'982acc099faf201b17b7567aa5c2df65403c0136b17cc97ba70dc37b85fe79bc');
+  assert.deepEqual([promotedCatchGap.args,promotedCatchGap.entry,promotedCatchGap.expected],[[4,2],'run',6]);
+  assert.ok(!rejected.some(row=>row[0]==='gap-catch'));
+  assert.ok(!catalog.records.some(row=>row.id==='gap-catch'));
+  const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
+  assert.equal(run(...promotedCatchGap.args),promotedCatchGap.expected);
 });
 
 test('binary coalescing promotes three exact numeric sources and the original primitive rejection', () => {
@@ -252,7 +267,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 820);
+  assert.equal(inventory.records.size, 819);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

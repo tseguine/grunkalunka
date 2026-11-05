@@ -43,6 +43,8 @@ mod runtime_closure_tests;
 mod settled_promise_tests;
 #[cfg(test)]
 mod stack_hygiene_tests;
+#[cfg(test)]
+mod sync_catch_tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ValueId(pub usize);
@@ -1131,6 +1133,9 @@ struct RegionFrame<'a> {
     scope_index: Option<usize>,
     allow_loop_control: bool,
     settlement: bool,
+    // Only the protected region gains its catch; the handler keeps the outer
+    // lexical context. This admits closed throws without changing return lanes.
+    local_catch: bool,
     raw_completion: bool,
     throw_type: Type,
     inline_async: bool,
@@ -1158,6 +1163,7 @@ impl<'a> RegionFrame<'a> {
             scope_index: None,
             allow_loop_control,
             settlement: self.settlement,
+            local_catch: self.local_catch,
             raw_completion: self.raw_completion,
             throw_type: self.throw_type,
             inline_async: self.inline_async,
@@ -2005,6 +2011,7 @@ impl Verifier<'_> {
             scope_index: None,
             allow_loop_control,
             settlement: false,
+            local_catch: false,
             raw_completion: false,
             throw_type: self.rejection_type,
             inline_async: false,
@@ -2147,6 +2154,10 @@ impl Verifier<'_> {
                     }
                     frame.pending = PendingRegion::Inline(ty);
                     let mut child = frame.child(body, Contract::Function, false, ty);
+                    // A caller's catch is not a new exception contract for an
+                    // inlined source function. Its own protected regions may
+                    // establish local catches as usual.
+                    child.local_catch = false;
                     child.inline_async |= matches!(operation.kind, Op::AwaitCall { .. });
                     if matches!(operation.kind, Op::AwaitCall { .. }) {
                         child.throw_type = self.rejection_type;
@@ -2233,6 +2244,7 @@ impl Verifier<'_> {
                         frame.allow_loop_control,
                         frame.return_type,
                     );
+                    child.local_catch = true;
                     child.throw_type = self.reason_type(*reason, span)?;
                     return Ok(RegionCheck::Child(child));
                 }
@@ -2467,6 +2479,7 @@ impl Verifier<'_> {
             (Contract::Statement | Contract::Function, Exit::Throw(value))
                 if completion.normal
                     && (frame.return_type == Type::General
+                        || frame.local_catch
                         || frame.settlement
                         || frame.inline_async
                         || frame.raw_completion && frame.return_type == Type::AsyncValue) =>
@@ -5411,11 +5424,25 @@ mod awaited_call_tests {
     use super::*;
 
     #[test]
-    fn numeric_inline_throws_require_an_async_completion_boundary() {
+    fn sync_catch_closes_inline_throws_without_an_async_completion_boundary() {
         let source = "export async function run(a,b){const f=async()=>{try{throw a;}catch(e){}await b;return b;};return await f();}";
         let mut module = crate::lower_source_profile(source, false, Type::General, true).unwrap();
         verify_async_module(&module).unwrap();
         let function = &mut module.functions[0];
+        let mut call_types = Vec::new();
+        visit_operations(&function.body, &mut |operation| match operation {
+            Op::InlineCall { result, .. } => {
+                call_types.push(("inline", function.values[result.0]));
+            }
+            Op::AwaitCall { result, .. } => {
+                call_types.push(("awaited", function.values[result.0]));
+            }
+            _ => {}
+        });
+        assert!(
+            call_types.contains(&("inline", Type::Number)),
+            "fixture must exercise a numeric inline-call result: {call_types:?}"
+        );
         let index = function
             .body
             .operations
@@ -5436,11 +5463,7 @@ mod awaited_call_tests {
                 kind: Op::InlineCall { result, body },
             },
         );
-        assert!(
-            verify_async_module(&module)
-                .unwrap_err()
-                .contains("invalid region exit contract")
-        );
+        verify_async_module(&module).unwrap();
     }
 
     #[test]

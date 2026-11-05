@@ -595,13 +595,13 @@ fn async_throw_reason_continuation_preserves_catch_and_source_diagnostics() {
         }
     }
 
-    // Synchronous source throw is still outside the numeric profile, and
+    // Uncaught synchronous source throw is outside the numeric profile, and
     // rejects before its argument can be evaluated or emitted.
     let source = "export function run(a,b) { throw a; }";
     let (result, maximum, entries, _) = observe(|| crate::compile(source, false));
     let error = result
         .err()
-        .expect("synchronous throw must remain rejected");
+        .expect("uncaught synchronous throw must remain rejected");
     assert!(
         error.contains("statement is outside the numeric experiment"),
         "unexpected first diagnostic: {error}"
