@@ -5,6 +5,8 @@ const HEIGHT = 160;
 const RGB_BYTES = WIDTH * HEIGHT * 3;
 const BASE64_LENGTH = RGB_BYTES / 3 * 4;
 const MAX_REPLY_BYTES = 220_000;
+// Allow the native action's 60-second budget, then bound transport and body reads.
+const REQUEST_TIMEOUT_MS = 65_000;
 const SCROLL_LINE = 16;
 const MAX_WHEEL_DELTA = 4096;
 const MAX_WHEEL_PIXELS = HEIGHT * 16;
@@ -117,17 +119,25 @@ function sessionToken(window) {
   return { token: stored, storage };
 }
 
-async function readReply(response) {
+function cancelBody(body) {
+  // A broken transport may ignore abort or never finish cancelling. Cleanup
+  // must not hold the client busy or delay retiring a request.
+  try { void body?.cancel().catch(() => {}); } catch { /* Already released. */ }
+}
+
+async function readReply(response, transfer) {
   if (!/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
     throw new TypeError('Invalid A1 live response type');
   }
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Missing A1 live response');
+  transfer.reader = reader;
   const bytes = new Uint8Array(MAX_REPLY_BYTES);
   let length = 0;
   try {
     while (true) {
       const { value, done } = await reader.read();
+      transfer.check();
       if (done) break;
       if (value.byteLength > MAX_REPLY_BYTES - length) {
         throw new RangeError('A1 live response exceeds its limit');
@@ -137,14 +147,16 @@ async function readReply(response) {
     }
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length)));
   } catch (error) {
-    await reader.cancel().catch(() => {});
+    cancelBody(reader);
     throw error;
   } finally {
+    transfer.reader = null;
     reader.releaseLock();
   }
 }
 
-export function startLiveClient({ window, document, fetch = window.fetch.bind(window) }) {
+export function startLiveClient({ window, document, fetch = window.fetch.bind(window),
+  timers = globalThis }) {
   const canvas = document.getElementById('note-frame');
   const status = document.getElementById('session-status');
   const reloadButton = document.getElementById('reload-note');
@@ -154,7 +166,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   let busy = true;
   let connected = false;
   let disposed = false;
-  let requestAbort = null;
+  let activeRequest = null;
   let activeKind = null;
   let activeScrollTarget = null;
   let pendingScroll = null;
@@ -217,35 +229,78 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   }
 
   async function request(path, input) {
-    requestAbort = new AbortController();
-    const response = await fetch(path, {
-      method: input === undefined ? 'GET' : 'POST',
-      headers: { 'x-a1-session': token, accept: 'application/json',
-        ...(input === undefined ? {} : { 'content-type': 'application/json' }) },
-      ...(input === undefined ? {} : { body: JSON.stringify(input) }),
-      credentials: 'omit', mode: 'same-origin', cache: 'no-store', redirect: 'error',
-      referrerPolicy: 'no-referrer', signal: requestAbort.signal,
-    });
-    if (response.status === 401 || response.status === 403) {
-      forgetToken(storage);
-      await response.body?.cancel().catch(() => {});
-      throw new Error('Session access expired. Reopen the session link to reconnect.');
-    }
-    const reply = await readReply(response);
-    if (disposed) return null;
-    if (!response.ok) {
-      if (reply === null || typeof reply !== 'object' || !reply.frame) {
-        throw new Error('Connection interrupted. Reopen the session link to reconnect.');
+    const abort = new AbortController();
+    let rejectCancellation;
+    const cancellation = new Promise((_resolve, reject) => { rejectCancellation = reject; });
+    let deadline;
+    const transfer = {
+      active: true, response: null, reader: null,
+      check() {
+        if (!transfer.active || disposed || activeRequest !== transfer) {
+          throw new Error('A1 live request is no longer active');
+        }
+      },
+      stop() {
+        if (!transfer.active) return;
+        transfer.active = false;
+        timers.clearTimeout(deadline);
+        abort.abort();
+        cancelBody(transfer.reader ?? transfer.response?.body);
+        rejectCancellation(new Error('A1 live request cancelled'));
+      },
+    };
+    activeRequest = transfer;
+    deadline = timers.setTimeout(transfer.stop, REQUEST_TIMEOUT_MS);
+    const receive = (async () => {
+      const response = await fetch(path, {
+        method: input === undefined ? 'GET' : 'POST',
+        headers: { 'x-a1-session': token, accept: 'application/json',
+          ...(input === undefined ? {} : { 'content-type': 'application/json' }) },
+        ...(input === undefined ? {} : { body: JSON.stringify(input) }),
+        credentials: 'omit', mode: 'same-origin', cache: 'no-store', redirect: 'error',
+        referrerPolicy: 'no-referrer', signal: abort.signal,
+      });
+      transfer.response = response;
+      if (!transfer.active || disposed || activeRequest !== transfer) {
+        cancelBody(response.body);
+        transfer.check();
       }
-      paint(reply.frame);
-      if (response.status === 503) {
-        throw new Error('Connection interrupted. Reopen the session link to reconnect.');
+      // Authorization may fail before a body arrives. Do not await cancellation,
+      // and do not erase tab authority until this request wins the active race.
+      if (response.status === 401 || response.status === 403) {
+        cancelBody(response.body);
+        return { response, reply: null };
       }
-      return { ok: false, message: typeof reply.error === 'string' && reply.error.length <= 256
-        ? reply.error : 'The action failed. The last completed view is shown.' };
+      return { response, reply: await readReply(response, transfer) };
+    })();
+    try {
+      // Abort alone cannot settle a fetch/reader that ignores its signal. Race
+      // the entire transfer, so receiving headers does not restart the budget.
+      const { response, reply } = await Promise.race([receive, cancellation]);
+      transfer.check();
+      if (response.status === 401 || response.status === 403) {
+        forgetToken(storage);
+        throw new Error('Session access expired. Reopen the session link to reconnect.');
+      }
+      if (!response.ok) {
+        if (reply === null || typeof reply !== 'object' || !reply.frame) {
+          throw new Error('Connection interrupted. Reopen the session link to reconnect.');
+        }
+        paint(reply.frame);
+        if (response.status === 503) {
+          throw new Error('Connection interrupted. Reopen the session link to reconnect.');
+        }
+        return { ok: false, message: typeof reply.error === 'string' && reply.error.length <= 256
+          ? reply.error : 'The action failed. The last completed view is shown.' };
+      }
+      paint(reply);
+      return { ok: true, message: null };
+    } finally {
+      transfer.active = false;
+      timers.clearTimeout(deadline);
+      cancelBody(transfer.reader ?? transfer.response?.body);
+      if (activeRequest === transfer) activeRequest = null;
     }
-    paint(reply);
-    return { ok: true, message: null };
   }
 
   function failed(error) {
@@ -277,7 +332,6 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     } catch (error) {
       if (!disposed) failed(error);
     } finally {
-      requestAbort = null;
       activeKind = null;
       activeScrollTarget = null;
       busy = false;
@@ -404,7 +458,6 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     } catch (error) {
       if (!disposed) failed(error);
     } finally {
-      requestAbort = null;
       busy = false;
       if (!disposed) updateControl();
     }
@@ -415,7 +468,10 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     connected = false;
     pendingScroll = null;
     wheelRemainder = 0;
-    requestAbort?.abort();
+    activeRequest?.stop();
+    activeKind = null;
+    activeScrollTarget = null;
+    busy = false;
     canvas.removeEventListener('click', pointer);
     canvas.removeEventListener('keydown', keyboard);
     canvas.removeEventListener('wheel', wheel);
