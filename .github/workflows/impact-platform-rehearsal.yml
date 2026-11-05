@@ -29,7 +29,8 @@ jobs:
   rehearsal:
     name: Scoped PR gate (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    # The selected closure includes the existing native A1 integration suites.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
