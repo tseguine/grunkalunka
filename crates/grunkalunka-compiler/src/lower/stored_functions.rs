@@ -241,6 +241,7 @@ impl Fields {
         let mut open_fields = BTreeSet::new();
         let mut rest_sources = BTreeMap::new();
         let mut elements = elements::Elements::default();
+        let mut enumeration_inputs = Vec::new();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -313,17 +314,27 @@ impl Fields {
                 AstKind::CallExpression(call)
                     if let Some(kind) = object_intrinsics::enumeration(call, semantic) =>
                 {
-                    match kind {
+                    let value_site = match kind {
                         ir::OwnEnumeration::Keys => {
                             elements.key_lists.insert(id);
+                            None
                         }
                         ir::OwnEnumeration::Entries => {
                             // The callee is a distinct allocation site for rows returned by this call.
                             let pair = call.callee.node_id();
                             elements.entry_lists.insert(id, pair);
                             elements.pair_sites.insert(pair);
+                            Some(pair)
                         }
-                        ir::OwnEnumeration::Values => (),
+                        ir::OwnEnumeration::Values => Some(id),
+                    };
+                    if let Some(site) = value_site
+                        && let Some(receiver) = invocation::arguments(call)
+                            .first()
+                            .and_then(|arg| arg.as_expression())
+                    {
+                        elements.enumerated_values.entry(site).or_default();
+                        enumeration_inputs.push((site, receiver.node_id()));
                     }
                     values.insert(id, BTreeSet::from([Origin::Array(id)]));
                     None
@@ -630,7 +641,8 @@ impl Fields {
         let track_elements = has_iterations
             || !elements.rest_sources.is_empty()
             || !elements.entry_lists.is_empty()
-            || !elements.key_lists.is_empty();
+            || !elements.key_lists.is_empty()
+            || !enumeration_inputs.is_empty();
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
@@ -730,7 +742,14 @@ impl Fields {
                 };
                 additions.push((*id, found));
             }
+            let snapshots = enumeration_inputs
+                .iter()
+                .map(|&(site, receiver)| (site, members.enumerable_values(receiver)))
+                .collect::<Vec<_>>();
             let mut changed = false;
+            for (site, origins) in snapshots {
+                changed |= extend(&mut elements.enumerated_values, site, origins);
+            }
             let mut write_additions = Vec::new();
             for (receiver, key, value) in &writes {
                 for origin in get(receiver) {

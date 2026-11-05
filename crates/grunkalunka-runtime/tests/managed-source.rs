@@ -933,3 +933,41 @@ fn object_entries_rejects_unsound_pair_or_key_projections_after_mutation() {
         }
     }
 }
+
+#[test]
+fn homogeneous_enumerations_support_typed_values_and_destructured_records() {
+    for body in [
+        "const key=a?'first':'second';const src={fixed:' yes ',[key]:' no '};let n=0;for(const v of Object.values(src))n+=v.trim().length;return n;",
+        "const src=Object.create(null);src[a?'one':'two']=' x ';let n=0;for(const [k,v] of Object.entries(src))n+=k.length+v.trim().length;return n;",
+        "const src=[,' x '];src.named=' yy ';let n=0;for(const v of Object.values(src))n+=v.trim().length;return n;",
+        "const src={one:{label:' first '},two:{label:' second '}};let n=0;for(const {label} of Object.values(src))n+=label.trim().length;return n;",
+        "const record={one:{label:' x '}};let n=0;for(const [key,{label}] of Object.entries(record))n+=key.length+label.trim().length;return n;",
+        "const src=a?{x:'one'}:{};const [v=' fallback ']=Object.values(src);return v.trim().length;",
+        "let n=0;for(const row of Object.entries('ab'))for(const item of row)n+=item.trim().length;return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn enumerated_values_refuse_unknown_or_replaced_elements() {
+    for body in [
+        "const src={x:'x'};const alias=src;alias.y=b;for(const v of Object.values(src))return v.trim().length;return 0;",
+        "const src={x:'x',...{y:b}};for(const [k,v] of Object.entries(src))return v.trim().length;return 0;",
+        "const list=Object.values({x:'x'});return list[0].trim().length;",
+        "const list=Object.values({x:'x'});list.length=2;for(const v of list)return v.trim().length;return 0;",
+        "const rows=Object.entries({x:'x'});for(const r of rows)r[1]=b;for(const [k,v] of rows)return v.trim().length;return 0;",
+        "const src={label:'x'};const record={x:src};src.label=b;for(const [k,v] of Object.entries(record))return v.label.trim().length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                error.contains("unsupported") && !error.contains("internal IR"),
+                "{source}: {error}"
+            );
+        }
+    }
+}
