@@ -626,6 +626,12 @@ pub(crate) enum Op {
         object: ValueId,
         input: ValueId,
     },
+    // The receiver has the unmodified intrinsic Object or Array prototype chain.
+    ManagedHasProperty {
+        result: ValueId,
+        input: ValueId,
+        key: ValueId,
+    },
     // A boxed receiver is source-proven to be a String; the backend checks its tag.
     ManagedHasOwn {
         result: ValueId,
@@ -1435,6 +1441,18 @@ impl Verifier<'_> {
             Op::ManagedObjectSpread { object, input } => {
                 self.value(*object, Type::ManagedObject, visible, span)?;
                 self.value(*input, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedHasProperty { result, input, key } => {
+                let ty = self
+                    .function
+                    .values
+                    .get(input.0)
+                    .copied()
+                    .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
+                    .ok_or_else(|| invalid(span, "in requires an object or array receiver"))?;
+                self.value(*input, ty, visible, span)?;
+                self.value(*key, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::ManagedHasOwn { result, input, key } => {
                 let ty = self

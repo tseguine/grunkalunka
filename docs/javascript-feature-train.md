@@ -107,8 +107,9 @@ receivers expose their length and UTF-16 code-unit indices. Numeric literal
 keys use the same property name as member access. The `in` operator also
 tests presence in proven null-prototype dictionaries, evaluating its key before
 the receiver. Static keys on ordinary objects and arrays also account for
-their inherited intrinsic names. The keyed A1 action handler can use the
-dictionary form directly.
+their inherited intrinsic names. Runtime String keys work on these receivers
+when their prototype is known. A1 can test the selected action on either a
+dictionary or an ordinary availability record.
 
 ### Deliberate remaining limits
 

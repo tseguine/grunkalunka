@@ -1478,6 +1478,16 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 key,
                             );
                         }
+                        has_own::Membership::Prototype => {
+                            let key = values.pop().expect("in key").id();
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::ManagedHasProperty { result, input, key },
+                            );
+                            values.push(Value::Predicate(result));
+                        }
                         has_own::Membership::Inherited => {
                             let result = self.value(Type::Predicate);
                             Self::push(

@@ -735,7 +735,6 @@ fn dictionary_in_saves_the_key_before_evaluating_the_receiver() {
 #[test]
 fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
     for body in [
-        "const k='constructor';return k in {}?1:0;",
         "return 'x' in null?1:0;",
         "return a in Object.create(null)?1:0;",
         "return {} in Object.create(null)?1:0;",
@@ -780,5 +779,39 @@ fn static_in_agrees_with_native_intrinsic_string_names() {
             .collect::<Vec<_>>()
             .join("&&");
         compare(&format!("const obj={receiver};return {clauses}?1:0;"));
+    }
+}
+
+#[test]
+fn dynamic_in_uses_the_receivers_own_table_and_real_prototype_names() {
+    for body in [
+        "const k='constructor';return k in {}?1:0;",
+        "const key=a?'map':'extra';const obj={extra:undefined};const arr=[,undefined];return ((key in obj)?100:0)+((key in arr)?10:0)+((''+(a?'1':'0')) in arr?1:0);",
+        "const obj={owned:undefined};const key=a?'toString':'owned';return key in obj&&(Object.hasOwn(obj,key)===(key==='owned'))?1:0;",
+        "let key='map',n=0;const arr=[];const found=(n=1,key) in (key='missing',n=n*10+2,arr);return found&&n===12&&!(key in arr)?1:0;",
+        r"const key=a?'toStrin\0':'toStrin\ud800';return !(key in {})&&!(key in [])?1:0;",
+        "const k='map';const record={};const list=[];const a1=()=>k in record;const a2=()=>k in list;return !a1()&&a2()?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn dynamic_in_matches_all_native_prototype_names_and_near_misses() {
+    let out=std::process::Command::new("node").args(["-e","const o=Object.getOwnPropertyNames(Object.prototype);console.log(o.join(','));console.log([...new Set([...o,...Object.getOwnPropertyNames(Array.prototype)])].join(','));"]).output().unwrap();
+    assert!(out.status.success());
+    let lines = String::from_utf8(out.stdout).unwrap();
+    for (receiver, keys) in ["{}", "[]"].iter().zip(lines.lines()) {
+        let mut source = format!(
+            "function check(key){{const receiver={receiver};return key in receiver;}}export function run(a,b){{"
+        );
+        for key in keys.split(',') {
+            let mut near = key.to_owned();
+            near.pop();
+            near.push('!');
+            source.push_str(&format!("if(!check({key:?})||check({near:?}))return 0;"));
+        }
+        source.push_str("return 1;}");
+        common::compare_sources_with_fuel(&source, &source, Some(3_000_000));
     }
 }

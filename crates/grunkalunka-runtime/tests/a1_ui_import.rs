@@ -669,3 +669,16 @@ fn imported_handler_detects_explicit_undefined_action_metadata() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_tests_a_runtime_key_on_an_ordinary_action_record() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const available = {expand: undefined};
+            const action = a > 0 ? 'expand' : 'collapse';
+            const headings = ['First','Second'];
+            return choose(action in available ? 1 : 0, headings.length);
+        }"#,
+    );
+}

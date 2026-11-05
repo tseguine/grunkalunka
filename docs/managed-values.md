@@ -364,8 +364,12 @@ there is no own property. For other static names the own table decides, so
 an array's length, holes and named properties keep their usual behavior.
 In both cases the RHS still evaluates. For a possible mix of ordinary and
 null-prototype objects, only keys with no inherited behavior share that
-specialization. Dynamic keys on non-dictionary receivers need runtime
-prototype membership.
+specialization. A proven runtime String key on an array or an object with a known ordinary
+prototype first tests the own table and then the corresponding intrinsic name
+sets. Each required intrinsic name set is a private packed WasmGC table created
+once per instance. Guest comparisons select its bucket by UTF-16 length and
+compare code units without allocating prototype keys during a lookup. A dynamic key on a possible mix of
+ordinary and null-prototype records still requires more runtime information.
 
 ## Synchronous source arrays
 

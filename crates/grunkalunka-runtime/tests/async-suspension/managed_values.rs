@@ -474,3 +474,14 @@ fn inherited_in_keys_preserve_awaits_in_known_receivers() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn dynamic_in_keeps_the_saved_name_across_receiver_suspension() {
+    compare_promises(
+        &[
+            "let k='map';const list=[];const yes=(await a,k) in (await b,k='missing',list);return yes&&!(k in list)?1:0;",
+            "let n=0;const k='toString';try{k in (await Promise.reject(a),n=1,{});}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
