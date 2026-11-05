@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import test, { after, before } from 'node:test';
-import { createAsyncNoteSession } from '../../examples/note-preview/async-session.mjs';
+import { createAsyncNoteSession, ownDocumentSource } from '../../examples/note-preview/async-session.mjs';
 import { loadNoteDocument } from '../../examples/note-preview/run.mjs';
 import { compileUiService } from '../../examples/note-preview/service-interaction.mjs';
 
@@ -35,6 +35,18 @@ async function sourceSession(t, text = '# Root\n## Child\n', overrides = {}) {
     documentSource: { profile: 'granted', note, binaryTarget: target }, ...overrides });
   t.after(() => active.close());
   return { note, active };
+}
+
+async function catalogSession(t, texts, overrides = {}) {
+  const directory = await mkdtemp(join(scratch, 'catalog-'));
+  const notes = texts.map((_, index) => join(directory, 'note-' + index + '.md'));
+  for (const [index, text] of texts.entries()) {
+    if (text !== null) await writeFile(notes[index], text);
+  }
+  const active = await session({ document: undefined,
+    documentSource: { profile: 'granted', notes, binaryTarget: target }, ...overrides });
+  t.after(() => active.close());
+  return { notes, active };
 }
 
 function compile(body) {
@@ -243,6 +255,8 @@ test('invalid transport inputs fail before native work and never occupy the even
       await assert.rejects(active.scrollTo(y), { name: 'TypeError', message: 'Invalid A1 session scroll offset' });
     }
     await assert.rejects(active.reload(), { code: 'A1_RELOAD_UNAVAILABLE' });
+    await assert.rejects(active.selectNote(0), { code: 'A1_SELECTION_UNAVAILABLE' });
+    assert.deepEqual([active.snapshot().noteChoices, active.snapshot().selectedNoteId], [[], null]);
     assert.equal(active.snapshot().eventsProcessed, 0);
     assert.equal((await active.activate({ x: 0, y: 0 })).sequence, 1);
   });
@@ -251,15 +265,17 @@ test('close rejects dispatched and queued inputs, keeps the last frame and is id
   { timeout: 120_000 }, async t => {
     const { active } = await sourceSession(t);
     const initial = active.snapshot();
-    const results = Promise.allSettled([active.reload(), active.scrollTo(10), active.activate(pointer)]);
+    const results = Promise.allSettled([active.reload(), active.selectNote(0),
+      active.scrollTo(10), active.activate(pointer)]);
     const closed = active.close();
     assert.equal(active.close(), closed);
     const rejected = await results;
     assert.deepEqual(rejected.map(result => [result.status, result.reason?.code]),
-      Array(3).fill(['rejected', 'A1_SESSION_CLOSED']));
+      Array(4).fill(['rejected', 'A1_SESSION_CLOSED']));
     await assert.rejects(active.activate(pointer), { code: 'A1_SESSION_CLOSED' });
     await assert.rejects(active.scrollTo(0), { code: 'A1_SESSION_CLOSED' });
     await assert.rejects(active.reload(), { code: 'A1_SESSION_CLOSED' });
+    await assert.rejects(active.selectNote(0), { code: 'A1_SESSION_CLOSED' });
     assert.deepEqual(active.snapshot(), initial);
     await closed;
     const exposed = active.snapshot();
@@ -279,9 +295,9 @@ test('failed initialization and unexpected worker exit settle callers and releas
     const actualPost = Worker.prototype.postMessage;
     let lostWorker = false;
     const intercepted = t.mock.method(Worker.prototype, 'postMessage', function(message, ...args) {
-      if (message?.type === 'reload') {
+      if (message?.type === 'select') {
         // Fault injection only: lose the real initialized worker before it
-        // receives the reload. Ordinary service tests above use real input.
+        // receives the selection. Ordinary service tests above use real input.
         lostWorker = true;
         void this.terminate();
         return;
@@ -289,13 +305,14 @@ test('failed initialization and unexpected worker exit settle callers and releas
       return actualPost.call(this, message, ...args);
     });
     try {
-      const results = await Promise.allSettled([active.reload(), active.activate(pointer)]);
+      const results = await Promise.allSettled([active.selectNote(0), active.reload(), active.activate(pointer)]);
       assert.equal(lostWorker, true);
       assert.deepEqual(results.map(result => [result.status, result.reason?.code]),
-        [['rejected', 'A1_WORKER_FAILED'], ['rejected', 'A1_WORKER_FAILED']]);
+        Array(3).fill(['rejected', 'A1_WORKER_FAILED']));
       await assert.rejects(active.activate(pointer), { code: 'A1_WORKER_FAILED' });
       await assert.rejects(active.scrollTo(0), { code: 'A1_WORKER_FAILED' });
       await assert.rejects(active.reload(), { code: 'A1_WORKER_FAILED' });
+      await assert.rejects(active.selectNote(0), { code: 'A1_WORKER_FAILED' });
       assert.deepEqual(active.snapshot(), initial);
       await active.close();
     } finally {
@@ -493,4 +510,216 @@ test('reload keeps document and UI grants fixed and does no denied source loadin
       assert.equal((await active.scrollTo(80)).sequence, 2);
       await assert.rejects(active.reload(), { code: 'A1_EVENT_LIMIT' });
     }
+  });
+
+
+test('source catalogs own bounded labels and paths without observing denied selections', () => {
+  const note = join(scratch, 'owned.md');
+  const reads = { profile: 0, binaryTarget: 0, note: 0, notes: 0, path: 0, label: 0 };
+  const record = {
+    get note() { reads.path++; return note; },
+    get label() { reads.label++; return 'Owned label'; },
+    ignored: () => {},
+  };
+  const inputs = [record];
+  const source = {
+    get profile() { reads.profile++; return 'granted'; },
+    get binaryTarget() { reads.binaryTarget++; return target; },
+    get note() { reads.note++; return undefined; },
+    get notes() { reads.notes++; return inputs; },
+    ignored: () => {},
+  };
+  const owned = ownDocumentSource(source);
+  inputs.length = 0;
+  assert.deepEqual(owned, { profile: 'granted', binaryTarget: target,
+    notes: [{ note, label: 'Owned label' }] });
+  assert.deepEqual(reads, { profile: 1, binaryTarget: 1, note: 1, notes: 1, path: 1, label: 1 });
+  assert.deepEqual(ownDocumentSource(owned), owned, 'a live-owned source can be safely owned again');
+  assert.deepEqual(ownDocumentSource({ profile: 'denied', binaryTarget: target,
+    get note() { throw Error('must not inspect a denied note'); },
+    get notes() { throw Error('must not inspect a denied catalog'); },
+  }), { profile: 'denied', binaryTarget: target });
+  const defaults = ownDocumentSource({ profile: 'granted', binaryTarget: target,
+    notes: [join(scratch, 'line\nbreak.md'), join(scratch, 'é'.repeat(200) + '.md')] });
+  assert.equal(defaults.notes[0].label, 'line break.md');
+  assert.equal(defaults.notes[1].label, 'é'.repeat(128));
+  assert.equal(Buffer.byteLength(defaults.notes[1].label, 'utf8'), 256);
+  const eight = Array.from({ length: 8 }, (_, i) => ({ note: join(scratch, 'n' + i),
+    label: '😀'.repeat(64) }));
+  assert.equal(ownDocumentSource({ profile: 'granted', binaryTarget: target, notes: eight }).notes.length, 8);
+  for (const patch of [
+    { notes: [] }, { notes: Array(9).fill(note) }, { notes: 'note.md' },
+    { notes: [null] }, { notes: [{}] }, { notes: [['note.md']] },
+    { notes: [note, relative(process.cwd(), note)] },
+    { note, notes: [note] }, { note: { note } },
+    ...['', 'bad\nlabel', 'bad\u007flabel', 'a'.repeat(257), '😀'.repeat(65), null, 1]
+      .map(label => ({ notes: [{ note, label }] })),
+  ]) {
+    assert.throws(() => ownDocumentSource({ profile: 'granted', binaryTarget: target, ...patch }),
+      TypeError);
+  }
+});
+
+test('catalog startup owns choices before yielding and opens only the first note',
+  { timeout: 120_000 }, async t => {
+    const directory = await mkdtemp(join(scratch, 'owned-catalog-'));
+    const first = join(directory, 'first.md');
+    const second = join(directory, 'later.md');
+    await writeFile(first, '# First owned note\n');
+    const originalDirectory = process.cwd();
+    const firstRecord = { note: relative(originalDirectory, first), label: 'First choice',
+      ignored: () => {} };
+    const secondRecord = { note: relative(originalDirectory, second), label: 'Later choice' };
+    const choices = [firstRecord, secondRecord];
+    const source = { profile: 'granted', notes: choices,
+      binaryTarget: relative(originalDirectory, target), ignored: () => {} };
+    const inputComponent = Buffer.from(component);
+    let active;
+    try {
+      const starting = session({ document: undefined, documentSource: source, component: inputComponent });
+      firstRecord.note = second;
+      firstRecord.label = 'Mutated label';
+      secondRecord.note = join(scratch, 'wrong-unselected-path');
+      choices.length = 0;
+      source.profile = 'denied';
+      source.binaryTarget = join(scratch, 'wrong-target');
+      inputComponent.fill(0);
+      process.chdir(directory);
+      active = await starting;
+    } finally {
+      process.chdir(originalDirectory);
+    }
+    t.after(() => active.close());
+    const initial = active.snapshot();
+    assert.deepEqual(initial.noteChoices,
+      [{ id: 0, label: 'First choice' }, { id: 1, label: 'Later choice' }]);
+    assert.equal(initial.selectedNoteId, 0);
+    assert.match(initial.scene.html, />First owned note<\/li>/);
+    const exposed = active.snapshot();
+    exposed.noteChoices[0].label = 'Caller replacement';
+    exposed.noteChoices.reverse();
+    exposed.selectedNoteId = 1;
+    assert.deepEqual(active.snapshot(), initial);
+    // Startup succeeded while this unselected path was absent.
+    await writeFile(second, '# Later owned note\n## Child\n');
+    const result = await active.selectNote(1);
+    assert.deepEqual([result.sequence, result.status, result.changed], [1, 'ok', true]);
+    assert.deepEqual([active.snapshot().selectedNoteId, active.snapshot().visibleCount], [1, 2]);
+    assert.match(active.snapshot().scene.html, />Later owned note<\/li>/);
+    const selected = active.snapshot();
+    result.pixels.fill(0);
+    assert.deepEqual(active.snapshot(), selected);
+    assert.equal((await active.activate(active.snapshot().controlPoint)).expanded, 0,
+      'selection retains the originally owned component bytes');
+  });
+
+test('selection, reload, scroll and pointers share FIFO transport IDs and lifetime budget',
+  { timeout: 120_000 }, async t => {
+    const longNote = Array.from({ length: 64 }, (_, i) => '# Catalog heading ' + i).join('\n') + '\n';
+    const { active, notes } = await catalogSession(t, ['# First\n', longNote],
+      { maxPending: 4, maxEvents: 9 });
+    const initial = active.snapshot();
+    const operations = [active.selectNote(1), active.reload(),
+      active.scrollTo(0xffffffff), active.activate(pointer)];
+    assert.deepEqual(active.snapshot(), initial, 'pending selections must not publish a candidate ID');
+    await assert.rejects(active.selectNote(0), { code: 'A1_QUEUE_FULL' });
+    const results = await Promise.all(operations);
+    assert.deepEqual(results.map(result => result.sequence), [1, 2, 3, 4]);
+    assert.deepEqual([results[0].status, results[0].changed, results[1].changed], ['ok', true, false]);
+    assert.ok(results[2].scrollY > 160);
+    assert.equal(results[3].target, null, 'pointer follows the selected, scrolled note');
+    assert.equal(active.snapshot().selectedNoteId, 1);
+    // A zero note ID and transport request ID 5 must remain distinct.
+    const back = await active.selectNote(0);
+    assert.deepEqual([back.sequence, active.snapshot().selectedNoteId,
+      active.snapshot().scrollY, active.snapshot().visibleCount], [5, 0, 0, 1]);
+    assert.equal((await active.selectNote(1)).sequence, 6);
+    assert.equal((await active.activate(active.snapshot().controlPoint)).expanded, 0);
+    const reopened = await active.activate(active.snapshot().controlPoint);
+    assert.deepEqual([reopened.sequence, reopened.service.visible, reopened.after.visibleCount], [8, 64, 64]);
+    await rm(notes[1]);
+    const same = await active.selectNote(1);
+    assert.deepEqual([same.sequence, same.status, same.changed], [9, 'ok', false],
+      'same selection must not reopen the now-missing file');
+    await rm(notes[0]);
+    await assert.rejects(active.selectNote(0), { code: 'A1_EVENT_LIMIT' });
+    await assert.rejects(active.reload(), { code: 'A1_EVENT_LIMIT' });
+    assert.equal(active.snapshot().selectedNoteId, 1);
+    assert.equal(active.snapshot().eventsProcessed, 9);
+  });
+
+test('failed selection leaves reload attached to the committed path and permits recovery',
+  { timeout: 120_000 }, async t => {
+    const longNote = Array.from({ length: 64 }, (_, i) => '# Original ' + i).join('\n') + '\n';
+    const { active, notes } = await catalogSession(t, [longNote, null]);
+    await active.scrollTo(80);
+    const initial = active.snapshot();
+    await assert.rejects(active.selectNote(1), error => error instanceof Error &&
+      error.code !== 'A1_WORKER_FAILED');
+    assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: 2 });
+    await writeFile(notes[0], '# Edited committed note\n## Child\n');
+    assert.equal((await active.reload()).sequence, 3);
+    assert.equal(active.snapshot().selectedNoteId, 0);
+    assert.equal(active.snapshot().visibleCount, 2);
+    assert.match(active.snapshot().scene.html, />Edited committed note<\/li>/);
+    await writeFile(notes[1], Buffer.from([0xff]));
+    const retained = active.snapshot();
+    await assert.rejects(active.selectNote(1), error => error instanceof Error &&
+      error.code !== 'A1_WORKER_FAILED');
+    assert.deepEqual(active.snapshot(), { ...retained, eventsProcessed: 4 });
+    await writeFile(notes[1], '# Recovered second note\n');
+    assert.equal((await active.selectNote(1)).sequence, 5);
+    assert.equal(active.snapshot().selectedNoteId, 1);
+    await writeFile(notes[1], '# Edited second note\n## One\n## Two\n');
+    assert.equal((await active.reload()).sequence, 6);
+    assert.equal(active.snapshot().visibleCount, 3);
+    assert.match(active.snapshot().scene.html, />Edited second note<\/li>/);
+  });
+
+test('selection admission rejects invalid, full and overbudget requests before source I/O',
+  { timeout: 120_000 }, async t => {
+    const { active } = await catalogSession(t, ['# Initial\n', null], { maxPending: 1, maxEvents: 1 });
+    const first = active.selectNote(0);
+    for (const id of [-1, 2, 0.5, NaN, Infinity, undefined, null, '0', 0x100000000]) {
+      await assert.rejects(active.selectNote(id), TypeError);
+    }
+    // No event-loop turn has delivered the worker response while validating IDs.
+    await assert.rejects(active.selectNote(1), { code: 'A1_QUEUE_FULL' });
+    assert.equal((await first).sequence, 1);
+    await assert.rejects(active.selectNote(1), { code: 'A1_EVENT_LIMIT' });
+    assert.equal(active.snapshot().eventsProcessed, 1);
+    const { active: queued } = await catalogSession(t, ['# Initial\n', null],
+      { maxPending: 2, maxEvents: 1 });
+    const accepted = queued.selectNote(0);
+    const rejected = assert.rejects(queued.selectNote(1), { code: 'A1_EVENT_LIMIT' });
+    assert.equal((await accepted).sequence, 1);
+    await rejected;
+    assert.deepEqual([queued.snapshot().selectedNoteId, queued.snapshot().eventsProcessed], [0, 1]);
+  });
+
+test('source selection preserves readable metadata under UI denial and hides document-denied catalogs',
+  { timeout: 120_000 }, async t => {
+    const denied = await session({ document: undefined, maxEvents: 1,
+      documentSource: { profile: 'denied', binaryTarget: target,
+        get note() { throw Error('must not inspect denied note'); },
+        get notes() { throw Error('must not inspect denied catalog'); } } });
+    t.after(() => denied.close());
+    assert.deepEqual([denied.snapshot().noteChoices, denied.snapshot().selectedNoteId], [[], null]);
+    await assert.rejects(denied.selectNote(0), { code: 'A1_SELECTION_UNAVAILABLE' });
+    assert.equal(denied.snapshot().eventsProcessed, 0);
+    assert.equal((await denied.reload()).status, 'denied');
+    const { active, notes } = await catalogSession(t, ['# Authorized initial display\n', null],
+      { uiProfile: 'denied', maxEvents: 3 });
+    const initial = active.snapshot();
+    assert.equal(initial.noteChoices.length, 2);
+    assert.equal(initial.selectedNoteId, 0);
+    await rm(notes[0]);
+    for (const [index, action] of [() => active.selectNote(1), () => active.selectNote(0),
+      () => active.reload()].entries()) {
+      const result = await action();
+      assert.deepEqual([result.sequence, result.status, result.changed], [index + 1, 'denied', false]);
+      assert.deepEqual(active.snapshot(), { ...initial, eventsProcessed: index + 1 });
+    }
+    await assert.rejects(active.selectNote(2), TypeError);
+    await assert.rejects(active.selectNote(1), { code: 'A1_EVENT_LIMIT' });
   });
