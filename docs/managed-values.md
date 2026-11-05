@@ -900,6 +900,9 @@ strings in insertion order. Updating a property retains its position; array
 represented functions and intrinsic Errors supply no enumerable data.
 The result snapshots keys and shares immutable string storage without sorting or
 mutating the source. Subsequent source/result writes remain independent.
+Iteration over the returned names supports String operations such as
+`name.trim()`. Indexed reads can miss. A String binding default covers a
+missing index, while incompatible writes through aliases invalidate the proof.
 This follows [Object.keys](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.keys)
 and [ordinary key ordering](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinaryownpropertykeys)
 within the admitted domain, not arbitrary exotic objects or descriptors.

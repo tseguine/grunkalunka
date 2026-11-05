@@ -65,9 +65,10 @@ and dynamic-key writes prevent a narrow element proof. This is deliberately
 conservative: even contiguous append or safe truncation can lose a proof, while
 generic equality, truthiness and identity transport remain available. Mutation
 facts are accumulated across the whole source, including helpers and captures;
-an earlier apparent proof cannot discard a later unknown alternative. Arrays
-created by runtime operations such as `Object.keys` remain iterable without
-proving the kind of their elements.
+an earlier apparent proof cannot discard a later unknown alternative. An unmodified `Object.keys` result yields String names. An indexed read may
+miss, so a binding default can establish a String before a method call.
+`Object.entries` yields fresh pairs with a String first slot. `Object.values`
+supports iteration with generic elements.
 
 For an array-rest result, iteration proofs follow the source positions at or
 after the rest offset. A heterogeneous header or an elided hole before that
