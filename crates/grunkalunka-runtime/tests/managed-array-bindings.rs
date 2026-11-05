@@ -60,7 +60,6 @@ fn array_rest_bindings_keep_receiver_and_leaf_proofs_conservative() {
         "const [...rest]=null;return a;",
         "const [...rest]='abc';return a;",
         "const {items:[...rest]}={items:a};return a;",
-        "const [...[x]]=[a];return a;",
         "const [...{length}]=[a];return a;",
         "const [x=rest,...rest]=[];return a;",
         "const [...rest]=rest;return a;",
@@ -622,5 +621,18 @@ fn array_rest_indices_reject_unstable_or_incompatible_projections() {
                 "{source}: {error}"
             );
         }
+    }
+}
+
+#[test]
+fn array_rest_pattern_targets_destructure_the_fresh_copy() {
+    for body in [
+        "const [...[x]]=[a];return a;",
+        "const src=[a,undefined,' old '];const [,...[first=(src[2]='new',b),second]]=src;return first===b&&second.trim()==='old'&&src[2]==='new'?1:0;",
+        "const [,...[,...[{title},...tail]]]=[a,b,{title:' title '},,a];return title.trim().length+tail.length+(tail[0]===undefined&&tail[1]===a?10:0);",
+        "let n=0;const [...[]]=(n++,[a,b]);const [...[x='fallback']]=[];return n+x.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
     }
 }

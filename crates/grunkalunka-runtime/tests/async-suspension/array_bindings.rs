@@ -144,3 +144,14 @@ fn selected_rest_positions_keep_traced_values_across_awaits() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn rest_target_defaults_suspend_after_the_entire_tail_is_copied() {
+    compare_promises(
+        &[
+            "const src=[a,undefined,' old '];const [,...[x=(await a,src[2]='changed',b),label]]=src;await b;return x===b&&label.trim()==='old'&&src[2]==='changed'?1:0;",
+            "let n=0;try{const [...[x=await Promise.reject(a),y=(n=1,b)]]=[];n=2;}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

@@ -5,7 +5,7 @@ source-proven managed objects. This supports shorthand fields, renamed fields,
 and static identifier, String and numeric property names, including literal-computed
 keys and nested object or array patterns. Identifier leaves and whole
 nested patterns may have lazy defaults, and nested array patterns may end in an
-identifier rest element. Object patterns can likewise collect remaining fields with
+rest element targeting an identifier or another array pattern. Object patterns can likewise collect remaining fields with
 `...rest`. The same declaration path applies in ordinary blocks,
 helpers, async activations and traditional `for` initializers.
 
