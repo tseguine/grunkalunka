@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn whole_array_defaults_keep_empty_patterns_and_saved_iterators_across_await() {
+    compare_promises(
+        &[
+            "const outer=[];const [[]=(await a,outer[1]=9,[]),tail]=outer;await b;return (tail===undefined?10:0)+(tail===9?1:0);",
+            "const inner=[undefined,a];let root=[];const original=root;const [[x=(await b,inner[1]=b,original[1]=b,a),y]=(await a,root=[[b]],inner),tail=9]=root;await a;return x===a&&y===b&&tail===9&&root!==original?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn nested_array_binding_defaults_keep_each_iterator_live_or_exhausted_across_await() {
     compare_promises(
         &[

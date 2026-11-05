@@ -1,12 +1,12 @@
 //! Fields and array elements are selected only after the preceding binding
 //! completes. Every continuation retains the originally evaluated RHS.
 use super::*;
-use oxc_ast::ast::BindingIdentifier;
+use oxc_ast::ast::{AssignmentPattern, BindingIdentifier};
 
 pub(super) struct DefaultBinding<'n, 'a> {
     state: BindingState<'n, 'a>,
     pending: LazyDefault,
-    identifier: &'n BindingIdentifier<'a>,
+    source: &'n AssignmentPattern<'a>,
 }
 
 pub(super) enum BindingResume<'n, 'a> {
@@ -174,42 +174,40 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     };
                     state.selected = Some(selected);
                 }
-                BindingStep::Bind {
-                    identifier,
-                    default,
-                } => {
+                BindingStep::Default(source) => {
                     let selected = state.selected.take().expect("selected binding value");
-                    if let Some(source) = default {
-                        let undefined = match state.containers.last() {
-                            Some(Container::Array {
-                                iterator: Some(iterator),
-                                ..
-                            }) => iterator.undefined,
-                            _ => self.binding_undefined(identifier, &mut state.output),
-                        };
-                        let pending = self.prepare_binding_default(
-                            identifier,
-                            &mut state.output,
-                            selected,
-                            undefined,
-                        );
-                        let child = self.region(source);
-                        cursor.pending.push(Frame::PatternBindingDefault {
-                            resume,
-                            active: Box::new(DefaultBinding {
-                                state,
-                                pending,
-                                identifier,
-                            }),
-                        });
-                        cursor.next = Some(Next::Expression {
+                    let undefined = match state.containers.last() {
+                        Some(Container::Array {
+                            iterator: Some(iterator),
+                            ..
+                        }) => iterator.undefined,
+                        _ => self.binding_undefined(&source.left, &mut state.output),
+                    };
+                    let pending = self.prepare_binding_default(
+                        &source.left,
+                        &mut state.output,
+                        selected,
+                        undefined,
+                    );
+                    let child = self.region(&source.right);
+                    cursor.pending.push(Frame::PatternBindingDefault {
+                        resume,
+                        active: Box::new(DefaultBinding {
+                            state,
+                            pending,
                             source,
-                            output: child,
-                            depth: 0,
-                            mode: evaluate::Mode::Managed,
-                        });
-                        return Ok(());
-                    }
+                        }),
+                    });
+                    cursor.next = Some(Next::Expression {
+                        source: &source.right,
+                        output: child,
+                        depth: 0,
+                        mode: evaluate::Mode::Managed,
+                    });
+                    return Ok(());
+                }
+                BindingStep::Bind { identifier } => {
+                    let selected = state.selected.take().expect("selected binding value");
                     self.publish_pattern_binding(
                         identifier,
                         &mut state.output,
@@ -248,16 +246,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let DefaultBinding {
             mut state,
             pending,
-            identifier,
+            source,
         } = active;
         let result = self.finish_binding_default(
-            identifier,
+            &source.left,
             &mut state.output,
             pending,
             consequent,
             default,
         );
-        self.publish_pattern_binding(identifier, &mut state.output, result, state.plan.mutable)?;
+        state.selected = Some(result);
         self.advance_binding_pattern(resume, state, cursor)
     }
 

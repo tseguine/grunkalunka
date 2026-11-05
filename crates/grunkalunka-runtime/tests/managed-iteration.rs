@@ -325,6 +325,17 @@ fn destructuring_for_of_orders_defaults_and_keeps_original_selections() {
 }
 
 #[test]
+fn whole_pattern_defaults_in_for_of_heads_keep_laziness_and_fresh_captures() {
+    for body in [
+        "let calls=0,n=0;for(const [{label}=(calls++,{label:' x '})] of [[],[{label:' yy '}]])n=n*10+label.trim().length;return calls*100+n;",
+        "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {row:{label}=(n++,{label:n===1?' a ':' bb '}),unused=(last=()=>label.trim().length,0)} of [{},{}]){if(n===1){first=last;change=()=>{label=' ccc ';return 0;};}}change();return first()*10+last();",
+        "let first=()=>0,last=()=>0;for(let {row:{label}={label:' a '}}={},i=0;i<2;i++,label=' bb '){if(i===0)first=()=>label.trim().length;last=()=>label.trim().length;}return first()*10+last();",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn destructuring_for_of_allocates_fresh_leaf_cells_and_preserves_loop_control() {
     for body in [
         "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {label,unused=(last=()=>label.trim().length,0)} of [{label:' a '},{label:' bb '}]){if(n===0){first=last;change=()=>{label=' ccc ';return 0;};}n++;}change();return first()*10+last();",
@@ -360,6 +371,9 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(var {value} of [{value:a}]){}return a;",
         "for(const {...rest} of [{value:a}]){}return a;",
         "for(const [first,...rest] of [[a,b]]){}return a;",
+        "for(const {row:{x}={x:a}} of [{row:null}]){}return a;",
+        "for(const [[x]=[a]] of [[b]]){}return a;",
+        "for(const {row:{x}={x}} of [{}]){}return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {

@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn whole_pattern_defaults_in_for_of_heads_keep_fresh_cells_and_abrupt_completion() {
+    compare_promises(
+        &[
+            "let first=()=>0,last=()=>0,change=()=>0;let n=0;for(let {row:{label}=(await a,n++,{label:n===1?' a ':' bb '}),unused=(last=()=>label.trim().length,0)} of [{},{}]){await b;if(n===1){first=last;change=()=>{label=' ccc ';return 0;};}}await a;change();return first()*10+last();",
+            "let n=0;try{for(const {child:{x=(n=1)}=(await Promise.reject(a),{}),tail=(n=2)} of [{}])n=3;}catch(e){await b;return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_for_of_keeps_saved_arrays_and_live_length_across_suspension() {
     compare_promises(
         &[

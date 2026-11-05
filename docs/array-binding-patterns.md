@@ -1,8 +1,8 @@
 # Array binding declarations
 
 Local `const` and `let` declarations admit array binding patterns over
-source-proven managed arrays. Identifier leaves with optional lazy defaults,
-elisions, empty patterns and nested object/array patterns work in blocks,
+source-proven managed arrays. Identifier leaves and nested object/array patterns
+with optional lazy defaults, elisions and empty patterns work in blocks,
 helpers, async activations and traditional `for` initializers. Objects can also
 contain nested array patterns through the same binding cursor.
 
@@ -18,8 +18,15 @@ when a later expression mutates the source array.
 
 Every nested selection retains its original object or array and finishes before
 the next outer selection. Each nested receiver needs a source proof of the
-required container kind, even for an empty pattern. Rebinding a source or
-replacing a parent field does not redirect an already-selected inner receiver.
+required container kind after any whole-pattern default, even for an empty
+pattern. Rebinding a source or replacing a parent field does not redirect an
+already-selected inner receiver.
+
+A default on a whole nested pattern completes before entering that pattern.
+It can supply a missing record or list, including through a supported await.
+An empty nested pattern still runs its selected fallback. Such a fallback can
+change an ancestor array's live length, and its absence of identifier leaves does
+not suppress the ancestor's exhaustion tracking.
 
 Defaults run only for Undefined, including sparse holes and exhausted steps.
 Null, false, zero, NaN and empty Strings preserve their value. A source binding
@@ -74,9 +81,9 @@ are added.
 
 ## Admission limits
 
-Defaults on whole nested patterns, rest elements, destructuring assignment and
-parameter patterns remain separate work. Strings, ordinary objects with numeric
-fields, unknown parameters and nullable array alternatives do not satisfy the
+Rest elements, destructuring assignment and parameter patterns remain separate
+work. Strings, ordinary objects with numeric fields, unknown parameters and
+nullable array alternatives do not satisfy the
 array proof. The intrinsic-iterator boundary also excludes user-defined
 iteration and observable iterator closing.
 

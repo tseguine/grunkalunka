@@ -78,6 +78,8 @@ Rust WIT comparison. One helper extracts a nested action record and captures its
 Boolean/String leaves in a handler. Another handler extracts grouped heading
 records through a mixed object/array declaration, then uses a destructuring
 `for...of` head with a lazy identifier default to compute the visible count.
+An optional-action case supplies missing view, group and heading-option records
+through whole-pattern defaults before deriving the service arguments.
 These records and boxed leaves stay within compiled source; the handler passes
 derived numeric arguments through the unchanged scalar service. The cases add
 no numeric unboxing, typed public A1 payload or resource interface.

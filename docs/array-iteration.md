@@ -2,7 +2,8 @@
 
 Synchronous `for...of` admits one local `const` or `let` declaration over a
 source-proven managed array. Its binding may be an identifier or a supported
-object/array pattern, including mixed nesting and identifier-leaf defaults.
+object/array pattern, including mixed nesting and defaults on leaves or nested
+patterns.
 The loop works in ordinary source functions, helpers and supported async
 activations. The iterable expression is evaluated
 once; later reassignment of its source variable cannot redirect the loop.
@@ -80,10 +81,10 @@ observable behavior without allocating a runtime iterator object. Extending
 this scope will require preserving user iteration hooks and iterator closing.
 
 Each destructured item must have the object or array kind required by its head,
-and every nested receiver needs its own positive source proof. Missing, nullable,
+and every nested receiver needs its own positive source proof after any default.
+A known Undefined nested selection may use a proven fallback; nullable,
 mixed-kind and unresolved alternatives retain their conservative rejection.
-Defaults on a whole pattern, rest bindings and dynamic object keys remain outside
-the shared pattern admission.
+Rest bindings and dynamic object keys remain outside the shared pattern admission.
 
 This slice rejects `for await...of`, `var`, assignment targets,
 Strings, unproven iterable values and labels. Synchronous source

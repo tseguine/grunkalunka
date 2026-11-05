@@ -32,6 +32,31 @@ fn nested_array_bindings_admit_original_patterns_and_select_mixed_records() {
 }
 
 #[test]
+fn nested_pattern_defaults_admit_original_sources_and_select_mixed_receivers() {
+    for body in [
+        // Preserve the three exact formerly rejected whole-pattern defaults.
+        "const [[x]=[a]]=[];return a;",
+        "const [{x}={x:a}]=[];return a;",
+        "const {items:[x]=[a]}={};return a;",
+        "let n=0;const [{items:[label,tag]=(n=n*10+2,[' x ',a])}=(n=n*10+1,{}),[]=(n=n*10+3,[])]=[];return n+label.trim().length*1000+(tag===a?10000:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn whole_array_defaults_keep_ancestor_exhaustion_and_fresh_inner_iterators() {
+    for body in [
+        // Even a child with no leaves can grow an ancestor before its next step.
+        "const outer=[];const [[]=(outer[1]=9,[]),tail]=outer;return (tail===undefined?10:0)+(tail===9?1:0);",
+        "const outer=[,];const [[]=(outer[1]=9,[]),tail]=outer;return (tail===undefined?10:0)+(tail===9?1:0);",
+        "const inner=[];const outer=[undefined,undefined];const [[x=(inner[0]=7,1),y]=inner,[z,w]=inner]=outer;return (x===1?1000:0)+(y===undefined?100:0)+(z===7?10:0)+(w===undefined?1:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn nested_array_bindings_retain_original_receivers_and_read_after_nested_defaults() {
     compare(
         "const inner=[undefined,a];let outer=[inner,b];const original=outer;const [[x=(outer[0]=[b,b],outer=[[],a],inner[1]=b,a),y],z]=outer;return x===a&&y===b&&z===b&&original[0]!==inner&&outer!==original?1:0;",
@@ -113,8 +138,16 @@ fn nested_array_bindings_preserve_receiver_proof_tdz_and_pattern_limits() {
         "const [x=y,[y=a]]=[undefined,[]];return a;",
         "const [[x,...rest]]=[[a,b]];return a;",
         "const [{x,...rest}]=[{x:a,y:b}];return a;",
-        "const [{x}={x:a}]=[];return a;",
-        "const {items:[x]=[a]}={};return a;",
+        "const [[]=[]]=[null];return a;",
+        "const [[x]=[a]]=[b];return a;",
+        "const [[]={}]=[];return a;",
+        "const [{x}=[]]=[];return a;",
+        "const source=[undefined];const alias=source;alias[0]=a;const [[x]=[b]]=source;return a;",
+        "const {items:[x]=[a]}={...{items:b}};return a;",
+        "const [[x]=[x]]=[];return a;",
+        "const [[x]=later,later=[a]]=[];return a;",
+        // The write taints index zero even though this native path first exhausts.
+        "const outer=[];const [[x]=(outer[0]=7,outer[1]=9,outer),tail]=outer;return (x===7?100:0)+(tail===9?10:0)+(tail===undefined?1:0);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -421,7 +454,6 @@ fn array_binding_defaults_keep_tdz_and_conservative_origin_guards() {
         "const [x=undefined,undefined=a]=[];return a;",
         "const [x=a]=[];x=b;return a;",
         "const [x=a]=[];return x+1;",
-        "const [[x]=[a]]=[];return a;",
         "const [x=a,...rest]=[];return a;",
         "const [text='fallback']=[a];return text.trim().length;",
         "const [text='fallback']=[null];return text.trim().length;",
