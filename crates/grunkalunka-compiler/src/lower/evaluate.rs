@@ -1463,12 +1463,34 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?
                 }
-                Work::In { node, literal } => {
+                Work::In { node, membership } => {
                     let input = values.pop().expect("in receiver").id();
-                    let key = literal.map(ir::ManagedKey::Literal).unwrap_or_else(|| {
-                        ir::ManagedKey::String(values.pop().expect("in key").id())
-                    });
-                    self.finish_property_presence(node, regions.current(), values, input, key);
+                    match membership {
+                        has_own::Membership::Own(literal) => {
+                            let key = literal.map(ir::ManagedKey::Literal).unwrap_or_else(|| {
+                                ir::ManagedKey::String(values.pop().expect("in key").id())
+                            });
+                            self.finish_property_presence(
+                                node,
+                                regions.current(),
+                                values,
+                                input,
+                                key,
+                            );
+                        }
+                        has_own::Membership::Inherited => {
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Boolean {
+                                    result,
+                                    value: true,
+                                },
+                            );
+                            values.push(Value::Predicate(result));
+                        }
+                    }
                 }
                 Work::HasOwn(task) => self.resume_has_own(task, regions, values, work)?,
                 Work::OwnKeys(task) => self.resume_own_keys(task, regions, values, work)?,

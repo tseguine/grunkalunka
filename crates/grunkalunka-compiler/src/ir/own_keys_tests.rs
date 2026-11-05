@@ -196,3 +196,35 @@ fn dictionary_in_reuses_the_checked_guest_presence_operation() {
         "{err}"
     );
 }
+
+#[test]
+fn static_in_needs_a_known_prototype_only_for_an_inherited_key() {
+    for (body, admitted) in [
+        (
+            "const o=a?{}:Object.create(null);return 'own' in o?1:0;",
+            true,
+        ),
+        (
+            "const o=a?{}:Object.create(null);return 'constructor' in o?1:0;",
+            false,
+        ),
+        (
+            "const o={};const f=()=>o;return 'constructor' in f()?1:0;",
+            true,
+        ),
+        ("const rows=[a];return 'map' in rows?1:0;", true),
+        ("return 'length' in 'abc'?1:0;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let result = crate::compile(&source, false);
+        if admitted {
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        } else {
+            let err = result.err().unwrap();
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

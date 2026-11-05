@@ -14,7 +14,7 @@ pub(super) enum Work<'e, 'a> {
     HasOwn(has_own::Task<'e, 'a>),
     In {
         node: &'e Expression<'a>,
-        literal: Option<Vec<u16>>,
+        membership: has_own::Membership,
     },
     Managed(managed::ManagedWork<'e, 'a>),
     Eval(&'e Expression<'a>, usize, Mode),

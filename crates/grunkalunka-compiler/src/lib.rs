@@ -8,6 +8,7 @@ mod ir;
 #[path = "ir/iterative_drop.rs"]
 mod ir_iterative_drop;
 mod lower;
+mod prototype_keys;
 #[cfg(test)]
 mod source_cursor_tests;
 
