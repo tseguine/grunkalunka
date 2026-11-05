@@ -1,7 +1,9 @@
 //! Binding plans borrow the original source and select each own field or array
 //! position in order. Origins prove receiver kinds; annotations never do.
 use super::*;
-use oxc_ast::ast::{ArrayPattern, BindingIdentifier, BindingProperty, ObjectPattern, PropertyKey};
+use oxc_ast::ast::{
+    ArrayPattern, AssignmentPattern, BindingIdentifier, BindingProperty, ObjectPattern, PropertyKey,
+};
 use oxc_syntax::node::NodeId;
 
 /// Original-source pattern leaves for representation planning. Plain identifier
@@ -37,21 +39,6 @@ pub(super) fn leaves<'n, 'a>(
     })
 }
 
-fn leaf<'n, 'a>(
-    pattern: &'n BindingPattern<'a>,
-) -> Option<(&'n BindingIdentifier<'a>, Option<&'n Expression<'a>>)> {
-    match pattern {
-        BindingPattern::BindingIdentifier(identifier) => Some((identifier, None)),
-        BindingPattern::AssignmentPattern(assignment) => match &assignment.left {
-            BindingPattern::BindingIdentifier(identifier) => {
-                Some((identifier, Some(&assignment.right)))
-            }
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 pub(super) fn key(property: &BindingProperty<'_>) -> Option<Vec<u16>> {
     match &property.key {
         PropertyKey::StaticIdentifier(identifier) if !property.computed => {
@@ -76,9 +63,9 @@ pub(super) enum BindingStep<'n, 'a> {
         source: &'n BindingPattern<'a>,
         index: u32,
     },
+    Default(&'n AssignmentPattern<'a>),
     Bind {
         identifier: &'n BindingIdentifier<'a>,
-        default: Option<&'n Expression<'a>>,
     },
     Leave,
 }
@@ -162,6 +149,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Element(&'n BindingPattern<'a>, u32, usize),
             Leave,
         }
+        let root = pattern.node_id();
         let mut pending = vec![Work::Pattern(pattern, origin, 0)];
         let mut steps = Vec::new();
         let mut containers = Vec::new();
@@ -169,29 +157,40 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         while let Some(work) = pending.pop() {
             match work {
                 Work::Pattern(pattern, origin, parent_depth) => {
-                    if let Some((identifier, default)) = leaf(pattern) {
-                        count += 1;
-                        if default.is_some() {
+                    match pattern {
+                        BindingPattern::BindingIdentifier(identifier) => {
+                            count += 1;
+                            steps.push(BindingStep::Bind { identifier });
+                            continue;
+                        }
+                        BindingPattern::AssignmentPattern(assignment) => {
                             // A descendant's default can mutate any ancestor
                             // array before its next step. Each ancestor keeps
-                            // its own independent sticky exhaustion state.
+                            // its own independent sticky exhaustion state, even
+                            // when the default's left pattern has no leaves.
                             for &index in &containers {
                                 if let BindingStep::Array { live, .. } = &mut steps[index] {
                                     *live = true;
                                 }
                             }
+                            steps.push(BindingStep::Default(assignment));
+                            // The left subtree consumes the selected/default
+                            // result and uses its post-default source origins.
+                            // A default wrapper adds no container nesting.
+                            pending.push(Work::Pattern(
+                                &assignment.left,
+                                assignment.left.node_id(),
+                                parent_depth,
+                            ));
+                            continue;
                         }
-                        steps.push(BindingStep::Bind {
-                            identifier,
-                            default,
-                        });
-                        continue;
+                        _ => (),
                     }
                     let depth = parent_depth + 1;
                     if depth > 128 {
                         return Err(unsupported(pattern, "binding pattern nesting exceeds 128"));
                     }
-                    let proven = if parent_depth == 0 {
+                    let proven = if pattern.node_id() == root {
                         Some(root_type)
                     } else {
                         self.stored.container(origin)
@@ -250,12 +249,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 },
                             ));
                         }
-                        _ => {
-                            return Err(unsupported(
-                                pattern,
-                                "binding defaults currently require identifier leaves",
-                            ));
-                        }
+                        _ => unreachable!("identifiers and defaults were planned above"),
                     }
                 }
                 Work::Field(property, dictionary, depth) => {

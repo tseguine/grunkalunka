@@ -44,7 +44,7 @@ fn identifier_defaults_admit_consumers_of_proven_missing_values() {
 }
 
 #[test]
-fn identifier_defaults_retain_unknown_and_whole_pattern_guards() {
+fn identifier_defaults_retain_unknown_guards() {
     for body in [
         "const {label=' x '}={label:null};return label.trim().length;",
         "const undefined=a;const {label=' x '}={label:undefined};return label.trim().length;",
@@ -55,8 +55,6 @@ fn identifier_defaults_retain_unknown_and_whole_pattern_guards() {
         "let missing;missing++;const {label=' x '}={label:missing};return label.trim().length;",
         "let missing=undefined;missing += a;const {label=' x '}={label:missing};return label.trim().length;",
         "let missing;const mutate=()=>{missing++;};mutate();const {label=' x '}={label:missing};return label.trim().length;",
-        "const {child:{label}={label:' x '}}={};return a;",
-        "const [[label]=[' x ']]=[];return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         let error = on_small_stack(&source, false, false)
@@ -76,6 +74,135 @@ fn identifier_defaults_retain_unknown_and_whole_pattern_guards() {
             .unwrap_or_else(|| panic!("admitted {source}"));
         assert!(error.contains("unsupported"), "{source}: {error}");
         assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
+fn nested_pattern_defaults_use_the_post_default_receiver_before_binding_leaves() {
+    for (body, asynchronous) in [
+        ("const {child:{label}={label:' x '}}={};return a;", false),
+        ("const [[label]=[' x ']]=[];return a;", false),
+        ("const {child:{x}={x:a}}={child:{x:b}};return a;", false),
+        ("const [[x]=[a]]=[[b]];return a;", false),
+        ("const [{x}={x:a}]=[{x:b}];return a;", false),
+        (
+            "const source=a?{}:{child:{label:'present'}};const {child:{label}={label:'fallback'}}=source;return label.trim().length;",
+            false,
+        ),
+        (
+            "const {child:{constructor:label=' x '}=Object.create(null)}={};return label.trim().length;",
+            false,
+        ),
+        ("const [[]=[],{}={}]=[,];return a;", false),
+        (
+            "const outer=[];const [[]=(outer[1]=9,[]),tail]=outer;return tail===undefined?1:0;",
+            false,
+        ),
+        (
+            "const outer=[,];const [[]=(outer[1]=9,[]),tail]=outer;return tail===9?1:0;",
+            false,
+        ),
+        (
+            "let n=0;for(const {child:{label}={label:' x '}} of [{}])n+=label.trim().length;return n;",
+            false,
+        ),
+        (
+            "const {child:{label}=(await a,{label:' x '})}={};return label.trim().length;",
+            true,
+        ),
+        (
+            "const [[label]=(await a,[' x '])]=[];return label.trim().length;",
+            true,
+        ),
+    ] {
+        let source = format!(
+            "export {}function run(a,b){{{body}}}",
+            if asynchronous { "async " } else { "" }
+        );
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, asynchronous, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+}
+
+#[test]
+fn nested_pattern_defaults_keep_kind_tdz_and_unsupported_pattern_guards() {
+    for body in [
+        "const {child:{}={}}={child:null};return a;",
+        "const {child:{}={}}={child:a};return a;",
+        "const {child:{}=[]}={};return a;",
+        "const [[]=[]]=[null];return a;",
+        "const [[]={}]=[];return a;",
+        "const {child:{}={}}={...{child:null}};return a;",
+        "const source={};const alias=source;alias.child=null;const {child:{}={}}=source;return a;",
+        "const {child:{value}={value:value}}={};return a;",
+        "const {child:{}=(later,{}),later=a}={};return a;",
+        "const {child:{...rest}={}}={};return a;",
+        "const [[...rest]=[]]=[];return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let error = on_small_stack(&source, false, false)
+            .0
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
+fn nested_pattern_default_annotations_do_not_supply_receiver_proofs() {
+    let typed = "export function run(a:number,b:number){const {child:{label}={label:' x '}}:{child?:{label:string}}={};return label.trim().length;}";
+    let (result, _) = on_small_stack(typed, false, true);
+    assert!(result.is_ok(), "{result:?}");
+
+    let typed = "export function run(a:number,b:number){const source={child:a} as {child?:{label:string}};const {child:{label}={label:' x '}}=source;return label.trim().length;}";
+    let error = on_small_stack(typed, false, true)
+        .0
+        .err()
+        .unwrap_or_else(|| panic!("admitted {typed}"));
+    assert!(error.contains("source-proven managed object"), "{error}");
+}
+
+#[test]
+fn nested_defaults_charge_containers_without_charging_default_wrappers() {
+    for (depth, admitted) in [(32, true), (128, true), (129, false)] {
+        let mut pattern = String::from("leaf");
+        for _ in 0..depth {
+            pattern = format!("{{next:{pattern}={{}}}}");
+        }
+        let source = format!("export function run(a,b){{const {pattern}={{}};return a;}}");
+        let (result, _) = on_small_stack(&source, false, false);
+        if admitted {
+            assert!(result.is_ok(), "{depth}: {result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("binding pattern nesting exceeds 128"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_defaults_charge_only_bound_identifiers() {
+    for (count, admitted) in [(128, true), (129, false)] {
+        let fields = (0..count)
+            .map(|index| format!("child{index}:{{leaf{index}}}={{}}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = format!(
+            "export function run(a,b){{const {{empty:{{}}={{}},{fields}}}={{}};return a;}}"
+        );
+        let (result, _) = on_small_stack(&source, false, false);
+        if admitted {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(error.contains("at most 128 source locals"), "{error}");
+        }
     }
 }
 
@@ -149,7 +276,6 @@ fn nested_object_bindings_preserve_admission_and_small_stack_depth_boundaries() 
         "const {child:{}}={child:null};return a;",
         "const {child:{}}={child:[]};return a;",
         "const {child:{x}}={child:a};return a;",
-        "const {child:{x}={x:a}}={child:{x:b}};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         let (result, _) = on_small_stack(&source, false, false);
@@ -191,8 +317,6 @@ fn mixed_binding_patterns_share_the_small_stack_depth_and_receiver_guards() {
         "const [[]]=[];return a;",
         "const [[]]=[null];return a;",
         "const {items:[]}={items:{}};return a;",
-        "const [[x]=[a]]=[[b]];return a;",
-        "const [{x}={x:a}]=[{x:b}];return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         let (result, _) = on_small_stack(&source, false, false);

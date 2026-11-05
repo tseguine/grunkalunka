@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn whole_object_defaults_keep_saved_receivers_and_skip_unused_awaits() {
+    compare_promises(
+        &[
+            "let fallback={first:undefined,next:a};const original=fallback;const root={tail:a};const {child:{first=(await b,fallback={next:b},root.child={next:b},root.tail=b,1),next}=(await a,fallback),tail}=root;return (first===1?100:0)+(next===a?10:0)+(tail===b?1:0)+(fallback!==original?1000:0);",
+            "const {child:{value}=(await Promise.reject(a),{value:b})}={child:{value:a}};await b;return value===a?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn known_undefined_defaults_keep_proven_consumers_and_lazy_awaits() {
     compare_promises(
         &[

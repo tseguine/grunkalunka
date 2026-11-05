@@ -29,6 +29,20 @@ fn nested_object_bindings_select_fields_and_keep_proven_leaf_operations() {
 }
 
 #[test]
+fn nested_object_pattern_defaults_select_once_and_finish_before_outer_fields() {
+    for body in [
+        // Preserve the exact formerly rejected whole-pattern default.
+        "const {child:{x}={x:a}}={};return a;",
+        "let n=0;const make=()=>{n=n*10+1;return {present:{tag:b},explicit:undefined};};const {missing:{label=(n=n*10+3,' x '),tag}=(n=n*10+2,{tag:a}),present:{tag:kept}=(n=9,{tag:a}),explicit:{tag:last}=(n=n*10+4,{tag:b}),empty:{}=(n=n*10+5,{})}=make();return n+label.trim().length*100000+(tag===a?1000000:0)+(kept===b?10000000:0)+(last===b?100000000:0);",
+        "const fallback={last:' before '};let source={tail:' root '};const original=source;const {child:{first=(original.child={last:' replacement '},fallback.last=' after ',' x '),last}=(source={tail:' new '},original.child=fallback,fallback),tail}=source;return first.trim().length+last.trim().length*10+tail.trim().length*100+(source!==original?1000:0)+(original.child!==fallback?10000:0);",
+    ] {
+        compare(body);
+    }
+    let source = "function fallback(tag){return {row:{label:' ready ',tag}};}export function run(a,b){const {child:{row:{label,tag}}=fallback(a)}={};return label.trim().length+(tag===a?100:0);}";
+    common::compare_sources(source, source);
+}
+
+#[test]
 fn nested_object_bindings_finish_each_child_before_reading_the_next_outer_field() {
     compare(
         "let n=0;const root={inner:{last:a}};const make=()=>{n=n*10+1;return root;};const {inner:{first=(n=n*10+2,root.inner={last:b},a),last},inner:{last:later},tail=(n=n*10+3,b)}=make();return n+(first===a?1000:0)+(last===a?10000:0)+(later===b?100000:0)+(tail===b?1000000:0);",
@@ -95,6 +109,14 @@ fn nested_object_bindings_preserve_empty_receiver_tdz_and_alias_guards() {
         "const {first=later,child:{later=a}}={child:{}};return a;",
         "const {child:{f=()=>x,x=a}}={child:{}};return a;",
         "const {child:{x,...rest}}={child:{x:a}};return a;",
+        "const {child:{}={}}={child:null};return a;",
+        "const {child:{x}={x:a}}={child:b};return a;",
+        "const {child:{}={}}={child:undefined,...{child:a}};return a;",
+        "const source={};const alias=source;alias.child=a;const {child:{x}={x:b}}=source;return a;",
+        "const {child:{}=null}={};return a;",
+        "const {child:{}=[]}={};return a;",
+        "const {child:{x}={x}}={};return a;",
+        "const {child:{x}=later,later={x:a}}={};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -339,7 +361,6 @@ fn object_binding_defaults_keep_tdz_kind_and_pattern_guards() {
         "const source={text:undefined,...{text:a}};const {text='fallback'}=source;return text.trim().length;",
         "const source={};const alias=source;alias.text=a;const {text='fallback'}=source;return text.trim().length;",
         "let {text='ready'}={};const read=()=>text.length;text=a;return read();",
-        "const {child:{x}={x:a}}={};return a;",
         "const key='x';const {[key]:x=a}={};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

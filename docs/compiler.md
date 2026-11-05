@@ -34,8 +34,8 @@ See the [bounded source contract](#immutable-boolean-predicate-locals).
 
 Local `const` and `let` declarations support nested and mixed
 [object](object-binding-patterns.md) and [array](array-binding-patterns.md) binding
-patterns, including identifier-leaf defaults, literal object keys, array elisions
-and empty patterns. They work in ordinary declarations and traditional `for`
+patterns, including defaults on leaves or whole nested patterns, literal object
+keys, array elisions and empty patterns. They work in ordinary declarations and traditional `for`
 initializers. [Intrinsic-array `for...of`](array-iteration.md) also accepts these
 patterns in a `const` or `let` head, completing every leaf before the loop body
 and allocating fresh cells for captured leaves each iteration.
@@ -58,8 +58,8 @@ carrier, so selected Numbers do not acquire numeric unboxing. The existing
 128-source-local budget counts identifier leaves, and iterative pattern
 processing admits at most 128 nested object/array container levels.
 
-Defaults on whole patterns, rest bindings, parameter and assignment patterns,
-dynamic object keys and primitive RHS coercion remain outside this admission.
+Rest bindings, parameter and assignment patterns, dynamic object keys and
+primitive RHS coercion remain outside this admission.
 Iteration is limited to source-proven managed arrays with their intrinsic
 iterator; general iterables, `for-in`, `for await...of` and `var` or assignment
 heads remain separate work. These features do not change the public call ABI.

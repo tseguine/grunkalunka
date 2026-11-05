@@ -584,3 +584,23 @@ fn imported_handler_iterates_nested_heading_records_with_source_defaults() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_defaults_optional_action_records_and_heading_options() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const defaultHeadings = [{label:' one '},{options:{enabled:true}}];
+            const action = a > 0 ? {
+                view:{expanded:true},
+                groups:[defaultHeadings]
+            } : {};
+            const {view:{expanded=false}={},groups:[headings=defaultHeadings]=[]} = action;
+            let count = 0;
+            for (const {label=' Untitled ',options:{enabled=true}={}} of headings) {
+                if (enabled && label.trim().length > 0) count++;
+            }
+            return choose(expanded ? 1 : 0, count);
+        }"#,
+    );
+}
