@@ -17,7 +17,9 @@ primitive-only descriptions below do not imply that this completes object suppor
 
 [Synchronous local source errors](synchronous-errors.md) now compose with these
 profiles: a same-function lexical catch receives a primitive throw, including
-inside named helpers and runtime closures. Cross-call throw propagation and
+inside named helpers and runtime closures. Synchronous finally preserves or
+overrides pending completions while retaining the function's existing result
+lane. Cross-call throw propagation and
 uncaught synchronous throws remain outside the current return ABI.
 
 Numeric/primitive IR cells retain a fixed `Number`, `Predicate` or `General` type. Source lowering

@@ -10,6 +10,7 @@ import { numericCalls } from './numeric-calls.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
 import { syncCatchPrograms, promotedCatchGap } from './sync-catch.mjs';
+import { syncFinallyPrograms, syncFinallyPromotions } from './sync-finally.mjs';
 import { nullishAssignment, promotedNullishAssignment } from './nullish-assignment.mjs';
 import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullish.mjs';
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
@@ -119,6 +120,27 @@ test('synchronous catch promotes its exact original source and unchanged Number 
   assert.ok(!catalog.records.some(row=>row.id==='gap-catch'));
   const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
   assert.equal(run(...promotedCatchGap.args),promotedCatchGap.expected);
+});
+
+test('synchronous finally preserves both original rejection sources and the return-override golden',()=>{
+  assert.deepEqual(syncFinallyPromotions.map(record=>record.id),['gap-finally-return','continue-finally-remains']);
+  const hashes=[
+    '6b4ab88449bd24de349b188ca007fc0c7bd6dc720d3291b3a400b1d6b2b4c114',
+    'f5aac6d9a2c65911532fd31a6abbb6d88c2092a9fb978b981468aa5c59d0b491',
+  ];
+  for(const [index,record] of syncFinallyPromotions.entries()){
+    const source=programSources(syncFinallyPrograms.find(row=>row[0]===record.id));
+    assert.equal(source.sourceJS,record.sourceJS);
+    assert.equal(source.sourceTS,record.sourceTS);
+    assert.equal(source.oracleSource,record.sourceJS);
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),hashes[index]);
+    assert.equal(record.sourceSha256,hashes[index]);
+    assert.deepEqual([record.args,record.entry,record.expected],[[4,2],'run',2]);
+    assert.ok(!rejected.some(row=>row[0]===record.id));
+    assert.ok(!catalog.records.some(row=>row.id===record.id));
+    const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
+    assert.equal(run(...record.args),record.expected);
+  }
 });
 
 test('binary coalescing promotes three exact numeric sources and the original primitive rejection', () => {
@@ -267,7 +289,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 819);
+  assert.equal(inventory.records.size, 817);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

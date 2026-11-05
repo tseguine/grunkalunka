@@ -2,6 +2,7 @@ import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { localArrows } from './local-arrows.mjs';
 import { voidPrograms } from './void.mjs';
 import { syncCatchPrograms } from './sync-catch.mjs';
+import { syncFinallyPrograms } from './sync-finally.mjs';
 import { nullishAssignment } from './nullish-assignment.mjs';
 import { functionLogicalAssignment } from './function-logical-assignment.mjs';
 import { primitiveFactoryLeaves } from './primitive-factory-leaves.mjs';
@@ -95,7 +96,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 98;
+export const corpusVersion = 99;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -124,6 +125,7 @@ export const programs = expressions.map(([name, expression]) => [name, `return $
 programs.push(...localArrows);
 programs.push(...voidPrograms);
 programs.push(...syncCatchPrograms);
+programs.push(...syncFinallyPrograms);
 programs.push(...nullishAssignment);
 programs.push(...functionLogicalAssignment);
 programs.push(...primitiveFactoryLeaves);

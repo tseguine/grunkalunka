@@ -66,7 +66,6 @@ add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators
 add('rest', 'bindings', '', 6, ordinaryParameters,
   { source: 'export function run(a,...rest) { return a+rest[0]; }', prerequisites: ['array values'] });
 
-add('finally-return', 'exceptions', 'try { return a; } finally { return b; }', 2, statement, { milestone: 'L5' });
 add('class-instance', 'classes', 'class Box { constructor(x) { this.x=x; } get() { return this.x; } } const box=new Box(a); return box.get()+b;', 6, statement,
   { prerequisites: ['objects', 'construction', 'method calls'] });
 add('generator', 'generators-async', 'function* values() { yield a; return b; } const it=values(); return it.next().value+it.next().value;', 6, statement,

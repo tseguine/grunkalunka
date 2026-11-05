@@ -173,9 +173,6 @@ fn synchronous_catches_keep_uncaught_cross_function_and_reason_boundaries() {
         "try{const fail=()=>{if(a)throw b;return 0;};return fail();}catch(e){return +e;}",
         "try{const fail=()=>{try{throw a;}catch(e){if(a)throw e;return 0;}};return fail();}catch(e){return +e;}",
         "let n=0;try{n=1;throw(n=n*10+2,a?null:b);n=99;}catch(e){n=n*10+3;return n+(e===null?1000:2000);}",
-        "try{return a;}finally{}",
-        "try{throw a;}catch(e){return +e;}finally{b;}",
-        "try{try{throw a;}finally{b;}}catch(e){return +e;}",
         "try{throw null;}catch({value}){return 0;}",
         "try{throw a;}catch([value]){return 0;}",
         "outer:try{throw a;}catch(e){break outer;}return b;",
@@ -194,6 +191,17 @@ fn synchronous_catches_keep_uncaught_cross_function_and_reason_boundaries() {
         for typed in [false, true] {
             assert_rejected(source, typed);
         }
+    }
+}
+
+#[test]
+fn synchronous_catches_compose_with_finalizers() {
+    for body in [
+        "try{return a;}finally{}",
+        "try{throw a;}catch(e){return +e;}finally{b;}",
+        "try{try{throw a;}finally{b;}}catch(e){return +e;}",
+    ] {
+        compare(body);
     }
 }
 

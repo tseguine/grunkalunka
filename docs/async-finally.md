@@ -40,5 +40,7 @@ traces. The existing self-resolution Error fixture additionally checks both Wasm
 adapters without claiming native self-cycle equivalence. Scope/type tests guard
 the return/reason captures, and notifications distinguish raw discarded returns
 from later adoption/handling. Five previous finally guard sources now execute
-unchanged. General synchronous source exceptions, labels, catch destructuring,
-heap/function return values and general Promise/thenable behavior remain open.
+unchanged. Ordinary helpers now have [synchronous cleanup](synchronous-errors.md)
+with their existing private result lanes and no adoption step. Cross-call
+synchronous source exceptions, labels, catch destructuring, async heap/function
+return values and general Promise/thenable behavior remain open.

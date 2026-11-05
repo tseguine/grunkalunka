@@ -17,21 +17,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     ) -> Result<(), String> {
         match source {
             ControlNode::TryFinally(source) => {
-                if !self.allow_await {
-                    return Err(unsupported(
-                        source,
-                        "statement is outside the numeric experiment",
-                    ));
-                }
                 let outer_type = self.return_type;
-                if !matches!(outer_type, Type::General | Type::AsyncValue) {
+                if self.allow_await && !matches!(outer_type, Type::General | Type::AsyncValue) {
                     return Err(unsupported(
                         source,
                         "finally requires an async primitive completion",
                     ));
                 }
                 let visible = self.bindings.len();
-                self.return_type = Type::AsyncValue;
+                // Async return adoption happens after cleanup. An ordinary
+                // function instead keeps its existing private result lane.
+                self.return_type = if self.allow_await {
+                    Type::AsyncValue
+                } else {
+                    outer_type
+                };
                 let body = self.region(source.block.as_ref());
                 let has_handler = source.handler.is_some();
                 if !has_handler {
@@ -621,15 +621,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 body_completion,
                 ..
             } => {
+                let captured_type = self.return_type;
                 self.return_type = outer_type;
                 self.bindings.truncate(visible);
-                let returned = self.value(Type::AsyncValue);
-                let reason = self.value(self.promise_parameters.finally_type(source.span.start));
-                let mut continuation = self.region(source);
-                let result = if outer_type == Type::AsyncValue {
-                    returned
+                let returned = self.value(captured_type);
+                let reason_type = if self.allow_await {
+                    self.promise_parameters.finally_type(source.span.start)
                 } else {
+                    Type::General
+                };
+                let reason = self.value(reason_type);
+                let mut continuation = self.region(source);
+                let result = if self.allow_await && outer_type != Type::AsyncValue {
                     self.resolve_async_value(source, returned, &mut continuation)
+                } else {
+                    returned
                 };
                 continuation.exit = Exit::Return(result);
                 Self::push(
