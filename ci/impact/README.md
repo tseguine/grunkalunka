@@ -145,6 +145,10 @@ not a path/package allowlist, preserves canonical command order and replaces
 only workspace-wide Cargo commands with package-scoped variants. Invalid plans
 run the original `cargo build --workspace` and `node scripts/check.mjs` on
 that host. A selected check failure **fails immediately**, not via full retry.
+Selected commands and the full build retain their 45-minute subprocess cap.
+The full canonical runner instead shares master's existing 60-minute job
+watchdog; it does not receive a second, shorter aggregate deadline. Individual
+test deadlines and all failure propagation remain unchanged.
 
 The `PARTIAL_PR_CI` environment variable in `ci.yml` is the one-line rollback
 switch for both Linux/Windows PR jobs. Browser checks remain independent;
