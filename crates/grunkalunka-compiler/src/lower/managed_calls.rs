@@ -246,7 +246,7 @@ fn kinds(
                         values.push([Kind::GeneralPrimitive].into());
                     }
                     Expression::CallExpression(call)
-                        if object_intrinsics::is_method(call, semantic, "keys") =>
+                        if object_intrinsics::enumeration(call, semantic).is_some() =>
                     {
                         values.push([Kind::Array].into())
                     }
@@ -334,7 +334,7 @@ fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
     semantic.nodes().iter().any(|node| {
         let origin = match node.kind() {
             AstKind::CallExpression(call)
-                if object_intrinsics::is_method(call, semantic, "keys") =>
+                if object_intrinsics::enumeration(call, semantic).is_some() =>
             {
                 true
             }

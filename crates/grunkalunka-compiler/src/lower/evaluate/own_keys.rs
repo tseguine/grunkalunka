@@ -3,6 +3,7 @@ use super::*;
 pub(super) struct Task<'e, 'a> {
     pub node: &'e Expression<'a>,
     pub call: &'e CallExpression<'a>,
+    pub kind: ir::OwnEnumeration,
     pub index: usize,
     pub input: Option<ValueId>,
     pub awaiting: bool,
@@ -53,13 +54,20 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     task.node,
-                    Op::ManagedOwnKeys { result, input },
+                    Op::ManagedEnumerateOwn {
+                        result,
+                        input,
+                        kind: task.kind,
+                    },
                 );
             } else {
                 if !self.allow_await {
                     return Err(unsupported(
                         task.node,
-                        "nullable Object.keys requires the async completion profile",
+                        &format!(
+                            "nullable Object.{} requires the async completion profile",
+                            task.kind.name()
+                        ),
                     ));
                 }
                 let threw = self.value(Type::Predicate);
@@ -67,7 +75,8 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     task.node,
-                    Op::TryManagedOwnKeys {
+                    Op::TryManagedEnumerateOwn {
+                        kind: task.kind,
                         result,
                         input,
                         failure: ir::Failure { threw, reason },
@@ -93,7 +102,10 @@ impl Lowering<'_, '_> {
         if task.call.arguments.len() > 1000 {
             return Err(unsupported(
                 task.node,
-                "at most 1000 Object.keys arguments are admitted",
+                &format!(
+                    "at most 1000 Object.{} arguments are admitted",
+                    task.kind.name()
+                ),
             ));
         }
         let argument = task.call.arguments[task.index]
@@ -110,9 +122,11 @@ impl Lowering<'_, '_> {
                     task.known = true;
                     Mode::Array
                 }
-                Some(Type::ManagedValue) if self.stored.container(argument.node_id()).is_some() => {
-                    // Pattern leaves retain their boxed carrier. A positive
-                    // source container proof still establishes non-nullness;
+                Some(Type::ManagedValue)
+                    if self.stored.container(argument.node_id()).is_some()
+                        || self.stored.string(argument.node_id()) =>
+                {
+                    // Boxed pattern leaves and Strings can still prove non-nullness;
                     // unknown or mixed alternatives keep the fallible path.
                     task.known = true;
                     Mode::Managed

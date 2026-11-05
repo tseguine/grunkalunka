@@ -694,3 +694,20 @@ fn imported_handler_builds_a_record_with_the_runtime_action_name() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_counts_the_values_of_an_action_record() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const action = a > 0 ? 'expand' : 'collapse';
+            const actions = {reload: 'always', [action]: action};
+            const options = Object.values(actions);
+            let expanded = 0;
+            for (const option of options) {
+                if (option === 'expand') expanded = 1;
+            }
+            return choose(expanded, options.length);
+        }"#,
+    );
+}

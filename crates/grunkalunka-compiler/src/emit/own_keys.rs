@@ -3,11 +3,11 @@ use super::ir;
 pub(super) fn needed(module: &ir::Module) -> bool {
     module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| match op {
-            ir::Op::ManagedOwnKeys { input, .. } => !matches!(
+            ir::Op::ManagedEnumerateOwn { input, .. } => !matches!(
                 function.values[input.0],
                 ir::Type::Number | ir::Type::Closure(_)
             ),
-            ir::Op::TryManagedOwnKeys { .. } => true,
+            ir::Op::TryManagedEnumerateOwn { .. } => true,
             _ => false,
         })
     })
@@ -29,7 +29,7 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
 pub(super) fn fallible(module: &ir::Module) -> bool {
     module.functions.iter().any(|f| {
         ir::any_operation(&f.body, &mut |op| {
-            matches!(op, ir::Op::TryManagedOwnKeys { .. })
+            matches!(op, ir::Op::TryManagedEnumerateOwn { .. })
         })
     })
 }

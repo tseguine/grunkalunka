@@ -111,7 +111,9 @@ their inherited intrinsic names. Runtime String keys work on these receivers
 when their prototype is known. A1 can test the selected action on either a
 dictionary or an ordinary availability record. A handler can also construct
 that record directly with a runtime action name, saving the computed String
-key before evaluating the property's value.
+key before evaluating the property's value. `Object.values` snapshots the
+ordered action values into a fresh array for iteration, including explicit
+Undefined fields.
 
 ### Deliberate remaining limits
 

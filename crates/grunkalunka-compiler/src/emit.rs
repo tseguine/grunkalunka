@@ -379,7 +379,11 @@ impl Emitter<'_> {
                 }
                 self.set(*result);
             }
-            Op::ManagedOwnKeys { result, input } => {
+            Op::ManagedEnumerateOwn {
+                result,
+                input,
+                kind,
+            } => {
                 let ty = self.function.values[input.0];
                 if matches!(ty, Type::Number | Type::Closure(_)) {
                     self.get(*input);
@@ -393,17 +397,28 @@ impl Emitter<'_> {
                     } else {
                         self.get(*input);
                     }
-                    self.output.push_str("call $gc_own_keys_known\n");
+                    writeln!(
+                        self.output,
+                        "i32.const {}\ncall $gc_enumerate_known",
+                        *kind as u8
+                    )
+                    .unwrap();
                 }
                 self.set(*result);
             }
-            Op::TryManagedOwnKeys {
+            Op::TryManagedEnumerateOwn {
+                kind,
                 result,
                 input,
                 failure,
             } => {
                 self.get(*input);
-                self.output.push_str("call $gc_try_own_keys\n");
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_try_enumerate",
+                    *kind as u8
+                )
+                .unwrap();
                 self.set(failure.reason);
                 self.set(failure.threw);
                 self.set(*result);
