@@ -41,8 +41,10 @@ for one to eight distinct launch-defined paths. Their basename labels appear in
 the **Note** chooser; a single-note session keeps its one label visible with
 selection disabled. The catalog is owned at launch and notes remain external to
 the bundle. Startup reads the first note, and a successful choice reads another
-allowed note, resets its scroll to the top and preserves the global expansion
-preference. The launch URL, token, worker and retained component stay the same.
+allowed note. Each note remembers its expansion preference and scroll position;
+returning rereads its source and clamps the saved position to the updated outline.
+An unvisited note starts at the top using the original launch preference. The
+launch URL, token, worker and retained component stay the same.
 
 After editing the selected file externally, use **Reload note** to update the
 view in the same session. Reload reopens that selected note's launch-defined

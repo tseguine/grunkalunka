@@ -121,6 +121,10 @@ export function createNoteSession({
   const selection = ownNoteSelection(noteSelection);
   const loadSelectedNote = selection?.load;
   let selectedNoteId = selection?.selectedId ?? null;
+  // At most eight private reading positions, keyed by launch-catalog identity.
+  // Only successful switches save the departing view. Unvisited notes use the
+  // original launch preference, not the state of an unrelated active note.
+  const savedViews = selection === undefined ? [] : Array(selection.labels.length);
   const payload = ownComponent(component);
   let owned = ownDocument(document);
   const documentProfile = owned.profile;
@@ -166,12 +170,12 @@ export function createNoteSession({
       beforeScrollY, scrollY: currentViewport.scrollY, pixels: Buffer.from(currentPixels) };
   }
 
-  function replaceDocument(nextDocument, nextNoteId, scrollY) {
+  function replaceDocument(nextDocument, nextNoteId, scrollY, nextPreference = preferredExpanded) {
     const nextOwned = ownDocument(nextDocument);
     if (nextOwned.profile !== documentProfile) {
       throw new Error('Replacement A1 document profile differs from the original grant');
     }
-    const nextExpanded = nextOwned.headings.length > 0 ? preferredExpanded : 0;
+    const nextExpanded = nextOwned.headings.length > 0 ? nextPreference : 0;
     const nextScene = sessionScene(nextOwned, nextExpanded);
     const topViewport = inspectNoteViewport(executable, nextScene);
     const nextY = Math.min(scrollY, topViewport.maxScrollY);
@@ -184,6 +188,7 @@ export function createNoteSession({
     // native view. A failed selection cannot redirect a subsequent reload.
     owned = nextOwned;
     selectedNoteId = nextNoteId;
+    preferredExpanded = nextPreference;
     currentExpanded = nextExpanded;
     currentScene = nextScene;
     currentViewport = nextViewport;
@@ -225,7 +230,14 @@ export function createNoteSession({
     if (id === selectedNoteId) {
       return { sequence, status: 'ok', changed: false, pixels: Buffer.from(currentPixels) };
     }
-    replaceDocument(loadSelectedNote(id), id, 0);
+    const previousId = selectedNoteId;
+    const previousView = { expanded: preferredExpanded, scrollY: currentViewport.scrollY };
+    const nextView = savedViews[id] ?? { expanded, scrollY: 0 };
+    replaceDocument(loadSelectedNote(id), id, nextView.scrollY, nextView.expanded);
+    // Loading, validation, native inspection and paint must all succeed before
+    // any saved state changes. A failed candidate also leaves its own prior
+    // reading position intact for a later successful attempt.
+    savedViews[previousId] = previousView;
     return { sequence, status: 'ok', changed: true, pixels: Buffer.from(currentPixels) };
   }
 

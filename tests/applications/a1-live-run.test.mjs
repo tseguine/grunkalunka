@@ -446,7 +446,7 @@ test('live note selection commits launch-owned choices and pixels through a shar
     assert.equal(identical.status, 200);
     assert.deepEqual([identical.body.sequence, identical.body.selectedNoteId, identical.body.scrollY,
       identical.body.pixels], [3, 1, 0, initial.pixels],
-    'different identity resets the viewport even when both notes have identical bytes');
+    'an unvisited identity starts at the top even when both notes have identical bytes');
     const collapsed = await input(identical.body.controlPoint);
     assert.equal(collapsed.status, 200);
     assert.deepEqual([collapsed.body.sequence, collapsed.body.selectedNoteId, collapsed.body.expanded], [4, 1, 0]);
@@ -455,11 +455,13 @@ test('live note selection commits launch-owned choices and pixels through a shar
     const returned = await select({ id: 0 });
     assert.equal(returned.status, 200);
     assert.deepEqual([returned.body.sequence, returned.body.selectedNoteId,
-      returned.body.expanded, returned.body.visibleCount, returned.body.scrollY], [5, 0, 0, 0, 0]);
-    const reopened = await input(returned.body.controlPoint);
-    assert.equal(reopened.status, 200);
-    assert.deepEqual([reopened.body.sequence, reopened.body.selectedNoteId, reopened.body.visibleCount], [6, 0, 2]);
-    assert.notEqual(reopened.body.pixels, initial.pixels);
+      returned.body.expanded, returned.body.visibleCount, returned.body.scrollY], [5, 0, 1, 2, 0],
+    'the first note restores its preference and clamps its saved bottom to the shorter edit');
+    const hiddenFirst = await input(returned.body.controlPoint);
+    assert.equal(hiddenFirst.status, 200);
+    assert.deepEqual([hiddenFirst.body.sequence, hiddenFirst.body.selectedNoteId,
+      hiddenFirst.body.visibleCount], [6, 0, 0]);
+    assert.notEqual(hiddenFirst.body.pixels, initial.pixels);
 
     await writeFile(secondNote, '');
     const empty = await select({ id: 1 });
@@ -472,18 +474,20 @@ test('live note selection commits launch-owned choices and pixels through a shar
     const recovered = await reload();
     assert.equal(recovered.status, 200);
     assert.deepEqual([recovered.body.sequence, recovered.body.selectedNoteId,
-      recovered.body.expanded, recovered.body.visibleCount], [8, 1, 1, 1]);
+      recovered.body.expanded, recovered.body.visibleCount], [8, 1, 0, 0],
+    'the second note retains its own collapsed preference through an empty replacement');
     const firstAgain = await select({ id: 0 });
     assert.equal(firstAgain.status, 200);
     assert.deepEqual([firstAgain.body.sequence, firstAgain.body.selectedNoteId,
-      firstAgain.body.expanded, firstAgain.body.visibleCount], [9, 0, 1, 2]);
-    const hidden = await input(firstAgain.body.controlPoint);
-    assert.equal(hidden.status, 200);
-    assert.equal(hidden.body.expanded, 0);
+      firstAgain.body.expanded, firstAgain.body.visibleCount], [9, 0, 0, 0]);
+    const reopened = await input(firstAgain.body.controlPoint);
+    assert.equal(reopened.status, 200);
+    assert.equal(reopened.body.expanded, 1);
     const secondAgain = await select({ id: 1 });
     assert.equal(secondAgain.status, 200);
     assert.deepEqual([secondAgain.body.sequence, secondAgain.body.selectedNoteId,
-      secondAgain.body.expanded, secondAgain.body.visibleCount], [11, 1, 0, 0]);
+      secondAgain.body.expanded, secondAgain.body.visibleCount], [11, 1, 0, 0],
+    'reopening the first note does not change the second note preference');
     const last = await reload();
     assert.equal(last.status, 200);
     assert.deepEqual([last.body.sequence, last.body.remainingEvents, last.body.canActivate,
@@ -901,29 +905,38 @@ test('detached live bundle runs its retained component and native frames outside
     assert.deepEqual([bottom.sequence, bottom.scrollY, bottom.controlPoint,
       bottom.canActivate, bottom.canScroll], [3, initial.maxScrollY, null, false, true]);
     assert.notEqual(bottom.pixels, initial.pixels);
+    const other = await client.select(1);
+    assert.deepEqual([other.sequence, other.selectedNoteId, other.expanded, other.scrollY], [4, 1, 1, 0]);
+    const hiddenOther = await client.input(other.controlPoint);
+    assert.deepEqual([hiddenOther.sequence, hiddenOther.expanded], [5, 0]);
+    const restored = await client.select(0);
+    assert.deepEqual([restored.sequence, restored.selectedNoteId, restored.expanded,
+      restored.scrollY, restored.pixels], [6, 0, 1, bottom.scrollY, bottom.pixels],
+    'detached switching restores native position and pixels without recompiling the handler');
     const top = await client.scroll(0);
     assert.deepEqual([top.sequence, top.scrollY, top.controlPoint, top.pixels],
-      [4, 0, initial.controlPoint, initial.pixels]);
+      [7, 0, initial.controlPoint, initial.pixels]);
     const edited = '# Detached Edit\n## Newly Saved Heading\n';
     await writeFile(detachedNote, edited);
     const reloaded = await client.reload();
     assert.deepEqual([reloaded.sequence, reloaded.expanded, reloaded.visibleCount,
-      reloaded.scrollY, reloaded.canReload], [5, 1, 2, 0, true]);
+      reloaded.scrollY, reloaded.canReload], [8, 1, 2, 0, true]);
     assert.notEqual(reloaded.pixels, initial.pixels);
     assert.equal(reloaded.maxScrollY, 0);
-    assert.equal(reloaded.remainingEvents, initial.remainingEvents - 5);
+    assert.equal(reloaded.remainingEvents, initial.remainingEvents - 8);
     const second = await client.select(1);
-    assert.deepEqual([second.sequence, second.selectedNoteId, second.visibleCount, second.scrollY], [6, 1, 1, 0]);
+    assert.deepEqual([second.sequence, second.selectedNoteId, second.expanded,
+      second.visibleCount, second.scrollY], [9, 1, 0, 0, 0]);
     assert.notEqual(second.pixels, reloaded.pixels);
     const secondEdited = '# Second Detached Edit\n## Second Saved Heading\n';
     await writeFile(secondDetachedNote, secondEdited);
     const secondReload = await client.reload();
-    assert.deepEqual([secondReload.sequence, secondReload.selectedNoteId,
-      secondReload.visibleCount, secondReload.scrollY], [7, 1, 2, 0]);
-    assert.notEqual(secondReload.pixels, second.pixels);
+    assert.deepEqual([secondReload.sequence, secondReload.selectedNoteId, secondReload.expanded,
+      secondReload.visibleCount, secondReload.scrollY], [10, 1, 0, 0, 0]);
+    assert.equal(secondReload.pixels, second.pixels, 'reload preserves this note collapsed preference');
     const returned = await client.select(0);
-    assert.deepEqual([returned.sequence, returned.selectedNoteId, returned.pixels], [8, 0, reloaded.pixels]);
-    assert.equal(returned.remainingEvents, initial.remainingEvents - 8);
+    assert.deepEqual([returned.sequence, returned.selectedNoteId, returned.pixels], [11, 0, reloaded.pixels]);
+    assert.equal(returned.remainingEvents, initial.remainingEvents - 11);
     assert.deepEqual(await readFile(join(bundle, 'artifacts/action.component.wasm')), retainedComponent);
     assert.equal(await readFile(detachedNote, 'utf8'), edited);
     assert.equal(await readFile(secondDetachedNote, 'utf8'), secondEdited);
