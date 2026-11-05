@@ -4,6 +4,18 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn numeric_binding_keys_select_and_exclude_the_same_property() {
+    for body in [
+        "const {1:x}={'1':a};return a;",
+        "const {[1]:x}={'1':a};return a;",
+        "const source={1:{name:' one '},'01':a,[-1.5]:b};const {0x1:{name},[-1.5]:x,...rest}=source;return name.trim()==='one'&&x===b&&rest['01']===a&&rest[1]===undefined&&rest[-1.5]===undefined&&Object.keys(rest).length===1?1:0;",
+        "const source={[-0]:a,'-0':b};const {0:x,...rest}=source;return x===a&&rest['-0']===b&&rest[-0]===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn object_rest_copies_only_remaining_own_fields_into_fresh_slots() {
     for body in [
         "const {x,...rest}={x:a,y:b};return a;",
@@ -454,8 +466,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
     for body in [
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",
-        "const {1:x}={'1':a};return a;",
-        "const {[1]:x}={'1':a};return a;",
         "const {x}=a;return a;",
         "const {x}=1;return a;",
         "const {x}='abc';return a;",
@@ -521,4 +531,12 @@ fn object_binding_source_local_limit_counts_each_leaf_and_empty_patterns_are_fre
 fn compare(body: &str) {
     let source = format!("export function run(a,b){{{body}}}");
     common::compare_sources(&source, &source);
+}
+
+#[test]
+fn numeric_key_annotations_erase_in_literals_bindings_and_reads() {
+    common::compare_sources(
+        "export function run(a,b){const o={[-0]:a,1:b};const {[0]:x,...r}=o;return x===a&&r[1]===b&&r[0]===undefined?1:0;}",
+        "export function run(a:number,b:number){const o={[(-0 as unknown)]:a,1:b};const {[(0 as string)]:x,...r}=o;return x===a&&r[(1 as string)]===b&&r[0]===undefined?1:0;}",
+    );
 }

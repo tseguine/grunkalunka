@@ -3,7 +3,7 @@
 use super::*;
 use oxc_ast::ast::{
     ArrayPattern, AssignmentPattern, BindingIdentifier, BindingProperty, BindingRestElement,
-    ObjectPattern, PropertyKey,
+    ObjectPattern,
 };
 use oxc_syntax::node::NodeId;
 
@@ -44,16 +44,6 @@ pub(super) fn leaves<'n, 'a>(
         }
         None
     })
-}
-
-pub(super) fn key(property: &BindingProperty<'_>) -> Option<Vec<u16>> {
-    match &property.key {
-        PropertyKey::StaticIdentifier(identifier) if !property.computed => {
-            Some(identifier.name.encode_utf16().collect())
-        }
-        PropertyKey::StringLiteral(literal) => Some(literal.value.encode_utf16().collect()),
-        _ => None,
-    }
 }
 
 pub(super) enum BindingStep<'n, 'a> {
@@ -274,10 +264,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     }
                 }
                 Work::Field(property, dictionary, depth) => {
-                    let key = key(property).ok_or_else(|| {
+                    let key = static_keys::property(&property.key, property.computed, depth).ok_or_else(|| {
                         unsupported(
                             property,
-                            "object binding keys require an identifier or String literal",
+                            "object binding keys require a static identifier, String or numeric literal",
                         )
                     })?;
                     let key = evaluate::managed_member_key(property, key, false, dictionary)?;
@@ -301,7 +291,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     let excluded = object
                         .properties
                         .iter()
-                        .map(|property| key(property).expect("validated binding key"))
+                        .map(|property| {
+                            static_keys::property(&property.key, property.computed, depth)
+                                .expect("validated binding key")
+                        })
                         .collect();
                     steps.push(BindingStep::ObjectRest { source, excluded });
                     pending.push(Work::Pattern(

@@ -43,10 +43,9 @@ impl Lowering<'_, '_> {
         if member.optional || !self.stored.dictionary(member.object.node_id()) {
             return Ok(false);
         }
-        if matches!(
-            closures::unwrapped_at(&member.expression, depth + 1),
-            Some((Expression::StringLiteral(_), _))
-        ) {
+        if closures::unwrapped_at(&member.expression, depth + 1).is_some_and(|(key, _)| {
+            matches!(key, Expression::StringLiteral(_)) || static_keys::number(key).is_some()
+        }) {
             return Ok(false);
         }
         if !self.stored.string(member.expression.node_id()) {
@@ -81,10 +80,9 @@ impl Lowering<'_, '_> {
         if member.optional || !self.stored.dictionary(member.object.node_id()) {
             return Ok(false);
         }
-        if matches!(
-            closures::unwrapped_at(&member.expression, depth + 1),
-            Some((Expression::StringLiteral(_), _))
-        ) {
+        if closures::unwrapped_at(&member.expression, depth + 1).is_some_and(|(key, _)| {
+            matches!(key, Expression::StringLiteral(_)) || static_keys::number(key).is_some()
+        }) {
             return Ok(false);
         }
         if assignment.operator != AssignmentOperator::Assign {
