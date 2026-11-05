@@ -405,7 +405,10 @@ guard does not restrict ordinary objects' own keys such as `map` or `push`.
 Prototype mutation and foreign references remain unavailable in this profile.
 
 A single spread literal `[...items]` makes a shallow, dense copy of a proven
-Array. Each hole becomes an own Undefined element. Named properties are
+Array. A proven String operand produces a dense array of the Strings yielded
+by its intrinsic iterator, including two-unit supplementary characters and
+one-unit unpaired surrogates. Each hole in an Array operand becomes an own
+Undefined element. Named properties are
 omitted, and copied references retain identity. The operand runs once,
 including when it suspends. Indexed and iterated values follow the source's
 element origins and include writes through aliases of the new array.

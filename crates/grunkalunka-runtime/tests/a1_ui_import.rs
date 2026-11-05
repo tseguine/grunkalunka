@@ -801,3 +801,15 @@ fn imported_handler_selects_from_a_shallow_copy_of_the_action_list() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_selects_the_last_character_in_a_display_label() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const label = a > 0 ? 'Go\u{1f600}' : 'Back';
+            const characters = [...label];
+            return choose(characters.at(-1) === '\u{1f600}' ? 1 : 0, 2);
+        }"#,
+    );
+}

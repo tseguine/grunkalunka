@@ -7,18 +7,9 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
             matches!(op, ir::Op::ManagedArrayRest { .. })
         })
     });
-    if !needed {
-        ""
-    } else if super::managed_spread::needed(module)
-        || super::own_keys::needed(module)
-        || super::array_at::needed(module)
-        || super::array_pop::needed(module)
-    {
+    if needed {
         include_str!("array_rest.wat")
     } else {
-        concat!(
-            include_str!("managed_index.wat"),
-            include_str!("array_rest.wat")
-        )
+        ""
     }
 }

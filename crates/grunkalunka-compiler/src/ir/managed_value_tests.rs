@@ -1246,3 +1246,19 @@ fn string_iteration_emits_its_reader_only_for_a_proven_string_loop() {
         assert_eq!(wat.contains("(func $gc_string_iter_value"), needs_reader);
     }
 }
+
+#[test]
+fn string_spread_and_collection_helpers_share_one_index_formatter() {
+    for body in [
+        "return [...'ab'].length;",
+        "const xs=[...'ab'];const o={...xs};const rows=Object.entries(o);const copy=[...rows];copy.pop();return copy.at(0)===rows[0]?1:0;",
+    ] {
+        let module =
+            crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).unwrap();
+        verify_module(&module).unwrap();
+        let wat = crate::emit::emit(&module).unwrap();
+        assert_eq!(wat.matches("(func $gc_spread_index ").count(), 1);
+        assert_eq!(wat.matches("(func $gc_string_to_array ").count(), 1);
+        wat::parse_str(&wat).unwrap();
+    }
+}

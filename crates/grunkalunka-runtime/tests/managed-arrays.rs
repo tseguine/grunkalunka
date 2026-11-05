@@ -453,3 +453,39 @@ fn copy_spread_creates_a_fresh_dense_array_and_preserves_child_identity() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn string_copy_spread_collects_code_points_into_independent_dense_slots() {
+    for body in [
+        r"const chars=[...'A\u{1f600}\ud800x\udc00'];return chars.length===5&&chars[0]==='A'&&chars[1]==='\u{1f600}'&&chars[2]==='\ud800'&&chars[3]==='x'&&chars[4]==='\udc00'?1:0;",
+        r"const s='\ud800\ud801\udc01\udc02\udbff\udfff\ud800';const xs=[...s];let i=0;for(const ch of s){if(xs.at(i)!==ch)return -1;i++;}return xs.length===i&&Object.keys(xs).length===i?i:-1;",
+        "let n=0;const xs=[...(n++,'')];return n===1&&xs.length===0?1:0;",
+        "const label=a?' OK ':'';const chars=[...label];let n=0;for(const ch of chars)n+=ch.trim().length;const [first='empty']=chars;return n+first.trim().length;",
+        "const s='xy';const a1=[...s];const a2=[...s];a1[0]='z';return a1!==a2&&a2[0]==='x'&&s==='xy'?1:0;",
+        "const [...tail]=[...'ab'];const xs=[...tail];return xs.pop()==='b'&&Object.values(xs)[0]==='a'&&xs.length===1?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn string_copy_spread_rejects_unknown_inputs_and_invalidated_string_proofs() {
+    for body in [
+        "const s=a?'x':{};return [...s].length;",
+        "const s=a?'x':[b];return [...s].length;",
+        "const xs=[...''];return xs[0].trim().length;",
+        "const xs=[...'x'];xs[0]=a;const [x='default']=xs;return x.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let err = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

@@ -22,20 +22,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if let BindingPattern::BindingIdentifier(identifier) = pattern {
             self.charge_declaration_bindings(identifier.as_ref(), 1)?;
         }
-        let ty = self.managed_source_type(&source.right, 0);
-        let mode = if self.stored.string(source.right.node_id()) {
-            evaluate::Mode::Managed
-        } else if ty == Some(Type::ManagedArray)
-            || (ty == Some(Type::ManagedValue)
-                && self.stored.container(source.right.node_id()) == Some(Type::ManagedArray))
-        {
-            evaluate::Mode::Array
-        } else {
-            return Err(unsupported(
-                &source.right,
-                "for-of requires a source-proven Array or String",
-            ));
-        };
+        let mode = self
+            .intrinsic_iterable_mode(&source.right, 0)
+            .ok_or_else(|| {
+                unsupported(
+                    &source.right,
+                    "for-of requires a source-proven Array or String",
+                )
+            })?;
         let header = self.region(source);
         cursor.pending.push(Frame::ForOfSource {
             source,
