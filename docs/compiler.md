@@ -49,9 +49,11 @@ ancestor array. An abrupt default stops the remaining pattern and, in a loop
 head, prevents entry into the body.
 
 Every receiver needs a positive source proof of its object or array kind.
-Unknown, missing, nullable and incompatible alternatives remain conservative,
-including through aliases, helpers and captures. A default or TypeScript
-annotation does not erase those alternatives. Selected values retain the managed
+Unknown, nullable and incompatible alternatives remain conservative, including
+through aliases, helpers and captures. A binding default replaces only a proven
+Undefined alternative with its fallback's alternatives; known missing fields or
+array holes can therefore retain a proven fallback kind. A default or TypeScript
+annotation does not erase unknown alternatives. Selected values retain the managed
 carrier, so selected Numbers do not acquire numeric unboxing. The existing
 128-source-local budget counts identifier leaves, and iterative pattern
 processing admits at most 128 nested object/array container levels.

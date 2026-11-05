@@ -322,6 +322,20 @@ fn array_binding_defaults_select_only_intrinsic_undefined() {
 }
 
 #[test]
+fn array_binding_defaults_prove_consumers_after_known_undefined_selections() {
+    for body in [
+        // Preserve exact former rejections whose defaults replace known Undefined.
+        "const [text='fallback']=[];return text.trim().length;",
+        "const [items=[a]]=[];return items.length;",
+        "const source=a?[]:[undefined,'ready'];const [x=(source[1]='grown',a),text='fallback']=source;return text.trim().length;",
+        "const [text=' x ',row={tag:a},items=[a,b],past=' end ']=[undefined,void 0,,];return text.trim().length+(row.tag===a?10:0)+items.length*100+past.trim().length*1000;",
+        "const selected={tag:a};const [row=selected]=[];row.tag=b;return row===selected&&selected.tag===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn array_binding_defaults_observe_growth_until_exhaustion_and_advance_elisions() {
     for body in [
         "const source=[];const [x=(source[1]=b,a),y=9]=source;return x===a&&y===9&&source[1]===b?1:0;",
@@ -409,12 +423,12 @@ fn array_binding_defaults_keep_tdz_and_conservative_origin_guards() {
         "const [x=a]=[];return x+1;",
         "const [[x]=[a]]=[];return a;",
         "const [x=a,...rest]=[];return a;",
-        "const [text='fallback']=[];return text.trim().length;",
         "const [text='fallback']=[a];return text.trim().length;",
-        "const [items=[a]]=[];return items.length;",
+        "const [text='fallback']=[null];return text.trim().length;",
+        "const source=[];const alias=source;alias[0]=a;const [text='fallback']=source;return text.trim().length;",
+        "let [text='ready']=[];const read=()=>text.length;text=a;return read();",
         "const source=[undefined,'ready'];const [x=(source.length=0,a),text='fallback']=source;return text.trim().length;",
         "const source=[undefined,'ready'];const alias=source;const [x=(alias.pop(),a),text='fallback']=source;return text.trim().length;",
-        "const source=a?[]:[undefined,'ready'];const [x=(source[1]='grown',a),text='fallback']=source;return text.trim().length;",
         "const source=[undefined,8,'ready'];const [x=(source.length=0,a),y=(source[2]='grown',b),text='fallback']=source;return text.trim().length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

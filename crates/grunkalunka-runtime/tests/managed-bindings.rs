@@ -221,6 +221,30 @@ fn object_binding_defaults_select_only_undefined() {
 }
 
 #[test]
+fn object_binding_defaults_prove_consumers_after_known_undefined_selections() {
+    for body in [
+        // Preserve the exact former rejection now justified by a missing own field.
+        "const {text='fallback'}={};return text.trim().length;",
+        "let n=0;const saved=()=>a;const source=a?{read:saved}:{};const {read=(n=1,saved)}=source;const [kept=(n=2,saved)]=[read];return read===saved&&kept===saved?n:-1;",
+        "const {label=' ready ',row={tag:a},items=[a,b]}={label:undefined,row:void 0};return label.trim().length+(row.tag===a?10:0)+items.length*100+(items.at(-1)===b?1000:0);",
+        "let missing;const undefined=7;let n=0;const {text=' hi ',other='bye'}={text:void(n++),other:missing};return n*100+text.trim().length*10+other.length;",
+        "const source={...{text:a},text:undefined};const {text='ready'}=source;return text.trim().length;",
+        "const source=Object.create(null);source.label=' chosen ';const alias=source;const {label=' fallback ',constructor:other=' name ',__proto__:row={tag:a}}=alias;return label.trim().length+other.trim().length*10+(row.tag===a?100:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn proven_object_defaults_keep_helper_captures_laziness_and_original_receivers() {
+    let source = "function identity(value){return value;}export function run(a,b){let n=0;const original=a?{label:' ready '}:{};const alias=identity(original);let {label=(n++,' fallback ')}=alias;const read=()=>label.trim().length;return read()+n*100;}";
+    common::compare_sources(source, source);
+    compare(
+        "let n=0;let source={tail:' before '};const old=source;const {text=(n=1,source={tail:' other '},old.tail=' after ',' fallback '),tail}=source;return text.trim().length+tail.trim().length*10+n*100+(source!==old?1000:0);",
+    );
+}
+
+#[test]
 fn object_binding_defaults_run_lazily_and_publish_in_source_order() {
     for body in [
         "let n=0;const {x=(n=n*10+1,a),y=(n=n*10+2,b),z=(n=n*10+3,x)}={y:0};return n+(x===a?100:0)+(y===0?1000:0)+(z===x?10000:0);",
@@ -276,12 +300,16 @@ fn object_binding_default_annotations_are_erased_without_proving_values() {
         compile(js, false).unwrap().wasm,
         compile(ts, true).unwrap().wasm
     );
-    let source = "export function run(a,b){const {text='fallback'}:{text:string}={text:a};return text.trim().length;}";
-    let error = compile(source, true)
-        .err()
-        .unwrap_or_else(|| panic!("admitted {source}"));
-    assert!(error.contains("unsupported"), "{source}: {error}");
-    assert!(!error.contains("internal IR"), "{source}: {error}");
+    for source in [
+        "export function run(a,b){const {text='fallback'}:{text:string}={text:a};return text.trim().length;}",
+        "export function run(a,b){let missing;(missing as number)=a;const {label=' x '}={label:missing};return label.trim().length;}",
+    ] {
+        let error = compile(source, true)
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(error.contains("unsupported"), "{source}: {error}");
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
 }
 
 #[test]
@@ -298,8 +326,19 @@ fn object_binding_defaults_keep_tdz_kind_and_pattern_guards() {
         "const {x=undefined,undefined=a}={};return a;",
         "const {x=a}={};x=b;return a;",
         "const {x=a}={};return x+1;",
-        "const {text='fallback'}={};return text.trim().length;",
         "const {text='fallback'}={text:a};return text.trim().length;",
+        // Default-selected callable values do not establish direct call signatures.
+        "const {read=()=>a}={};return +read();",
+        "const {read=()=>a}={read:b};return +read();",
+        "const {text='fallback'}={text:null};return text.trim().length;",
+        "const undefined=a;const {text='fallback'}={text:undefined};return text.trim().length;",
+        "let value;value=a;const {text='fallback'}={text:value};return text.trim().length;",
+        "let missing;missing++;const {label=' x '}={label:missing};return label.trim().length;",
+        "let missing=undefined;missing+=a;const {label=' x '}={label:missing};return label.trim().length;",
+        "const source={...{text:a}};const {text='fallback'}=source;return text.trim().length;",
+        "const source={text:undefined,...{text:a}};const {text='fallback'}=source;return text.trim().length;",
+        "const source={};const alias=source;alias.text=a;const {text='fallback'}=source;return text.trim().length;",
+        "let {text='ready'}={};const read=()=>text.length;text=a;return read();",
         "const {child:{x}={x:a}}={};return a;",
         "const key='x';const {[key]:x=a}={};return a;",
     ] {

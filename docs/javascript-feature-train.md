@@ -177,9 +177,11 @@ body. See [array iteration](array-iteration.md) for its intrinsic-array scope.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain
-available to helpers and captures, while alias writes, missing values and unknown
-alternatives remain conservative. An annotation or default does not erase an
-unknown alternative. Selected Numbers stay boxed; this work adds no numeric
+available to helpers and captures. Binding defaults can replace a proven
+Undefined selection, including known missing fields or array holes, with a
+proven fallback kind. Alias writes and unknown alternatives remain conservative;
+an annotation or default does not erase an unknown alternative. Selected Numbers
+stay boxed; this work adds no numeric
 unboxing. Pattern preparation and lowering remain iterative, with the existing
 128-local budget counting leaves and a shared 128-level container nesting limit.
 

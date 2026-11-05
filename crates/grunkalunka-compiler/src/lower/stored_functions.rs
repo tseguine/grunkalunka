@@ -19,6 +19,7 @@ pub(super) enum Origin {
     Arrow(NodeId),
     Named(SymbolId),
     String,
+    Undefined,
     Other,
 }
 type Alternatives = BTreeSet<Origin>;
@@ -26,6 +27,7 @@ type Key = Vec<u16>;
 enum Rule {
     Iterated(NodeId),
     Copy(Vec<NodeId>),
+    Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
     Call(NodeId, Vec<NodeId>, Option<NodeId>),
@@ -90,11 +92,9 @@ fn pattern_definitions(
                 }
             }
             BindingPattern::AssignmentPattern(assignment) => {
-                // Other includes Undefined and other primitives. A default
-                // adds alternatives without removing a possibly missing value.
                 pending.push((
                     &assignment.left,
-                    Rule::Copy(vec![id, assignment.right.node_id()]),
+                    Rule::Default(id, assignment.right.node_id()),
                 ));
             }
             BindingPattern::ObjectPattern(object) => {
@@ -187,7 +187,7 @@ impl Fields {
             return Self::default();
         }
         let mut values = BTreeMap::new();
-        let mut bindings = BTreeMap::new();
+        let mut bindings: BTreeMap<SymbolId, Alternatives> = BTreeMap::new();
         let iterations = semantic
             .nodes()
             .iter()
@@ -228,6 +228,9 @@ impl Fields {
             );
         }
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
+        // A spread or untracked property key can introduce an unlisted field.
+        // Explicit properties after it may still establish their own origins.
+        let mut open_fields = BTreeSet::new();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -248,6 +251,32 @@ impl Fields {
             {
                 mutations.push(mutation);
             }
+            let numeric_target = match node.kind() {
+                AstKind::UpdateExpression(update) => {
+                    target_identifier(&update.argument, 0).ok().flatten()
+                }
+                AstKind::AssignmentExpression(assignment)
+                    if !matches!(
+                        assignment.operator,
+                        AssignmentOperator::Assign
+                            | AssignmentOperator::LogicalAnd
+                            | AssignmentOperator::LogicalOr
+                            | AssignmentOperator::LogicalNullish
+                    ) =>
+                {
+                    assignment
+                        .left
+                        .as_simple_assignment_target()
+                        .and_then(|target| target_identifier(target, 0).ok().flatten())
+                }
+                _ => None,
+            };
+            if let Some(target) = numeric_target.and_then(|name| symbol(name, semantic)) {
+                // A numeric update or compound write can replace an initially
+                // Undefined General cell. Keep its non-Undefined alternative,
+                // including through captured and erased TypeScript targets.
+                bindings.entry(target).or_default().insert(Origin::Other);
+            }
             let rule = match node.kind() {
                 AstKind::CallExpression(call)
                     if object_create::argument(call, semantic).is_some() =>
@@ -264,6 +293,10 @@ impl Fields {
                     values.insert(id, BTreeSet::from([Origin::String]));
                     None
                 }
+                AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Void => {
+                    values.insert(id, BTreeSet::from([Origin::Undefined]));
+                    None
+                }
                 AstKind::BinaryExpression(b) if b.operator == BinaryOperator::Addition => {
                     Some(Rule::StringConcat(b.left.node_id(), b.right.node_id()))
                 }
@@ -273,6 +306,7 @@ impl Fields {
                         if matches!(property, ObjectPropertyKind::SpreadProperty(_)) {
                             // A runtime spread may overwrite any earlier field.
                             // A later explicit property can establish it again.
+                            open_fields.insert(id);
                             for value in own.values_mut() {
                                 *value = None;
                             }
@@ -289,6 +323,11 @@ impl Fields {
                             };
                             if let Some(name) = name {
                                 own.insert(name, Some(property.value.node_id()));
+                            } else {
+                                open_fields.insert(id);
+                                for value in own.values_mut() {
+                                    *value = None;
+                                }
                             }
                         }
                     }
@@ -297,6 +336,16 @@ impl Fields {
                     None
                 }
                 AstKind::ArrayExpression(array) => {
+                    if array.elements.iter().any(|element| {
+                        matches!(
+                            element,
+                            oxc_ast::ast::ArrayExpressionElement::SpreadElement(_)
+                        )
+                    }) {
+                        // Array spread remains outside admission. Do not let its
+                        // unknown width masquerade as fixed holes or positions.
+                        open_fields.insert(id);
+                    }
                     fields.insert(
                         id,
                         array
@@ -379,7 +428,10 @@ impl Fields {
                         if let Some(initializer) = &declaration.init {
                             definitions.push(Definition::Value(symbol, initializer.node_id()));
                         } else if !iterations.contains_key(&symbol) {
-                            bindings.entry(symbol).or_default().insert(Origin::Other);
+                            bindings
+                                .entry(symbol)
+                                .or_default()
+                                .insert(Origin::Undefined);
                         }
                     }
                     if let Some(initializer) = &declaration.init {
@@ -396,7 +448,12 @@ impl Fields {
                     if let Some(symbol) = symbol(identifier, semantic) {
                         Some(Rule::Symbol(symbol))
                     } else {
-                        values.insert(id, BTreeSet::from([Origin::Other]));
+                        let origin = if identifier.name == "undefined" {
+                            Origin::Undefined
+                        } else {
+                            Origin::Other
+                        };
+                        values.insert(id, BTreeSet::from([origin]));
                         None
                     }
                 }
@@ -459,28 +516,35 @@ impl Fields {
                     }
                 }
                 AstKind::AssignmentExpression(a) if a.operator == AssignmentOperator::Assign => {
-                    match a.left.as_simple_assignment_target() {
-                        Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(name)) => {
-                            if let Some(symbol) = symbol(name, semantic) {
-                                definitions.push(Definition::Value(symbol, a.right.node_id()));
-                            }
+                    if let Some(name) = a
+                        .left
+                        .as_simple_assignment_target()
+                        .and_then(|target| target_identifier(target, 0).ok().flatten())
+                    {
+                        if let Some(symbol) = symbol(name, semantic) {
+                            definitions.push(Definition::Value(symbol, a.right.node_id()));
                         }
-                        Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => writes.push((
-                            m.object.node_id(),
-                            m.property.name.encode_utf16().collect(),
-                            a.right.node_id(),
-                        )),
-                        Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
-                            if let Some(key) = key(&m.expression) {
-                                writes.push((m.object.node_id(), key, a.right.node_id()));
-                            } else {
-                                mutations.push(mutations::Mutation::AnyKeyWrite {
-                                    receiver: m.object.node_id(),
-                                    value: a.right.node_id(),
-                                });
+                    } else {
+                        match a.left.as_simple_assignment_target() {
+                            Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => {
+                                writes.push((
+                                    m.object.node_id(),
+                                    m.property.name.encode_utf16().collect(),
+                                    a.right.node_id(),
+                                ))
                             }
+                            Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
+                                if let Some(key) = key(&m.expression) {
+                                    writes.push((m.object.node_id(), key, a.right.node_id()));
+                                } else {
+                                    mutations.push(mutations::Mutation::AnyKeyWrite {
+                                        receiver: m.object.node_id(),
+                                        value: a.right.node_id(),
+                                    });
+                                }
+                            }
+                            _ => (),
                         }
-                        _ => (),
                     }
                     Some(Rule::Copy(vec![a.right.node_id()]))
                 }
@@ -531,8 +595,34 @@ impl Fields {
                     | Origin::NullObject(object)
                     | Origin::Array(object) = origin
                     {
+                        let array = matches!(origin, Origin::Array(_));
+                        let dictionary = matches!(origin, Origin::NullObject(_));
+                        if (array
+                            && (open_fields.contains(&object)
+                                || key.as_slice() == [108, 101, 110, 103, 116, 104]))
+                            || evaluate::managed_member_key(
+                                &semantic.nodes().kind(object),
+                                key.clone(),
+                                array,
+                                dictionary,
+                            )
+                            .is_err()
+                        {
+                            // Intrinsic length and inherited keys are not absent
+                            // own fields, and opaque array positions are unknown.
+                            found.insert(Origin::Other);
+                            continue;
+                        }
                         match fields.get(&object).and_then(|own| own.get(key)) {
                             Some(Some(value)) => found.extend(get(value)),
+                            Some(None) if array => {
+                                found.insert(Origin::Undefined);
+                            }
+                            None if fields.contains_key(&object)
+                                && !open_fields.contains(&object) =>
+                            {
+                                found.insert(Origin::Undefined);
+                            }
                             _ => {
                                 found.insert(Origin::Other);
                             }
@@ -569,6 +659,16 @@ impl Fields {
                         elements.select(*receiver, &values, &fields, &index_deletes)
                     }
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
+                    Rule::Default(selected, fallback) => {
+                        // Only positively known Undefined is replaced. Other
+                        // still includes null, primitives and unknown receivers.
+                        // Keep the fallback union conservative even when the
+                        // selected alternatives do not currently need it.
+                        let mut found = get(selected);
+                        found.remove(&Origin::Undefined);
+                        found.extend(get(fallback));
+                        found
+                    }
                     Rule::Symbol(symbol) => bindings.get(symbol).cloned().unwrap_or_default(),
                     Rule::StringConcat(left, right) => {
                         let left = get(left);
