@@ -113,7 +113,8 @@ dictionary or an ordinary availability record. A handler can also construct
 that record directly with a runtime action name, saving the computed String
 key before evaluating the property's value. `Object.values` snapshots the
 ordered action values into a fresh array for iteration, including explicit
-Undefined fields.
+Undefined fields. `Object.entries` lets the handler destructure each fresh
+key/value pair and compare its name before invoking the service.
 
 ### Deliberate remaining limits
 

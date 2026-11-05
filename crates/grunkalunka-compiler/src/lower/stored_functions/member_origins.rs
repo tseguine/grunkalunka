@@ -81,6 +81,14 @@ impl Members<'_, '_> {
                 found.insert(Origin::Other);
             }
 
+            if self.elements.pair_sites.contains(&object) && mutations::array_index(key) == Some(0)
+            {
+                found.insert(Origin::String);
+                if self.elements.may_resize.contains(&object) {
+                    found.insert(Origin::Other);
+                }
+                continue;
+            }
             if shifted.is_some() && self.elements.may_resize.contains(&object) {
                 // Structural mutations may have exhausted the iterator before
                 // the observed index existed, even if it was added again later.

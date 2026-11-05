@@ -189,7 +189,7 @@ impl Fields {
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
-                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some())
+                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call,semantic)==Some(ir::OwnEnumeration::Entries))
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
         }) {
             return Self::default();
@@ -310,6 +310,18 @@ impl Fields {
                 bindings.entry(target).or_default().insert(Origin::Other);
             }
             let rule = match node.kind() {
+                AstKind::CallExpression(call)
+                    if object_intrinsics::enumeration(call, semantic)
+                        == Some(ir::OwnEnumeration::Entries) =>
+                {
+                    // The callee expression is a unique source site distinct
+                    // from the outer result, even for a literal-computed or .call form.
+                    let pair = call.callee.node_id();
+                    elements.entry_lists.insert(id, pair);
+                    elements.pair_sites.insert(pair);
+                    values.insert(id, BTreeSet::from([Origin::Array(id)]));
+                    None
+                }
                 AstKind::CallExpression(call)
                     if object_create::argument(call, semantic).is_some() =>
                 {
@@ -609,7 +621,8 @@ impl Fields {
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
-        let track_elements = has_iterations || !elements.rest_sources.is_empty();
+        let track_elements =
+            has_iterations || !elements.rest_sources.is_empty() || !elements.entry_lists.is_empty();
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
