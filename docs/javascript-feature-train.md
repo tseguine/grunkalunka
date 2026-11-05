@@ -213,7 +213,8 @@ unlabelled loop control and supported suspension in the RHS, head defaults or
 body. See [Array and String iteration](array-iteration.md). A proven String can also
 drive an identifier loop. An A1 handler can count characters in a display
 label, treating a supplementary character as a single iteration and preserving
-lone surrogate code units.
+lone surrogate code units. A1 can snapshot its action list with `[...actions]`
+and iterate the fresh array while retaining the identities of its records.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain

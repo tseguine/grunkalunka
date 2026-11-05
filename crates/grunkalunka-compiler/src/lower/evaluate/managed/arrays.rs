@@ -69,7 +69,10 @@ impl Lowering<'_, '_> {
                 continue;
             }
             let Some(expression) = element.as_expression() else {
-                return Err(unsupported(task.node, "array spread is not yet admitted"));
+                return Err(unsupported(
+                    task.node,
+                    "mixed array literals with spread are not yet admitted",
+                ));
             };
             task.index += 1;
             task.awaiting = true;

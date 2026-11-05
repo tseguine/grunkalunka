@@ -388,6 +388,14 @@ impl Fields {
                     values.insert(id, BTreeSet::from([Origin::Object(id)]));
                     None
                 }
+                AstKind::ArrayExpression(array)
+                    if let Some(source) = iteration::single_spread(array) =>
+                {
+                    // A single spread copies the entire iterator into a fresh array.
+                    elements.add_rest(id, source.node_id(), 0);
+                    values.insert(id, BTreeSet::from([Origin::Array(id)]));
+                    None
+                }
                 AstKind::ArrayExpression(array) => {
                     if array.elements.iter().any(|element| {
                         matches!(
@@ -395,7 +403,7 @@ impl Fields {
                             oxc_ast::ast::ArrayExpressionElement::SpreadElement(_)
                         )
                     }) {
-                        // Array spread remains outside admission. Do not let its
+                        // Mixed literals with spread are still opaque. Do not let their
                         // unknown width masquerade as fixed holes or positions.
                         open_fields.insert(id);
                     }
@@ -824,7 +832,10 @@ impl Fields {
             for (key, found) in write_additions {
                 changed |= extend(&mut field_writes, key, found);
             }
-            if !changed && (has_patterns || has_iterations) && !finalized_unresolved {
+            if !changed
+                && (has_patterns || has_iterations || !elements.rest_sources.is_empty())
+                && !finalized_unresolved
+            {
                 finalized_unresolved = true;
                 // Bottom can be an unresolved cyclic value, not evidence that
                 // no element exists. Finalize only after ordinary convergence

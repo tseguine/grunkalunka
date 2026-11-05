@@ -6,6 +6,7 @@ mod objects;
 pub(super) enum ManagedWork<'e, 'a> {
     DictionaryNew(&'e Expression<'a>),
     Array(arrays::ArrayWork<'e, 'a>),
+    SpreadCopy(&'e Expression<'a>),
     ArrayLength(&'e Expression<'a>),
     StringLength(&'e Expression<'a>),
     ConcatRight {
@@ -854,6 +855,17 @@ impl Lowering<'_, '_> {
                 return Ok(true);
             }
             if let Expression::ArrayExpression(literal) = node {
+                if let Some(source) = iteration::single_spread(literal) {
+                    if self.receiver_type(source, depth + 1) != Some(Type::ManagedArray) {
+                        return Err(unsupported(
+                            source,
+                            "array copy spread requires a source-proven Array",
+                        ));
+                    }
+                    work.push(Work::Managed(ManagedWork::SpreadCopy(node)));
+                    work.push(Work::Eval(source, depth + 1, Mode::Array));
+                    return Ok(true);
+                }
                 let length = u32::try_from(literal.elements.len())
                     .map_err(|_| unsupported(node, "array length exceeds the supported range"))?;
                 let array = self.value(Type::ManagedArray);
@@ -1156,6 +1168,20 @@ impl Lowering<'_, '_> {
                     node,
                     Op::ManagedArrayResize { array, length },
                 );
+            }
+            ManagedWork::SpreadCopy(node) => {
+                let array = values.pop().expect("spread array").id();
+                let result = self.value(Type::ManagedArray);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedArrayRest {
+                        result,
+                        array,
+                        start: 0,
+                    },
+                );
+                values.push(Value::Array(result));
             }
             ManagedWork::Array(task) => self.complete_array(task, regions, values, work)?,
             ManagedWork::ArrayLength(node) => {
