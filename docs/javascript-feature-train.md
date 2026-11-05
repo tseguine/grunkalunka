@@ -199,7 +199,9 @@ fresh ordinary object after earlier defaults finish. The copy preserves slot
 independence and reference identity in declarations and loop heads. Numeric
 literal keys use the same JS property name in constructors, member accesses,
 binding patterns and rest exclusions. An A1 handler extracts title metadata
-from a numbered record and passes the remaining heading count to the service.
+from a numbered record, trims a copied heading with a proven String value
+and passes the remaining heading count to the service. Retained-field proofs
+include writes through aliases to the source, the copy and shared child objects.
 
 Array rest with pattern targets, parameter and assignment patterns,
 dynamic object keys, primitive RHS coercion and general iterators remain

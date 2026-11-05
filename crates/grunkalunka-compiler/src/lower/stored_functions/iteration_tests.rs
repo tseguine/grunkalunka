@@ -516,3 +516,31 @@ fn numeric_property_origins_follow_collisions_aliases_and_named_array_writes() {
         assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }
+
+#[test]
+fn object_rest_fields_keep_source_kinds_and_include_writes_to_each_allocation() {
+    for body in [
+        "const {id,...rest}={id:a,label:'ready'};const observed=rest.label;return a;",
+        "const {label,...rest}={label:a};const {label:value='default'}=rest;const observed=value;return a;",
+        "const o={label:'x'};const {...r1}=o;const {...r2}=r1;const observed=r2.label;return a;",
+        "const {...root}={label:'x'};const {...l}=root;const {...r}=root;const {...copy}=a?l:r;const observed=copy.label;return a;",
+        "const source=a?{label:'x'}:{label:'y'};const {...rest}=source;const observed=rest.label;return a;",
+        "const source={label:'x'};const {...rest}=source;rest.label=a;const observed=source.label;return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "let current={label:'x'};for(let i=0;i<2;i++){const {...next}=current;current=next;}const observed=current.label;return a;",
+        "const source={label:'x'};const alias=source;alias.label=b;const {...rest}=source;const observed=rest.label;return a;",
+        "const source={label:'x'};const {...rest}=source;const alias=rest;alias.label=b;const observed=rest.label;return a;",
+        "const source={nested:{label:'x'}};const {...rest}=source;rest.nested.label=b;const observed=source.nested.label;return a;",
+        "const {label,...rest}={label:'x'};rest.label=b;const {label:value='default'}=rest;const observed=value;return a;",
+        "const source={...{label:a}};const {...rest}=source;const {label:value='fallback'}=rest;const observed=value;return a;",
+    ] {
+        let observation = observe(body);
+        assert!(
+            !observation.string && observation.other,
+            "{body}: {observation:?}"
+        );
+    }
+}

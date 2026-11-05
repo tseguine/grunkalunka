@@ -911,3 +911,19 @@ fn declaration_locals_keep_their_source_charge_and_error_order() {
         );
     }
 }
+
+#[test]
+fn chained_object_rest_copies_keep_field_proofs_on_a_small_stack() {
+    let mut source = String::from("export function run(a,b){const first={label:' ready '};");
+    let mut previous = "first".to_string();
+    for index in 0..48 {
+        let next = format!("r{index}");
+        source.push_str(&format!("const {{...{next}}}={previous};"));
+        previous = next;
+    }
+    source.push_str(&format!("return {previous}.label.trim().length;}}"));
+    for typed in [false, true] {
+        let (result, _) = on_small_stack(&source, false, typed);
+        assert!(result.is_ok(), "{result:?}");
+    }
+}

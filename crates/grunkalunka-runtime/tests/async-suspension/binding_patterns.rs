@@ -124,3 +124,13 @@ fn object_binding_sources_resume_once_and_preserve_abrupt_completion() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn object_rest_strings_and_records_retain_their_types_across_await() {
+    compare_promises(
+        &[
+            "const source={label:' before ',row:{value:a}};const {skip=(await a,source.label=' copied ',1),...rest}=source;await b;source.label='after';return rest.label.trim()==='copied'&&rest.row.value===a?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

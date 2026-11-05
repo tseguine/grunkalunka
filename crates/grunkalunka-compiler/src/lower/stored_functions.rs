@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod elements;
 #[cfg(test)]
 mod iteration_tests;
+mod member_origins;
 mod mutations;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -86,7 +87,7 @@ fn pattern_definitions(
             }
             BindingPattern::ObjectPattern(object) => {
                 if let Some(rest) = &object.rest {
-                    // Copied fields stay opaque even when their source syntax is known.
+                    // The fresh allocation keeps its own writes separate from the source.
                     pending.push((&rest.argument, Rule::Fresh(Origin::Object(rest.node_id()))));
                 }
                 for property in object.properties.iter().rev() {
@@ -228,6 +229,7 @@ impl Fields {
         // A spread or untracked property key can introduce an unlisted field.
         // Explicit properties after it may still establish their own origins.
         let mut open_fields = BTreeSet::new();
+        let mut rest_sources = BTreeMap::new();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -243,6 +245,22 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            if let AstKind::ObjectPattern(pattern) = node.kind()
+                && let Some(rest) = &pattern.rest
+                && let Some(excluded) = pattern
+                    .properties
+                    .iter()
+                    .map(|property| static_keys::property(&property.key, property.computed, 0))
+                    .collect::<Option<BTreeSet<_>>>()
+            {
+                rest_sources.insert(
+                    rest.node_id(),
+                    member_origins::Rest {
+                        receiver: id,
+                        excluded,
+                    },
+                );
+            }
             if let AstKind::CallExpression(call) = node.kind()
                 && let Some(mutation) = mutations::call(call)
             {
@@ -578,62 +596,15 @@ impl Fields {
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
-            // Binding patterns select the same source alternatives as an own
-            // member read. In particular, alias writes and unknown fields must
-            // not disappear merely because the result has a new local name.
-            let member = |receiver: &NodeId, key: &Key| {
-                let mut found = Alternatives::new();
-                for origin in get(receiver) {
-                    if let Origin::Object(object)
-                    | Origin::NullObject(object)
-                    | Origin::Array(object) = origin
-                    {
-                        let array = matches!(origin, Origin::Array(_));
-                        let dictionary = matches!(origin, Origin::NullObject(_));
-                        if (array
-                            && (open_fields.contains(&object)
-                                || key.as_slice() == [108, 101, 110, 103, 116, 104]))
-                            || evaluate::managed_member_key(
-                                &semantic.nodes().kind(object),
-                                key.clone(),
-                                array,
-                                dictionary,
-                            )
-                            .is_err()
-                        {
-                            // Intrinsic length and inherited keys are not absent
-                            // own fields, and opaque array positions are unknown.
-                            found.insert(Origin::Other);
-                            continue;
-                        }
-                        match fields.get(&object).and_then(|own| own.get(key)) {
-                            Some(Some(value)) => found.extend(get(value)),
-                            Some(None) if array => {
-                                found.insert(Origin::Undefined);
-                            }
-                            None if fields.contains_key(&object)
-                                && !open_fields.contains(&object) =>
-                            {
-                                found.insert(Origin::Undefined);
-                            }
-                            _ => {
-                                found.insert(Origin::Other);
-                            }
-                        }
-                        if let Some(written) = field_writes.get(&(object, key.clone())) {
-                            found.extend(written);
-                        }
-                        if let Some(written) = wildcard_writes.get(&object) {
-                            found.extend(written);
-                        }
-                        if index_deletes.contains(&object) && mutations::array_index(key) {
-                            found.insert(Origin::Other);
-                        }
-                    } else {
-                        found.insert(Origin::Other);
-                    }
-                }
-                found
+            let members = member_origins::Members {
+                semantic,
+                values: &values,
+                fields: &fields,
+                open_fields: &open_fields,
+                rest_sources: &rest_sources,
+                field_writes: &field_writes,
+                wildcard_writes: &wildcard_writes,
+                index_deletes: &index_deletes,
             };
             let mut symbol_additions = definitions
                 .iter()
@@ -716,7 +687,7 @@ impl Fields {
                         }
                         found
                     }
-                    Rule::Member(receiver, key) => member(receiver, key),
+                    Rule::Member(receiver, key) => members.select(*receiver, key),
                 };
                 additions.push((*id, found));
             }
