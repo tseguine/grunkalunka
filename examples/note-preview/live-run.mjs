@@ -65,8 +65,20 @@ function inputError(status, message) {
   return Object.assign(new Error(message), { status });
 }
 
+function requestGeneration(request) {
+  const value = request.headers['x-a1-input-generation'];
+  // Existing clients may omit the header only while the session is still in
+  // generation zero. No coercion, duplicate value or unsafe integer is accepted.
+  if (value === undefined) return 0;
+  if (typeof value !== 'string' || !/^(0|[1-9][0-9]{0,15})$/.test(value) ||
+      !Number.isSafeInteger(Number(value))) {
+    throw inputError(400, 'Expected one nonnegative input generation.');
+  }
+  return Number(value);
+}
+
 function readInput(request, kind) {
-  const label = kind === 'select' ? 'Note selection'
+  const label = kind === 'sync' ? 'Synchronization' : kind === 'select' ? 'Note selection'
     : kind === 'reload' ? 'Reload' : kind === 'scroll' ? 'Scroll' : 'Pointer';
   const length = request.headers['content-length'];
   if (length !== undefined && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BODY)) {
@@ -109,8 +121,8 @@ function readInput(request, kind) {
             throw new Error('Invalid note choice');
           }
           finish(null, { id: value.id });
-        } else if (kind === 'reload') {
-          if (Object.keys(value).length !== 0) throw new Error('Invalid reload request');
+        } else if (kind === 'reload' || kind === 'sync') {
+          if (Object.keys(value).length !== 0) throw new Error('Invalid empty request');
           finish(null, {});
         } else if (kind === 'scroll') {
           if (Object.keys(value).length !== 1 || !Object.hasOwn(value, 'y') ||
@@ -127,7 +139,8 @@ function readInput(request, kind) {
           finish(null, { x: value.x, y: value.y });
         }
       } catch {
-        finish(inputError(400, kind === 'select' ? 'Expected one available note choice.'
+        finish(inputError(400, kind === 'sync' ? 'Expected an empty synchronization request.'
+          : kind === 'select' ? 'Expected one available note choice.'
           : kind === 'reload' ? 'Expected an empty reload request.'
           : kind === 'scroll' ? 'Expected one bounded scroll position.'
             : 'Expected one pointer inside the native frame.'));
@@ -201,9 +214,9 @@ export async function startLiveNote(options) {
   let closing = false;
   let unavailable = false;
   let closePromise;
+  let inputGeneration = 0;
 
-  function frame() {
-    const snapshot = session.snapshot();
+  function frame(snapshot = session.snapshot(), generation = inputGeneration) {
     if (snapshot.pixels.length !== PPM_HEADER.length + 320 * 160 * 3 ||
         !snapshot.pixels.subarray(0, PPM_HEADER.length).equals(PPM_HEADER)) {
       throw new Error('Invalid retained native frame');
@@ -215,6 +228,7 @@ export async function startLiveNote(options) {
       : { x: snapshot.controlPoint.x, y: snapshot.controlPoint.y };
     return {
       schemaVersion: 4, width: 320, height: 160, sequence: snapshot.eventsProcessed,
+      inputGeneration: generation,
       expanded: snapshot.expanded, visibleCount: snapshot.visibleCount,
       scrollY: snapshot.scrollY, maxScrollY: snapshot.maxScrollY, controlPoint,
       canActivate: permitted && controlPoint !== null,
@@ -266,7 +280,7 @@ export async function startLiveNote(options) {
         return;
       }
       if (!((path === '/frame' && request.method === 'GET') ||
-          (['/input', '/scroll', '/reload', '/select'].includes(path) && request.method === 'POST'))) {
+          (['/input', '/scroll', '/reload', '/select', '/sync'].includes(path) && request.method === 'POST'))) {
         send(response, 404, { error: 'Unknown application route.' });
         return;
       }
@@ -281,7 +295,8 @@ export async function startLiveNote(options) {
         return;
       }
       if (unavailable) {
-        send(response, 503, { error: 'This session is closed.', frame: frame() });
+        send(response, 503, { error: 'This session is closed.', frame: frame(),
+          ...(path === '/sync' ? { requiresSync: true } : {}) });
         return;
       }
       if (!/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
@@ -289,12 +304,39 @@ export async function startLiveNote(options) {
         return;
       }
       const kind = path.slice(1);
+      const generation = kind === 'sync' ? null : requestGeneration(request);
+      const staleGeneration = () => {
+        if (kind === 'sync' || generation === inputGeneration) return false;
+        send(response, 409, {
+          error: 'The input belongs to an earlier connection. Reconnect the view before continuing.',
+          requiresSync: true, frame: frame(),
+        });
+        return true;
+      };
+      if (staleGeneration()) return;
       const input = await readInput(request, kind);
+      // A slow body may have begun before synchronization but was not yet in
+      // the worker queue. Fence it again immediately before admission, with no
+      // asynchronous boundary between this check and the session operation.
+      if (staleGeneration()) return;
       if (kind === 'select' && !session.snapshot().noteChoices.some(note => note.id === input.id)) {
         send(response, 400, { error: 'Expected one available note choice.' });
         return;
       }
       try {
+        if (kind === 'sync') {
+          if (inputGeneration === Number.MAX_SAFE_INTEGER) {
+            throw Object.assign(new Error('A1 synchronization generation limit exceeded'),
+              { code: 'A1_SYNC_LIMIT' });
+          }
+          // Advancing before queue admission fences old bodies even when a
+          // full queue makes this synchronization fail. Such failures never
+          // return a successful settled frame; an explicit retry is required.
+          const synchronizedGeneration = ++inputGeneration;
+          const snapshot = await session.settledSnapshot();
+          send(response, 200, frame(snapshot, synchronizedGeneration));
+          return;
+        }
         const action = kind === 'select' ? await session.selectNote(input.id)
           : kind === 'reload' ? await session.reload()
           : kind === 'scroll' ? await session.scrollTo(input.y) : await session.activate(input);
@@ -312,19 +354,23 @@ export async function startLiveNote(options) {
         send(response, 200, frame());
       } catch (error) {
         const status = ['A1_QUEUE_FULL', 'A1_EVENT_LIMIT'].includes(error.code) ? 429 :
-          ['A1_SESSION_CLOSED', 'A1_WORKER_FAILED'].includes(error.code) ? 503 : 500;
+          ['A1_SESSION_CLOSED', 'A1_WORKER_FAILED', 'A1_SYNC_LIMIT'].includes(error.code) ? 503 : 500;
         if (status === 503) unavailable = true;
         const message = error.code === 'A1_QUEUE_FULL' ? 'The input queue is full. Try again.' :
           error.code === 'A1_EVENT_LIMIT' ? 'This session has reached its input limit.' :
+            error.code === 'A1_SYNC_LIMIT' ? 'This session has reached its synchronization limit.' :
             status === 503 ? 'This session is closed.' :
+              kind === 'sync' ? 'The view could not be synchronized. Reconnect to try again.' :
               kind === 'select' ? 'The note could not be opened. The previous view is still displayed.'
                 : kind === 'reload' ? 'The note could not be reloaded. The previous view is still displayed.'
                 : 'The action failed. The last committed frame is still displayed.';
-        send(response, status, { error: message, frame: frame() });
+        send(response, status, { error: message, frame: frame(),
+          ...(kind === 'sync' ? { requiresSync: true } : {}) });
       }
     } catch (error) {
       send(response, error.status ?? 500, {
         error: error.status ? error.message : 'The application could not complete this request.',
+        ...(request.url === '/sync' ? { requiresSync: true } : {}),
       });
     }
   });

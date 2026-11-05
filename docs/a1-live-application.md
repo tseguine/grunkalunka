@@ -172,22 +172,22 @@ cancellation or a strict wall-clock bound for filesystem work.
 
 ## Private loopback transport
 
-Only eight exact routes exist: the fixed page, client module, stylesheet, frame
-read, pointer input, scroll input, note reload and note selection. There is no
-file server, note download, component upload or generic command endpoint. The
-page and assets contain no note content, path or launch token. Frame responses
-carry native RGB, bounded display labels and small view metadata.
+Only nine exact routes exist: the fixed page, client module, stylesheet, frame
+read, pointer input, scroll input, note reload, note selection and synchronization.
+There is no file server, note download, component upload or generic command
+endpoint. The page and assets contain no note content, path or launch token.
+Frame responses carry native RGB, bounded display labels and small view metadata.
 
-Every frame/input request needs a random launch token in a custom header. The
-launch link puts that token in its fragment, which the browser removes before
-making requests and retains in tab-scoped, origin-scoped `sessionStorage` for
-refresh. Tokens are not query parameters, cookies or `localStorage` entries.
+Every frame, input or synchronization request needs a random launch token in a
+custom header. The launch link puts that token in its fragment, which the browser
+removes before making requests and retains in tab-scoped, origin-scoped
+`sessionStorage` for refresh. Tokens are not query parameters, cookies or `localStorage` entries.
 Reopen the complete launch link after clearing that storage or losing access.
 
 The server checks the exact loopback Host header and rejects a foreign Origin
 before reading a body or calling the session. It sends no CORS permission,
 disables caching and referrers, and limits scripts/styles/connections to itself.
-All four input bodies are at most 128 bytes, require JSON and have a five-second
+All five POST bodies are at most 128 bytes, require JSON and have a five-second
 completion deadline. `POST /input` accepts exactly `x` and `y` integer coordinates
 inside the native frame. `POST /scroll` accepts exactly one `y` integer from zero
 through 4294967295; the native session clamps it to the current maximum.
@@ -195,6 +195,34 @@ through 4294967295; the native session clamps it to the current maximum.
 `{ "id": ordinal }`, where the ID is an integer in the launch-defined catalog.
 Unknown IDs, paths, contents, labels, grants, component overrides and extra
 fields are rejected with 400 before queue admission or file access.
+
+Schema 4 frames also carry an `inputGeneration`, initially zero. Pointer, scroll,
+reload and selection requests carry that value in `x-a1-input-generation` as one
+nonnegative safe integer in decimal, with no leading zeroes. An omitted header
+means zero, preserving existing clients until the first synchronization. Invalid
+headers return 400; a generation mismatch returns 409 with `requiresSync: true`
+and a cached frame, without consuming an application attempt. The host checks
+the generation before reading a body and again immediately before admission.
+A request whose slow body finishes after synchronization therefore cannot enter
+the worker queue under its old generation.
+
+`POST /sync` accepts exactly `{}`. After validating the request, the host advances
+the generation and queues a read of the retained frame behind all already-admitted
+actions. A successful response contains the copied frame from that exact queue
+position and the generation captured by this synchronization, even if another
+synchronization has since advanced it. It does not replay a mutation, reread a
+note, call native code or consume an application attempt. It shares the bounded
+pending queue and remains available to read-only and event-exhausted sessions.
+The counter never wraps; exhausting safe integer generations closes further input.
+
+An unsuccessful synchronization is not evidence that earlier input has settled.
+A full queue returns 429 and a failed/closed session returns 503, with
+`requiresSync: true`; any included frame is only cached state. Queue rejection
+can still advance the generation, so recovery requires a new successful sync.
+Overlapping sync responses retain their own captured generation rather than
+being relabeled with the newest value. `GET /frame` remains a cheap cached read
+and does not wait for queued actions or fence incomplete input.
+
 Sixteen connections and one request per connection bound admission even for pipelined
 HTTP. These controls apply to this private local presenter; the transport is not
 a public WIT interface or general network application service.

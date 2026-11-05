@@ -66,7 +66,8 @@ async function application(t, options = {}) {
     input: (value, extra) => post('/input', value, extra),
     scroll: (value, extra) => post('/scroll', value, extra),
     reload: (value = {}, extra) => post('/reload', value, extra),
-    select: (value, extra) => post('/select', value, extra) };
+    select: (value, extra) => post('/select', value, extra),
+    sync: extra => post('/sync', {}, extra) };
 }
 
 async function fetchStatus(url, options) {
@@ -192,6 +193,75 @@ test('live HTTP host transports reversible native pixels and bounds authenticate
     assert.equal(app.close(), close, 'close is idempotent');
     await close;
     await assert.rejects(fetch(app.origin + '/frame', { headers }));
+  });
+
+test('live synchronization fences slow old input without reloading or consuming native attempts',
+  { timeout: 180_000 }, async t => {
+    const synchronizedNote = join(scratch, 'synchronized note.md');
+    await writeFile(synchronizedNote, '# Before\n## Child\n');
+    const { app, headers, frame, input, reload, sync } = await application(t,
+      { note: synchronizedNote, maxEvents: 2 });
+    const initial = await frame();
+    assert.deepEqual([initial.inputGeneration, initial.sequence, initial.remainingEvents], [0, 0, 2]);
+    const launchUrl = app.url;
+    const generation = value => ({ headers: { ...headers,
+      'Content-Type': 'application/json', 'x-a1-input-generation': String(value) } });
+
+    let slowRequest;
+    let started;
+    let failedToStart;
+    const bodyStarted = new Promise((resolveStarted, rejectStarted) => {
+      started = resolveStarted;
+      failedToStart = rejectStarted;
+    });
+    const oldResponse = new Promise((resolveResponse, rejectResponse) => {
+      slowRequest = request(app.origin + '/reload', { method: 'POST', headers: {
+        ...generation(0).headers, 'Content-Length': '2', Expect: '100-continue',
+      } }, response => {
+        const chunks = [];
+        response.on('data', chunk => chunks.push(chunk));
+        response.once('end', () => resolveResponse({ status: response.statusCode,
+          body: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+        response.once('error', rejectResponse);
+      });
+      // Node sends Continue before the production handler begins reading this
+      // body. Receiving it proves the old request arrived, without a sleep.
+      slowRequest.once('continue', started);
+      slowRequest.once('error', error => { failedToStart(error); rejectResponse(error); });
+      slowRequest.flushHeaders();
+    });
+    oldResponse.catch(() => {});
+    t.after(() => slowRequest.destroy());
+    await bodyStarted;
+
+    await rm(synchronizedNote);
+    const synchronized = await sync();
+    assert.equal(synchronized.status, 200);
+    assert.deepEqual(synchronized.body, { ...initial, inputGeneration: 1 },
+      'synchronization reads retained native pixels even when the external note is missing');
+    slowRequest.end('{}');
+    const stale = await oldResponse;
+    assert.deepEqual([stale.status, stale.body.requiresSync, stale.body.frame],
+      [409, true, synchronized.body], 'an old body cannot load the note after the read boundary');
+
+    await writeFile(synchronizedNote, '# After\n## First child\n## Second child\n');
+    const updated = await reload({}, generation(1));
+    assert.equal(updated.status, 200);
+    assert.deepEqual([updated.body.sequence, updated.body.visibleCount, updated.body.inputGeneration],
+      [1, 3, 1]);
+    const collapsed = await input(updated.body.controlPoint, generation(1));
+    assert.equal(collapsed.status, 200);
+    assert.deepEqual([collapsed.body.sequence, collapsed.body.expanded, collapsed.body.remainingEvents],
+      [2, 0, 0]);
+    const exhausted = await sync();
+    assert.equal(exhausted.status, 200);
+    assert.deepEqual(exhausted.body, { ...collapsed.body, inputGeneration: 2 },
+      'a settled read remains available after the last authorized application attempt');
+    const oldClient = await reload();
+    assert.deepEqual([oldClient.status, oldClient.body.requiresSync], [409, true]);
+    assert.equal((await reload({}, generation(2))).status, 429);
+    assert.deepEqual(await frame(), exhausted.body);
+    assert.equal(app.url, launchUrl, 'synchronization retains the launch identity and authority');
   });
 
 test('live scrolling traverses native long notes with shared authority, ordering and attempt bounds',
@@ -633,6 +703,10 @@ test('live document and UI grants remain independent and denied paths are never 
     const hiddenReload = await denied.reload();
     assert.equal(hiddenReload.status, 409);
     assert.deepEqual([hiddenReload.body.frame.sequence, hiddenReload.body.frame.pixels], [3, hidden.pixels]);
+    const hiddenSync = await denied.sync();
+    assert.deepEqual(hiddenSync,
+      { status: 200, body: { ...hiddenReload.body.frame, inputGeneration: 1 } },
+      'synchronization does not grant document authority or open the denied note');
     assert.ok(!JSON.stringify(hidden).includes('missing-secret'));
 
     const readOnlyNote = join(scratch, 'read-only-reload.md');
@@ -667,6 +741,10 @@ test('live document and UI grants remain independent and denied paths are never 
       assert.deepEqual([rejectedSelection.body.frame.sequence, rejectedSelection.body.frame.selectedNoteId,
         rejectedSelection.body.frame.pixels], [id === 1 ? 4 : 5, 0, visible.pixels]);
     }
+    const beforeSync = await readOnly.frame();
+    assert.deepEqual(await readOnly.sync(),
+      { status: 200, body: { ...beforeSync, inputGeneration: 1 } },
+      'synchronization preserves read-only grants without reopening the missing selected note');
   });
 
 test('live controlled service rejection is observable without losing the authorized view',
