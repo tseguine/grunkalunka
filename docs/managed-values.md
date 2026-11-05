@@ -128,7 +128,8 @@ intrinsic Errors contribute no enumerable properties in this admitted profile.
 The helper operates on existing WasmGC references and can compose with helpers,
 closures and suspended activations; it introduces no host operation or new heap.
 
-Accessors, proxies, object-rest patterns, array spread and general prototype/Get
+[Object rest bindings](object-binding-patterns.md#object-rest) copy remaining
+own fields into a fresh object. Accessors, proxies, array spread and general prototype/Get
 semantics remain unsupported. A spread that might overwrite a known callable
 field invalidates that earlier source fact; an explicit later property can
 establish it again. This preserves rejection of an unproven field call rather

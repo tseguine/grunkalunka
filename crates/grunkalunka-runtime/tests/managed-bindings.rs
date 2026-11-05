@@ -4,6 +4,33 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn object_rest_copies_only_remaining_own_fields_into_fresh_slots() {
+    for body in [
+        "const {x,...rest}={x:a,y:b};return a;",
+        "const {child:{x,...rest}}={child:{x:a}};return a;",
+        "const [{x,...rest}]=[{x:a,y:b}];return a;",
+        "for(const {...rest} of [{value:a}]){}return a;",
+        "const child={value:a};const source={drop:a,'2':b,'1':a,child,empty:undefined};const {drop:x,drop:y,...rest}=source;const keys=Object.keys(rest);source.child=null;rest.empty=b;return x===y&&rest!==source&&rest.drop===undefined&&rest.child===child&&source.empty===undefined&&keys.length===4&&keys[0]==='1'&&keys[1]==='2'&&keys[2]==='child'&&keys[3]==='empty'?1:0;",
+        r"const {['\ud800']:x,'':y,...rest}={'':a,'\ud800':b,'\ufffd':a,'\0':b};return x===b&&y===a&&rest['\ud800']===undefined&&rest['\ufffd']===a&&rest['\0']===b&&Object.keys(rest).length===2?1:0;",
+        "const d=Object.create(null);d.__proto__=a;d.constructor=b;const {constructor:x,...r}=d;const keys=Object.keys(r);return x===b&&keys.length===1&&keys[0]==='__proto__'?1:0;",
+        "const source={x:a};const {x,...empty}=source;const {...full}=source;return empty!==full&&full!==source&&full.x===a&&Object.keys(empty).length===0?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_rest_observes_defaults_on_the_saved_receiver_and_fresh_loop_cells() {
+    for body in [
+        "let source={tail:a};const original=source;const {first=(source={other:a},original.tail=b,original.added=a,1),...rest}=original;return first===1&&rest.tail===b&&rest.added===a&&rest.other===undefined&&source!==original?1:0;",
+        "const row={name:a,keep:b};const source={row,outer:a};const {row:{name,...inner},...outer}=source;return inner.keep===b&&inner.name===undefined&&outer.outer===a&&outer.row===undefined?1:0;",
+        "let first=()=>({}),last=()=>({});for(const {x,...rest} of [{x:a,keep:a},{x:b,keep:b}]){const read=()=>rest;if(x===a)first=read;last=read;}return first()!==last()&&first().keep===a&&last().keep===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn object_bindings_select_shorthand_renamed_and_literal_keys() {
     for body in [
         "const {x,y:renamed}={x:a,y:b};let {x:other}={x:b};return x===a&&renamed===b&&other===b?1:0;",
@@ -108,7 +135,6 @@ fn nested_object_bindings_preserve_empty_receiver_tdz_and_alias_guards() {
         "const {child:{x=later},later=a}={child:{}};return a;",
         "const {first=later,child:{later=a}}={child:{}};return a;",
         "const {child:{f=()=>x,x=a}}={child:{}};return a;",
-        "const {child:{x,...rest}}={child:{x:a}};return a;",
         "const {child:{}={}}={child:null};return a;",
         "const {child:{x}={x:a}}={child:b};return a;",
         "const {child:{}={}}={child:undefined,...{child:a}};return a;",
@@ -426,7 +452,6 @@ fn object_binding_annotations_are_erased_without_proving_values() {
 #[test]
 fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
     for body in [
-        "const {x,...rest}={x:a,y:b};return a;",
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",
         "const {1:x}={'1':a};return a;",

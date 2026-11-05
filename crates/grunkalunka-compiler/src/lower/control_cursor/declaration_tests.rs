@@ -2,6 +2,45 @@
 use super::SCHEDULED_DECLARATION_VALUES;
 
 #[test]
+fn object_rest_bindings_keep_receiver_and_scope_guards() {
+    for (body, admitted) in [
+        ("const {...rest}={value:a};return a;", true),
+        ("const {child:{...rest}={}}={};return a;", true),
+        (
+            "const [ {x,...rest} ]=[{x:a,y:b}];return rest.y===b?1:0;",
+            true,
+        ),
+        ("const {x,...rest}=a;return a;", false),
+        ("const {x,...rest}=[a];return a;", false),
+        ("const {child:{...rest}}={child:null};return a;", false),
+        ("const {first=rest,...rest}={};return a;", false),
+        ("const {...rest}={};rest={};return a;", false),
+        (
+            "let {...rest}={value:a};rest=null;return Object.keys(rest).length;",
+            false,
+        ),
+        (
+            "const {...rest}={label:a};const {label='x'}=rest;return label.trim().length;",
+            false,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, false, typed);
+            if admitted {
+                assert!(result.is_ok(), "{source}: {result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error.contains("unsupported") && !error.contains("internal IR"),
+                    "{source}: {error}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn array_rest_bindings_compose_with_defaults_captures_and_iteration() {
     for (body, asynchronous) in [
         (
@@ -44,7 +83,6 @@ fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
     for body in [
         "const [...[value]]=[a];return a;",
         "const [...{length}]=[a];return a;",
-        "const {...rest}={value:a};return a;",
         "const [...rest]=a;return a;",
         "const [...rest]='text';return a;",
         "const [first=rest,...rest]=[];return a;",
@@ -279,7 +317,6 @@ fn nested_pattern_defaults_keep_kind_tdz_and_unsupported_pattern_guards() {
         "const source={};const alias=source;alias.child=null;const {child:{}={}}=source;return a;",
         "const {child:{value}={value:value}}={};return a;",
         "const {child:{}=(later,{}),later=a}={};return a;",
-        "const {child:{...rest}={}}={};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         let error = on_small_stack(&source, false, false)

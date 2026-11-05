@@ -203,7 +203,6 @@ fn nested_array_bindings_preserve_receiver_proof_tdz_and_pattern_limits() {
         "const [[x=x]]=[[]];return a;",
         "const [[x=y],y=a]=[[]];return a;",
         "const [x=y,[y=a]]=[undefined,[]];return a;",
-        "const [{x,...rest}]=[{x:a,y:b}];return a;",
         "const [[]=[]]=[null];return a;",
         "const [[x]=[a]]=[b];return a;",
         "const [[]={}]=[];return a;",

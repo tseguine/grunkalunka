@@ -14,6 +14,7 @@ mod iterative_emitter_tests;
 mod layout;
 mod managed_spread;
 mod materialization;
+mod object_rest;
 mod own_keys;
 mod relational;
 #[cfg(test)]
@@ -310,6 +311,20 @@ impl Emitter<'_> {
                 self.managed_key_value(*key);
                 self.get(*value);
                 self.output.push_str("call $gc_set\n");
+            }
+            Op::ManagedObjectRest {
+                result,
+                object,
+                excluded,
+            } => {
+                self.get(*object);
+                self.output.push_str("ref.null $gc_rest_key\n");
+                for key in excluded {
+                    self.managed_key(key);
+                    self.output.push_str("struct.new $gc_rest_key\n");
+                }
+                self.output.push_str("call $gc_object_rest\n");
+                self.set(*result);
             }
             Op::ManagedObjectSpread { object, input } => {
                 self.get(*object);
@@ -1528,6 +1543,7 @@ fn emit_verified(
     if managed {
         output.push_str(include_str!("emit/managed.wat"));
         output.push_str(managed_spread::runtime(module));
+        output.push_str(object_rest::runtime(module));
         output.push_str(own_keys::runtime(module));
         output.push_str(array_at::runtime(module));
         output.push_str(array_pop::runtime(module));
@@ -1740,6 +1756,9 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
     ir::visit_operations(&function.body, &mut |op| {
         needed |= match op {
             Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedObjectRest { excluded, .. } => {
+                excluded.iter().any(|key| key.len() > MAX_FIXED_TEXT_UNITS)
+            }
             Op::ManagedGetOwn { key, .. }
             | Op::ManagedSetOwn { key, .. }
             | Op::ManagedArrayGetOwn { key, .. }

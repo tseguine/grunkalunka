@@ -23,6 +23,9 @@ pub(super) fn leaves<'n, 'a>(
                 BindingPattern::BindingIdentifier(identifier) => return Some(identifier.as_ref()),
                 BindingPattern::AssignmentPattern(assignment) => pending.push(&assignment.left),
                 BindingPattern::ObjectPattern(object) => {
+                    if let Some(rest) = &object.rest {
+                        pending.push(&rest.argument);
+                    }
                     pending.extend(
                         object
                             .properties
@@ -66,6 +69,10 @@ pub(super) enum BindingStep<'n, 'a> {
     Element {
         source: &'n BindingPattern<'a>,
         index: u32,
+    },
+    ObjectRest {
+        source: &'n BindingRestElement<'a>,
+        excluded: Vec<Vec<u16>>,
     },
     ArrayRest {
         source: &'n BindingRestElement<'a>,
@@ -155,6 +162,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Pattern(&'n BindingPattern<'a>, NodeId, usize),
             Field(&'n BindingProperty<'a>, bool, usize),
             Element(&'n BindingPattern<'a>, u32, usize),
+            ObjectRest(&'n ObjectPattern<'a>, &'n BindingRestElement<'a>, usize),
             ArrayRest(&'n BindingRestElement<'a>, u32, usize),
             Leave,
         }
@@ -208,12 +216,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     pending.push(Work::Leave);
                     match pattern {
                         BindingPattern::ObjectPattern(object) => {
-                            if object.rest.is_some() {
-                                return Err(unsupported(
-                                    object.as_ref(),
-                                    "object rest bindings are not yet admitted",
-                                ));
-                            }
                             if proven != Some(Type::ManagedObject) {
                                 return Err(unsupported(
                                     object.as_ref(),
@@ -221,6 +223,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 ));
                             }
                             steps.push(BindingStep::Object(object));
+                            if let Some(rest) = &object.rest {
+                                pending.push(Work::ObjectRest(object, rest, depth));
+                            }
                             let dictionary = self.stored.dictionary(origin);
                             pending.extend(
                                 object
@@ -289,6 +294,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 Work::Element(source, index, depth) => {
                     steps.push(BindingStep::Element { source, index });
                     pending.push(Work::Pattern(source, source.node_id(), depth));
+                }
+                Work::ObjectRest(object, source, depth) => {
+                    // The field steps already validated these keys. Only this
+                    // pattern's directly selected keys are excluded.
+                    let excluded = object
+                        .properties
+                        .iter()
+                        .map(|property| key(property).expect("validated binding key"))
+                        .collect();
+                    steps.push(BindingStep::ObjectRest { source, excluded });
+                    pending.push(Work::Pattern(
+                        &source.argument,
+                        source.argument.node_id(),
+                        depth,
+                    ));
                 }
                 Work::ArrayRest(source, start, depth) => {
                     steps.push(BindingStep::ArrayRest { source, start });

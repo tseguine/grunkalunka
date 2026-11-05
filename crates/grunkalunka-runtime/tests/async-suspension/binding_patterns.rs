@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn object_rest_retains_the_receiver_across_a_default_await() {
+    compare_promises(
+        &[
+            "let source={tail:a};const original=source;const {first=(await a,source={other:a},original.tail=b,1),...rest}=source;await b;return first===1&&rest.tail===b&&rest.other===undefined&&rest!==original?1:0;",
+            "let n=0;try{const {x=(await Promise.reject(a),1),...rest}={};n=Object.keys(rest).length+1;}catch(e){await b;return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn whole_object_defaults_keep_saved_receivers_and_skip_unused_awaits() {
     compare_promises(
         &[
