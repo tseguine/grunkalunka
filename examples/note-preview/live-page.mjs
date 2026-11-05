@@ -31,6 +31,7 @@ export const livePage = `<!doctype html>
       </div>
       <div class="view-actions">
         <button id="reload-note" type="button" disabled aria-describedby="reload-help">Reload note</button>
+        <button id="reconnect-view" type="button" disabled hidden>Reconnect</button>
         <p id="reload-help">After editing the file, reload to see your changes.</p>
       </div>
       <p id="session-status" role="status" aria-live="polite" aria-atomic="true">Connecting to your note…</p>

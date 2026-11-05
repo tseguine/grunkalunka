@@ -1,6 +1,6 @@
 # A1 candidate: source-scripted Markdown outline presentation
 
-## Current application stack (2026-11-04)
+## Current application stack (2026-11-05)
 
 The maintainer has assigned an independent A1 application stack from master,
 with the ongoing IR feature train retaining compiler/lowering ownership. The
@@ -26,11 +26,15 @@ Native scrolling exposes the complete admitted outline, including the last of
 the native host supplies the extent and current visible title-control point.
 Repeated `--note` arguments supply a fixed catalog of up to eight notes at
 launch. The chooser switches within that catalog through the existing worker
-queue, starts a newly selected note at the top, and commits its ID with its
-document and native frame. **Reload note** incorporates external edits at the
+queue and commits the selected ID with its document and native frame. A first
+visit starts at the top; revisiting restores that note's scroll position and
+expansion preference. **Reload note** incorporates external edits at the
 committed selected path. Both operations keep the component, grants and lifetime
 budget and preserve expansion preference through empty content. A failed switch
 or bad edit leaves the previous note and view available for recovery.
+**Reconnect** recovers the settled view after a transport interruption without
+replaying an action whose outcome is unknown. Reconciliation fences delayed
+requests from the previous connection before enabling fresh input.
 The [live package mode](a1-live-package.md) retains the worker and presenter along
 with the same native hosts and portable components for detached execution.
 

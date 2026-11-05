@@ -34,8 +34,10 @@ node examples/note-preview/live-run.mjs --profile granted --note ./work.md --not
 
 The **Note** chooser lists only those launch-defined notes. Startup reads the
 first note; another is read only when selected. A successful switch updates the
-selected label and native pixels together, starts at the top, and preserves the
-session's expanded/collapsed preference. The chooser continues to work when the
+selected label and native pixels together. A first visit starts at the top with
+the original launch expansion preference; a revisit restores that note's own
+expanded/collapsed preference and scroll position, clamped to its reread extent.
+The chooser continues to work when the
 current note is empty or its title is offscreen. While a switch is pending, the
 chooser continues to show the committed note. A failed switch retains it.
 
@@ -46,6 +48,14 @@ not reread it. Reload is explicit; refreshing the browser page reconnects to the
 retained session without rereading the file. Selection and reload retain the
 session, launch URL, component and input budget. The browser cannot supply
 another path or upload note contents.
+
+If a connection is interrupted, the last completed view remains visible and a
+**Reconnect** button appears. Reconnect waits for earlier admitted work and
+reads the resulting view before enabling input again. An action whose reply was
+lost may already have completed; reconnect displays that result without
+repeating the action. Reopening or refreshing the page uses the same boundary.
+An expired launch token requires the complete session link, and a closed host
+requires a new session.
 
 The process listens on `127.0.0.1` and chooses an available port. `--port NUMBER`
 can select a particular port; there is no external bind option. Stop the command
@@ -138,21 +148,29 @@ activation uses the current document's heading count.
 
 Selecting a different ID commits its document, selected ID, scene and pixels
 together. It resets the scroll position even if the two notes contain identical
-bytes. The expansion preference is shared across notes and survives an empty
-selection. If opening or rendering a candidate fails, the previous ID and
+bytes on the first visit; subsequent visits restore that note's saved position,
+clamped to its current extent. Each note retains its expansion preference,
+including through empty content. Saved positions change only after a successful
+switch. If opening or rendering a candidate fails, the previous ID and
 document remain committed, so a subsequent reload still reads the previous
 note's path. Selection invokes no source compiler or action component.
 
 The browser validates frame dimensions, RGB byte length, viewport bounds and
 control points, catalog bounds, labels and selected-ID membership before painting,
-and rejects an older sequence. Labels are assigned through `textContent`, never
+and rejects an older sequence or input generation. Labels are assigned through `textContent`, never
 parsed as HTML. The existing 220,000-byte response cap includes eight maximally
 escaped labels and an error wrapper around the native RGB frame. A trap leaves
 the committed pixels unchanged but consumes an attempt; its error response
 carries that newer snapshot. Any failed request discards queued movement.
-Transport uncertainty disables further input until reconnecting, so an unknown
-outcome is not automatically retried. Worker termination disables the session;
-it does not silently create a replacement state.
+Every browser request has one 65-second deadline covering response headers and
+body completion. Cancellation retires that request even if the transport does
+not settle; a late body or authorization error cannot repaint or erase authority
+after a later reconnect. Transport uncertainty disables further input until an
+explicit **Reconnect** succeeds. The client discards queued scroll intent and
+does not retry an unknown action outcome. Reconnect itself never consumes a
+native action attempt. Read-only and exhausted sessions can recover their view
+while preserving their disabled input controls. Worker termination disables the
+session; it does not silently create a replacement state.
 
 Controlled service rejections, including UI denial or an invalid requested
 heading count, return an explicit action error with the preserved frame. They
@@ -238,7 +256,7 @@ Reload cases cover file edits and atomic replacement, unchanged bytes, scroll
 clamping, empty-note recovery, preserved expansion preference, both grant
 denials and recovery after missing, oversized, invalid UTF-8 or non-regular files.
 Selection cases cover catalog ownership before startup yields, identical-byte
-switches, same-ID no-I/O attempts, global expansion preference, empty transitions,
+switches, same-ID no-I/O attempts, per-note reading state, empty transitions,
 retained reload identity after a failed candidate, malformed and unknown IDs,
 grant separation and mixed-operation exhaustion. A long-note case scrolls to
 both ends, activates a partly clipped native title, checks offscreen hit behavior
@@ -246,7 +264,8 @@ and restores the original pixels. The detached bundle selects and reloads two
 external notes through the same session without build tools. The dependency-free
 browser harness covers wheel modes, keyboard controls, native control points,
 bounded coalescing, reload and selection controls, escaped labels, committed
-chooser state and failed-request handling; it does not
+chooser state, whole-response deadlines, explicit recovery, generation
+regression and late-response retirement; it does not
 execute an independent browser engine. Actual browser QA and hosted results are
 reported in the PRs.
 
