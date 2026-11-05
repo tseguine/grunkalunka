@@ -635,6 +635,22 @@ fn function_declaration_values_use_the_source_scheduler() {
 }
 
 #[test]
+fn managed_and_stored_for_let_header_closures_compile_on_small_stacks() {
+    for source in [
+        "export function run(a,b){let first=()=>({x:a});let last=()=>({x:b});for(let i=0;i<3;i++){const make=()=>({x:i});if(i===0)first=make;last=make;}return first().x===0&&last().x===2?a:b;}",
+        "export function run(a,b){let first=()=>a;for(let i=0;i<3;i++){first=()=>i;}const o={first};return first();}",
+    ] {
+        for typescript in [false, true] {
+            let (result, _) = on_small_stack(source, false, typescript);
+            assert!(
+                result.is_ok(),
+                "{source}, typescript={typescript}: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn managed_declaration_values_use_the_source_scheduler() {
     for (source, asynchronous) in [
         (

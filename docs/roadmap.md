@@ -33,9 +33,10 @@ and suspended GC references are **not** established. [ADR 0019](adr/0019-wasmgc-
 records the **accepted** WasmGC direction without selecting a final value layout.
 [Semantic operations steering #355](https://github.com/tseguine/grunkalunka/issues/355)
 and [async managed lifetime #356](https://github.com/tseguine/grunkalunka/issues/356)
-record the two next architectural seams. A known accepted-source
-[for-let closure bug #334](https://github.com/tseguine/grunkalunka/issues/334)
-needs correction.
+record the two next architectural seams. [#374](https://github.com/tseguine/grunkalunka/pull/374)
+corrected the original numeric `for-let` closure bug. The two managed-result and
+stored-function fixtures in [#334](https://github.com/tseguine/grunkalunka/issues/334)
+now use the existing per-iteration cell renewal.
 
 The A1 application update of 2026-11-04 connects authorized Markdown inspection,
 native input, source-to-WIT service calls and readable native repaint.

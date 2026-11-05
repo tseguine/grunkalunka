@@ -15,8 +15,12 @@ addresses *runtime-dependent* property/call semantics and catchable source
 exceptions; [#356](https://github.com/tseguine/grunkalunka/issues/356)
 addresses traced references through async suspension. Static source proofs
 remain useful fast paths, not a complete replacement for dynamic JavaScript
-semantics. [#334](https://github.com/tseguine/grunkalunka/issues/334)
-records a pre-existing loop-header closure mismatch.
+semantics.
+
+**Loop-header update (2026-11-05):** [#374](https://github.com/tseguine/grunkalunka/pull/374)
+corrected the original numeric closure mismatch. The two managed-result and
+stored-function fixtures in [#334](https://github.com/tseguine/grunkalunka/issues/334)
+now use that existing per-iteration cell renewal.
 
 ## Managed values in a single coroutine frame
 
@@ -757,11 +761,12 @@ annotations. Exact former source-result rejection cases now execute positively.
 Public numeric exports, unsupported coercions/prototypes, opaque stored-function
 calls and suspended managed frames retain explicit rejection controls.
 
-Runtime function values with managed results or observed data identity that
-directly capture a for-let
-header are rejected pending [per-iteration environments #334](https://github.com/tseguine/grunkalunka/issues/334).
-Body-local iteration snapshots have positive tests. The older numeric header-cell
-case is also a known correctness gap tracked there.
+Admitted runtime function values with managed results or observed data identity can
+directly capture a `for (let ...)` header through the existing per-iteration
+cell renewal. [#334](https://github.com/tseguine/grunkalunka/issues/334) retains
+two unchanged sources: object-returning closures saved from iterations 0 and 2,
+and a header-capturing closure stored in an object after the loop. Body-local
+snapshots and the numeric iteration-cell regressions remain covered separately.
 
 A test-only observer retains an actual generated private call's returned object
 in a traced global without replacing its source functions or call/frame code.

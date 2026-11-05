@@ -265,9 +265,11 @@ activations ([#375](https://github.com/tseguine/grunkalunka/pull/375),
 `Object.keys` operation with async source-error routing
 ([#380](https://github.com/tseguine/grunkalunka/pull/380)).
 [#374](https://github.com/tseguine/grunkalunka/pull/374) fixes the original numeric
-captured `for-let` reproducer; the broader
-[#334](https://github.com/tseguine/grunkalunka/issues/334) acceptance matrix remains
-separate. Older dated overview sections are not the new implementation queue.
+captured `for-let` reproducer. **2026-11-05 update:**
+[#334](https://github.com/tseguine/grunkalunka/issues/334) is bounded to its two
+unchanged managed-result and stored-function fixtures, now admitted through the
+existing iteration-cell renewal. Older dated overview sections are not the new
+implementation queue.
 
 ## PR stacking and validation
 

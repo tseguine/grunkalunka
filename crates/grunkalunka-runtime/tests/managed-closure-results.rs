@@ -220,15 +220,7 @@ fn generated_managed_results_survive_copying_gc_after_defining_calls_return() {
 }
 
 #[test]
-fn managed_result_header_captures_reject_until_iteration_environments_exist() {
+fn managed_result_header_captures_preserve_independent_iteration_cells() {
     let source = "export function run(a,b){let first=()=>({x:a});let last=()=>({x:b});for(let i=0;i<3;i++){const make=()=>({x:i});if(i===0)first=make;last=make;}return first().x===0&&last().x===2?a:b;}";
-    for ts in [false, true] {
-        let error = grunkalunka_compiler::compile(source, ts)
-            .err()
-            .unwrap_or_else(|| panic!("admitted shared header cells"));
-        assert!(
-            error.contains("per-iteration environments (#334)") && !error.contains("internal IR"),
-            "{error}"
-        );
-    }
+    common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 4], [0, 0, 0]]);
 }

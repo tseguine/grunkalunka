@@ -24,8 +24,10 @@ The GC-traced synchronous environment also does not by itself root managed
 references through numeric/linear-memory async suspension, establish an agent's
 shared instance/identity domain, or define public reference ownership
 ([#356](https://github.com/tseguine/grunkalunka/issues/356)).
-An older captured for-let header mismatch is separately tracked in
-[#334](https://github.com/tseguine/grunkalunka/issues/334).
+The older numeric `for-let` header mismatch was corrected by
+[#374](https://github.com/tseguine/grunkalunka/pull/374). The bounded
+[#334](https://github.com/tseguine/grunkalunka/issues/334) follow-up admits its two
+managed-result and stored-function fixtures through the same iteration-cell renewal.
 The narrow GC-aware suspension design gate must reconcile the still-**proposed**
 [activation/scheduling ADR 0013](0013-async-job-and-activation-ownership.md);
 nothing here accepts that proposal or changes the selected collector.
@@ -519,11 +521,12 @@ copying collections after its defining calls return. Cycles and updated values
 survive; clearing the root is checked separately. There is no public reference ABI
 or measured reclamation guarantee.
 
-A broader pre-existing for-let header-capture defect was reproduced in the older
-numeric compiler and is tracked in #334 for shared control-flow work. Newly admitted
-managed-returning runtime function values reject direct header captures until that
-binding lifecycle exists; body-local iteration snapshots remain supported. General
-function carriers, coercions/prototypes and suspended managed frames remain work.
+The older numeric `for-let` header-capture defect was corrected by #374.
+Managed-returning runtime function values now use that shared binding lifecycle
+for direct header captures. The unchanged managed-result fixture in #334 saves
+closures from iterations 0 and 2; body-local iteration snapshots remain supported.
+General function carriers, coercions/prototypes and suspended managed frames
+remain work.
 
 ## Related work and follow-up
 
@@ -592,10 +595,11 @@ the engine's tracing graph without a new IR operation, public ABI or dependency.
 Native-JS/Node-Wasm/Wasmtime source tests cover identity, mixed storage, factories,
 callbacks, snapshots and cycles. A test-only root retains the actual generated
 carrier across copying collection after source calls return, with a cleared-root
-control. Direct for-let header captures newly exposed by identity storage reject
-pending #334; body-local snapshots remain supported. Opaque stored calls, general
-changing-kind inference, declaration identities and suspended GC frames remain
-explicit follow-ups.
+control. Direct `for-let` header captures used by identity storage now use the
+shared iteration-cell renewal. The unchanged stored-function fixture in #334
+stores its captured closure in an object after the loop; body-local snapshots
+remain supported. Opaque stored calls, general changing-kind inference,
+declaration identities and suspended GC frames remain explicit follow-ups.
 
 ## Summary
 

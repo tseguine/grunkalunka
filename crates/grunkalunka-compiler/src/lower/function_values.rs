@@ -1406,17 +1406,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
             .result(arity)
             .expect("checked signature");
         let asynchronous = self.closure_signatures.borrow().is_async(arity);
-        if (return_type.is_managed() || self.managed_kinds.identity_bodies.contains(&closure.arrow))
-            && closure
-                .captures
-                .iter()
-                .any(|binding| captured_for_let_header(binding.symbol, self.semantic))
-        {
-            return Err(unsupported(
-                node,
-                "managed closure results over for-loop lexical headers require per-iteration environments (#334)",
-            ));
-        }
         if !match return_type {
             Type::ManagedObject
             | Type::ManagedArray
@@ -1725,33 +1714,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         );
         Ok(result)
     }
-}
-
-// The shared header-environment gap is tracked in #334. New managed-return
-// function values must not silently inherit the older numeric-path miscompile.
-fn captured_for_let_header(symbol: SymbolId, semantic: &Semantic<'_>) -> bool {
-    semantic.scoping().symbol_declarations(symbol).any(|node| {
-        if !matches!(
-            semantic.nodes().kind(node),
-            oxc_ast::AstKind::VariableDeclarator(_)
-        ) {
-            return false;
-        }
-        let mut ancestors = semantic.nodes().ancestor_kinds(node);
-        let Some(oxc_ast::AstKind::VariableDeclaration(declaration)) = ancestors.next() else {
-            return false;
-        };
-        if declaration.kind != oxc_ast::ast::VariableDeclarationKind::Let {
-            return false;
-        }
-        let Some(oxc_ast::AstKind::ForStatement(statement)) = ancestors.next() else {
-            return false;
-        };
-        statement
-            .init
-            .as_ref()
-            .is_some_and(|init| init.span() == declaration.span)
-    })
 }
 
 #[cfg(test)]
