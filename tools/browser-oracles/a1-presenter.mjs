@@ -97,9 +97,14 @@ function assertPixels(view, rgb) {
 async function pointer(page) {
   const box = await page.locator('#note-frame').boundingBox();
   assert.ok(box);
-  // Interior points are deliberate: the expected native target is the literal
-  // (24,16), independently of the production pointer conversion implementation.
-  await page.mouse.click(box.x + box.width * 24.25 / 320, box.y + box.height * 16.25 / 160);
+  // Click coordinates are integer CSS pixels. Choose an integer inside the
+  // literal native pixel (24,16), including a fractional canvas top at 1x.
+  // A fractional test point can be floored into the preceding native pixel.
+  const x = Math.ceil(box.x + box.width * 24 / 320);
+  const y = Math.ceil(box.y + box.height * 16 / 160);
+  assert.ok(x < box.x + box.width * 25 / 320 && y < box.y + box.height * 17 / 160,
+    'the expected native pixel must contain an integer CSS click coordinate');
+  await page.mouse.click(x, y);
   await ready(page);
 }
 
