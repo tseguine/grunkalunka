@@ -29,6 +29,12 @@ export const livePage = `<!doctype html>
           aria-label="Note outline view" aria-disabled="true" aria-busy="true"
           aria-describedby="session-status session-help">The note view requires canvas support.</canvas>
       </div>
+      <div class="scroll-actions" role="group" aria-label="Scroll outline">
+        <button id="scroll-start" type="button" disabled aria-controls="note-frame">Top</button>
+        <button id="scroll-up" type="button" disabled aria-controls="note-frame">Page up</button>
+        <button id="scroll-down" type="button" disabled aria-controls="note-frame">Page down</button>
+        <button id="scroll-end" type="button" disabled aria-controls="note-frame">Bottom</button>
+      </div>
       <div class="view-actions">
         <button id="reload-note" type="button" disabled aria-describedby="reload-help">Reload note</button>
         <button id="reconnect-view" type="button" disabled hidden>Reconnect</button>
@@ -36,7 +42,7 @@ export const livePage = `<!doctype html>
       </div>
       <p id="session-status" role="status" aria-live="polite" aria-atomic="true">Connecting to your note…</p>
     </section>
-    <p id="session-help">Scroll to see more. With the view focused, use the arrow
+    <p id="session-help">Use the scroll buttons to see more. With the view focused, use the arrow
       or Page Up/Down keys; Home and End jump to the top or bottom. Select the
       outline title to show or hide headings, or press Enter or Space while the title is visible.</p>
     <noscript>JavaScript is required to display this live view.</noscript>
@@ -65,6 +71,9 @@ select:disabled { color: #768078; background: #f4f6f2; }
 canvas { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; padding: 0; border: 0; image-rendering: pixelated; outline: none; }
 canvas[role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
 canvas:focus-visible { outline: 3px solid #2a7760; outline-offset: 5px; }
+.scroll-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.scroll-actions button { min-height: 44px; padding: 8px 10px; }
+.scroll-actions button:not(:disabled) { background: #f4f6f2; color: #2a6552; border-color: #bdcbbf; }
 .view-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 22px; }
 button { padding: 8px 13px; border: 1px solid #2a7760; border-radius: 6px; background: #2a7760; color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
 button:focus-visible { outline: 3px solid #2a7760; outline-offset: 3px; }
@@ -72,5 +81,6 @@ button:disabled { background: #edf1ed; color: #768078; border-color: #dce3db; cu
 #reload-help { margin: 0; color: #66766b; font-size: 12px; line-height: 1.5; }
 #session-status { margin: 22px 0 0; min-height: 20px; color: #53665b; font-size: 13px; line-height: 1.5; }
 #session-help, noscript { display: block; margin: 18px 2px 0; max-width: 58ch; color: #66766b; font-size: 13px; line-height: 1.65; }
+@media (max-width: 520px) { .scroll-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) { main { width: calc(100% - 24px); } .brand { gap: 8px; } }
 `;

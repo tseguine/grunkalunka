@@ -16,8 +16,11 @@ node examples/note-preview/live-run.mjs --profile granted --note ./notes.md
 ```
 
 The command prints a JSON object with a `url`. Open that complete URL in a
-browser. Scroll over the view to reach headings below the frame. With the view
-focused, use Arrow Up/Down or Page Up/Down; Home and End jump to the top or bottom.
+browser. Use **Page up** and **Page down** to move by 160 native pixels, or **Top**
+and **Bottom** to reach either end. These buttons support touch and normal
+keyboard activation without moving focus into the canvas. You can also scroll
+over the view. With the view focused, use Arrow Up/Down or Page Up/Down; Home and
+End jump to the top or bottom.
 Select the **Hide outline** or **Show outline** title inside the native view to
 collapse or reopen it. A focused view also accepts Enter or Space while that
 title is visible. Both send the native host's current title-control point through
@@ -109,7 +112,13 @@ ID. UI denial still permits the independently granted first note to be read and
 displayed at startup.
 
 The browser sends only one input at a time and retains at most one coalesced
-scroll target while a pointer or scroll request is pending. Reload and the note
+scroll target while a pointer or scroll request is pending. The visible scroll
+buttons share this target with wheel and keyboard input. They disable movement
+past either boundary, including the boundary of a pending target; movement in
+the opposite direction can still revise that target. All four buttons are
+disabled during document replacement or synchronization, after a disconnect,
+and when the view is read-only, has no overflow or has exhausted its budget.
+Reload and the note
 chooser are disabled while any request is in flight. Starting either document
 operation discards prior scroll intent, and wheel or scroll-key movement during
 it is not queued against the replacement document. Ignored or pending chooser
@@ -262,8 +271,9 @@ grant separation and mixed-operation exhaustion. A long-note case scrolls to
 both ends, activates a partly clipped native title, checks offscreen hit behavior
 and restores the original pixels. The detached bundle selects and reloads two
 external notes through the same session without build tools. The dependency-free
-browser harness covers wheel modes, keyboard controls, native control points,
-bounded coalescing, reload and selection controls, escaped labels, committed
+browser harness covers wheel modes, keyboard controls, visible scroll buttons
+and their boundary, coalescing and disposal behavior, native control points,
+reload and selection controls, escaped labels, committed
 chooser state, whole-response deadlines, explicit recovery, generation
 regression and late-response retirement; it does not
 execute an independent browser engine. Actual browser QA and hosted results are

@@ -166,6 +166,11 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   const reloadButton = document.getElementById('reload-note');
   const reconnectButton = document.getElementById('reconnect-view');
   const noteChoice = document.getElementById('note-choice');
+  const scrollControls = [
+    ['scroll-start', 'Home'], ['scroll-up', 'PageUp'],
+    ['scroll-down', 'PageDown'], ['scroll-end', 'End'],
+  ].map(([id, key]) => ({ button: document.getElementById(id), key,
+    listener: () => scrollCommand(key) }));
   const context = canvas.getContext('2d', { alpha: false });
   let current = null;
   let busy = true;
@@ -200,6 +205,12 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     noteChoice.disabled = !connected || busy || !current?.canSelectNote || current.remainingEvents === 0;
     noteChoice.setAttribute('aria-busy', String(activeKind === 'select'));
     noteChoice.value = current?.selectedNoteId == null ? '' : String(current.selectedNoteId);
+    const scrolling = mayQueueScroll();
+    const position = scrolling ? scrollBase() : 0;
+    for (const { button, key } of scrollControls) {
+      const towardStart = key === 'Home' || key === 'PageUp';
+      button.disabled = !scrolling || (towardStart ? position === 0 : position >= current.maxScrollY);
+    }
   }
 
   function paint(value) {
@@ -396,6 +407,10 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     return pendingScroll ?? activeScrollTarget ?? current.scrollY;
   }
 
+  function mayQueueScroll() {
+    return mayScroll() && !['reload', 'select', 'sync'].includes(activeKind);
+  }
+
   function flushScroll() {
     if (busy || pendingScroll === null) return;
     const target = pendingScroll;
@@ -406,10 +421,21 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   }
 
   function scrollTo(y) {
-    if (!mayScroll() || activeKind === 'reload' || activeKind === 'select') return;
+    if (!mayQueueScroll()) return;
     // One in-flight request and at most one bounded coalesced target.
     pendingScroll = Math.max(0, Math.min(current.maxScrollY, y));
+    updateControl();
     flushScroll();
+  }
+
+  function scrollCommand(key) {
+    if (!mayQueueScroll()) return;
+    wheelRemainder = 0;
+    const base = scrollBase();
+    const target = key === 'Home' ? 0 : key === 'End' ? current.maxScrollY
+      : base + ({ ArrowUp: -SCROLL_LINE, ArrowDown: SCROLL_LINE,
+        PageUp: -HEIGHT, PageDown: HEIGHT })[key];
+    scrollTo(target);
   }
 
   function wheel(event) {
@@ -439,13 +465,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
       if (!mayScroll()) return;
       event.preventDefault();
-      if (activeKind === 'reload' || activeKind === 'select') return;
-      wheelRemainder = 0;
-      const base = scrollBase();
-      const target = event.key === 'Home' ? 0 : event.key === 'End' ? current.maxScrollY
-        : base + ({ ArrowUp: -SCROLL_LINE, ArrowDown: SCROLL_LINE,
-          PageUp: -HEIGHT, PageDown: HEIGHT })[event.key];
-      scrollTo(target);
+      scrollCommand(event.key);
       return;
     }
     if (!['Enter', ' '].includes(event.key) || !current?.canActivate || current.remainingEvents === 0) return;
@@ -461,6 +481,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   reloadButton.addEventListener('click', reload);
   reconnectButton.addEventListener('click', reconnect);
   noteChoice.addEventListener('change', selectNote);
+  for (const { button, listener } of scrollControls) button.addEventListener('click', listener);
   updateControl();
 
   async function connectView() {
@@ -519,6 +540,7 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
     reloadButton.removeEventListener('click', reload);
     reconnectButton.removeEventListener('click', reconnect);
     noteChoice.removeEventListener('change', selectNote);
+    for (const { button, listener } of scrollControls) button.removeEventListener('click', listener);
     updateControl();
   }
 
