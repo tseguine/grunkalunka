@@ -88,9 +88,6 @@ fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
         "const [first=rest,...rest]=[];return a;",
         "const [...rest]=rest;return a;",
         "const [...rest]=[];rest=[];return a;",
-        "const [...rest]=['text'];return rest[0].trim().length;",
-        "const [...rest]=[[a]];const [[value]]=rest;return a;",
-        "const [...rest]=['text'];const [label='fallback']=rest;return label.trim().length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         let error = on_small_stack(&source, false, false)
@@ -100,12 +97,26 @@ fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
         assert!(error.contains("unsupported"), "{source}: {error}");
         assert!(!error.contains("internal IR"), "{source}: {error}");
     }
-    let typed = "export function run(a:number,b:number){const [...rest]:string[]=['text'];return rest[0].trim().length;}";
-    let error = on_small_stack(typed, false, true)
-        .0
-        .err()
-        .unwrap_or_else(|| panic!("admitted {typed}"));
+    let typed = "export function run(a:number,b:number){const [...rest]:string[]=[a];return rest[0].trim().length;}";
+    let error = on_small_stack(typed, false, true).0.unwrap_err();
     assert!(error.contains("unsupported"), "{error}");
+}
+
+#[test]
+fn rest_indices_keep_proven_record_array_and_string_consumers() {
+    for body in [
+        "const [...rest]=['text'];return rest[0].trim().length;",
+        "const [...rest]=[[a]];const [[value]]=rest;return a;",
+        "const [...rest]=['text'];const [label='fallback']=rest;return label.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, false, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+    let typed = "export function run(a:number,b:number){const [...rest]:string[]=['text'];return rest[0].trim().length;}";
+    assert!(on_small_stack(typed, false, true).0.is_ok());
 }
 
 #[test]

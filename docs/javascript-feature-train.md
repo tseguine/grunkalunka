@@ -177,7 +177,9 @@ receiver's live length while active and stays empty after exhaustion. The rest
 receiver has an Array proof. Iterating it follows the copied suffix through
 aliases and chained rest expressions, including index writes on each array.
 A1 can destructure each heading in the copied list and trim its label. Direct
-indexed reads of the copy still have generic value kinds.
+indexed reads also use the corresponding source position when its kind is
+proven. Missing positions can take binding defaults. Uncertain resizing,
+cyclic sources and incompatible alias writes retain their conservative guards.
 
 Array `for...of` accepts a `const` or `let` identifier or a supported object/array
 pattern, including mixed nesting, identifier rest in arrays and defaults on

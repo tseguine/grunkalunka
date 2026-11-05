@@ -614,7 +614,7 @@ fn imported_handler_uses_an_independent_rest_list_with_shared_heading_values() {
             const source = [{label:' title '},heading,{label:' second '}];
             const [title,...headings] = source;
             source[1] = {label:' replacement '};
-            const retained = headings.at(0) === heading;
+            const retained = headings.at(0) === heading && headings[0].label.trim() === 'first';
             let count = 0;
             for (const {label} of headings) {
                 if (label.trim().length > 0) count++;

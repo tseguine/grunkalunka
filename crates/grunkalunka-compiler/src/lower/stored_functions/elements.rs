@@ -4,10 +4,11 @@ use super::{Alternatives, BTreeMap, BTreeSet, Key, NodeId, Origin, extend, mutat
 #[derive(Default)]
 pub(super) struct Elements {
     // Rest allocation -> (source pattern, number of consumed positions).
-    rest_sources: BTreeMap<NodeId, (NodeId, u32)>,
+    pub(super) rest_sources: BTreeMap<NodeId, (NodeId, u32)>,
     writes: BTreeMap<(NodeId, u32), Alternatives>,
     wildcard_writes: BTreeMap<NodeId, Alternatives>,
     maybe_holes: BTreeSet<NodeId>,
+    pub(super) may_resize: BTreeSet<NodeId>,
 }
 
 impl Elements {
@@ -25,7 +26,8 @@ impl Elements {
         if key.as_slice() == [108, 101, 110, 103, 116, 104] {
             // Growth exposes holes. Shrinking can delete original slots that
             // later writes expose again, so every length write is conservative.
-            return self.maybe_holes.insert(array);
+            let changed = self.maybe_holes.insert(array);
+            return self.may_resize.insert(array) || changed;
         }
         let Some(index) = mutations::array_index(key) else {
             // Named properties are not selected by Array iteration.
@@ -43,7 +45,8 @@ impl Elements {
     pub(super) fn wildcard(&mut self, array: NodeId, values: Alternatives) -> bool {
         // The key could be length or a new index, even while its RHS remains
         // unresolved. Record that structural possibility independently of values.
-        let changed = self.maybe_holes.insert(array);
+        let mut changed = self.maybe_holes.insert(array);
+        changed |= self.may_resize.insert(array);
         extend(&mut self.wildcard_writes, array, values) || changed
     }
 

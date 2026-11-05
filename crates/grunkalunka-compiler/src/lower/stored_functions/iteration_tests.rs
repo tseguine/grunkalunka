@@ -467,7 +467,7 @@ fn binding_defaults_cannot_infer_absence_from_spread_or_intrinsic_members() {
 }
 
 #[test]
-fn array_rest_origins_prove_the_new_receiver_but_keep_indexed_reads_opaque() {
+fn array_rest_origins_distinguish_the_receiver_from_its_copied_positions() {
     for body in [
         "const [head,...rest]=[a,b];const observed=rest;return a;",
         "const {items:[,...rest]=[a,b]}={};const observed=rest;return a;",
@@ -491,9 +491,26 @@ fn array_rest_origins_prove_the_new_receiver_but_keep_indexed_reads_opaque() {
         "const [...rest]=['text'];const observed=rest[0];return a;",
         "const [...rest]=['text'];const [label='fallback']=rest;const observed=label;return a;",
         "const [...rest]=[{label:'text'}];const observed=rest[0].label;return a;",
-        "let [...rest]=[];rest=a;const observed=rest;return a;",
+        "const src=[a,'x'];const [,...tail]=src;const observed=tail[0];return a;",
+        "const [,...tail]=[a,,'x'];const [v='fallback']=tail;const observed=v;return a;",
+        "const src=[a,'x',{label:'ready'}];const [,...mid]=src;const [,...tail]=mid;const observed=tail[0].label;return a;",
+        "const src=['text'];const [...tail]=src;tail[0]=a;const observed=src[0];return a;",
     ] {
-        assert_eq!(observe(body), UNKNOWN, "{body}");
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "let [...rest]=[];rest=a;const observed=rest;return a;",
+        "const [...rest]=Object.keys('x');const observed=rest[0];return a;",
+        "const src=[];const [x=(src[1]='text',a),...rest]=src;const observed=rest[0];return a;",
+        "const src=[a,'text'];const [,...tail]=src;src.length=0;const observed=tail[0];return a;",
+        "const src=[a,{label:'x'}];const [,...tail]=src;tail[0].label=b;const observed=src[1].label;return a;",
+        "const src=[a,'x'];const [...root]=src;const [,...later]=root;const v=a?root:later;const [...end]=v;const observed=end[0];return a;",
+    ] {
+        let observation = observe(body);
+        assert!(
+            (observation.other || observation.undefined) && !observation.string,
+            "{body}: {observation:?}"
+        );
     }
 }
 
