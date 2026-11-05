@@ -216,7 +216,7 @@ function browser({ hash = '#' + token, stored, storageThrows = false } = {}) {
       set innerHTML(_value) { throw new Error('Note labels must use textContent'); } };
   } };
   const click = (overrides = {}) => listeners.get('click')?.({
-    clientX: 78, clientY: 82, button: 0, isPrimary: true, ...overrides,
+    clientX: 78, clientY: 82, button: 0, isPrimary: false, ...overrides,
   });
   function key(key, overrides = {}) {
     let prevented = false;
@@ -345,6 +345,8 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.equal(b.requests[0].credentials, 'omit');
   assert.equal(b.requests[0].mode, 'same-origin');
   assert.equal(b.requests[0].redirect, 'error');
+  assert.equal(b.requests[0].referrerPolicy, 'same-origin');
+  assert.equal(b.requests[0].referrer, '');
   assert.equal(b.painted.length, 1);
   assert.deepEqual([...b.painted[0].data.subarray(0, 4)], [0, 82, 166, 255]);
   assert.equal(b.attributes.get('aria-expanded'), 'true');
@@ -362,6 +364,8 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.equal(b.requests[1].body, '{"x":24,"y":16}');
   assert.equal(b.requests[1].headers['content-type'], 'application/json');
   assert.equal(b.requests[1].headers['x-a1-input-generation'], '1');
+  assert.equal(b.requests[1].referrerPolicy, 'same-origin');
+  assert.equal(b.requests[1].referrer, '');
   input.resolve(response(frame({ sequence: 1, expanded: 0, visibleCount: 0, remainingEvents: 255 })));
   await settle();
   assert.equal(b.painted.length, 2);
@@ -381,13 +385,31 @@ test('client consumes a launch capability, paints native pixels, and serializes 
   assert.equal(b.attributes.get('aria-expanded'), 'false');
   const count = b.requests.length;
   b.click({ button: 2 });
-  b.click({ isPrimary: false });
+  b.click({ button: 1 });
   b.click({ clientX: 670 });
   b.click({ clientY: 370 });
   b.key('Enter', { repeat: true });
   b.key('Escape');
   assert.equal(b.requests.length, count);
   assert.ok(b.focused() > 0);
+});
+
+test('click activation accepts default pointer fields and legacy mouse events while excluding auxiliary buttons', async t => {
+  const b = browser();
+  b.replies.push(response(frame()));
+  const client = startLiveClient(b);
+  t.after(client.dispose);
+  await client.ready;
+  for (const [sequence, isPrimary] of [[1, false], [2, undefined], [3, true]]) {
+    b.replies.push(response(frame({ sequence })));
+    b.click({ isPrimary });
+    await settle();
+    assert.equal(b.requests.length, sequence + 1);
+    assert.equal(b.requests.at(-1).path, '/input');
+    assert.equal(b.requests.at(-1).body, '{"x":24,"y":16}');
+  }
+  for (const button of [1, 2]) b.click({ button });
+  assert.equal(b.requests.length, 4);
 });
 
 test('keyboard activation uses the latest native control point, including a clipped title', async t => {

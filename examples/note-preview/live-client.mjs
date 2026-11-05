@@ -283,7 +283,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
             { 'x-a1-input-generation': String(current.inputGeneration) }) },
         ...(input === undefined ? {} : { body: JSON.stringify(input) }),
         credentials: 'omit', mode: 'same-origin', cache: 'no-store', redirect: 'error',
-        referrerPolicy: 'no-referrer', signal: abort.signal,
+        // Preserve the same-origin POST Origin header; a no-referrer policy
+        // makes it "null" in conforming engines. Suppress Referer explicitly.
+        referrerPolicy: 'same-origin', referrer: '', signal: abort.signal,
       });
       transfer.response = response;
       if (!transfer.active || disposed || activeRequest !== transfer) {
@@ -453,7 +455,9 @@ export function startLiveClient({ window, document, fetch = window.fetch.bind(wi
   }
 
   function pointer(event) {
-    if (event.button !== 0 || event.isPrimary === false) return;
+    // Click uses default PointerEvent fields, including isPrimary=false.
+    // Its primary-button activation is identified by button, not pointer state.
+    if (event.button !== 0) return;
     const input = pointerToNative(event, canvas.getBoundingClientRect());
     if (!input) return;
     canvas.focus();

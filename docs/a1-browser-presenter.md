@@ -60,7 +60,14 @@ The existing artifact `browser-smoke-<engine>` includes:
   rather than used as a pixel-parity assertion.
 
 The output directory must be fresh; the runner does not overwrite earlier
-receipts. Failure writes a failed receipt with completed observations. The local
+receipts. Failure writes a failed receipt with completed observations. Bounded
+failure diagnostics retain the current DOM/status, page and console errors,
+network failures and response statuses, received HTTP origins and Referer presence (including rejected
+requests), committed fixture requests and final state even before the first ready
+frame. A passive click observer records actual event fields without dispatching
+or cancelling input. Launch authority and arbitrary request headers are excluded.
+Diagnostic DOM collection has a separate two-second cleanup bound and does not
+extend any assertion or request deadline. The local
 server bounds source bytes, request bytes, request count, event count, sockets and
 input wait time, and closes its held operations and sockets in cleanup. Each
 browser run owns fresh contexts and an ephemeral loopback origin.

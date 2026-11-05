@@ -11,6 +11,44 @@ import { offsetPresenterPointer, readPresenterAssets, startA1PresenterFixture } 
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const TIMEOUT = 10_000;
+const DIAGNOSTIC_LIMIT = 128;
+
+function diagnosticUrl(value) {
+  const url = new URL(value);
+  return { url: url.origin + url.pathname,
+    hadQuery: Boolean(url.search), hadFragment: Boolean(url.hash) };
+}
+
+async function observeClicks(page) {
+  await page.addInitScript(() => {
+    const events = [];
+    Object.defineProperty(window, '__a1PresenterObservedClicks', { value: events });
+    document.addEventListener('click', event => {
+      if (events.length === 64) return;
+      events.push({ target: event.target?.id ?? '', button: event.button, buttons: event.buttons,
+        isPrimary: event.isPrimary ?? null, pointerType: event.pointerType ?? null,
+        pointerId: event.pointerId ?? null, isTrusted: event.isTrusted,
+        clientX: event.clientX, clientY: event.clientY });
+    }, { capture: true, passive: true });
+  });
+}
+
+async function diagnosticView(page) {
+  let timer;
+  try {
+    return await Promise.race([
+      page.evaluate(() => ({ readyState: document.readyState, title: document.title,
+        url: location.href, bodyText: document.body?.innerText.slice(0, 1600) ?? '',
+        status: document.getElementById('session-status')?.textContent ?? null,
+        canvas: document.getElementById('note-frame')?.outerHTML ?? null,
+        activeElement: document.activeElement?.id ?? '',
+        clicks: window.__a1PresenterObservedClicks ?? [] })),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Diagnostic DOM deadline')), 2_000);
+      }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
 
 async function ready(page) {
   await page.waitForFunction(() =>
@@ -94,20 +132,49 @@ export async function runA1Presenter(engine, { browserTypes, playwrightVersion, 
       'tools/browser-oracles/hosted/a1-presenter.test.mjs',
     ].map(async path => ({ path,
       sha256: createHash('sha256').update(await readFile(join(root, path))).digest('hex') }))),
-    stages: [], controls: [], status: 'incomplete' };
+    stages: [], controls: [], status: 'incomplete',
+    diagnostics: { pageErrors: [], consoleErrors: [], network: [], requestFailures: [] } };
   let browser;
   let fixture;
   let controlFixture;
+  let page;
+  let controlPage;
+  const retain = (array, value) => { if (array.length < DIAGNOSTIC_LIMIT) array.push(value); };
+  const observeNetwork = (observedPage, context) => {
+    observedPage.on('pageerror', error =>
+      retain(receipt.diagnostics.pageErrors, { context, message: error.message }));
+    observedPage.on('console', message => {
+      if (message.type() === 'error') retain(receipt.diagnostics.consoleErrors,
+        { context, message: message.text().slice(0, 1600) });
+    });
+    observedPage.on('request', request => {
+      const headers = request.headers();
+      retain(receipt.diagnostics.network, { context, kind: 'request',
+        ...diagnosticUrl(request.url()), method: request.method(),
+        origin: headers.origin ?? null, refererPresent: headers.referer !== undefined,
+        contentType: headers['content-type'] ?? null });
+    });
+    observedPage.on('response', response => retain(receipt.diagnostics.network,
+      { context, kind: 'response', ...diagnosticUrl(response.url()), status: response.status() }));
+    observedPage.on('requestfailed', request => retain(receipt.diagnostics.requestFailures,
+      { context, ...diagnosticUrl(request.url()), method: request.method(),
+        error: request.failure()?.errorText ?? null }));
+  };
+  const retainView = async (name, observedPage) => {
+    if (!observedPage || observedPage.isClosed()) return;
+    try { receipt.diagnostics[name] = await diagnosticView(observedPage); }
+    catch (error) { receipt.diagnostics[name] = { error: error.message }; }
+  };
   try {
     browser = await browserTypes[engine].launch({ headless: true, timeout: 20_000,
       ...(executablePath === undefined ? {} : { executablePath }) });
     receipt.browserVersion = browser.version();
     const context = await browser.newContext({ viewport: { width: 1000, height: 800 },
       deviceScaleFactor: 1, hasTouch: true });
-    const page = await context.newPage();
+    page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT);
-    const pageErrors = [];
-    page.on('pageerror', error => pageErrors.push(error.message));
+    observeNetwork(page, 'production');
+    await observeClicks(page);
     fixture = await startA1PresenterFixture();
     receipt.productionSources = fixture.provenance;
     const networkUrls = [];
@@ -301,11 +368,12 @@ export async function runA1Presenter(engine, { browserTypes, playwrightVersion, 
     assertPixels(await record('generation-reconciled'), [20, 40, 60]);
     assert.equal(fixture.state().inputGeneration, 5);
     assert.equal(fixture.state().sequence, beforeStale);
-    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(receipt.diagnostics.pageErrors, []);
     assert.ok(networkUrls.every(url => !url.includes('#') && !url.includes('?') &&
       !url.includes(new URL(fixture.url).hash.slice(1))), 'session authority never enters request URLs');
     receipt.requests = fixture.observations();
     receipt.finalState = fixture.state();
+    await retainView('productionView', page);
     await page.screenshot({ path: join(output, 'presenter.png'), fullPage: true });
     await context.close();
 
@@ -313,8 +381,10 @@ export async function runA1Presenter(engine, { browserTypes, playwrightVersion, 
     controlFixture = await startA1PresenterFixture({ clientSource: offsetPresenterPointer(assets.client) });
     const controlContext = await browser.newContext({ viewport: { width: 1000, height: 800 },
       deviceScaleFactor: 1, hasTouch: true });
-    const controlPage = await controlContext.newPage();
+    controlPage = await controlContext.newPage();
     controlPage.setDefaultTimeout(TIMEOUT);
+    observeNetwork(controlPage, 'source-control');
+    await observeClicks(controlPage);
     await controlPage.goto(controlFixture.url, { waitUntil: 'domcontentloaded' });
     await ready(controlPage);
     await pointer(controlPage);
@@ -325,6 +395,8 @@ export async function runA1Presenter(engine, { browserTypes, playwrightVersion, 
     assert.deepEqual(controlFixture.provenance.sources, fixture.provenance.sources);
     receipt.controls.push({ name: 'served-pointer-x-plus-one', expectedOriginal: { x: 24, y: 16 },
       observed: changed, detected: true, sources: controlFixture.provenance });
+    await retainView('controlView', controlPage);
+    assert.deepEqual(receipt.diagnostics.pageErrors, []);
     await controlContext.close();
     receipt.status = 'passed';
     return receipt;
@@ -334,6 +406,22 @@ export async function runA1Presenter(engine, { browserTypes, playwrightVersion, 
     throw error;
   } finally {
     try {
+      // Keep diagnostics before closing contexts, including failures before the
+      // first ready frame. Diagnostic failures never replace the original error.
+      receipt.requests = fixture?.observations() ?? [];
+      receipt.finalState = fixture?.state() ?? null;
+      receipt.diagnostics.fixtureRequests = fixture?.requestHistory() ?? [];
+      receipt.diagnostics.controlRequests = controlFixture?.requestHistory() ?? [];
+      receipt.diagnostics.controlState = controlFixture?.state() ?? null;
+      for (const [name, observedPage] of [['productionView', page], ['controlView', controlPage]]) {
+        await retainView(name, observedPage);
+      }
+      // An initial module failure may leave the launch fragment intact. Preserve
+      // its presence as evidence without retaining the ephemeral capability.
+      for (const name of ['productionView', 'controlView']) {
+        const view = receipt.diagnostics[name];
+        if (view?.url) Object.assign(view, diagnosticUrl(view.url));
+      }
       const cleanup = await Promise.allSettled([browser?.close(), controlFixture?.close(), fixture?.close()]);
       const failures = cleanup.filter(result => result.status === 'rejected');
       if (failures.length) {
@@ -342,7 +430,12 @@ export async function runA1Presenter(engine, { browserTypes, playwrightVersion, 
         throw new Error('Presenter browser or fixture cleanup failed');
       }
     } finally {
-      await writeFile(join(output, 'observations.json'), JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
+      const authorities = [fixture, controlFixture].filter(Boolean)
+        .map(server => new URL(server.url).hash.slice(1));
+      const json = JSON.stringify(receipt, (_key, value) => typeof value === 'string'
+        ? authorities.reduce((message, token) => message.replaceAll(token, '[session authority]'), value)
+        : value, 2);
+      await writeFile(join(output, 'observations.json'), json + '\n', { flag: 'wx' });
     }
   }
 }

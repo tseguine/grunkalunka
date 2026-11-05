@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { offsetPresenterPointer, readPresenterAssets, startA1PresenterFixture } from './a1-presenter-fixture.mjs';
 import { runA1Presenter } from './a1-presenter.mjs';
@@ -88,4 +91,73 @@ test('real presenter runner requires an explicit independent engine and output',
   await assert.rejects(runA1Presenter('chromium'), /Explicit browser engine/);
   await assert.rejects(runA1Presenter('invented', { browserTypes: {}, playwrightVersion: '1',
     outputDir: 'unused' }), /Explicit browser engine/);
+});
+
+test('fixture transport history retains rejected origins without recording session authority', async t => {
+  const { server } = await fixture(t);
+  const token = new URL(server.url).hash.slice(1);
+  const denied = await fetch(server.origin + '/sync', { method: 'POST',
+    headers: { origin: 'null', 'content-type': 'application/json', 'x-a1-session': token }, body: '{}' });
+  assert.equal(denied.status, 403);
+  await denied.arrayBuffer();
+  assert.deepEqual(server.observations(), []);
+  const [received] = server.requestHistory();
+  assert.deepEqual([received.method, received.path, received.origin, received.status],
+    ['POST', '/sync', 'null', 403]);
+  assert.equal(received.refererPresent, false);
+  assert.ok(!JSON.stringify(server.requestHistory()).includes(token));
+  assert.equal(server.state().sequence, 0);
+});
+
+test('an early controlled page failure retains diagnostics and closes the real fixture', async t => {
+  // This unit test checks failure reporting only. The stub is not browser evidence.
+  const directory = await mkdtemp(join(tmpdir(), 'a1-presenter-diagnostics-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const listeners = new Map();
+  let visited;
+  let closed = false;
+  let observerInstalled = false;
+  const page = {
+    setDefaultTimeout() {},
+    on(name, callback) { listeners.set(name, [...(listeners.get(name) ?? []), callback]); },
+    async addInitScript() { observerInstalled = true; },
+    isClosed: () => closed,
+    async evaluate() { return { readyState: 'interactive', url: visited,
+      status: 'Connecting to your note…', canvas: '<canvas id="note-frame"></canvas>', clicks: [] }; },
+    async goto(url) {
+      visited = url;
+      const denied = await fetch(new URL('/sync', url), { method: 'POST',
+        headers: { origin: 'null', 'content-type': 'application/json' }, body: '{}' });
+      await denied.arrayBuffer();
+      for (const listener of listeners.get('pageerror')) listener(new Error('controlled script failure'));
+      for (const listener of listeners.get('requestfailed')) listener({
+        url: () => new URL('/client.mjs', url).href, method: () => 'GET',
+        failure: () => ({ errorText: 'controlled request failure' }),
+      });
+      throw new Error('controlled navigation failure');
+    },
+  };
+  const browserTypes = { chromium: { launch: async () => ({
+    version: () => 'controlled test stub',
+    newContext: async () => ({ newPage: async () => page }),
+    close: async () => { closed = true; },
+  }) } };
+  const outputDir = join(directory, 'receipt');
+  await assert.rejects(runA1Presenter('chromium', { browserTypes,
+    playwrightVersion: 'controlled test stub', outputDir }), /controlled navigation failure/);
+  assert.equal(closed, true);
+  assert.equal(observerInstalled, true);
+  const source = await readFile(join(outputDir, 'observations.json'), 'utf8');
+  const receipt = JSON.parse(source);
+  assert.equal(receipt.status, 'failed');
+  assert.deepEqual(receipt.stages, []);
+  assert.equal(receipt.finalState.sequence, 0);
+  assert.deepEqual(receipt.requests, []);
+  assert.equal(receipt.diagnostics.fixtureRequests[0].status, 403);
+  assert.equal(receipt.diagnostics.productionView.status, 'Connecting to your note…');
+  assert.equal(receipt.diagnostics.productionView.hadFragment, true);
+  assert.equal(receipt.diagnostics.pageErrors[0].message, 'controlled script failure');
+  assert.equal(receipt.diagnostics.requestFailures[0].error, 'controlled request failure');
+  assert.ok(!source.includes(new URL(visited).hash.slice(1)));
+  await assert.rejects(fetch(new URL('/', visited)), /fetch failed/);
 });

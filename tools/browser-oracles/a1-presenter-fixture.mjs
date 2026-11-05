@@ -64,6 +64,7 @@ export async function startA1PresenterFixture({ clientSource } = {}) {
   }
   const token = randomBytes(32).toString('base64url');
   const history = [];
+  const transport = [];
   const state = { sequence: 0, inputGeneration: 0, expanded: 1, selectedNoteId: 0,
     scrollY: 0, revisions: [0, 0] };
   const sockets = new Set();
@@ -110,6 +111,20 @@ export async function startA1PresenterFixture({ clientSource } = {}) {
 
   async function handle(request, response) {
     if (++requests > MAX_REQUESTS) return send(response, 429, { error: 'Fixture request limit' });
+    // Preserve rejected requests as well as committed inputs. Never record the
+    // session capability, arbitrary headers or request bodies in this trace.
+    const received = { method: request.method,
+      path: new URL(request.url, origin).pathname,
+      origin: request.headers.origin ?? null, host: request.headers.host ?? null,
+      refererPresent: request.headers.referer !== undefined,
+      contentType: request.headers['content-type'] ?? null,
+      requestGeneration: request.headers[generationHeader] ?? null, status: null };
+    transport.push(received);
+    response.once('finish', () => { received.status = response.statusCode; });
+    response.once('close', () => {
+      received.status = response.headersSent ? response.statusCode : null;
+      received.truncated = !response.writableFinished;
+    });
     if (request.headers.host !== new URL(origin).host ||
         (request.headers.origin !== undefined && request.headers.origin !== origin)) {
       return send(response, 403, { error: 'Fixture authority' });
@@ -202,6 +217,7 @@ export async function startA1PresenterFixture({ clientSource } = {}) {
     provenance: { sources: assets.sources, served: {
       html: sha256(assets.page), css: sha256(assets.styles), client: sha256(client) } },
     observations: () => structuredClone(history),
+    requestHistory: () => structuredClone(transport),
     state: () => structuredClone(state),
     loseNextInputReply() { loseInputReply = true; },
     advanceGeneration() { state.inputGeneration++; },
