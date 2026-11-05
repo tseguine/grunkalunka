@@ -54,6 +54,7 @@ export function assertLayoutRehearsal(choice) {
     'check:a1-live-session',
     'check:a1-note-preview',
     'check:a1-service-interaction',
+    'check:a1-session-transport',
     'check:workspace-clippy',
     'check:workspace-format',
     'check:workspace-tests',
@@ -71,6 +72,7 @@ export function assertLayoutRehearsal(choice) {
     ['node', '--test', 'tests/applications/a1-service-interaction.test.mjs'],
     ['node', '--test', 'tests/applications/a1-interaction-run.test.mjs'],
     ['node', '--test', 'tests/applications/a1-live-session.test.mjs'],
+    ['node', '--test', 'tests/applications/a1-session-transport.test.mjs'],
     ['node', '--test', 'tests/applications/a1-live-client.test.mjs',
       'tests/applications/a1-live-run.test.mjs'],
   ], 'the rehearsal must execute the independent build and A1 command contract');

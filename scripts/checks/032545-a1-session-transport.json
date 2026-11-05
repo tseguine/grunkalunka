@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/applications/a1-session-transport.test.mjs"
+  ]
+}
