@@ -103,9 +103,12 @@ Reload preserves expansion preference through an empty note and clamps the old
 scroll position to the new native extent. The existing shared attempt sequence
 orders reload results, so no separate document revision counter is introduced.
 
-A different-ID selection stages the document and native frame with scroll zero,
-preserves expansion preference, and commits the selected ID with that frame. A
-different ID counts as changed even when both documents have identical bytes.
+A different-ID selection stages the document and native frame with that note's
+retained expansion preference and scroll position, clamped to the reread source's
+native extent. An unvisited note starts at the top with the original launch
+preference. It commits the selected ID with that frame and saves the departing
+note's reading state only after success. A different ID counts as changed even
+when both documents have identical bytes.
 Failed selection leaves reload attached to the previous committed ID; no mutable
 worker-side candidate path can redirect it. Selecting the current ID performs no
 file read, while reload explicitly reopens its fixed launch path.

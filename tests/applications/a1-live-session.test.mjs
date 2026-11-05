@@ -617,7 +617,7 @@ test('selection, reload, scroll and pointers share FIFO transport IDs and lifeti
   { timeout: 120_000 }, async t => {
     const longNote = Array.from({ length: 64 }, (_, i) => '# Catalog heading ' + i).join('\n') + '\n';
     const { active, notes } = await catalogSession(t, ['# First\n', longNote],
-      { maxPending: 4, maxEvents: 9 });
+      { maxPending: 4, maxEvents: 10 });
     const initial = active.snapshot();
     const operations = [active.selectNote(1), active.reload(),
       active.scrollTo(0xffffffff), active.activate(pointer)];
@@ -634,18 +634,21 @@ test('selection, reload, scroll and pointers share FIFO transport IDs and lifeti
     assert.deepEqual([back.sequence, active.snapshot().selectedNoteId,
       active.snapshot().scrollY, active.snapshot().visibleCount], [5, 0, 0, 1]);
     assert.equal((await active.selectNote(1)).sequence, 6);
+    assert.deepEqual([active.snapshot().scrollY, active.snapshot().controlPoint],
+      [results[2].scrollY, null], 'the worker restores the selected note at its retained reading position');
+    assert.equal((await active.scrollTo(0)).sequence, 7);
     assert.equal((await active.activate(active.snapshot().controlPoint)).expanded, 0);
     const reopened = await active.activate(active.snapshot().controlPoint);
-    assert.deepEqual([reopened.sequence, reopened.service.visible, reopened.after.visibleCount], [8, 64, 64]);
+    assert.deepEqual([reopened.sequence, reopened.service.visible, reopened.after.visibleCount], [9, 64, 64]);
     await rm(notes[1]);
     const same = await active.selectNote(1);
-    assert.deepEqual([same.sequence, same.status, same.changed], [9, 'ok', false],
+    assert.deepEqual([same.sequence, same.status, same.changed], [10, 'ok', false],
       'same selection must not reopen the now-missing file');
     await rm(notes[0]);
     await assert.rejects(active.selectNote(0), { code: 'A1_EVENT_LIMIT' });
     await assert.rejects(active.reload(), { code: 'A1_EVENT_LIMIT' });
     assert.equal(active.snapshot().selectedNoteId, 1);
-    assert.equal(active.snapshot().eventsProcessed, 9);
+    assert.equal(active.snapshot().eventsProcessed, 10);
   });
 
 test('failed selection leaves reload attached to the committed path and permits recovery',

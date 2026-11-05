@@ -665,7 +665,7 @@ test('owned note selection reads fixed real WIT notes and shares the lifetime in
     assert.deepEqual([refreshed.sequence, refreshed.changed, active.snapshot().scrollY], [6, false, 16]);
     assert.equal(active.selectNote(0).sequence, 7);
     assert.deepEqual([active.snapshot().selectedNoteId, active.snapshot().visibleCount,
-      active.snapshot().scrollY], [0, 2, 0], 'switching notes starts at the top');
+      active.snapshot().scrollY], [0, 2, 0], 'the short note restores its original position');
     assert.deepEqual(active.snapshot().pixels, initial.pixels);
     const shortAction = active.activate(active.snapshot().controlPoint);
     assert.deepEqual([shortAction.sequence, shortAction.service.permittedCount], [8, 2]);
@@ -790,7 +790,7 @@ test('owned selection rejects unknown IDs before admission and counts same-ID no
   assert.equal(loads, 0);
 });
 
-test('owned selection preserves expansion through empty notes and resets only switched-note scrolling',
+test('owned selection restores each note preference and position through empty notes',
   { timeout: 180_000 }, () => {
     const empty = { profile: 'granted', sourceBytes: Buffer.alloc(0), headings: [], backingReads: 1 };
     const notes = [longDocument, empty, document];
@@ -808,20 +808,28 @@ test('owned selection preserves expansion through empty notes and resets only sw
     assert.match(blank.scene.html, /No headings/);
     active.selectNote(0);
     assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
-      active.snapshot().scrollY], [1, 64, 0]);
-    active.scrollTo(16);
+      active.snapshot().scrollY], [1, 64, 16]);
+    assert.deepEqual(active.snapshot().pixels, scrolled.pixels);
     assert.equal(active.reload().changed, false);
     assert.equal(active.snapshot().scrollY, 16, 'same-note reload retains its clamped offset');
 
     active.activate(active.snapshot().controlPoint);
-    active.selectNote(1);
     active.selectNote(2);
     assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
-      active.snapshot().scrollY], [0, 0, 0], 'a committed collapse survives switching through an empty note');
+      active.snapshot().scrollY], [1, 2, 0], 'an unvisited note uses the original launch preference');
     assert.equal(active.activate(active.snapshot().controlPoint).service.permittedCount, 2);
     active.selectNote(1);
+    notes[1] = document;
+    active.reload();
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount], [1, 2],
+      'an empty note retains its own preference rather than another note collapse');
     active.selectNote(0);
-    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount], [1, 64]);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
+      active.snapshot().scrollY], [0, 0, 0], 'the long note remembers its own committed collapse');
+    active.activate(active.snapshot().controlPoint);
+    active.selectNote(2);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount], [0, 0],
+      'the short note has an independent collapsed preference');
 
     for (const expanded of [0, 1]) {
       const initiallyEmpty = session({ document: empty, expanded,
@@ -830,6 +838,85 @@ test('owned selection preserves expansion through empty notes and resets only sw
       initiallyEmpty.selectNote(1);
       assert.equal(initiallyEmpty.snapshot().expanded, expanded);
     }
+  });
+
+test('owned selection clamps saved positions to edited notes without restoring an obsolete offset', () => {
+  const notes = [longDocument, longDocument];
+  const active = session({ document: longDocument,
+    noteSelection: { labels: ['First', 'Second'], selectedId: 0, load: id => notes[id] } });
+  active.scrollTo(480);
+  const first = active.snapshot();
+  active.selectNote(1);
+  assert.equal(active.snapshot().scrollY, 0, 'a new identity starts at the top despite identical bytes');
+  active.scrollTo(64);
+  active.selectNote(0);
+  assert.deepEqual([active.snapshot().scrollY, active.snapshot().pixels], [480, first.pixels]);
+
+  notes[1] = document;
+  active.selectNote(1);
+  assert.deepEqual([active.snapshot().expanded, active.snapshot().visibleCount,
+    active.snapshot().scrollY, active.snapshot().maxScrollY], [1, 2, 0, 0],
+  'a newly shorter destination clamps its saved position before native publication');
+  active.selectNote(0);
+  assert.equal(active.snapshot().scrollY, 480, 'the other saved position remains independent');
+  notes[1] = longDocument;
+  active.selectNote(1);
+  assert.equal(active.snapshot().scrollY, 0, 'successful clamping becomes the next retained position');
+});
+
+test('failed selection stages preserve every saved reading state as well as the current native frame',
+  { timeout: 180_000 }, t => {
+    const notes = [longDocument, longDocument, longDocument];
+    let failure;
+    const active = session({ document: longDocument,
+      noteSelection: { labels: ['First', 'Second', 'Third'], selectedId: 0, load: id => {
+        if (failure === 'load') throw new Error('injected saved-note load failure');
+        if (failure === 'validation') return { ...document, sourceBytes: Buffer.alloc(4097) };
+        return notes[id];
+      } } });
+    active.scrollTo(16);
+    const first = active.snapshot();
+    active.selectNote(1);
+    active.activate(active.snapshot().controlPoint);
+    const second = active.snapshot();
+    active.selectNote(2);
+    active.scrollTo(32);
+    const third = active.snapshot();
+    let sequence = third.eventsProcessed;
+
+    // A candidate would clamp the first note's saved offset if it committed.
+    // Each failing stage must leave that earlier position available instead.
+    notes[0] = document;
+    for (const phase of ['load', 'validation', '--view', '--ppm']) {
+      failure = phase;
+      const actualSpawn = childProcess.spawnSync;
+      const intercepted = t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+        if (command === executable && args[0] === phase) {
+          return { error: new Error('injected saved-note native failure') };
+        }
+        return actualSpawn(command, args, options);
+      });
+      syncBuiltinESMExports();
+      try {
+        assert.throws(() => active.selectNote(0),
+          /injected saved-note|bounded authorized A1 document/);
+      } finally {
+        intercepted.mock.restore();
+        syncBuiltinESMExports();
+      }
+      assert.deepEqual(active.snapshot(), { ...third, eventsProcessed: ++sequence });
+    }
+    failure = undefined;
+    notes[0] = longDocument;
+    active.selectNote(1);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().scrollY, active.snapshot().pixels],
+      [0, 0, second.pixels], 'failed attempts do not change a third-party saved preference');
+    active.selectNote(0);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().scrollY, active.snapshot().pixels],
+      [1, 16, first.pixels], 'failed candidate clamping cannot replace its saved offset');
+    active.selectNote(2);
+    assert.deepEqual([active.snapshot().expanded, active.snapshot().scrollY, active.snapshot().pixels],
+      [1, 32, third.pixels], 'the previously current view remains restorable after recovery');
   });
 
 test('different note IDs commit identity even when their document bytes and pixels match', () => {

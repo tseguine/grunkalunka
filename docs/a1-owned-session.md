@@ -95,7 +95,8 @@ is a counted `status: 'ok'`, `changed: false` no-op that invokes no loader.
 For a different ID, the fixed loader receives only that ordinal. The replacement
 must preserve the original document profile. The session validates and copies
 its bytes and heading records, prepares the scene and native extent, and paints
-at scroll offset zero. Only then does it publish the new selected ID, document,
+at the note's retained position, clamped to that extent. Only then does it publish
+the new selected ID, document,
 heading count, expansion, scene, viewport, control point and pixels together.
 Switching identity reports `changed: true` even when both documents have identical
 bytes and pixels. Selecting another note does not invoke or replace the source
@@ -103,11 +104,25 @@ handler, reset the input budget, or change either grant.
 
 Read, validation and native inspection or paint failures consume the admitted
 attempt but preserve the entire preceding document and view, including the
-selected ID. A later `reload()` therefore reads the last successfully selected
-note. Switching notes preserves the global expansion preference: passing through
-an empty note does not lose an expanded or explicitly collapsed state. A successful
-selection always begins at the top; selecting the current ID leaves its offset
-untouched.
+selected ID and every saved reading state. A later `reload()` therefore reads
+the last successfully selected note.
+
+Each catalog identity retains its own expansion preference and scroll position
+when a switch successfully commits. A first visit starts at the top using the
+original `expanded` launch preference; it does not inherit another note's later
+collapse. Returning to a visited note rereads its authorized source, restores
+that note's preference, and clamps the saved position against its current native
+extent. The resulting clamped offset becomes the position retained on the next
+successful departure. An empty note displays no headings while keeping its own
+preference for a later nonempty reload. Selecting the current ID still leaves its
+view untouched without rereading or restoring older state.
+
+Only the fixed catalog's one to eight reading states are retained in this session.
+They contain two scalar values each, are never exposed through snapshots, and do
+not persist to disk or retain previous document bytes. Identical document contents
+under different catalog IDs have independent preferences and positions. Failed
+loading, validation, inspection or paint cannot save a partial destination or
+alter any other note's remembered view.
 
 The catalog is supplied by the trusted host. Ordinals are bounded handles into
 that fixed catalog, not paths or independent filesystem grants. The loader must
@@ -137,7 +152,7 @@ WIT failures, invalid profiles and
 native inspection or paint failures consume the attempt while preserving the
 complete previous committed document and view. A later input can recover.
 
-The session retains the initial expansion preference and updates it only when a
+The active note retains its expansion preference and updates it only when a
 source-service transition commits successfully. A reload or selection with no headings shows
 `No headings.`, expansion zero and no control, but preserves that preference. A
 later nonempty reload therefore reopens an outline that was expanded before the
@@ -190,6 +205,10 @@ inspection or paint. Selection cases exercise real WIT reads of both notes,
 source actions with the replacement heading count, independent grants, copied
 bounded catalogs, counted same-ID no-ops, invalid IDs, shared quotas, identical
 content with different identities, empty-note preference and scroll behavior.
+Returning to each note checks its own saved preference and native pixels;
+shortened documents clamp only their own positions. A three-note failure sequence
+checks that load, validation, inspection and paint failures preserve every saved
+view before later successful switches restore them.
 Fault-injection cases fail a switch to B, edit A, then reload A to verify that a
 failed selection cannot redirect future reads or replace the committed count.
 The existing `note-preview.test.mjs` suite compares the
