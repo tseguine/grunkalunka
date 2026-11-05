@@ -144,44 +144,51 @@ position arguments. Everyday bindings/iteration and synchronous source errors
 remain the broader next feature families; completing every String builtin is
 not a prerequisite.
 
-## Everyday object bindings
+## Everyday bindings and iteration
 
-Flat local object binding declarations now extract source-owned record fields
-through the existing managed property lane. Shorthand, renaming and literal
-keys preserve one initializer evaluation and ordered lexical initialization.
-Selected String/container facts remain available to helpers and captures;
-source annotations do not prove those kinds. See
-[the binding contract](object-binding-patterns.md) and the managed binding and
-suspension suites for the admitted surface and its limits.
+Local `const` and `let` declarations now extract nested records and lists through
+mixed object/array binding patterns. Object shorthand, renaming and literal keys
+compose with array elisions, empty patterns and lazy identifier-leaf defaults.
+The same declaration path works in ordinary blocks, helpers, supported async
+activations and traditional `for` initializers. See
+[object bindings](object-binding-patterns.md) and
+[array bindings](array-binding-patterns.md) for the admitted surface and its
+differential coverage.
 
-Identifier-leaf defaults now run only for Undefined and complete before the next
-field is read. They retain the original RHS object across source rebinding and
-supported suspension, preserve earlier-binding visibility, and stop on abrupt
-completion. Unknown field origins remain conservative even with a default.
+The initializer executes once. Each selected nested receiver is saved while
+its leaves finish in source order, so source rebinding or replacement of a parent
+field cannot redirect a selection already in progress. Defaults run only for
+Undefined and complete before the next selection, including across supported
+suspension. Earlier leaves are visible to later defaults; abrupt completion
+stops the remaining pattern.
 
-Flat array declarations now provide the corresponding list extraction with
-identifier leaves, elisions and empty patterns. Lazy defaults observe live
-length until the intrinsic iterator finishes, preserve that exhaustion through
-later growth, and retain the original array across rebinding or suspension.
-They evaluate a proven managed array once, preserve source order and retain
-the existing managed-value, capture and source-local-budget boundaries. See
-[array binding declarations](array-binding-patterns.md) for the intrinsic
-iterator scope and differential coverage.
+Every array pattern has independent intrinsic-iterator state, even when two
+patterns consume the same array object. It observes live length until exhaustion
+and then stays finished through later growth. A default in a descendant pattern
+can change an ancestor array's length; the ancestor observes that change on its
+next active step. Inner exhaustion does not finish a parent or sibling pattern.
 
-Array `for...of` now supports lexical identifier heads, live length, sparse
-values and one original RHS evaluation. Body-owned initialization preserves
-fresh captured cells for each iteration, and existing completion machinery
-handles unlabelled loop control and supported suspension. See
-[array iteration](array-iteration.md) for its intrinsic-array admission.
-Conservative element origins now permit String operations, record fields and
-nested array iteration when every possible selected value has the required
-kind. Alias writes, holes and length changes retain unknown alternatives, and
-the selected value stays boxed without numeric unboxing.
+Array `for...of` accepts a `const` or `let` identifier or a supported object/array
+pattern, including mixed nesting and identifier-leaf defaults. It evaluates the
+iterable once and initializes every head leaf before entering the body. Captured
+leaves receive fresh cells each iteration. Existing completion machinery handles
+unlabelled loop control and supported suspension in the RHS, head defaults or
+body. See [array iteration](array-iteration.md) for its intrinsic-array scope.
 
-Nested patterns and additional iteration binding forms remain follow-on
-slices. This compiler work does not alter the concurrent A1 application's
-session, native view, service or packaging interfaces, or the browser stream's
-native layout and engine-oracle work.
+Every object or array receiver, including an empty nested pattern, needs a
+positive source proof of its required kind. String/container facts remain
+available to helpers and captures, while alias writes, missing values and unknown
+alternatives remain conservative. An annotation or default does not erase an
+unknown alternative. Selected Numbers stay boxed; this work adds no numeric
+unboxing. Pattern preparation and lowering remain iterative, with the existing
+128-local budget counting leaves and a shared 128-level container nesting limit.
+
+Whole-pattern defaults, rest bindings, parameter and assignment patterns, dynamic
+object keys, primitive RHS coercion and general iterators remain follow-on work.
+`for-in`, `for await...of` and `var` or assignment loop heads are also outside this
+slice. The compiler work does not alter the concurrent A1 application's session,
+native view, service or packaging interfaces, or the browser stream's native
+layout and engine-oracle work.
 
 ## Synchronous source errors
 
@@ -213,6 +220,13 @@ through [#480](https://github.com/tseguine/grunkalunka/pull/480), covers the ser
 host, source-driven input/repaint path and readable text. Its application-level
 execution evidence and acceptance are tracked there; this language stack adds
 authoring capabilities and composition coverage against the existing service.
+
+The source-import composition suite now includes a helper that binds a nested
+action record and a handler that extracts grouped headings, destructures each
+heading during iteration and applies a lazy enabled default. The compiled source
+derives scalar arguments for the existing Rust WIT service; its records and
+arrays stay within the guest. These cases exercise the new authoring surface
+without introducing a typed public A1 payload or resource boundary.
 
 Application validation and acceptance for source-imported input, the shared
 state/reflow/repaint path, readable glyphs and equivalent native Rust behavior

@@ -549,3 +549,38 @@ fn unsupported_module_and_import_forms_remain_rejected() {
         assert!(compile_ui_import(&input, false).is_err(), "{input}");
     }
 }
+
+#[test]
+fn imported_handler_reads_nested_action_records_before_the_service_call() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        function apply(action, count) {
+            const {view:{expanded},meta:{label}} = action;
+            const invoke = () => choose(expanded && label.trim().length > 0 ? 1 : 0, count);
+            return +invoke();
+        }
+        export function run(a, b) {
+            return apply({view:{expanded:a > 0},meta:{label:' outline '}}, b);
+        }"#,
+    );
+}
+
+#[test]
+fn imported_handler_iterates_nested_heading_records_with_source_defaults() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const action = {
+                view:{expanded:a > 0},
+                groups:[[{label:' one '},{label:' two ',enabled:true}]]
+            };
+            const {view:{expanded},groups:[headings]} = action;
+            let count = 0, defaults = 0;
+            for (const {label,enabled=(defaults++,true)} of headings) {
+                if (enabled && label.trim().length > 0) count++;
+            }
+            const invoke = () => choose(expanded && defaults === 1 ? 1 : 0, count);
+            return +invoke();
+        }"#,
+    );
+}

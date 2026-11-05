@@ -30,6 +30,38 @@ Number-only. Known primitives retain those layouts; the separate managed-object
 path boxes values only at managed boundaries and adds traced reference cells.
 See the [bounded source contract](#immutable-boolean-predicate-locals).
 
+## Managed bindings and iteration
+
+Local `const` and `let` declarations support nested and mixed
+[object](object-binding-patterns.md) and [array](array-binding-patterns.md) binding
+patterns, including identifier-leaf defaults, literal object keys, array elisions
+and empty patterns. They work in ordinary declarations and traditional `for`
+initializers. [Intrinsic-array `for...of`](array-iteration.md) also accepts these
+patterns in a `const` or `let` head, completing every leaf before the loop body
+and allocating fresh cells for captured leaves each iteration.
+
+An initializer or iterable expression executes once. Nested selections retain
+their original receivers across later mutations and supported suspension.
+Defaults run only for Undefined and complete before the next selection; earlier
+leaves are visible to later defaults. Every array pattern owns independent live
+length and exhaustion state, including when descendant defaults mutate an
+ancestor array. An abrupt default stops the remaining pattern and, in a loop
+head, prevents entry into the body.
+
+Every receiver needs a positive source proof of its object or array kind.
+Unknown, missing, nullable and incompatible alternatives remain conservative,
+including through aliases, helpers and captures. A default or TypeScript
+annotation does not erase those alternatives. Selected values retain the managed
+carrier, so selected Numbers do not acquire numeric unboxing. The existing
+128-source-local budget counts identifier leaves, and iterative pattern
+processing admits at most 128 nested object/array container levels.
+
+Defaults on whole patterns, rest bindings, parameter and assignment patterns,
+dynamic object keys and primitive RHS coercion remain outside this admission.
+Iteration is limited to source-proven managed arrays with their intrinsic
+iterator; general iterables, `for-in`, `for await...of` and `var` or assignment
+heads remain separate work. These features do not change the public call ABI.
+
 ## Expression evaluation control
 
 Number, Predicate, discarded evaluation and arithmetic-operand conversion use one
@@ -538,6 +570,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Each numeric variable declaration has one or more initialized identifiers, evaluated left to right;
   each binding becomes available only after its own initializer. References resolve
   through semantic symbol identities.
+  The [managed binding and iteration path](#managed-bindings-and-iteration)
+  separately admits nested object/array declarations and intrinsic-array
+  `for...of` with lexical identifier or pattern heads.
   Unresolved references named exactly `Infinity` and `NaN` read their standard
   primitive numeric values. Resolved local and parameter symbols retain normal
   binding, mutation and TDZ rules, including when they shadow those names.
@@ -695,13 +730,18 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Hashbangs emit no IR and consume no statements, locals or nesting depth, while
   every original UTF-8 byte still counts toward the 16 KiB limit. The entry and
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
-- Everything else is rejected: extra runtime statements/exports/imports,
-  defaults/rest/destructuring, async/generator/declare functions,
+- The original numeric-only admission excludes extra runtime statements/exports/imports,
+  parameter defaults/rest/destructuring, async/generator/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
-  `for-in`/`for-of`, `switch` and labels. Boolean arithmetic outside the explicit operand bridges, Boolean returns and self/forward local references are
-  outside this admission, even in unselected branches. These rejections describe
-  the experiment, not the validity of arbitrary JavaScript.
+  `for-in`, `switch` and labels. The separately documented managed, primitive
+  and async extensions have their own admission; in particular,
+  [managed bindings and iteration](#managed-bindings-and-iteration) admit the
+  supported object/array declarations and intrinsic-array `for...of` forms.
+  Boolean arithmetic outside the explicit operand bridges, Boolean returns and
+  self/forward local references are outside the numeric-only admission, even in
+  unselected branches. These restrictions do not determine the validity of
+  arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
   ordinary statements; directives and explicit type declarations still charge
   their source statements. Oxc parser and semantic syntax diagnostics are checked.
@@ -711,12 +751,12 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
 - Source limit 16 KiB; expression nesting limit 128; at most 128 source locals
   across all functions and lexical scopes and 256 recursively counted statements, including
-  module/function directives, explicit type declarations, block/`if`/`while`/`for`/`do`
+  module/function directives, explicit type declarations, block/`if`/`while`/`for`/`for-of`/`do`
   nodes, both arms, loop bodies and returns. Each added helper declaration charges
   once; the historical entry wrapper remains uncharged. Helper parameters are
   separate from the declared-local budget and limited to 1,000 per function by the
   backend resource bound. A `for` header
-  declaration counts once as a statement, with one local per declarator. Header
+  declaration counts once as a statement, with one local per bound identifier. Header
   expressions use the ordinary expression nesting budget. Statement nesting limit 64;
   generated IR values, regions and Wasm temporaries do not consume source budgets;
   host input batches at most 4096
