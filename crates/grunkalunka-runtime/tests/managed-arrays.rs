@@ -164,6 +164,8 @@ fn array_at_transports_managed_elements_and_composes_with_helpers() {
         "export function run(a,b){const o={x:a};const child=[b];const x=[o,child,'text',null,false,undefined];return x.at(0)===o&&x.at(1)===child&&x.at(2)==='text'&&x.at(3)===null&&x.at(4)===false&&typeof x.at(5)==='undefined'?1:0;}",
         "export function run(a,b){const f=()=>a;const x=[f];return x.at(0)===f?1:0;}",
         "function pick(x,i){return x.at(i);} export function run(a,b){const x=[a,b];return pick(x,1)===b?1:0;}",
+        "function pick(x,i){return x.at(i);} function forward(x,i){return pick(x,i);} export function run(a,b){const o={value:a};const x=[o];return forward(x,0)===o&&forward(x,1)===undefined?1:0;}",
+        "function pick(x,i){return x['at'](i);} export function run(a,b){const o={value:a};const x=[a,o,b];const choose=()=>pick(x,1);return choose()===o?1:0;}",
         "export function run(a,b){const x=[a,b,a];let n=0;for(let i=0;i<x.length;i++){if(x.at(i)===a)n++;}return n;}",
         "export function run(a,b){const x=Object.keys({...{first:a,second:b}});return x.at(-1)==='second'?1:0;}",
         "export function run(a,b){const o={at:()=>a};return o.at();}",
