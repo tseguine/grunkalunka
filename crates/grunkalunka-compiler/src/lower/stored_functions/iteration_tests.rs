@@ -12,6 +12,7 @@ struct Observation {
     callable: bool,
     other: bool,
     undefined: bool,
+    null: bool,
 }
 
 const STRING: Observation = Observation {
@@ -20,6 +21,7 @@ const STRING: Observation = Observation {
     callable: false,
     other: false,
     undefined: false,
+    null: false,
 };
 const UNKNOWN: Observation = Observation {
     string: false,
@@ -27,6 +29,7 @@ const UNKNOWN: Observation = Observation {
     callable: false,
     other: true,
     undefined: false,
+    null: false,
 };
 const MAYBE_UNDEFINED: Observation = Observation {
     string: false,
@@ -34,6 +37,16 @@ const MAYBE_UNDEFINED: Observation = Observation {
     callable: false,
     other: false,
     undefined: true,
+    null: false,
+};
+
+const MAYBE_NULL: Observation = Observation {
+    string: false,
+    container: None,
+    callable: false,
+    other: false,
+    undefined: false,
+    null: true,
 };
 
 fn observe_source(source: &str) -> Observation {
@@ -94,6 +107,10 @@ fn observe_typed_source(source: &str, typescript: bool) -> Observation {
             .values
             .get(&observed)
             .is_some_and(|origins| origins.contains(&Origin::Undefined)),
+        null: fields
+            .values
+            .get(&observed)
+            .is_some_and(|origins| origins.contains(&Origin::Null)),
     }
 }
 
@@ -130,6 +147,7 @@ fn iteration_keeps_literal_kinds_and_nonempty_branch_values() {
                 callable: false,
                 other: false,
                 undefined: false,
+                null: false,
             },
             "{body}"
         );
@@ -217,6 +235,7 @@ fn iteration_function_members_preserve_targets_and_nonfunction_alternatives() {
         callable: true,
         other: false,
         undefined: false,
+        null: false,
     };
     for source in [
         "export function run(a,b){for(const item of [{call:()=>a},{call:()=>b}]){const observed=item.call;}return a;}",
@@ -287,6 +306,7 @@ fn nested_binding_origins_follow_projections_helpers_and_defaults() {
             callable: false,
             other: false,
             undefined: false,
+            null: false,
         },
     );
 }
@@ -393,6 +413,7 @@ fn binding_defaults_replace_only_proven_undefined_with_the_fallback_origin() {
                 callable: false,
                 other: false,
                 undefined: false,
+                null: false,
             },
             "{body}",
         );
@@ -401,8 +422,11 @@ fn binding_defaults_replace_only_proven_undefined_with_the_fallback_origin() {
 
 #[test]
 fn binding_defaults_preserve_unknown_alias_mutation_and_cyclic_alternatives() {
+    assert_eq!(
+        observe("const {label='text'}={label:null};const observed=label;return a;"),
+        MAYBE_NULL,
+    );
     for body in [
-        "const {label='text'}={label:null};const observed=label;return a;",
         "const {label='text'}={label:a};const observed=label;return a;",
         "const {label='text'}=a;const observed=label;return a;",
         "const undefined=a;const {label='text'}={label:undefined};const observed=label;return a;",
@@ -483,6 +507,7 @@ fn array_rest_origins_distinguish_the_receiver_from_its_copied_positions() {
                 callable: false,
                 other: false,
                 undefined: false,
+                null: false,
             },
             "{body}",
         );
@@ -845,6 +870,7 @@ fn array_at_defaults_preserve_elements_and_a_missing_alternative() {
                 callable: false,
                 other: false,
                 undefined: false,
+                null: false,
             },
             "{body}"
         );
@@ -871,6 +897,59 @@ fn array_at_defaults_retain_mixed_alias_and_sparse_uncertainty() {
         "const xs=a?['abc']:null;const {c='?'}={c:xs.at(a)};const observed=c;return a;",
     ] {
         let found = observe(body);
-        assert!(found.other && !found.string, "{body}: {found:?}");
+        assert!(
+            (found.other || found.null) && !found.string,
+            "{body}: {found:?}"
+        );
+    }
+}
+
+#[test]
+fn nullish_result_origins_filter_only_known_absence() {
+    for body in [
+        "const observed=null??'fallback';return a;",
+        "const observed=undefined??'fallback';return a;",
+        "const observed=(a?null:'text')??'fallback';return a;",
+        "const observed=(a?null:undefined)??'fallback';return a;",
+        "const observed=['text',null,undefined].at(a)??'fallback';return a;",
+        "const observed='abc'.at(a)??'fallback';return a;",
+        "const observed=''??a;return a;",
+        "const record={label:'text'}??a;const observed=record.label;return a;",
+        "const source={label:null};const alias=source;alias.label='text';const observed=source.label??'fallback';return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    assert_eq!(
+        observe_source(
+            "function choose(value,fallback){return value??fallback;}export function run(a,b){const read=()=>choose(a?null:'text','fallback');const observed=read();return a;}"
+        ),
+        STRING,
+    );
+    assert!(observe("const observed=null??(()=>a);return a;").callable);
+    assert_eq!(observe("const observed=null??null;return a;"), MAYBE_NULL);
+    assert_eq!(
+        observe("const observed=null??undefined;return a;"),
+        MAYBE_UNDEFINED,
+    );
+}
+
+#[test]
+fn nullish_result_origins_preserve_unknown_values_and_alias_writes() {
+    for body in [
+        "const observed=a??'fallback';return a;",
+        "const observed=false??'fallback';return a;",
+        "const observed=0??'fallback';return a;",
+        "const observed=(a?null:b)??'fallback';return a;",
+        "const observed=['text',a].at(a)??'fallback';return a;",
+        "const xs=['text'];const alias=xs;alias[0]=a;const observed=xs.at(a)??'fallback';return a;",
+        "const xs=['text'];const observed=xs.at(a)??'fallback';xs[0]=b;return a;",
+        "const xs=[,'text'];const observed=xs.at(a)??'fallback';return a;",
+        "const source={label:null};const mutate=()=>{source.label=a;};mutate();const observed=source.label??'fallback';return a;",
+        "const rows=[{label:'text'}];const row=rows.at(a)??{label:'fallback'};rows[0].label=b;const observed=row.label;return a;",
+        "const pending=()=>pending();const observed=pending()??'fallback';return a;",
+        "const pending=()=>pending();const observed=(a?'text':pending())??'fallback';return a;",
+        "const pending=()=>pending();const observed=null??pending();return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }

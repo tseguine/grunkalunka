@@ -1034,3 +1034,17 @@ fn imported_handler_defaults_a_missing_selected_action_record() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_coalesces_an_optional_action_record() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        function pick(actions,index) { return actions.at(index)??{label:' Collapse '}; }
+        export function run(a,b) {
+            const actions=[{label:' Expand '},null];
+            const action=pick(actions,a>0?0:1);
+            const handle=()=>choose(action.label.trim()==='Expand'?1:0,actions.length);
+            return +handle();
+        }"#,
+    );
+}
