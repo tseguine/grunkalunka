@@ -382,7 +382,6 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(const [value] of [[a]]){}return value;",
         "for(const {value} of [{value:a}])value=b;return a;",
         "for(var {value} of [{value:a}]){}return a;",
-        "for(const {...rest} of [{value:a}]){}return a;",
         "for(const [...[tail]] of [[a]]){}return a;",
         "for(const [...rest] of [[a],null]){}return a;",
         "for(const [...rest] of [[a]])rest=[];return a;",

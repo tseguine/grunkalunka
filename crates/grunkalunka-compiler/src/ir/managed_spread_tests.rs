@@ -37,3 +37,28 @@ fn spread_operands_require_visible_object_and_boxed_value() {
         assert!(verify_module(&module).is_err());
     }
 }
+
+#[test]
+fn rest_requires_a_visible_object_and_defines_a_fresh_object_value() {
+    let source = "export function run(a,b){const {x,...rest}={x:a,y:b};return rest.y===b?1:0;}";
+    for fault in 0..3 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (result, object) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                Op::ManagedObjectRest { result, object, .. } => Some((result, object)),
+                _ => None,
+            })
+            .unwrap();
+        match fault {
+            0 => *object = *result, // forward reference
+            1 => function.values[result.0] = Type::ManagedArray,
+            _ => *result = *object, // duplicate definition
+        }
+        assert!(verify_module(&module).is_err());
+    }
+}

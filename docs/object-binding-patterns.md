@@ -5,7 +5,8 @@ source-proven managed objects. This supports shorthand fields, renamed fields,
 and identifier or String-literal property names, including literal-computed
 String keys and nested object or array patterns. Identifier leaves and whole
 nested patterns may have lazy defaults, and nested array patterns may end in an
-identifier rest element. The same declaration path applies in ordinary blocks,
+identifier rest element. Object patterns can likewise collect remaining fields with
+`...rest`. The same declaration path applies in ordinary blocks,
 helpers, async activations and traditional `for` initializers.
 
 ## Evaluation and representation
@@ -72,12 +73,27 @@ cursor. This slice adds no runtime imports, public ABI or native recursion
 proportional to pattern size. Nested array rest uses the private operation
 described in [array bindings](array-binding-patterns.md).
 
+## Object rest
+
+In `const {title, ...details} = record`, the binding cursor selects `title`
+first, then copies the other own enumerable data properties from the saved
+receiver into a fresh ordinary object. A preceding default can update the
+receiver before the copy, including across an await. Rebinding the source
+variable leaves the saved receiver in place. At each nesting level only the
+keys selected directly by that pattern are excluded. Repeated keys, aliases
+and UTF-16 literal keys use the same property names as their field reads.
+
+The copy preserves own-key order and retains the identity of referenced
+values. Changing a slot on either object leaves the other object's slot
+independent. Each loop iteration creates a fresh result. The result is a
+proven ordinary object even for a null-prototype source. Copied values keep
+the generic managed carrier and have no inferred field kind.
+
 ## Admission limits
 
 This slice covers declarations with identifier leaves, nested object or array
-patterns and optional defaults on either, including identifier rest in arrays.
-Object rest properties, destructuring
-assignment and parameter patterns remain separate work.
+patterns and optional defaults on either, including identifier rest in arrays and objects.
+Destructuring assignment and parameter patterns remain separate work.
 [Array declarations](array-binding-patterns.md) have their own source-proven
 array admission. Dynamic property names and primitive RHS coercion are also
 outside this slice.

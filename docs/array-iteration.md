@@ -2,7 +2,7 @@
 
 Synchronous `for...of` admits one local `const` or `let` declaration over a
 source-proven managed array. Its binding may be an identifier or a supported
-object/array pattern, including mixed nesting, identifier rest in arrays and
+object/array pattern, including mixed nesting, identifier rest in arrays and objects, and
 defaults on leaves or nested patterns.
 The loop works in ordinary source functions, helpers and supported async
 activations. The iterable expression is evaluated
@@ -86,7 +86,7 @@ Each destructured item must have the object or array kind required by its head,
 and every nested receiver needs its own positive source proof after any default.
 A known Undefined nested selection may use a proven fallback; nullable,
 mixed-kind and unresolved alternatives retain their conservative rejection.
-Object rest, array rest with pattern targets and dynamic object keys remain
+Array rest with pattern targets and dynamic object keys remain
 outside the shared pattern admission.
 
 This slice rejects `for await...of`, `var`, assignment targets,

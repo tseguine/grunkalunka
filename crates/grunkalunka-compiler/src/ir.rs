@@ -609,6 +609,12 @@ pub(crate) enum Op {
     ManagedObjectNew {
         result: ValueId,
     },
+    // Fresh object containing the source's own enumerable data except these keys.
+    ManagedObjectRest {
+        result: ValueId,
+        object: ValueId,
+        excluded: Vec<Vec<u16>>,
+    },
     // Copy admitted own enumerable data properties, preserving boxed values.
     ManagedObjectSpread {
         object: ValueId,
@@ -1377,6 +1383,18 @@ impl Verifier<'_> {
                 self.value(*object, Type::ManagedObject, visible, span)?;
                 self.value(*key, Type::ManagedValue, visible, span)?;
                 self.value(*value, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedObjectRest {
+                result,
+                object,
+                excluded,
+            } => {
+                self.value(*object, Type::ManagedObject, visible, span)?;
+                for key in excluded {
+                    u32::try_from(key.len())
+                        .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                }
+                self.define(*result, Type::ManagedObject, visible, span)?;
             }
             Op::ManagedObjectSpread { object, input } => {
                 self.value(*object, Type::ManagedObject, visible, span)?;

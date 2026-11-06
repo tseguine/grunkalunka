@@ -107,7 +107,7 @@ It adds no runtime import or public ABI.
 
 ## Admission limits
 
-Rest elements with a pattern target, object rest, destructuring assignment and
+Rest elements with a pattern target, destructuring assignment and
 parameter patterns remain separate work. Strings, ordinary objects with numeric
 fields, unknown parameters and nullable array alternatives do not satisfy the
 array proof. The intrinsic-iterator boundary also excludes user-defined

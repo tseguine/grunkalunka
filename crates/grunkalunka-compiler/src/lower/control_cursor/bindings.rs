@@ -174,6 +174,31 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     };
                     state.selected = Some(selected);
                 }
+                BindingStep::ObjectRest { source, excluded } => {
+                    let Some(Container::Object(object)) = state.containers.last() else {
+                        unreachable!("object rest has an object receiver");
+                    };
+                    let rest = self.value(Type::ManagedObject);
+                    Self::push(
+                        &mut state.output,
+                        source,
+                        Op::ManagedObjectRest {
+                            result: rest,
+                            object: *object,
+                            excluded,
+                        },
+                    );
+                    let selected = self.value(Type::ManagedValue);
+                    Self::push(
+                        &mut state.output,
+                        source,
+                        Op::ManagedFromObject {
+                            result: selected,
+                            input: rest,
+                        },
+                    );
+                    state.selected = Some(selected);
+                }
                 BindingStep::ArrayRest { source, start } => {
                     let Some(Container::Array { value, iterator }) = state.containers.last() else {
                         unreachable!("array rest has an array receiver");

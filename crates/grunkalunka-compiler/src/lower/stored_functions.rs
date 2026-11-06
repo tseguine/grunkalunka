@@ -26,7 +26,7 @@ type Alternatives = BTreeSet<Origin>;
 type Key = Vec<u16>;
 enum Rule {
     Iterated(NodeId),
-    ArrayRest(NodeId),
+    Fresh(Origin),
     Copy(Vec<NodeId>),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
@@ -99,6 +99,10 @@ fn pattern_definitions(
                 ));
             }
             BindingPattern::ObjectPattern(object) => {
+                if let Some(rest) = &object.rest {
+                    // Copied fields stay opaque even when their source syntax is known.
+                    pending.push((&rest.argument, Rule::Fresh(Origin::Object(rest.node_id()))));
+                }
                 for property in object.properties.iter().rev() {
                     if let Some(key) = binding_patterns::key(property) {
                         pending.push((&property.value, Rule::Member(id, key)));
@@ -109,7 +113,7 @@ fn pattern_definitions(
                 if let Some(rest) = &array.rest {
                     // Rest constructs a fresh array allocation. Its copied
                     // element origins remain opaque, so it gets no field map.
-                    pending.push((&rest.argument, Rule::ArrayRest(rest.node_id())));
+                    pending.push((&rest.argument, Rule::Fresh(Origin::Array(rest.node_id()))));
                 }
                 for (index, element) in array.elements.iter().enumerate().rev() {
                     if let Some(element) = element {
@@ -665,7 +669,7 @@ impl Fields {
                     Rule::Iterated(receiver) => {
                         elements.select(*receiver, &values, &fields, &index_deletes)
                     }
-                    Rule::ArrayRest(allocation) => BTreeSet::from([Origin::Array(*allocation)]),
+                    Rule::Fresh(origin) => BTreeSet::from([*origin]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
                     Rule::Default(selected, fallback) => {
                         // Only positively known Undefined is replaced. Other

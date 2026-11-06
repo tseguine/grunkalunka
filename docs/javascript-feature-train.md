@@ -194,7 +194,11 @@ stay boxed; this work adds no numeric unboxing. Pattern preparation and lowering
 remain iterative, with the existing
 128-local budget counting leaves and a shared 128-level container nesting limit.
 
-Object rest, array rest with pattern targets, parameter and assignment patterns,
+Object rest copies the remaining own data fields of a proven object into a
+fresh ordinary object after earlier defaults finish. The copy preserves slot
+independence and reference identity in declarations and loop heads.
+
+Array rest with pattern targets, parameter and assignment patterns,
 dynamic object keys, primitive RHS coercion and general iterators remain
 follow-on work.
 `for-in`, `for await...of` and `var` or assignment loop heads are also outside this
