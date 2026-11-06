@@ -9,7 +9,6 @@
     "canonical-scripts",
     "check:a1-note-preview",
     "check:a1-live-application",
-    "check:document-outline",
     "check:workspace-tests"
   ],
   "buildDependsOn": []

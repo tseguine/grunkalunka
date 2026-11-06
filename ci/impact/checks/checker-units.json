@@ -1,0 +1,15 @@
+{
+  "id": "check:checker-units",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/checks/*.test.mjs"
+  ],
+  "dependsOn": [
+    "check:document-outline"
+  ],
+  "buildDependsOn": [],
+  "paths": [
+    "tests/checks/"
+  ]
+}
