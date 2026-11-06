@@ -17,6 +17,7 @@ mod managed_spread;
 mod materialization;
 mod object_rest;
 mod own_keys;
+mod property_membership;
 mod relational;
 #[cfg(test)]
 mod stack_hygiene_tests;
@@ -335,6 +336,17 @@ impl Emitter<'_> {
                 self.get(*object);
                 self.get(*input);
                 self.output.push_str("call $gc_object_spread\n");
+            }
+            Op::ManagedHasProperty { result, input, key } => {
+                self.get(*input);
+                self.managed_key_value(*key);
+                self.output
+                    .push_str(if self.function.values[input.0] == Type::ManagedArray {
+                        "call $gc_array_has_property\n"
+                    } else {
+                        "call $gc_object_has_property\n"
+                    });
+                self.set(*result);
             }
             Op::ManagedHasOwn { result, input, key } => {
                 let ty = self.function.values[input.0];
@@ -1588,6 +1600,7 @@ fn emit_verified(
         output.push_str(managed_spread::runtime(module));
         output.push_str(object_rest::runtime(module));
         output.push_str(has_own::runtime(module));
+        property_membership::emit_runtime(module, &mut output);
         output.push_str(own_keys::runtime(module));
         output.push_str(array_at::runtime(module));
         output.push_str(array_pop::runtime(module));

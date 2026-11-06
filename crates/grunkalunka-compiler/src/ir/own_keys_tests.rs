@@ -187,10 +187,10 @@ fn dictionary_in_reuses_the_checked_guest_presence_operation() {
             )
         ));
     }
-    let typed = "export function run(a:number,b:number){const d={} as Record<string,number>;const k='toString';return k in d?a:b;}";
+    let typed = "export function run(a:number,b:number){const d=(a?{}:Object.create(null)) as Record<string,number>;const k='toString';return k in d?a:b;}";
     let err = crate::compile(typed, true)
         .err()
-        .expect("annotation does not prove a null prototype");
+        .expect("annotation does not prove one prototype");
     assert!(
         err.contains("unsupported") && !err.contains("internal IR"),
         "{err}"
@@ -227,4 +227,38 @@ fn static_in_needs_a_known_prototype_only_for_an_inherited_key() {
             );
         }
     }
+}
+
+#[test]
+fn dynamic_in_validates_both_operands_and_omits_unused_prototype_helpers() {
+    let source = "export function run(a,b){const k='constructor';return k in {}?a:b;}";
+    for fault in 0..3 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let f = &mut module.functions[0];
+        let (result, input, key) = f
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                Op::ManagedHasProperty { result, input, key } => Some((result, input, key)),
+                _ => None,
+            })
+            .unwrap();
+        match fault {
+            0 => *input = *key,
+            1 => *key = *result,
+            _ => f.values[result.0] = Type::Number,
+        }
+        assert!(verify_module(&module).is_err());
+    }
+    let artifact = crate::compile(source, false).unwrap();
+    assert!(artifact.wat.contains("(func $gc_object_has_property"));
+    assert!(!artifact.wat.contains("(global $array_prototype_names"));
+    let own = crate::compile(
+        "export function run(a,b){return Object.hasOwn({},'x')?1:0;}",
+        false,
+    )
+    .unwrap();
+    assert!(!own.wat.contains("(global $object_prototype_names"));
 }

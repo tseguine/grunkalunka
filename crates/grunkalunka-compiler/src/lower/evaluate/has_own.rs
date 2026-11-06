@@ -5,6 +5,7 @@ use super::*;
 pub(super) enum Membership {
     Own(Option<Vec<u16>>),
     Inherited,
+    Prototype,
 }
 
 pub(super) struct Task<'e, 'a> {
@@ -60,29 +61,32 @@ impl Lowering<'_, '_> {
         let (mode, membership) = if self.stored.dictionary(receiver) {
             (Mode::Object, Membership::Own(literal))
         } else if let Some(ty @ (Type::ManagedObject | Type::ManagedArray)) = ty {
-            let key = literal.ok_or_else(|| {
-                unsupported(
-                    &binary.left,
-                    "dynamic in keys require a proven null-prototype dictionary",
-                )
-            })?;
-            let inherited = crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key)
-                || (ty == Type::ManagedArray
-                    && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key));
-            if inherited && ty == Type::ManagedObject && !self.stored.ordinary_object(receiver) {
-                return Err(unsupported(
-                    &binary.right,
-                    "in cannot assume an inherited key on a mixed-prototype receiver",
-                ));
-            }
-            (
-                Mode::managed(ty),
+            let known_prototype = ty == Type::ManagedArray || self.stored.ordinary_object(receiver);
+            let membership = if let Some(key) = literal {
+                let inherited =
+                    crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key)
+                        || (ty == Type::ManagedArray
+                            && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key));
+                if inherited && !known_prototype {
+                    return Err(unsupported(
+                        &binary.right,
+                        "in cannot assume an inherited key on a mixed-prototype receiver",
+                    ));
+                }
                 if inherited {
                     Membership::Inherited
                 } else {
                     Membership::Own(Some(key))
-                },
-            )
+                }
+            } else if known_prototype {
+                Membership::Prototype
+            } else {
+                return Err(unsupported(
+                    &binary.right,
+                    "a dynamic in key requires a known receiver prototype",
+                ));
+            };
+            (Mode::managed(ty), membership)
         } else {
             return Err(unsupported(
                 &binary.right,
