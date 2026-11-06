@@ -13,7 +13,7 @@ const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
 const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "relative", "clipped", "scrolled", "justifyEnd", "justifyCenter", "spaceBetween",
-  "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
+  "justifyAround", "justifyEvenly", "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
   "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
   "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
   "selfAlignClipped", "selfAlignScrolled", "contentEnd", "contentCenter",
@@ -51,6 +51,10 @@ function states() {
       [123, 31, 25, 8], [189, 26, 42, 18], [0, 80, 180, 12]],
     spaceBetween: [[20, 20, 242, 54], [26, 26, 64, 24], [125, 28, 56, 36],
       [128, 31, 25, 8], [214, 26, 42, 18], [0, 80, 180, 12]],
+    justifyAround: [[20, 20, 262, 54], [36, 26, 64, 24], [135, 28, 56, 36],
+      [138, 31, 25, 8], [224, 26, 42, 18], [0, 80, 180, 12]],
+    justifyEvenly: [[20, 20, 242, 54], [36, 26, 64, 24], [125, 28, 56, 36],
+      [128, 31, 25, 8], [204, 26, 42, 18], [0, 80, 180, 12]],
     alignEnd: [[20, 20, 232, 72], [26, 62, 64, 24], [105, 46, 56, 36],
       [108, 49, 25, 8], [174, 68, 42, 18], [0, 98, 180, 12]],
     alignCenter: [[20, 20, 232, 72], [26, 44, 64, 24], [105, 37, 56, 36],
@@ -113,6 +117,8 @@ function states() {
     justifyEnd: ["row-host", "row-a", "row-b", "row-after", "row-host", null, "row-host", "row-a", "row-host"],
     justifyCenter: ["row-host", "row-host", "row-host", "row-after", "row-host", null, "row-host", "row-a", "row-host"],
     spaceBetween: ["row-a", "row-host", "row-b", "row-after", "row-host", null, "row-host", "row-host", "row-host"],
+    justifyAround: ["row-host", "row-host", "row-b", "row-after", "row-host", null, "row-host", "row-a", "row-host"],
+    justifyEvenly: ["row-host", "row-host", "row-b", "row-after", "row-host", null, "row-host", "row-a", "row-host"],
     alignEnd: ["row-host", "row-host", "row-host", "row-a", "row-b", null, "row-host", "row-host", "row-host"],
     alignCenter: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
     wrapAlign: ["row-host", "row-host", "row-host", "row-c", "row-b", "row-after", "row-host", "row-host", null],
@@ -198,8 +204,8 @@ test("complete fixed-row, alignment and overlap receipts agree for each identifi
     assert.equal(report.sourceSha256, sha(fixture));
     assert.deepEqual([report.invalid, report.incompatible, report.differences], [[], [], []]);
     assert.deepEqual(Object.keys(report.native.states), phases);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 240);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 360);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 252);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 378);
   }
 });
 
@@ -312,6 +318,42 @@ test("an ignored auto reset reports both moved subtree boxes without unrelated d
   ]);
 });
 
+
+
+test("space-evenly justification source change reports shifted geometry and inputs", () => {
+  const originalRule = '  host.style.justifyContent = "space-evenly";\n  states.justifyEvenly = sample();';
+  const changedRule = '  host.style.justifyContent = "flex-start";\n  states.justifyEvenly = sample();';
+  const source = fixture.toString("utf8");
+  assert.equal(source.split(originalRule).length, 2, "one evenly-justified source declaration");
+  const changed = Buffer.from(source.replace(originalRule, changedRule));
+  const pair = receipts();
+  const originalX = { "row-a": 26, "row-b": 105, "row-inner": 108, "row-c": 174 };
+  for (const [id, x] of Object.entries(originalX)) {
+    pair.browser.states.justifyEvenly.boxes[id].x = x;
+  }
+  for (const [probe, target] of Object.entries({
+    a: "row-a", b: "row-inner", nowrap: "row-c", "gap-wrap": "row-b", gap: "row-host"
+  })) {
+    pair.browser.states.justifyEvenly.hits[probe] = target;
+  }
+  assert.equal(compareNativeFlexBridge(pair.native, pair.browser, changed).status, "incompatible");
+  pair.browser.provenance.fixtureSha256 = sha(changed);
+  const report = compareNativeFlexBridge(pair.native, pair.browser, changed);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.justifyEvenly.boxes.row-a.x", left: 36, right: 26 },
+    { kind: "geometry", path: "$.states.justifyEvenly.boxes.row-b.x", left: 125, right: 105 },
+    { kind: "geometry", path: "$.states.justifyEvenly.boxes.row-inner.x", left: 128, right: 108 },
+    { kind: "geometry", path: "$.states.justifyEvenly.boxes.row-c.x", left: 204, right: 174 },
+    { kind: "hit", path: "$.states.justifyEvenly.hits.a", left: "row-host", right: "row-a" },
+    { kind: "hit", path: "$.states.justifyEvenly.hits.b", left: "row-host", right: "row-inner" },
+    { kind: "hit", path: "$.states.justifyEvenly.hits.nowrap", left: "row-b", right: "row-c" },
+    { kind: "hit", path: "$.states.justifyEvenly.hits.gap-wrap", left: "row-host", right: "row-b" },
+    { kind: "hit", path: "$.states.justifyEvenly.hits.gap", left: "row-a", right: "row-host" }
+  ]);
+});
 
 test("space-evenly source change distinguishes all four boxes and its exposed first-item hit", () => {
   const originalRule = '  host.style.alignContent = "space-evenly";\n  states.contentEvenly = sample();';

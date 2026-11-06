@@ -27,7 +27,7 @@ const PROBES: [(&str, u32, u32); 9] = [
     ("gap", 95, 30),
     ("outside", 250, 50),
 ];
-const PHASES: [&str; 40] = [
+const PHASES: [&str; 42] = [
     "nowrap",
     "wrap",
     "wide",
@@ -40,6 +40,8 @@ const PHASES: [&str; 40] = [
     "justifyEnd",
     "justifyCenter",
     "spaceBetween",
+    "justifyAround",
+    "justifyEvenly",
     "alignEnd",
     "alignCenter",
     "wrapAlign",
@@ -215,6 +217,14 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
         "spaceBetween" => {
             blocks[1].style.width = Length::Px(230);
             blocks[1].style.justify_content = FlexJustify::SpaceBetween;
+        }
+        "justifyAround" | "justifyEvenly" => {
+            blocks[1].style.width = Length::Px(if phase == "justifyAround" { 250 } else { 230 });
+            blocks[1].style.justify_content = if phase == "justifyAround" {
+                FlexJustify::SpaceAround
+            } else {
+                FlexJustify::SpaceEvenly
+            };
         }
         "alignEnd" | "alignCenter" | "wrapSingle" | "scrolledAlign" => {
             blocks[1].style.width = Length::Px(220);
@@ -427,6 +437,20 @@ fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
             expected[2] = rect(125, 28, 56, 36);
             expected[3] = rect(128, 31, 25, 8);
             expected[4] = rect(214, 26, 42, 18);
+        }
+        "justifyAround" => {
+            expected[0] = rect(20, 20, 262, 54);
+            expected[1] = rect(36, 26, 64, 24);
+            expected[2] = rect(135, 28, 56, 36);
+            expected[3] = rect(138, 31, 25, 8);
+            expected[4] = rect(224, 26, 42, 18);
+        }
+        "justifyEvenly" => {
+            expected[0] = rect(20, 20, 242, 54);
+            expected[1] = rect(36, 26, 64, 24);
+            expected[2] = rect(125, 28, 56, 36);
+            expected[3] = rect(128, 31, 25, 8);
+            expected[4] = rect(204, 26, 42, 18);
         }
         "alignEnd" => {
             expected[0] = rect(20, 20, 232, 72);
@@ -692,6 +716,19 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
                 None,
                 Some("row-host"),
                 Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "justifyAround" | "justifyEvenly" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-b"),
+                Some("row-after"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-a"),
                 Some("row-host"),
             ]
         }
@@ -967,6 +1004,8 @@ fn assert_native_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_
         "contentBetween" => &[(35, 150, PURPLE)],
         "contentAround" => &[(30, 165, PURPLE)],
         "contentEvenly" => &[(30, 145, PURPLE)],
+        "justifyAround" => &[(230, 30, PURPLE)],
+        "justifyEvenly" => &[(210, 30, PURPLE)],
         "contentSingle" => &[(110, 52, GREEN)],
         "contentNoWrap" => &[(110, 52, BLUE)],
         "contentOverflow" => &[(30, 80, PURPLE)],
