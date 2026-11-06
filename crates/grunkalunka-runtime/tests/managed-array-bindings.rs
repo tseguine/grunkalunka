@@ -69,7 +69,6 @@ fn array_rest_bindings_keep_receiver_and_leaf_proofs_conservative() {
         "let [...rest]=[a];const read=()=>+rest.length;rest=b;return +read();",
         "const [...rest]=Object.keys('ab');const [text]=rest;return text.trim().length;",
         "const [...rest]=[a];const [text='fallback']=rest;return text.trim().length;",
-        "const [...rest]=[[a]];const [[x]]=rest;return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -587,4 +586,41 @@ fn compile_on_small_stack(source: String, typed: bool) -> Result<(), String> {
 fn compare(body: &str) {
     let source = format!("export function run(a,b){{{body}}}");
     common::compare_sources(&source, &source);
+}
+
+#[test]
+fn array_rest_indices_follow_the_offset_and_keep_undefined_defaults() {
+    for body in [
+        "const [...rest]=[[a]];const [[x]]=rest;return a;",
+        "const src=[a,' one ',{label:' two '}];const [,...mid]=src;const [,...rows]=mid;return mid[0].trim().length+rows[0].label.trim().length;",
+        "const src=[a,,'x'];src.named='excluded';const [,...tail]=src;const [first=' fallback ',second]=tail;return first.trim().length+second.length+(tail.named===undefined?10:0);",
+        "const src=[a,'x'];src[4294967295]='named';const [,...tail]=src;const [value='default']=[];return tail[4294967294]===undefined&&value==='default'?1:0;",
+        "const src=[a,{label:' x '}];const [,...tail]=src;tail[0].label='new';const same=src[1].label.trim()==='new';tail[0]={label:' next '};return same&&src[1]!==tail[0]&&src[1].label.trim()==='new'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn array_rest_indices_reject_unstable_or_incompatible_projections() {
+    for body in [
+        "const src=[];const [first=(src[1]='text',a),...rest]=src;return rest[0].trim().length;",
+        "const src=[a,'x'];const [,...rest]=src;src.length=0;src[1]='new';return rest[0].trim().length;",
+        "const src=[a,'x'];const [,...rest]=src;const alias=src;alias[1]=b;return rest[0].trim().length;",
+        "const src=[a,'x'];const [,...rest]=src;rest[0]=b;return rest[0].trim().length;",
+        "const src=a?[a,'x']:[a];const [,...rest]=src;return rest[0].trim().length;",
+        "const src=[a,'x'];const [,...rest]=src;rest.pop();return rest[0].trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                error.contains("unsupported") && !error.contains("internal IR"),
+                "{source}: {error}"
+            );
+        }
+    }
 }

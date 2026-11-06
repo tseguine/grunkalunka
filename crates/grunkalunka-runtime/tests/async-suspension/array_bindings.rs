@@ -133,3 +133,14 @@ fn array_binding_sources_resume_once_and_preserve_order_and_abrupt_completion() 
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn selected_rest_positions_keep_traced_values_across_awaits() {
+    compare_promises(
+        &[
+            "const source=[a,{label:' before '},' end '];const [,...tail]=source;source[1]={label:' replacement '};await b;const row=tail[0];await a;return row.label.trim()==='before'&&tail[1].trim()==='end'?1:0;",
+            "const [,...tail]=[a,,{label:'last'}];const [first=(await a,' empty ')]=tail;await b;return first.trim()==='empty'&&tail[1].label.trim()==='last'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

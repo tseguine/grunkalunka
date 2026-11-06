@@ -100,7 +100,7 @@ fn pattern_definitions(
             BindingPattern::ArrayPattern(array) => {
                 if let Some(rest) = &array.rest {
                     // Rest constructs a fresh array allocation. Its copied
-                    // positions stay opaque; iteration tracks the source tail separately.
+                    // reads and iteration track the source tail separately from writes to the copy.
                     pending.push((&rest.argument, Rule::Known(Origin::Array(rest.node_id()))));
                 }
                 for (index, element) in array.elements.iter().enumerate().rev() {
@@ -600,6 +600,7 @@ impl Fields {
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
+        let track_elements = has_iterations || !elements.rest_sources.is_empty();
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
@@ -609,6 +610,7 @@ impl Fields {
                 fields: &fields,
                 open_fields: &open_fields,
                 rest_sources: &rest_sources,
+                elements: &elements,
                 field_writes: &field_writes,
                 wildcard_writes: &wildcard_writes,
                 index_deletes: &index_deletes,
@@ -707,7 +709,7 @@ impl Fields {
                     | Origin::Array(object) = origin
                     {
                         write_additions.push(((object, key.clone()), get(value)));
-                        if has_iterations && matches!(origin, Origin::Array(_)) {
+                        if track_elements && matches!(origin, Origin::Array(_)) {
                             changed |= elements.write(object, key, get(value), &fields);
                         }
                         if matches!(origin, Origin::Array(_))
@@ -750,7 +752,7 @@ impl Fields {
                             | Origin::Array(object) = origin
                             {
                                 wildcard_additions.push((object, get(value)));
-                                if has_iterations && matches!(origin, Origin::Array(_)) {
+                                if track_elements && matches!(origin, Origin::Array(_)) {
                                     changed |= elements.wildcard(object, get(value));
                                 }
                             }

@@ -94,8 +94,12 @@ or nullable alternatives retain their existing completion-profile boundary.
 A `for...of` over a rest array can prove String or container kinds when all
 possible values in the copied suffix have that kind. Skipped positions and
 named properties do not contribute. Holes in the suffix, structural mutation,
-unknown source arrays and cyclic copies keep the iteration conservative. A
-direct indexed read of the rest array still has a generic managed value. Equality, truthiness, storage and reference
+unknown source arrays and cyclic copies keep the iteration conservative. An indexed read of the rest array can likewise use the origins of its
+corresponding source slot. Each copy adds its consumed prefix to the index.
+Holes and absent slots supply Undefined, and ordinary named properties start
+absent. Indexed writes to the source or copy are included. A possible length
+change or deletion can leave the iterator exhausted, so affected reads retain
+an unknown alternative even if the source later grows again. Equality, truthiness, storage and reference
 identity remain available through the managed carrier.
 
 Mutable leaves use the existing lexical slots and captured cells. Traditional
