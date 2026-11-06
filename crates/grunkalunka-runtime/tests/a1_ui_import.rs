@@ -744,3 +744,14 @@ fn imported_handler_iterates_action_entries_by_name() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_distinguishes_action_lists_from_single_records() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const options = {items: a > 0 ? ['expand', 'collapse'] : {action: 'reload'}};
+            return choose(Array.isArray(options.items) ? 1 : 0, 2);
+        }"#,
+    );
+}

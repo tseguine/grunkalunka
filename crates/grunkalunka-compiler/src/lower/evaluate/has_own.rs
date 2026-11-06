@@ -17,24 +17,6 @@ pub(super) struct Task<'e, 'a> {
     key: Option<ir::ManagedKey>,
 }
 
-fn presence_consumer<'e, 'a>(
-    node: &'e Expression<'a>,
-    mode: Mode,
-    work: &mut Vec<Work<'e, 'a>>,
-) -> Result<(), String> {
-    match mode {
-        Mode::Predicate => (),
-        Mode::General => work.push(Work::Pack(node)),
-        Mode::Managed => {
-            work.push(Work::Managed(managed::ManagedWork::Primitive(node)));
-            work.push(Work::Pack(node));
-        }
-        Mode::Discard => work.push(Work::Forget),
-        _ => return Err(unsupported(node, "property presence produces a Boolean")),
-    }
-    Ok(())
-}
-
 impl Lowering<'_, '_> {
     pub(super) fn schedule_in<'e, 'a>(
         &self,
@@ -44,7 +26,7 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        presence_consumer(node, mode, work)?;
+        boolean_consumer(node, mode, "property presence produces a Boolean", work)?;
         let literal = literal_property_name(&binary.left, self.semantic, depth + 1);
         let key_mode = if literal.is_some() {
             Mode::Discard
@@ -121,7 +103,7 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        presence_consumer(node, mode, work)?;
+        boolean_consumer(node, mode, "property presence produces a Boolean", work)?;
         if call.arguments.len() > 1000 {
             return Err(unsupported(
                 node,

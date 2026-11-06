@@ -382,6 +382,25 @@ enum ClosureEffect {
     Start,
 }
 
+fn boolean_consumer<'e, 'a>(
+    node: &'e Expression<'a>,
+    mode: Mode,
+    diagnostic: &str,
+    work: &mut Vec<Work<'e, 'a>>,
+) -> Result<(), String> {
+    match mode {
+        Mode::Predicate => (),
+        Mode::General => work.push(Work::Pack(node)),
+        Mode::Managed => {
+            work.push(Work::Managed(managed::ManagedWork::Primitive(node)));
+            work.push(Work::Pack(node));
+        }
+        Mode::Discard => work.push(Work::Forget),
+        _ => return Err(unsupported(node, diagnostic)),
+    }
+    Ok(())
+}
+
 fn predicate_number<'e, 'a>(work: &mut Vec<Work<'e, 'a>>, node: &'e Expression<'a>, depth: usize) {
     work.push(Work::Convert(node));
     work.push(Work::Eval(node, depth, Mode::Predicate));
@@ -1462,6 +1481,20 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?
+                }
+                Work::ArrayIsArray { node, has_input } => {
+                    let result = self.value(Type::Predicate);
+                    let op = if has_input {
+                        let input = values.pop().expect("array brand input").id();
+                        Op::ManagedIsArray { result, input }
+                    } else {
+                        Op::Boolean {
+                            result,
+                            value: false,
+                        }
+                    };
+                    Self::push(regions.current(), node, op);
+                    values.push(Value::Predicate(result));
                 }
                 Work::In { node, membership } => {
                     let input = values.pop().expect("in receiver").id();

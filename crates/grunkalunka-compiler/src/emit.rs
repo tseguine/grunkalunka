@@ -702,6 +702,17 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_truthy\n");
                 self.set(*result);
             }
+            Op::ManagedIsArray { result, input } => {
+                self.get(*input);
+                // Objects and arrays share language tag 4. The actual GC
+                // payload carries the array brand, regardless of its own keys.
+                self.output
+                    .push_str("struct.get $gc_value 0\ni32.const 4\ni32.eq\n");
+                self.get(*input);
+                self.output
+                    .push_str("struct.get $gc_value 2\nref.test (ref $gc_array)\ni32.and\n");
+                self.set(*result);
+            }
             Op::ManagedIsNullish { result, input } => {
                 self.get(*input);
                 // Shared managed tags 0/1 denote undefined/null respectively.

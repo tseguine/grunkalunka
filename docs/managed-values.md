@@ -892,6 +892,13 @@ rejected programs as supported.
 
 ## Own enumerable keys, values and entries
 
+`Array.isArray(value)` tests the brand of the represented value. Empty,
+sparse and resized arrays return true. Records with numeric properties or
+`length`, Strings, primitive values and represented functions return false.
+The checked value is captured before surplus arguments run. The unshadowed
+intrinsic admits literal-computed access and the supported `.call` form.
+The result is a Boolean and supplies no branch-local type refinement.
+
 `Object.keys` builds a fresh managed array from the currently represented
 data-only domain. Objects and sparse arrays enumerate existing own data entries:
 canonical array-index strings first in ascending numeric order, then other

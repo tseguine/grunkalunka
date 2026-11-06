@@ -241,7 +241,8 @@ fn kinds(
                             .unwrap_or_else(|| [Kind::Primitive].into()),
                     ),
                     Expression::CallExpression(call)
-                        if object_intrinsics::is_method(call, semantic, "hasOwn") =>
+                        if object_intrinsics::is_method(call, semantic, "hasOwn")
+                            || object_intrinsics::is_array_test(call, semantic) =>
                     {
                         values.push([Kind::GeneralPrimitive].into());
                     }
