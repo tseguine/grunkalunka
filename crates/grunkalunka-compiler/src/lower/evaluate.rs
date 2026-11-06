@@ -8,6 +8,7 @@ mod array_at;
 mod array_mutation;
 mod array_search;
 mod array_slice;
+mod destructure;
 mod dictionary;
 mod has_own;
 mod managed;
@@ -1531,6 +1532,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     self.resume_array_mutation(task, regions, values, work)?
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
+                Work::Destructure(task) => self.resume_destructure(task, regions, values)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?
                 }

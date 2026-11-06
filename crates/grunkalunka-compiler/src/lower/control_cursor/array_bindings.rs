@@ -2,13 +2,13 @@
 //! The shared pattern cursor retains these independent states across defaults.
 use super::*;
 
-pub(super) struct IteratorState {
+pub(in crate::lower) struct IteratorState {
     active: ValueId,
     pub(super) undefined: ValueId,
 }
 
 impl Lowering<'_, '_> {
-    pub(super) fn collect_array_binding_rest(
+    pub(in crate::lower) fn collect_array_binding_rest(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,
@@ -75,7 +75,7 @@ impl Lowering<'_, '_> {
         IteratorState { active, undefined }
     }
 
-    pub(super) fn read_array_binding_element(
+    pub(in crate::lower) fn read_array_binding_element(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,

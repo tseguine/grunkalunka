@@ -4,6 +4,22 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn array_assignments_write_existing_cells_and_return_the_original_rhs() {
+    for body in [
+        "let x='',y='';[x,y]=['first','second'];return x.length*10+y.length;",
+        "let [x,y,z]=[];[x,,y,z]=[a,,b];return x===a&&y===b&&z===undefined?1:0;",
+        "let x='';const source=['text'];const result=([x]=source);return result===source&&x==='text'?1:0;",
+        "let x='';const read=()=>x;[x]=['saved'];return read().length;",
+        "let [x]=[a];[x,x]=[a,b];return x===b?1:0;",
+        "let [tail]=[[]];const source=[a,,b];[,...tail]=source;return tail.length*10+(tail[0]===undefined&&tail[1]===b&&tail!==source?1:0);",
+        "let x='';let n=0;const make=()=>{n++;return ['text'];};[x]=make();return n*10+x.length;",
+        "let x='';if([x]=['text'])return x.length;return 0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn array_bindings_select_positions_holes_and_missing_elements() {
     for body in [
         "const [first,,third,missing]=[a,,b];return first===a&&third===b&&missing===undefined?1:0;",
