@@ -147,3 +147,14 @@ explicit undefined argument), spread arguments, borrowed/optional calls and
 prototype mutation remain outside this profile. Zero arguments return the
 receiver's String value. An A1 composition fixture builds an action label before
 passing scalar selection arguments to the existing service.
+
+## Template labels
+
+Ordinary template literals accept cooked UTF-16 text and up to 1000 source-proven
+String substitutions. Escapes, embedded NULs and unpaired surrogates retain their
+exact values. Substitutions execute left-to-right, with the accumulated prefix
+retained across awaits; rejection skips later expressions. Results retain String
+provenance through helpers, fields and captured A1 handlers. Evaluation uses an
+explicit continuation rather than recursive traversal and the existing String
+concatenation IR. General substitution coercion and tagged templates remain
+outside this admission slice; TypeScript annotations cannot prove a String.

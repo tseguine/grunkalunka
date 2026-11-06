@@ -1000,3 +1000,13 @@ fn imported_handler_composes_an_action_label() {
     "#,
     );
 }
+
+#[test]
+fn imported_handler_builds_a_template_label() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    function label(action){return `Menu: ${action}`;}
+    export function run(a,b){const text=label(a>0?'Expand':'Collapse');const handle=()=>choose(text.endsWith('Expand')?1:0,2);return +handle();}
+    "#,
+    );
+}

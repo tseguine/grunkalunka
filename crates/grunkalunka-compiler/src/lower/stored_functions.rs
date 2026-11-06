@@ -192,7 +192,7 @@ impl Fields {
         if !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
-                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
+                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
@@ -367,7 +367,7 @@ impl Fields {
                     values.insert(id, BTreeSet::from([Origin::NullObject(id)]));
                     None
                 }
-                AstKind::StringLiteral(_) => {
+                AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::String]));
                     None
                 }
