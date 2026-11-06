@@ -1433,3 +1433,47 @@ fn templates_require_known_strings_and_bound_substitution_count() {
         assert_eq!(crate::lower_source(&source, false).is_ok(), admitted, "{n}");
     }
 }
+
+#[test]
+fn numeric_string_index_requires_number_and_keeps_missing_results() {
+    let mut m = crate::lower_source(
+        "export function run(a,b){return 'abc'[a]===undefined?1:0;}",
+        false,
+    )
+    .unwrap();
+    let op = m.functions[0]
+        .body
+        .operations
+        .iter()
+        .find(|o| matches!(o.kind, Op::ManagedStringGetIndex { .. }))
+        .unwrap();
+    let Op::ManagedStringGetIndex {
+        result,
+        input,
+        index,
+    } = op.kind
+    else {
+        unreachable!()
+    };
+    verify_module(&m).unwrap();
+    for value in [result, input] {
+        m.functions[0].values[value.0] = Type::Number;
+        assert!(verify_module(&m).is_err());
+        m.functions[0].values[value.0] = Type::ManagedValue;
+    }
+    m.functions[0].values[index.0] = Type::ManagedValue;
+    assert!(verify_module(&m).is_err());
+    for body in [
+        "return 'abc'[a].length;",
+        "return 'abc'[a].trim().length;",
+        "return 'abc'[null]===undefined?1:0;",
+        "return 'abc'[true]===undefined?1:0;",
+        "const s=a?'abc':null;return s[0]===undefined?1:0;",
+        "return 'abc'?.[a]===undefined?1:0;",
+    ] {
+        assert!(
+            crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+}

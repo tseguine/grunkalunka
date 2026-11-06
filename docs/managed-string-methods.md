@@ -158,3 +158,14 @@ provenance through helpers, fields and captured A1 handlers. Evaluation uses an
 explicit continuation rather than recursive traversal and the existing String
 concatenation IR. General substitution coercion and tagged templates remain
 outside this admission slice; TypeScript annotations cannot prove a String.
+
+## Numeric character properties
+
+`text[index]` accepts source-proven String receivers and Number indices. It
+returns one UTF-16 code unit or Undefined. Only nonnegative integral indices
+below the String length select a unit; -0 selects zero, while fractions, NaN,
+infinities and negative indices miss. This differs from `at`'s relative positions
+and truncation. Receiver snapshots survive key effects and awaits. The boxed
+result can flow through helpers, captures and equality but does not prove a
+present String for further String operations. General property-key coercion,
+optional access and String writes are not added by this slice.

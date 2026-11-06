@@ -4,6 +4,15 @@ mod arrays;
 mod objects;
 
 pub(super) enum ManagedWork<'e, 'a> {
+    StringIndexReceiver {
+        node: &'e Expression<'a>,
+        index: &'e Expression<'a>,
+        depth: usize,
+    },
+    StringIndex {
+        node: &'e Expression<'a>,
+        input: ValueId,
+    },
     DictionaryNew(&'e Expression<'a>),
     Array(arrays::ArrayWork<'e, 'a>),
     SpreadCopy(&'e Expression<'a>),
@@ -534,6 +543,7 @@ impl Lowering<'_, '_> {
                     };
                     values.push(
                         (receiver == Some(Type::ManagedObject)
+                            || (self.stored.string(source.node_id()) && !length)
                             || (receiver == Some(Type::ManagedArray) && !length))
                             .then_some(Type::ManagedValue),
                     );
@@ -565,6 +575,23 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if matches!(mode, Mode::Managed)
+            && let Expression::ComputedMemberExpression(member) = node
+            && !member.optional
+            && self.stored.string(member.object.node_id())
+            && !matches!(
+                closures::unwrapped_at(&member.expression, depth + 1).map(|(e, _)| e),
+                Some(Expression::StringLiteral(_))
+            )
+        {
+            work.push(Work::Managed(ManagedWork::StringIndexReceiver {
+                node,
+                index: &member.expression,
+                depth: depth + 1,
+            }));
+            work.push(Work::Eval(&member.object, depth + 1, Mode::Managed));
+            return Ok(true);
+        }
         if matches!(mode, Mode::Managed)
             && (self.schedule_dictionary_read(node, depth, work)?
                 || self.schedule_dictionary_write(node, depth, work)?)
@@ -1209,6 +1236,25 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         match task {
+            ManagedWork::StringIndexReceiver { node, index, depth } => {
+                let input = values.pop().expect("String index receiver").id();
+                work.push(Work::Managed(ManagedWork::StringIndex { node, input }));
+                work.push(Work::Eval(index, depth, Mode::Number));
+            }
+            ManagedWork::StringIndex { node, input } => {
+                let index = values.pop().expect("String index").id();
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedStringGetIndex {
+                        result,
+                        input,
+                        index,
+                    },
+                );
+                values.push(Value::Managed(result));
+            }
             ManagedWork::DictionaryNew(node) => {
                 let result = self.value(Type::ManagedObject);
                 Self::push(regions.current(), node, Op::ManagedObjectNew { result });

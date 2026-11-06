@@ -493,6 +493,11 @@ impl Emitter<'_> {
                 input,
                 index,
             }
+            | Op::ManagedStringGetIndex {
+                result,
+                input,
+                index,
+            }
             | Op::ManagedStringAt {
                 result,
                 input,
@@ -512,6 +517,8 @@ impl Emitter<'_> {
                         "call $gc_string_at\n"
                     } else if matches!(operation.kind, Op::ManagedStringCodePointAt { .. }) {
                         "call $gc_string_code_point_at\n"
+                    } else if matches!(operation.kind, Op::ManagedStringGetIndex { .. }) {
+                        "call $gc_string_get_index\n"
                     } else {
                         "call $gc_string_char_code_at\n"
                     },

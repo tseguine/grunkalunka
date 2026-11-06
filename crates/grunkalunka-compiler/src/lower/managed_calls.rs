@@ -194,7 +194,8 @@ fn kinds(
                 let receiver = values.pop().expect("receiver source kinds");
                 values.push(
                     if receiver.contains(&Kind::Object)
-                        || (receiver.contains(&Kind::Array) && !length)
+                        || ((receiver.contains(&Kind::Array) || receiver.contains(&Kind::String))
+                            && !length)
                     {
                         [Kind::Primitive, Kind::Object, Kind::Array, Kind::String].into()
                     } else {

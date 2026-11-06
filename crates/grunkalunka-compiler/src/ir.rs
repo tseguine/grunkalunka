@@ -648,6 +648,12 @@ pub(crate) enum Op {
         input: ValueId,
         index: ValueId,
     },
+    // Numeric property selection, returning String or Undefined.
+    ManagedStringGetIndex {
+        result: ValueId,
+        input: ValueId,
+        index: ValueId,
+    },
     // Relative UTF-16 selection, returning String or Undefined.
     ManagedStringAt {
         result: ValueId,
@@ -1677,6 +1683,11 @@ impl Verifier<'_> {
                 index,
             }
             | Op::ManagedStringCodePointAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringGetIndex {
                 result,
                 input,
                 index,

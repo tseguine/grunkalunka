@@ -302,3 +302,14 @@
     local.get $at local.get $length i32.lt_u br_if $repair
   end
   i32.const 5 f64.const 0 local.get $text struct.new $gc_value)
+
+;; Number property keys name a character only for nonnegative integer indices.
+;; Unlike at/charAt, do not truncate fractions, map NaN to zero, or offset negatives.
+(func $gc_string_get_index (param $value (ref null $gc_value)) (param $index f64)
+  (result (ref null $gc_value))
+  local.get $index f64.const 0 f64.ge
+  local.get $index local.get $index f64.trunc f64.eq i32.and
+  local.get $index local.get $value call $gc_string_key array.len f64.convert_i32_u f64.lt i32.and
+  if (result (ref null $gc_value))
+    local.get $value local.get $index call $gc_string_char_at
+  else i32.const 0 f64.const 0 ref.null eq struct.new $gc_value end)
