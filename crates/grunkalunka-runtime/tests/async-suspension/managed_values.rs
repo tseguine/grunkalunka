@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn mixed_boxed_local_logical_assignments_select_suspension_and_store() {
+    compare_promises(
+        &[
+            "let [x]=[null];const value=x??=(await b,'new');return value==='new'&&x===value?1:0;",
+            "let [x]=['old'];x||=(await Promise.reject(b),'new');return x==='old'?1:0;",
+            "let [x]=[false];x&&=(await Promise.reject(b),'new');return x===false?1:0;",
+            "let [x]=[null];try{x??=(await Promise.reject(b),'new');}catch(e){return x===null&&e===b?1:0;}return -1;",
+            "const other={n:a};let [x]=[null];const value=x??=(await b,other);return x===other&&value===other?1:0;",
+            "let [x]=[null];const read=()=>x;const value=x??=(x=false,await b,'new');return read()===value?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn awaited_number_origins_compose_with_boxed_storage_and_writes() {
     compare_promises(
         &[
