@@ -5,6 +5,29 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn typeof_unresolvable_names_preserves_scope_and_expression_effects() {
+    for body in [
+        "return typeof missingFeature==='undefined'?1:0;",
+        "const kind=typeof ((missingFeature));return kind.length;",
+        "let n=0;const kind=typeof missingFeature;return kind==='undefined'?(n++,a):b;",
+        "let undefined=a;return typeof missingFeature==='undefined'&&typeof undefined==='number'?1:0;",
+        "{const missingFeature=a;if(typeof missingFeature!=='number')return -1;}return typeof missingFeature==='undefined'?1:0;",
+        "for(let missingFeature=0;missingFeature<1;missingFeature++){}return typeof missingFeature==='undefined'?1:0;",
+        "const kind=()=>typeof missingFeature;return kind()==='undefined'?a:b;",
+        r"return typeof \u006dissingFeature==='undefined'?1:0;",
+        "typeof missingFeature;return a;",
+    ] {
+        compare(body);
+    }
+    let original = "export function run(a,b) { return typeof __grunkalunka_typeof_missing__ === \"undefined\" ? 1 : 0; }";
+    common::compare_sources(original, original);
+    compare_typed(
+        "return typeof missingFeature==='undefined'?1:0;",
+        "return typeof (missingFeature as number)==='undefined'?1:0;",
+    );
+}
+
+#[test]
 fn boxed_number_fields_and_patterns_compose_with_arithmetic_and_calls() {
     for body in [
         "return ({x:a}).x+b;",

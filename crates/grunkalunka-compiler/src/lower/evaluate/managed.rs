@@ -77,7 +77,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         key: Vec<u16>,
     },
     Typeof(&'e Expression<'a>),
-    FunctionTypeof(&'e Expression<'a>),
+    ConstantTypeof(&'e Expression<'a>, &'static str),
     Truthy(&'e Expression<'a>),
     Store {
         node: &'e Expression<'a>,
@@ -1089,6 +1089,15 @@ impl Lowering<'_, '_> {
             if let Expression::UnaryExpression(u) = node
                 && u.operator == UnaryOperator::Typeof
             {
+                if typeof_name::unresolvable(&u.argument, self.semantic, depth + 1) {
+                    // Only a reference to an absent name skips GetValue. A
+                    // sequence, member access or resolved TDZ binding does not.
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(
+                        node,
+                        "undefined",
+                    )));
+                    return Ok(true);
+                }
                 let named = closures::unwrapped_at(&u.argument, depth + 1)
                     .and_then(|(argument, _)| match argument {
                         Expression::Identifier(i) => i.reference_id.get(),
@@ -1101,9 +1110,9 @@ impl Lowering<'_, '_> {
                 if named {
                     // A hoisted module declaration has no read/construction effects.
                     // Its complete source body is still validated independently.
-                    work.push(Work::Managed(ManagedWork::FunctionTypeof(node)));
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(node, "function")));
                 } else if self.function_arity(&u.argument, depth + 1).is_some() {
-                    work.push(Work::Managed(ManagedWork::FunctionTypeof(node)));
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(node, "function")));
                     work.push(Work::Eval(&u.argument, depth + 1, Mode::Discard));
                 } else {
                     work.push(Work::Managed(ManagedWork::Typeof(node)));
@@ -1361,14 +1370,14 @@ impl Lowering<'_, '_> {
                 );
                 values.push(Value::Number(result));
             }
-            ManagedWork::FunctionTypeof(node) => {
+            ManagedWork::ConstantTypeof(node, name) => {
                 let result = self.value(Type::ManagedValue);
                 Self::push(
                     regions.current(),
                     node,
                     Op::ManagedString {
                         result,
-                        units: "function".encode_utf16().collect(),
+                        units: name.encode_utf16().collect(),
                     },
                 );
                 values.push(Value::Managed(result));

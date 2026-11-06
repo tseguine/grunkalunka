@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn typeof_unresolvable_names_keep_text_and_control_flow_across_awaits() {
+    compare_promises(
+        &[
+            "const kind=typeof missingFeature;await a;return kind==='undefined'?b:a;",
+            "await a;let n=0;const kind=()=>typeof missingFeature;return kind()==='undefined'?(n++,n):-1;",
+            "const kind=typeof missingFeature;try{await Promise.reject(b);}catch(e){return kind==='undefined'&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn boxed_numbers_keep_snapshots_and_numeric_results_across_awaits() {
     compare_promises(
         &[
