@@ -399,10 +399,19 @@ and parentheses are checked under the existing expression-depth budget.
 
 Property reads and writes reject every Object.prototype intrinsic key and every
 Array.prototype String key except the array's own `length`, including shadowed
-keys. Direct `at` calls have the supported specialization below.
+keys. Direct `at` and `includes` calls have checked specializations.
 Tests compare this boundary with the native intrinsic names. The additional Array
 guard does not restrict ordinary objects' own keys such as `map` or `push`.
 Prototype mutation and foreign references remain unavailable in this profile.
+
+`array.includes(needle, fromIndex)` tests membership in a proven managed
+Array. It uses SameValueZero, so NaN matches NaN and signed zeroes compare
+equal. A hole compares as Undefined, and referenced objects compare by
+identity. The optional starting position admits Numbers and explicit
+Undefined. The receiver and needle are saved before later argument effects,
+and the search observes the resulting length and contents. The guest searches
+the stored entries, so a sparse array's logical length does not determine the
+number of iterations.
 
 A single spread literal `[...items]` makes a shallow, dense copy of a proven
 Array. A proven String operand produces a dense array of the Strings yielded

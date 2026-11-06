@@ -579,3 +579,15 @@ fn string_copy_spread_keeps_code_point_slots_through_awaits() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_includes_saves_receiver_and_needle_before_later_awaits() {
+    compare_promises(
+        &[
+            "let list=[a],needle='x';const saved=list;const found=list.includes((await a,needle),(await b,list=[],needle='y',saved[0]='x',0));return found&&!list.includes(needle)?1:0;",
+            "let n=0;try{[a].includes((n=1,b),(await Promise.reject(a),n=2));}catch(e){return n===1&&e===a?1:0;}return -1;",
+            "try{Object.keys(null);}catch(e){const xs=[e];await a;try{Object.keys(undefined);}catch(other){return xs.includes(e)&&!xs.includes(other)?1:0;}}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

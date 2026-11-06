@@ -575,6 +575,27 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_array_get\n");
                 self.set(*result);
             }
+            Op::ManagedArrayIncludes {
+                result,
+                array,
+                needle,
+                from,
+            } => {
+                self.get(*array);
+                if let Some(needle) = needle {
+                    self.get(*needle);
+                } else {
+                    self.output
+                        .push_str("i32.const 0\nf64.const 0\nref.null eq\nstruct.new $gc_value\n");
+                }
+                if let Some(from) = from {
+                    self.get(*from);
+                } else {
+                    self.output.push_str("f64.const 0\n");
+                }
+                self.output.push_str("call $gc_array_includes\n");
+                self.set(*result);
+            }
             Op::ManagedArrayAt {
                 result,
                 array,
@@ -1662,6 +1683,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     property_membership::emit_runtime(module, output);
     indexed(output, own_keys::runtime(module));
     indexed(output, array_at::runtime(module));
+    if module.functions.iter().any(|f| {
+        ir::any_operation(&f.body, &mut |op| {
+            matches!(op, Op::ManagedArrayIncludes { .. })
+        })
+    }) {
+        output.push_str(include_str!("emit/array_includes.wat"));
+    }
     indexed(output, array_pop::runtime(module));
     indexed(output, array_rest::runtime(module));
     output.push_str(string_concat::runtime(module));
