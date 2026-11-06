@@ -66,6 +66,15 @@ only on the selected branch, and returns the exact old or new Number. Because a
 proven Number is never nullish, `??=` retains the old cell and skips every RHS
 effect. RHS values that could change the cell's kind remain guarded.
 
+Boxed local cells also admit logical assignments with represented mixed values
+in managed, predicate and discarded positions. The old value is saved once and
+tested by its runtime truthiness or nullish tag; only the selected RHS executes
+and stores. Strings, primitive kinds and reference identities remain intact,
+including captures and suspension. This supports a nullish fallback such as
+`let [x]=[null]; x ??= fallback` without asserting that the cell is numeric.
+Numeric consumers still require the existing Number proof. Const/TDZ checks
+and validation of the complete RHS apply even when its branch will be skipped.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.

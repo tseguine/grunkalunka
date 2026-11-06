@@ -1,4 +1,5 @@
-//! Logical assignments to source-proven Number values in boxed local cells.
+//! Logical assignments preserve the selected value in boxed local cells.
+use super::managed::ManagedWork;
 use super::*;
 
 pub(super) struct Task<'e, 'a> {
@@ -7,6 +8,7 @@ pub(super) struct Task<'e, 'a> {
     slot: SlotId,
     old: ValueId,
     condition: ValueId,
+    numeric: bool,
 }
 
 impl Lowering<'_, '_> {
@@ -46,10 +48,12 @@ impl Lowering<'_, '_> {
         };
         let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
         let slot = binding.slot;
-        if self.slots[slot.0].ty != Type::ManagedValue
-            || !self.stored.number_update(identifier.node_id())
-            || !self.stored.number(node.node_id())
-        {
+        if self.slots[slot.0].ty != Type::ManagedValue {
+            return Ok(false);
+        }
+        let numeric =
+            self.stored.number_update(identifier.node_id()) && self.stored.number(node.node_id());
+        if !numeric && !matches!(mode, Mode::Managed | Mode::Predicate | Mode::Discard) {
             return Ok(false);
         }
         if !binding.mutable {
@@ -61,8 +65,10 @@ impl Lowering<'_, '_> {
 
         if matches!(mode, Mode::Discard) {
             work.push(Work::Forget);
-        } else {
+        } else if numeric {
             managed::number_consumer(work, node, mode)?;
+        } else if matches!(mode, Mode::Predicate) {
+            work.push(Work::Managed(ManagedWork::Truthy(node)));
         }
         let input = self.value(Type::ManagedValue);
         Self::push(
@@ -73,17 +79,32 @@ impl Lowering<'_, '_> {
                 slot,
             },
         );
-        let old = self.value(Type::Number);
-        Self::push(
-            regions.current(),
-            node,
-            Op::ManagedToNumber { result: old, input },
-        );
+        let old = if numeric {
+            let old = self.value(Type::Number);
+            Self::push(
+                regions.current(),
+                node,
+                Op::ManagedToNumber { result: old, input },
+            );
+            old
+        } else {
+            input
+        };
         let condition = self.value(Type::Predicate);
         Self::push(
             regions.current(),
             node,
-            if assignment.operator == AssignmentOperator::LogicalNullish {
+            if !numeric && assignment.operator == AssignmentOperator::LogicalNullish {
+                Op::ManagedIsNullish {
+                    result: condition,
+                    input: old,
+                }
+            } else if !numeric {
+                Op::ManagedTruthy {
+                    result: condition,
+                    input: old,
+                }
+            } else if assignment.operator == AssignmentOperator::LogicalNullish {
                 Op::Boolean {
                     result: condition,
                     value: false,
@@ -102,8 +123,13 @@ impl Lowering<'_, '_> {
             slot,
             old,
             condition,
+            numeric,
         }));
-        work.push(Work::Eval(&assignment.right, depth + 1, Mode::Number));
+        work.push(Work::Eval(
+            &assignment.right,
+            depth + 1,
+            if numeric { Mode::Number } else { Mode::Managed },
+        ));
         Ok(true)
     }
 
@@ -113,25 +139,30 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
     ) {
-        let right = values.pop().expect("boxed logical assignment RHS").number();
-        let primitive = self.value(Type::General);
-        Self::push(
-            regions.current(),
-            task.node,
-            Op::Pack {
-                result: primitive,
-                input: right,
-            },
-        );
-        let value = self.value(Type::ManagedValue);
-        Self::push(
-            regions.current(),
-            task.node,
-            Op::ManagedPrimitive {
-                result: value,
-                input: primitive,
-            },
-        );
+        let right = values.pop().expect("boxed logical assignment RHS").id();
+        let value = if task.numeric {
+            let primitive = self.value(Type::General);
+            Self::push(
+                regions.current(),
+                task.node,
+                Op::Pack {
+                    result: primitive,
+                    input: right,
+                },
+            );
+            let value = self.value(Type::ManagedValue);
+            Self::push(
+                regions.current(),
+                task.node,
+                Op::ManagedPrimitive {
+                    result: value,
+                    input: primitive,
+                },
+            );
+            value
+        } else {
+            right
+        };
         Self::push(
             regions.current(),
             task.node,
@@ -148,7 +179,11 @@ impl Lowering<'_, '_> {
         } else {
             (selected, skipped)
         };
-        let result = self.value(Type::Number);
+        let result = self.value(if task.numeric {
+            Type::Number
+        } else {
+            Type::ManagedValue
+        });
         Self::push(
             regions.current(),
             task.node,
@@ -159,12 +194,44 @@ impl Lowering<'_, '_> {
                 alternate,
             },
         );
-        values.push(Value::Number(result));
+        values.push(if task.numeric {
+            Value::Number(result)
+        } else {
+            Value::Managed(result)
+        });
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn boxed_local_logical_assignments_accept_represented_values() {
+        for body in [
+            "let [x]=[null];return (x??='ok')==='ok'?1:0;",
+            "let {x}={x:''};return (x||=a)===a?1:0;",
+            "let [x]=[false];return (x&&='skip')===false?1:0;",
+            "const other={n:a};let [x]=[null];return (x??=other)===other?1:0;",
+            "let [x]=[undefined];if(x??=a)return b;return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+        for body in [
+            "const [x]=[null];return (x??=a)===a?1:0;",
+            "let [x]=[null];x??=unknown();return a;",
+            "let [x]=[false];x&&=1n;return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let error = crate::compile(&source, false)
+                .err()
+                .expect("guarded source");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+
     #[test]
     fn boxed_number_locals_accept_logical_assignments_and_guard_kind_changes() {
         for (body, admitted) in [

@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn boxed_local_logical_assignments_preserve_kinds_identity_and_effects() {
+    for body in [
+        "let [x]=[null];return (x??='ok')==='ok'?1:0;",
+        "let {x}={x:''};return (x||=a)===a?1:0;",
+        "let [x]=[false];return (x&&='skip')===false?1:0;",
+        "const other={n:a};let [x]=[null];return (x??=other)===other?1:0;",
+        "let [x]=[undefined];if(x??=a)return b;return a;",
+        "let [x]=[a?null:''];let calls=0;const value=x??=(calls++,b);return calls===(a?1:0)&&value===x?1:0;",
+        "let [x]=[null];const read=()=>x;const value=x??=(x=false,'new');return read()===value?1:0;",
+        "let [x]=['old'];let n=0;const value=x||=(n++,'new');x='later';return value==='old'&&n===0?1:0;",
+        "let [x]=[null];let n=0;x??=(n++,a);return n;",
+        "const other=[a];let [x]=[null];const value=x||=other;return value===other&&x===other?1:0;",
+        "for(let [x] of [[null]]){const value=x??='ok';return value==='ok'?1:0;}return -1;",
+        "const other={n:a};for(let x of [null]){const read=()=>x;x||=other;return read()===other?1:0;}return -1;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn number_property_updates_preserve_old_new_values_and_receiver_snapshots() {
     for body in [
         "const o={n:a};return o.n++;",
