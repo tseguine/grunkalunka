@@ -724,3 +724,42 @@ fn reversed_iteration_keeps_values_but_not_original_positions() {
         assert!(facts.other && !facts.string, "{body}: {facts:?}");
     }
 }
+
+#[test]
+fn to_reversed_tracks_fresh_slots_and_shared_child_mutations() {
+    for body in [
+        "const xs=['x'];const ys=xs.toReversed();ys[0]=a;const observed=xs[0];return a;",
+        "const xs=['x'];for(const v of xs.toReversed()){const observed=v;}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const xs=[{label:'x'}];const ys=xs.toReversed();for(const v of ys)v.label=a;const observed=xs[0].label;return a;",
+        "const xs=['x'];xs[0]=a;for(const v of xs.toReversed()){const observed=v;}return a;",
+        "for(const v of [,'x'].toReversed()){const observed=v;}return a;",
+    ] {
+        let f = observe(body);
+        assert!(f.other && !f.string, "{body}: {f:?}");
+    }
+}
+
+#[test]
+fn to_reversed_keeps_unrepresented_calls_and_kinds_rejected() {
+    for body in [
+        "return a.toReversed().length;",
+        "return [a].toReversed?.().length;",
+        "return [a].toReversed(...[]).length;",
+        "return [a].toReversed.call([a]).length;",
+        "const xs=[a];xs.toReversed=()=>[];return xs.toReversed().length;",
+        "const xs=a?[]:null;return xs.toReversed().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let err = match crate::lower_source(&source, ts) {
+                Err(err) => err,
+                Ok(_) => panic!("unsupported input"),
+            };
+            assert!(!err.contains("internal IR"), "{err}");
+        }
+    }
+}

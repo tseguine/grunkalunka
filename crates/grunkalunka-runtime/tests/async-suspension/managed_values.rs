@@ -658,3 +658,14 @@ fn reversed_iteration_origins_survive_suspension() {
         &[(1.0, 2.0), (0.0, 0.0)],
     );
 }
+
+#[test]
+fn to_reversed_saves_receiver_and_observes_later_argument_effects() {
+    compare_promises(
+        &[
+            "let xs=[a,b];const old=xs;const ys=xs.toReversed((await a,xs=[]),(await b,old[1]=a));return ys!==old&&ys[0]===a&&old[0]===a&&xs.length===0?1:0;",
+            "const xs=[a,b];let n=0;try{xs.toReversed((n=1,await Promise.reject(a)),n=2);}catch(e){return n===1&&xs.length===2&&e===a?1:0;}return -1;",
+        ],
+        &[(1.0, 2.0), (0.0, 0.0)],
+    );
+}

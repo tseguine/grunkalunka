@@ -732,7 +732,8 @@ impl Lowering<'_, '_> {
                         | crate::lower::array_mutations::Operation::Shift,
                     Mode::Managed
                 ) | (
-                    crate::lower::array_mutations::Operation::Reverse,
+                    crate::lower::array_mutations::Operation::Reverse
+                        | crate::lower::array_mutations::Operation::ToReversed,
                     Mode::Array
                 )
             )

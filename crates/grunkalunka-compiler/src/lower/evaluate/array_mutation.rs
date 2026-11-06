@@ -51,6 +51,25 @@ impl Lowering<'_, '_> {
                 Op::ManagedArrayShift { result, array },
                 Value::Managed(result),
             ),
+            crate::lower::array_mutations::Operation::ToReversed => {
+                let copy = self.value(Type::ManagedArray);
+                Self::push(
+                    regions.current(),
+                    task.node,
+                    Op::ManagedArrayRest {
+                        result: copy,
+                        array,
+                        start: 0,
+                    },
+                );
+                (
+                    Op::ManagedArrayReverse {
+                        result,
+                        array: copy,
+                    },
+                    Value::Array(result),
+                )
+            }
             crate::lower::array_mutations::Operation::Reverse => (
                 Op::ManagedArrayReverse { result, array },
                 Value::Array(result),

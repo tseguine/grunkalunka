@@ -1110,3 +1110,15 @@ As with `pop`, the returned value stays boxed and positional source proofs are
 invalidated through aliases. Borrowed/optional calls, spread arguments, overrides
 and generic array-like receivers remain separate work. The array, suspension and
 A1 suites cover queue consumption against native JS, Node-Wasm and Wasmtime.
+
+## Reversed snapshots
+
+`toReversed()` creates a fresh dense reversed array from a proven intrinsic
+Array. It leaves source slots and length unchanged, preserves child identities,
+excludes named properties, and materializes holes as own Undefined entries.
+The existing guest dense-copy and reversal operations compose after all surplus
+argument effects finish, preserving the saved receiver across suspension.
+Iteration retains copied value origins, with independent result-slot writes and
+shared-child field writes tracked separately. Direct indexed reads may miss;
+unknown receivers, overrides, borrowed/optional calls and spread arguments remain
+outside admission. Unlike sparse `reverse`, allocation is proportional to length.
