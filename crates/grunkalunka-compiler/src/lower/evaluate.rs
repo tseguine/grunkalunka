@@ -1533,7 +1533,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     self.resume_array_mutation(task, regions, values, work)?
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
-                Work::PropertyDelete(task) => self.finish_property_delete(task, regions, values),
+                Work::PropertyDelete(task) => {
+                    self.resume_property_delete(task, regions, values, work)
+                }
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?
