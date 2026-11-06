@@ -370,7 +370,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         self.advance_binding_pattern(resume, state, output, cursor)
     }
 
-    pub(super) fn binding_undefined(
+    pub(in crate::lower) fn binding_undefined(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,

@@ -6,7 +6,12 @@ Array; it executes once, and the assignment expression returns that same array.
 Elisions, repeated targets, missing values and identifier rest targets preserve
 source order. Rest creates a fresh dense tail, including Undefined for holes.
 For example, `let first=''; [first]=['ready']` updates the existing variable.
-Defaults, nested assignment patterns and member targets remain separate work.
+Identifier defaults run only for Undefined, complete before the next selection
+and may suspend. Arrays observe their live length until their own iterator first
+finishes; later defaults cannot revive an exhausted iterator. Rest retains the
+same exhaustion state. The original RHS stays saved when a default reassigns
+its source variable. Nested assignment patterns and member targets remain
+separate work.
 Ordinary local targets, including Number-initialized and bare `let` variables,
 use boxed storage from their declaration onward. Bare declarations still create
 intrinsic Undefined at declaration execution. Captures share that same cell;

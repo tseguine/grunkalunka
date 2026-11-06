@@ -10,7 +10,7 @@ use oxc_ast::ast::{
     ForStatementLeft, IfStatement, TryStatement, WhileStatement,
 };
 
-mod array_bindings;
+pub(in crate::lower) mod array_bindings;
 mod bindings;
 
 #[cfg(test)]

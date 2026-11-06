@@ -57,7 +57,7 @@ impl Lowering<'_, '_> {
         result
     }
 
-    pub(super) fn begin_array_binding_iterator(
+    pub(in crate::lower) fn begin_array_binding_iterator(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,
@@ -95,7 +95,7 @@ impl Lowering<'_, '_> {
         selected
     }
 
-    pub(super) fn select_array_binding_step(
+    pub(in crate::lower) fn select_array_binding_step(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,

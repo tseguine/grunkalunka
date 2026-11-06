@@ -1316,10 +1316,16 @@ fn code_point_at_keeps_boxed_results_and_requires_proven_inputs() {
 }
 
 #[test]
-fn string_at_default_proofs_do_not_admit_unsupported_pattern_assignment() {
+fn string_at_assignment_defaults_prove_text_without_admitting_unproven_reads() {
     let source =
         "export function run(a,b){let c='';({c='?'}={c:'abc'.at(a)});return c.charCodeAt(0);}";
-    assert!(crate::lower_source(source, false).is_err());
+    verify_module(&crate::lower_source(source, false).unwrap()).unwrap();
+    for source in [
+        "export function run(a,b){let c='';({c}={c:'abc'.at(a)});return c.charCodeAt(0);}",
+        "export function run(a,b){let c='';({c=1}={c:'abc'.at(a)});return c.charCodeAt(0);}",
+    ] {
+        assert!(crate::lower_source(source, false).is_err(), "{source}");
+    }
 }
 
 #[test]

@@ -4,6 +4,25 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn array_assignment_defaults_keep_order_live_length_and_sticky_exhaustion() {
+    for body in [
+        "let x=0,y=0,n=0;[x=(n=n*10+1,a),y=(n=n*10+2,b)]=[];return n*100+(x===a?10:0)+(y===b?1:0);",
+        "let x=0,y=0,n=0;[x=(n++,a),y=(n++,b)]=[null,false];return n===0&&x===null&&y===false?1:0;",
+        "let x=0,y=0;const source=[undefined,a];[x=(source[1]=b,a),y]=source;return x===a&&y===b?1:0;",
+        "let x=0,y=0;const source=[];[x=(source[1]=b,a),y]=source;return x===a&&y===undefined?1:0;",
+        "let x=0,y=0,z=0;const source=[undefined,a];[x=(source.length=0,a),y=(source[2]=b,b),z]=source;return x===a&&y===b&&z===undefined?1:0;",
+        "let x=0,y=0;let source=[undefined,a];const original=source;const result=([x=(source=[b],b),y]=source);return result===original&&source!==original&&x===b&&y===a?1:0;",
+        "let x=0,y=0;[x=a,y=x]=[];return x===a&&y===a?1:0;",
+        "let x=0,tail=[];const source=[];[x=(source[1]=b,a),...tail]=source;return tail.length;",
+        "let x=0,tail=[];const source=[undefined,a];[x=(source[2]=b,a),...tail]=source;return tail.length*10+(tail[0]===a&&tail[1]===b?1:0);",
+        "let x='';const undefined=a;[x='text']=[];return x.length;",
+        "let x='';const read=()=>x;[x='text']=[];return read().length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn assignment_patterns_accept_numeric_and_implicitly_undefined_locals() {
     for body in [
         "let x=0,y=0;[x,y]=[a,b];return x===a&&y===b?1:0;",
