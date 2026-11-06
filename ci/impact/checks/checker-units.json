@@ -6,7 +6,9 @@
     "tests/checks/*.test.mjs"
   ],
   "dependsOn": [
-    "check:document-outline"
+    "check:document-outline",
+    "check:markdown-outline",
+    "check:markdown-portability"
   ],
   "buildDependsOn": [],
   "paths": [

@@ -43,7 +43,8 @@ test('checker units run once and unfiltered in both profiles', () => {
 });
 
 for (const path of ['tests/checks/document-outline-profile.test.mjs',
-  'tests/checks/document-outline-reports.test.mjs', 'tests/checks/future-fixture.mjs']) {
+  'tests/checks/document-outline-reports.test.mjs',
+  'tests/checks/markdown-orchestration.test.mjs', 'tests/checks/future-fixture.mjs']) {
   test(`checker-only changes need no native build: ${path}`, () => {
     const result = plan(path);
     assert.equal(result.full, false, result.reasons.join('; '));
@@ -68,6 +69,16 @@ test('unknown source paths still require full verification', () => {
   assert.equal(result.full, true);
   assert.match(result.reasons.join('; '), /unattributed code change/);
 });
+
+for (const kind of ['outline', 'portability']) {
+  test(`Markdown ${kind} source edits retain units and the real feature check`, () => {
+    const result = plan(`scripts/check-markdown-${kind}.mjs`);
+    assert.equal(result.full, false, result.reasons.join('; '));
+    assert.ok(result.tests.includes(unit.id));
+    assert.ok(result.tests.includes(`check:markdown-${kind}`));
+    assert.ok(result.build.includes('grunkalunka-markdown'));
+  });
+}
 
 test('missing unit registration cannot silently omit changed checker tests', () => {
   const result = planImpact({ changedPaths: ['tests/checks/document-outline-profile.test.mjs'],

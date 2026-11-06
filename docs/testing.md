@@ -109,6 +109,16 @@ node --test --experimental-test-coverage \
 That report measures one full successful report path. Run the unfiltered unit
 command above for malformed receipts and failure/cleanup decisions as well.
 
+The same unit command also runs the actual Markdown portability and outline
+check scripts with controlled subprocess and Worker boundaries. These cases
+exercise native-output framing, safe-integer/hex/byte-count validation, exact
+artifact transfer, subprocess and worker failures, deadlines, and awaited worker
+termination. Linux and Windows executable names and line endings are simulated.
+The worker's guest verifier is not replaced by a second verifier in the fake:
+actual Wasm execution, native parity, instance isolation and guest lifecycle
+checks remain in the existing real Markdown feature commands. A change to either
+production checker selects both these units and its real feature check.
+
 ## Current verification map (2026-11-01)
 
 The canonical [check catalog](../scripts/checks/README.md) and the
