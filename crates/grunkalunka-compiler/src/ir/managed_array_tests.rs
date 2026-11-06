@@ -732,3 +732,57 @@ fn array_slice_keeps_unsupported_receivers_coercions_and_calls_explicit() {
         }
     }
 }
+
+#[test]
+fn array_reverse_requires_a_proven_array_and_invalidates_position_facts() {
+    for body in [
+        "return a.reverse().length;",
+        "const xs=a?[b]:null;return xs.reverse().length;",
+        "const xs=[b];return xs.reverse?.().length;",
+        "const xs=[b];return xs?.reverse().length;",
+        "const xs=[b];return xs.reverse(...[]).length;",
+        "const xs=[b];return xs.reverse.call(xs).length;",
+        "const xs=[b];xs.reverse=()=>[];return xs.reverse().length;",
+        "const xs=['x',b];xs.reverse();return xs[0].trim().length;",
+        "const xs=['x',b];const alias=xs;alias.reverse();return xs[0].trim().length;",
+        "const xs=['x'];const alias=xs.reverse();alias[0]=b;return xs[0].trim().length;",
+        "const xs=[()=>a,b];xs.reverse();return xs[0]();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let err = crate::lower_source(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+    let mut module = crate::lower_source(
+        "export function run(a,b){return [a,b].reverse().length;}",
+        false,
+    )
+    .unwrap();
+    verify_module(&module).unwrap();
+    let (position, result, array) = module.functions[0]
+        .body
+        .operations
+        .iter()
+        .enumerate()
+        .find_map(|(i, o)| match o.kind {
+            Op::ManagedArrayReverse { result, array } => Some((i, result, array)),
+            _ => None,
+        })
+        .unwrap();
+    module.functions[0].values[result.0] = Type::ManagedValue;
+    assert!(verify_module(&module).is_err());
+    module.functions[0].values[result.0] = Type::ManagedArray;
+    module.functions[0].body.operations[position].kind = Op::ManagedArrayReverse {
+        result,
+        array: result,
+    };
+    assert!(verify_module(&module).is_err());
+    module.functions[0].body.operations[position].kind = Op::ManagedArrayReverse { result, array };
+    verify_module(&module).unwrap();
+}

@@ -111,7 +111,7 @@ fn kinds(
         Join,
         StringConcat,
         Member(bool),
-        ArrayElement(Kinds),
+        ArrayElement(Kinds, Type),
         CollectionMethod(string_methods::Method, Kinds),
     }
     let mut work = vec![Task::Expr(node, 0)];
@@ -122,10 +122,14 @@ fn kinds(
                 let right = values.pop().expect("right source kinds");
                 values.last_mut().expect("left source kinds").extend(right);
             }
-            Task::ArrayElement(fallback) => {
+            Task::ArrayElement(fallback, result) => {
                 let receiver = values.pop().expect("array element receiver source kinds");
                 values.push(if receiver.contains(&Kind::Array) {
-                    managed_value_kinds()
+                    if result == Type::ManagedArray {
+                        [Kind::Array].into()
+                    } else {
+                        managed_value_kinds()
+                    }
                 } else {
                     fallback
                 });
@@ -280,10 +284,14 @@ fn kinds(
                         if let Some((receiver, method)) = string_methods::call(call) {
                             work.push(Task::CollectionMethod(method, fallback));
                             work.push(Task::Expr(receiver, depth + 1));
-                        } else if let Some(receiver) = array_at::receiver(call).or_else(|| {
-                            array_mutations::operation(call).map(|(_, receiver)| receiver)
-                        }) {
-                            work.push(Task::ArrayElement(fallback));
+                        } else if let Some((receiver, result)) = array_at::receiver(call)
+                            .map(|r| (r, Type::ManagedValue))
+                            .or_else(|| {
+                                array_mutations::operation(call)
+                                    .map(|(op, receiver)| (receiver, op.result()))
+                            })
+                        {
+                            work.push(Task::ArrayElement(fallback, result));
                             work.push(Task::Expr(receiver, depth + 1));
                         } else {
                             values.push(fallback);
