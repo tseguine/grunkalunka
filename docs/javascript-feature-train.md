@@ -223,7 +223,9 @@ also supply the position of a matching action, including when duplicates occur.
 Array `slice` lets a helper select a window of those actions for a captured
 handler, preserving holes and the identities of copied records. The handler can
 destructure each sliced record and trim its label, with copied-value proofs
-accounting for source and result aliases and shared-child writes.
+accounting for source and result aliases and shared-child writes. Array `reverse`
+reorders a history in place and returns that same array; a handler can combine
+`slice().reverse()` to search a separate history from newest to oldest.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain

@@ -869,3 +869,17 @@ fn imported_handler_reads_labels_from_a_sliced_action_page() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_uses_a_reversed_action_history() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const history = ['reload', 'expand'];
+            const latest = history.slice().reverse();
+            const requested = a > 0 ? 'reload' : 'expand';
+            const handle = () => choose(latest.indexOf(requested), latest.length);
+            return +handle();
+        }"#,
+    );
+}

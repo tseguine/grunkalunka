@@ -626,3 +626,14 @@ fn array_slice_record_origins_compose_with_iteration_and_suspension() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_reverse_observes_contents_after_awaits_and_preserves_return_aliases() {
+    compare_promises(
+        &[
+            "let xs=[a,b];const old=xs;const alias=xs.reverse((await a,xs=[]),(await b,old[0]=b));await a;alias[0]=a;return old[0]===a&&old[1]===b&&xs.length===0?1:0;",
+            "const xs=[a,b];let n=0;try{xs.reverse((n=1,await Promise.reject(a)),n=2);}catch(e){return xs[0]===a&&n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

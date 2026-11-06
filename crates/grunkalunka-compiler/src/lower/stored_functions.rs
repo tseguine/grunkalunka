@@ -29,7 +29,7 @@ enum Rule {
     Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
-    Call(NodeId, Vec<NodeId>, Option<(NodeId, bool)>),
+    Call(NodeId, Vec<NodeId>, Option<(NodeId, bool)>, Option<NodeId>),
     StringConcat(NodeId, NodeId),
 }
 enum Definition {
@@ -565,6 +565,9 @@ impl Fields {
                                 matches!(method, string_methods::Method::Slice),
                             )
                         }),
+                    array_mutations::operation(call)
+                        .filter(|(op, _)| *op == array_mutations::Operation::Reverse)
+                        .map(|(_, r)| r.node_id()),
                 )),
                 AstKind::AssignmentExpression(a)
                     if matches!(
@@ -724,7 +727,18 @@ impl Fields {
                             BTreeSet::from([Origin::Other])
                         }
                     }
-                    Rule::Call(callee, arguments, string_receiver) => {
+                    Rule::Call(callee, arguments, string_receiver, array_receiver) => {
+                        if let Some(receiver) = array_receiver {
+                            let origins = get(receiver);
+                            if !origins.is_empty()
+                                && origins
+                                    .iter()
+                                    .all(|origin| matches!(origin, Origin::Array(_)))
+                            {
+                                additions.push((*id, origins));
+                                continue;
+                            }
+                        }
                         if let Some((receiver, slice)) = string_receiver {
                             let origins = get(receiver);
                             if *slice

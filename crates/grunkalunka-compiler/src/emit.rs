@@ -575,6 +575,11 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_array_get\n");
                 self.set(*result);
             }
+            Op::ManagedArrayReverse { result, array } => {
+                self.get(*array);
+                self.output.push_str("call $gc_array_reverse\n");
+                self.set(*result);
+            }
             Op::ManagedArraySlice {
                 result,
                 array,
@@ -1719,6 +1724,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
         output.push_str(include_str!("emit/array_search.wat"));
     }
     indexed(output, array_pop::runtime(module));
+    if module.functions.iter().any(|f| {
+        ir::any_operation(&f.body, &mut |op| {
+            matches!(op, Op::ManagedArrayReverse { .. })
+        })
+    }) {
+        indexed(output, include_str!("emit/array_reverse.wat"));
+    }
     indexed(output, array_rest::runtime(module));
     if module.functions.iter().any(|f| {
         ir::any_operation(&f.body, &mut |op| {

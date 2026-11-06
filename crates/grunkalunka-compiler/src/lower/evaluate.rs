@@ -5,7 +5,7 @@ use super::*;
 #[cfg(test)]
 use std::cell::Cell;
 mod array_at;
-mod array_pop;
+mod array_mutation;
 mod array_search;
 mod array_slice;
 mod dictionary;
@@ -1526,7 +1526,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
                 Work::ArraySlice(task) => self.resume_array_slice(task, regions, values, work)?,
                 Work::ArrayAt(task) => self.resume_array_at(task, regions, values, work)?,
-                Work::ArrayPop(task) => self.resume_array_pop(task, regions, values, work)?,
+                Work::ArrayMutation(task) => {
+                    self.resume_array_mutation(task, regions, values, work)?
+                }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?

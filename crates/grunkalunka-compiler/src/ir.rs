@@ -577,6 +577,10 @@ pub(crate) enum Op {
         array: ValueId,
         index: ValueId,
     },
+    ManagedArrayReverse {
+        result: ValueId,
+        array: ValueId,
+    },
     ManagedArrayPop {
         result: ValueId,
         array: ValueId,
@@ -1447,6 +1451,10 @@ impl Verifier<'_> {
             }
             Op::ManagedArrayResize { array, .. } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;
+            }
+            Op::ManagedArrayReverse { result, array } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
             }
             Op::ManagedArrayPop { result, array } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;

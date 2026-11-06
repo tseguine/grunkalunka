@@ -1075,3 +1075,21 @@ arguments, endpoint object coercion, custom species and prototype changes remain
 outside the admitted surface. Ordinary source methods named `slice` retain their
 existing call behavior. Tests in `managed-arrays.rs`, the suspension suite and
 `a1_ui_import.rs` compare source behavior across native JS, Node-Wasm and Wasmtime.
+
+## Reversing an Array
+
+Proven intrinsic arrays support `reverse()` and literal-computed `['reverse']`
+calls. The operation saves its receiver, evaluates all ignored argument effects,
+then reverses its current indexed entries while retaining length, sparse holes,
+named fields and child identities. It returns the same Array reference. The
+private guest helper visits stored entries instead of logical length; it invokes
+no host operation. Helpers, captured handlers and suspension retain the returned
+alias, so writes through it affect the source array.
+
+This slice invalidates positional field/callable/String proofs through aliases
+of a reversed array. Boxed reads, identity comparisons, length, own-key queries
+and searches remain available. Optional/borrowed calls, spread arguments,
+overridden methods, prototype mutation and generic array-like receivers remain
+outside the admitted surface. Existing `pop` and `reverse` share the same
+source-ordered argument scheduler. Source-unit and differential regression cases
+cover sparse slots, aliasing, argument effects, rejection and the A1 service call.

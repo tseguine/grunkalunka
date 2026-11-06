@@ -13,7 +13,7 @@ pub(super) enum Work<'e, 'a> {
         from: array_search::Start,
     },
     ArrayAt(array_at::Task<'e, 'a>),
-    ArrayPop(array_pop::Task<'e, 'a>),
+    ArrayMutation(array_mutation::Task<'e, 'a>),
     Dictionary(dictionary::Task<'e, 'a>),
     ArraySlice(array_slice::Task<'e, 'a>),
     StringMethod(string_methods::Task<'e, 'a>),

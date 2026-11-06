@@ -632,3 +632,35 @@ fn array_slice_value_proofs_reject_holes_and_incompatible_alias_writes() {
         }
     }
 }
+
+#[test]
+fn array_reverse_reorders_sparse_slots_and_returns_the_original_identity() {
+    for body in [
+        "const xs=[a,b];const alias=xs.reverse();return alias===xs&&xs[0]===b&&xs[1]===a?1:0;",
+        "const xs=[,a,undefined,,b];xs.named='keep';const r=xs.reverse();return r===xs&&xs.length===5&&xs[0]===b&&!Object.hasOwn(xs,1)&&Object.hasOwn(xs,2)&&xs[3]===a&&!Object.hasOwn(xs,4)&&xs.named==='keep'?1:0;",
+        "const xs=[];xs[8]='a';xs[2]='b';xs[4]='c';const r=xs.reverse();const keys=Object.keys(r);return keys[0]==='0'&&keys[1]==='4'&&keys[2]==='6'&&xs[0]==='a'&&xs[4]==='c'&&xs[6]==='b'?1:0;",
+        "const xs=[];xs.named=a;return xs.reverse()===xs&&xs.length===0&&xs.named===a?1:0;",
+        "const xs=[,];return xs.reverse().length===1&&!Object.hasOwn(xs,0)?1:0;",
+        "const child={v:a};const fn=()=>b;const xs=[child,fn];xs['reverse']();return xs[0]===fn&&xs[1]===child?1:0;",
+        "const xs=[a,,b];xs.reverse().reverse();return xs[0]===a&&xs[2]===b&&!Object.hasOwn(xs,1)?1:0;",
+        "const xs=[a,b];const alias=xs.reverse();alias[0]=a;return xs[0]===a&&xs[1]===a?1:0;",
+        "const xs=['a','b','a'];return xs.reverse().indexOf('b');",
+        "const xs=[];xs.length=10000;xs[1]='x';xs.reverse();return xs[9998]==='x'&&!Object.hasOwn(xs,1)&&xs.length===10000?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn array_reverse_saves_receiver_before_argument_effects_helpers_and_captures() {
+    for source in [
+        "export function run(a,b){let n=0;let xs=[a,b];const old=xs;const result=xs.reverse((n=1,xs=[]),(n=n*10+2,old[0]=b),(n=n*10+3,old.length=1));return result===old&&result.length===1&&old[0]===b&&xs.length===0?n:0;}",
+        "function reverse(xs){return xs.reverse();}export function run(a,b){const xs=[a,b];const f=()=>reverse(xs);return f()===xs&&xs[0]===b?1:0;}",
+        "export function run(a,b){const object={reverse:x=>x};return object.reverse(a);}",
+        "export function run(a,b){const xs=[a,b];return xs.reverse(xs.pop()).length;}",
+        "export function run(a,b){const xs=[a,b];const copy=xs.slice().reverse();return copy[0]===b&&xs[0]===a?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
