@@ -707,3 +707,19 @@ fn reversed_iteration_retains_record_and_string_origins() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn to_reversed_copies_dense_values_and_preserves_source_slots() {
+    for source in [
+        "export function run(a,b){const xs=[a,b];const ys=xs.toReversed();return ys!==xs&&ys[0]===b&&ys[1]===a&&xs[0]===a?1:0;}",
+        "export function run(a,b){const xs=[,a,,undefined];xs.named=b;const ys=xs.toReversed();return ys.length===4&&Object.keys(ys).length===4&&Object.hasOwn(ys,0)&&Object.hasOwn(ys,1)&&Object.hasOwn(ys,3)&&ys[2]===a&&!Object.hasOwn(ys,'named')&&!Object.hasOwn(xs,0)?1:0;}",
+        "export function run(a,b){const child={label:' x '};const xs=[child];const ys=xs.toReversed();ys[0]=a;return xs[0]===child?xs[0].label.trim().length:0;}",
+        "export function run(a,b){const xs=[{label:' One '},{label:' Two '}];let s='';for(const {label} of xs.toReversed())s=s+label.trim();return s==='TwoOne'?1:0;}",
+        "export function run(a,b){let xs=[a,b];const old=xs;let n=0;const ys=xs.toReversed((n=1,xs=[]),(n=n*10+2,old[1]=a));return ys[0]===a&&old.length===2&&xs.length===0?n:0;}",
+        "function copy(xs){return xs['toReversed']();}export function run(a,b){const xs=[' x ',' yy '];const get=()=>copy(xs);let n=0;for(const v of get())n=n*10+v.trim().length;return n;}",
+        "export function run(a,b){const xs=[];const ys=xs.toReversed();return xs!==ys&&ys.length===0?1:0;}",
+        "export function run(a,b){const obj={toReversed:x=>x};return obj.toReversed(a);}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}

@@ -911,3 +911,16 @@ fn imported_handler_reads_reversed_action_labels() {
     }"#,
     );
 }
+
+#[test]
+fn imported_handler_reads_a_reversed_history_snapshot() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    export function run(a,b) {
+        const history=[{label:' Reload '},{label:a>0?' Expand ':' Collapse '}];
+        const visible=history.toReversed();let selected=0;
+        for(const {label} of visible){if(label.trim()==='Expand')selected=1;}
+        return choose(selected,visible.length);
+    }"#,
+    );
+}

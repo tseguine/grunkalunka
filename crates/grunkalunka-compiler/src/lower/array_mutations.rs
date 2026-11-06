@@ -6,12 +6,13 @@ pub(super) enum Operation {
     Pop,
     Shift,
     Reverse,
+    ToReversed,
 }
 impl Operation {
     pub(super) fn result(self) -> Type {
         match self {
             Self::Pop | Self::Shift => Type::ManagedValue,
-            Self::Reverse => Type::ManagedArray,
+            Self::Reverse | Self::ToReversed => Type::ManagedArray,
         }
     }
     pub(super) fn name(self) -> &'static str {
@@ -19,6 +20,7 @@ impl Operation {
             Self::Pop => "pop",
             Self::Shift => "shift",
             Self::Reverse => "reverse",
+            Self::ToReversed => "toReversed",
         }
     }
 }
@@ -47,6 +49,7 @@ pub(super) fn operation<'e, 'a>(
             "pop" => Operation::Pop,
             "shift" => Operation::Shift,
             "reverse" => Operation::Reverse,
+            "toReversed" => Operation::ToReversed,
             _ => return None,
         },
         receiver,

@@ -10,6 +10,7 @@ pub(super) enum Mutation {
 pub(super) fn call(call: &CallExpression<'_>) -> Option<Mutation> {
     let (operation, receiver) = array_mutations::operation(call)?;
     match operation {
+        array_mutations::Operation::ToReversed => None,
         array_mutations::Operation::Pop | array_mutations::Operation::Shift => {
             Some(Mutation::IndexDelete(receiver.node_id()))
         }
