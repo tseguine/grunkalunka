@@ -1010,3 +1010,13 @@ fn imported_handler_builds_a_template_label() {
     "#,
     );
 }
+
+#[test]
+fn imported_handler_reads_an_action_marker_by_index() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    function first(label){return label[0];}
+    export function run(a,b){const label=a>0?'+ Expand':'';const handle=()=>choose(first(label)==='+'?1:0,2);return +handle();}
+    "#,
+    );
+}

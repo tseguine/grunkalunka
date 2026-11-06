@@ -763,3 +763,20 @@ fn templates_keep_prefixes_and_effect_order_across_awaits() {
         &[(1.0, 2.0), (0.0, -0.0)],
     );
 }
+
+#[test]
+fn numeric_string_index_saves_receiver_across_awaits() {
+    compare_promises(
+        &[
+            "let s='abc';const c=s[(await a,s='xyz',1)];await b;return c==='b'&&s==='xyz'?1:0;",
+            "const c='abc'[await a];await b;return c===undefined?0:c==='a'?1:c==='b'?2:3;",
+        ],
+        &[
+            (0.0, 2.0),
+            (1.0, 2.0),
+            (-1.0, 0.0),
+            (f64::NAN, 0.0),
+            (1.5, 0.0),
+        ],
+    );
+}

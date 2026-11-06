@@ -1164,3 +1164,26 @@ fn template_literals_use_cooked_utf16_and_ordered_string_substitutions() {
     let s = "function label(s){return `Menu: ${s}`;}export function run(a,b){const box={text:label(a>0?'Open':'Close')};return box.text.startsWith('Menu: ')?1:0;}";
     compare_sources(s, s);
 }
+
+#[test]
+fn numeric_string_index_preserves_property_key_semantics_and_snapshots() {
+    for body in [
+        "const c='abc'[a];return c===undefined?0:c==='a'?1:c==='b'?2:c==='c'?3:-1;",
+        "const c='abc'[a+1.5];return c===undefined?0:c==='a'?1:c==='b'?2:c==='c'?3:-1;",
+        "return 'abc'[-0]==='a'&&'abc'[-1]===undefined&&'abc'[1.5]===undefined&&'abc'[NaN]===undefined&&'abc'[Infinity]===undefined&&'abc'[1e300]===undefined&&''[0]===undefined?1:0;",
+        r"return '\u{1f600}\ud800\0'[0]==='\ud83d'&&'\u{1f600}\ud800\0'[1]==='\ude00'&&'\u{1f600}\ud800\0'[2]==='\ud800'&&'\u{1f600}\ud800\0'[3]==='\0'?1:0;",
+        "let s='abc';const c=s[(s='xyz',1)];return c==='b'&&s==='xyz'?1:0;",
+        "let n=0;const c=(n=1,'abc')[(n=n*10+2,1)];return c==='b'?n:-1;",
+        "return 'abc'['length']===3&&'abc'.length===3?1:0;",
+        "let n=0;'abc'[(n=1,0)];return n;",
+    ] {
+        let s = format!("export function run(a,b){{{body}}}");
+        compare_sources(&s, &s.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+    for s in [
+        "function character(s,i){return s[i];}export function run(a,b){return character('abc',a)===undefined?0:1;}",
+        "export function run(a,b){const text='abc';const handle=()=>text[a];return handle()==='a'?1:0;}",
+    ] {
+        compare_sources(s, s);
+    }
+}

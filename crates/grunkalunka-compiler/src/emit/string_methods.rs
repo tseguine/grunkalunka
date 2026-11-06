@@ -8,6 +8,7 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
                 op,
                 ir::Op::ManagedStringRange { .. }
                     | ir::Op::ManagedStringCodePointAt { .. }
+                    | ir::Op::ManagedStringGetIndex { .. }
                     | ir::Op::ManagedStringAt { .. }
                     | ir::Op::ManagedStringCharAt { .. }
                     | ir::Op::ManagedStringCharCodeAt { .. }
