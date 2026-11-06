@@ -603,3 +603,15 @@ fn array_index_search_retains_operands_and_uses_the_live_contents_after_awaits()
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_slice_saves_inputs_across_awaits_and_stops_on_rejection() {
+    compare_promises(
+        &[
+            "let src=[a,b];const old=src;const xs=src.slice((await a,0),(await b,src=[],1),(old[0]=b));await b;return xs.length===1&&xs[0]===b&&old.length===2?1:0;",
+            "let n=0;const xs=[a,b].slice(void(await a,n++),void(await b,n++));return xs.length+n;",
+            "let n=0;try{[a].slice((n=1,0),(await Promise.reject(a),n=2),n=3);}catch(e){return n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

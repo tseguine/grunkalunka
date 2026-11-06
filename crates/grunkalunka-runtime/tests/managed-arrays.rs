@@ -556,3 +556,42 @@ fn array_index_search_uses_numeric_order_skips_holes_and_matches_strictly() {
     let source = "function find(list,value){return list.indexOf(value);}export function run(a,b){const xs=['a','b'];const get=()=>xs['lastIndexOf']('b');return find(xs,'b')+get();}";
     common::compare_sources(source, source);
 }
+
+#[test]
+fn array_slice_preserves_sparse_positions_identity_and_fresh_slots() {
+    for body in [
+        "const src=[,a,undefined,,b];src.named=a;const xs=src.slice(1,4);return xs!==src&&xs.length===3&&xs[0]===a&&Object.hasOwn(xs,1)&&!Object.hasOwn(xs,2)&&!Object.hasOwn(xs,'named')?1:0;",
+        "const child={v:a};const src=[child];const xs=src.slice();src[0]=b;return xs[0]===child&&src[0]===b&&xs.length===1?1:0;",
+        "const src=[a,b];const xs=src.slice();xs[0]=b;xs.length=0;return src[0]===a&&src.length===2?1:0;",
+        "const src=[];src[7]='x';src[1]='y';src[4]='z';const xs=src.slice(1,8);const keys=Object.keys(xs);return keys[0]==='0'&&keys[1]==='3'&&keys[2]==='6'&&xs[6]==='x'&&xs.length===7?1:0;",
+        "const src=[];src[4294967294]='last';src[4294967295]='named';const xs=src.slice(-2);return xs.length===2&&!Object.hasOwn(xs,0)&&xs[1]==='last'&&Object.keys(xs).length===1?1:0;",
+        "const src=[];const xs=src.slice();return xs!==src&&xs.length===0?1:0;",
+        "const src=[a,b];return src.slice(a,b).length;",
+        "const src=['a','b','c','d'];const xs=src.slice(-2.9,-0.5);const ys=src.slice(-3.8,3.9);return xs.length===0&&ys.length===2&&ys[0]==='b'&&ys[1]==='c'?1:0;",
+        "const src=[a,b];return src.slice(undefined,undefined).length+src.slice(NaN,NaN).length;",
+        "const src=[null,false,()=>a];const xs=src.slice();return xs[0]===null&&xs[1]===false&&xs[2]===src[2]?1:0;",
+        "const src=[a,b];const xs=src.slice().slice(1);return xs.length===1&&xs[0]===b?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn array_slice_saves_receiver_endpoints_and_runs_all_argument_effects() {
+    for source in [
+        "export function run(a,b){let n=0;let src=[a,b,a];const saved=src;let start=1;const xs=src.slice((n=1,start),(n=n*10+2,start=0,src=[],2),(n=n*10+3,saved[1]=a));return n===123&&xs.length===1&&xs[0]===a&&src.length===0?1:0;}",
+        "export function run(a,b){const src=[a,b];const xs=src.slice(0,undefined,src.length=1);return xs.length===1&&xs[0]===a?1:0;}",
+        "export function run(a,b){let n=0;const xs=[a,b].slice(void(n=1),void(n=n*10+2),(n=n*10+3));return n+xs.length;}",
+        "function copy(xs,from){return xs.slice(from);}export function run(a,b){const src=[a,b];const read=()=>copy(src,1);const xs=read();return xs[0]===b&&xs.length===1?1:0;}",
+        "export function run(a,b){const obj={slice:x=>x};return obj.slice(a);}",
+        "export function run(a,b){const box={items:[a,b].slice(1)};return box.items.length;}",
+        "export function run(a,b){let n=0;[a].slice((n++,0));return n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+    common::compare_sources(
+        "export function run(a,b){const src=[a,b];return src['slice'](1).length;}",
+        "export function run(a:string,b:boolean):void{const src:number=[a,b];return (src as string)[('slice' as string)](1).length;}",
+    );
+}

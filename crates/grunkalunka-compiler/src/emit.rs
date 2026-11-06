@@ -575,6 +575,18 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_array_get\n");
                 self.set(*result);
             }
+            Op::ManagedArraySlice {
+                result,
+                array,
+                start,
+                end,
+            } => {
+                self.get(*array);
+                self.get(*start);
+                self.get(*end);
+                self.output.push_str("call $gc_array_slice\n");
+                self.set(*result);
+            }
             Op::ManagedArraySearch {
                 kind,
                 result,
@@ -1708,6 +1720,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     }
     indexed(output, array_pop::runtime(module));
     indexed(output, array_rest::runtime(module));
+    if module.functions.iter().any(|f| {
+        ir::any_operation(&f.body, &mut |op| {
+            matches!(op, Op::ManagedArraySlice { .. })
+        })
+    }) {
+        indexed(output, include_str!("emit/array_slice.wat"));
+    }
     output.push_str(string_concat::runtime(module));
     output.push_str(string_methods::runtime(module));
     output.push_str(string_methods::iteration_runtime(module));

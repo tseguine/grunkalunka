@@ -665,3 +665,70 @@ fn array_search_requires_array_boxed_needle_and_number_position() {
         }
     }
 }
+
+#[test]
+fn array_slice_checks_its_array_and_number_operands() {
+    let source = "export function run(a,b){const xs=[a].slice(a,b);return xs.length;}";
+    let mut module = crate::lower_source(source, false).unwrap();
+    verify_module(&module).unwrap();
+    let (position, result, array, start, end) = module.functions[0]
+        .body
+        .operations
+        .iter()
+        .enumerate()
+        .find_map(|(i, op)| match op.kind {
+            Op::ManagedArraySlice {
+                result,
+                array,
+                start,
+                end,
+            } => Some((i, result, array, start, end)),
+            _ => None,
+        })
+        .unwrap();
+    for (array, start, end, ty) in [
+        (start, start, end, Type::ManagedArray),
+        (array, array, end, Type::ManagedArray),
+        (array, start, array, Type::ManagedArray),
+        (array, start, end, Type::ManagedValue),
+    ] {
+        let f = &mut module.functions[0];
+        f.body.operations[position].kind = Op::ManagedArraySlice {
+            result,
+            array,
+            start,
+            end,
+        };
+        f.values[result.0] = ty;
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
+fn array_slice_keeps_unsupported_receivers_coercions_and_calls_explicit() {
+    for body in [
+        "return a.slice().length;",
+        "const xs=a?[b]:null;return xs.slice().length;",
+        "const xs=a?[b]:'text';return xs.slice().length;",
+        "let xs=[b];const copy=xs.slice();xs=null;return copy.length;",
+        "const xs=[b];return xs.slice('1').length;",
+        "const xs=[b];return xs.slice(0,{}).length;",
+        "const xs=[b];return xs.slice(...[0]).length;",
+        "const xs=[b];return xs?.slice().length;",
+        "const xs=[b];return xs.slice?.().length;",
+        "const xs=[b];xs.slice=()=>[];return xs.slice().length;",
+        "const xs=[b];return xs.slice.call(xs).length;",
+        "const xs=['s'].slice();return xs[0].trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let err = crate::lower_source(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

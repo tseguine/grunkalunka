@@ -7,6 +7,7 @@ use std::cell::Cell;
 mod array_at;
 mod array_pop;
 mod array_search;
+mod array_slice;
 mod dictionary;
 mod has_own;
 mod managed;
@@ -1523,6 +1524,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         }
                     });
                 }
+                Work::ArraySlice(task) => self.resume_array_slice(task, regions, values, work)?,
                 Work::ArrayAt(task) => self.resume_array_at(task, regions, values, work)?,
                 Work::ArrayPop(task) => self.resume_array_pop(task, regions, values, work)?,
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,

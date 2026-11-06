@@ -327,12 +327,21 @@ impl Lowering<'_, '_> {
             Expr(&'e Expression<'a>, usize),
             Member(&'e Expression<'a>, bool),
             ArrayElement(&'e Expression<'a>, Option<Type>),
+            ArraySlice(Option<Type>),
             Join,
         }
         let mut work = vec![Shape::Expr(node, depth)];
         let mut values = Vec::new();
         while let Some(task) = work.pop() {
             match task {
+                Shape::ArraySlice(fallback) => {
+                    let receiver = values.pop().expect("slice receiver shape");
+                    values.push(if receiver == Some(Type::ManagedArray) {
+                        Some(Type::ManagedArray)
+                    } else {
+                        fallback
+                    });
+                }
                 Shape::Expr(node, depth) => {
                     if depth > 128 {
                         values.push(None);
@@ -413,8 +422,13 @@ impl Lowering<'_, '_> {
                                         })
                                         .filter(|ty| ty.is_managed())
                                     });
-                            if let Some(receiver) =
-                                crate::lower::array_at::receiver(call).or_else(|| {
+                            if let Some((receiver, crate::lower::string_methods::Method::Slice)) =
+                                crate::lower::string_methods::call(call)
+                            {
+                                work.push(Shape::ArraySlice(fallback));
+                                work.push(Shape::Expr(receiver, depth + 1));
+                            } else if let Some(receiver) = crate::lower::array_at::receiver(call)
+                                .or_else(|| {
                                     crate::lower::array_mutations::operation(call)
                                         .map(|(_, receiver)| receiver)
                                 })
@@ -805,6 +819,24 @@ impl Lowering<'_, '_> {
         if matches!(mode, Mode::Predicate) && self.managed_source_type(node, depth).is_some() {
             work.push(Work::Managed(ManagedWork::Truthy(node)));
             work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Array)
+            && let Expression::CallExpression(call) = node
+            && let Some((receiver, crate::lower::string_methods::Method::Slice)) =
+                crate::lower::string_methods::call(call)
+            && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
+        {
+            work.push(Work::ArraySlice(super::array_slice::Task {
+                node,
+                call,
+                array: None,
+                inputs: [None; 2],
+                argument: 0,
+                pending: false,
+                depth,
+            }));
+            work.push(Work::Eval(receiver, depth + 1, Mode::Array));
             return Ok(true);
         }
         if matches!(mode, Mode::Array)

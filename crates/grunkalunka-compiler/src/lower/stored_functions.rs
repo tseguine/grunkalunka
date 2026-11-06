@@ -29,7 +29,7 @@ enum Rule {
     Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
-    Call(NodeId, Vec<NodeId>, Option<NodeId>),
+    Call(NodeId, Vec<NodeId>, Option<(NodeId, bool)>),
     StringConcat(NodeId, NodeId),
 }
 enum Definition {
@@ -550,7 +550,12 @@ impl Fields {
                         .collect(),
                     string_methods::call(call)
                         .filter(|(_, method)| method.result() == Type::ManagedValue)
-                        .map(|(receiver, _)| receiver.node_id()),
+                        .map(|(receiver, method)| {
+                            (
+                                receiver.node_id(),
+                                matches!(method, string_methods::Method::Slice),
+                            )
+                        }),
                 )),
                 AstKind::AssignmentExpression(a)
                     if matches!(
@@ -710,8 +715,17 @@ impl Fields {
                         }
                     }
                     Rule::Call(callee, arguments, string_receiver) => {
-                        if let Some(receiver) = string_receiver {
+                        if let Some((receiver, slice)) = string_receiver {
                             let origins = get(receiver);
+                            if *slice
+                                && !origins.is_empty()
+                                && origins
+                                    .iter()
+                                    .all(|origin| matches!(origin, Origin::Array(_)))
+                            {
+                                additions.push((*id, BTreeSet::from([Origin::Array(*id)])));
+                                continue;
+                            }
                             if !origins.is_empty()
                                 && origins.iter().all(|origin| *origin == Origin::String)
                             {

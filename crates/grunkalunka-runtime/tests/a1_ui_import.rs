@@ -837,3 +837,17 @@ fn imported_handler_finds_the_last_matching_action_position() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_selects_from_a_window_of_actions() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        function page(items, start) { return items.slice(start, start + 2); }
+        export function run(a,b) {
+            const actions = ['reload', 'expand', 'collapse'];
+            const visible = page(actions, a > 0 ? 0 : 1);
+            const handle = () => choose(visible.indexOf('expand'), visible.length);
+            return +handle();
+        }"#,
+    );
+}
