@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn boxed_numbers_keep_snapshots_and_numeric_results_across_awaits() {
+    compare_promises(
+        &[
+            "const o={x:a};return o.x+(await b,o.x=b);",
+            "const {x}={x:a};await b;return x+b;",
+            "const o={x:a};const get=t=>t.x;await b;return get(o)+b;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn primitive_and_value_delete_keep_await_order_and_rejections() {
     compare_promises(
         &[

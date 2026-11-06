@@ -5,6 +5,56 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn boxed_number_fields_and_patterns_compose_with_arithmetic_and_calls() {
+    for body in [
+        "return ({x:a}).x+b;",
+        "const o={x:a};return o.x;",
+        "const xs=[a,b];return xs[1];",
+        "const {x}={x:a};return x+b;",
+        "const [x,y]=[a,b];return x*y;",
+        "let x=a;[x]=[b];return x;",
+        "const {x=b}={x:a};return x+b;",
+        "const {x=b}={};return x+b;",
+        "const o={x:a};const alias=o;alias.x=b;return o.x+b;",
+        "const get=()=>a+b;const o={x:get()};return o.x+b;",
+        "const o={x:a};const get=t=>t.x+b;return get(o);",
+        "const o={x:a};return o.x+(o.x=b);",
+        "const o={x:a};const n=o.x;o.x=b;return n;",
+        "const o={x:a};return o.x<b?o.x:b;",
+        "const o={x:a};return o.x===b?1:0;",
+        "const o={x:-0};return o.x;",
+        "const o={x:NaN};return o.x;",
+        "const o={x:Infinity};return o.x;",
+        "const o={x:{value:a}};return o.x.value+b;",
+        "let total=0;for(const x of [a,b])total+=x;return total;",
+        "let total=0;for(const {x} of [{x:a},{x:b}])total+=x;return total;",
+    ] {
+        compare(body);
+    }
+    common::compare_sources(
+        "function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",
+        "function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",
+    );
+    compare_typed(
+        "const o={x:a};const x=o.x;return x+b;",
+        "const o:boolean={x:a};const x:string=o.x as unknown as string;return x+b;",
+    );
+}
+
+#[test]
+fn boxed_numbers_execute_the_unchanged_original_rejection_sources() {
+    for source in [
+        "export function run(a,b) { return ({x:a}).x + b; }",
+        "export function run(a,b) { const items = [a,b]; return items[1]; }",
+        "export function run(a,b) { const {x}={x:a}; return x+b; }",
+        "export function run(a,b) { let x=a; [x]=[b]; return x; }",
+        "export function run(a,b) { for(const i of [a]) { return i; } return b; }",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
 fn primitive_property_deletion_preserves_receiver_and_key_effects() {
     for body in [
         "return delete a.x?1:0;",
@@ -522,7 +572,14 @@ fn source_managed_observations_preserve_primitive_export_kinds() {
         )
         .unwrap();
         let mut nullish = ValueInstance::new(&nullish.wasm).unwrap();
+        let number =
+            compile_value("export function run(a,b){const o={x:a};return o.x;}", ts).unwrap();
+        let mut number = ValueInstance::new(&number.wasm).unwrap();
         for a in [0.0_f64, -0.0, 1.0, -7.0, f64::NAN, f64::INFINITY] {
+            let Value::Number(actual) = number.run(a, 7.0).unwrap() else {
+                panic!("projected Number changed its primitive export kind");
+            };
+            assert!(actual.to_bits() == a.to_bits() || (actual.is_nan() && a.is_nan()));
             assert!(matches!(equality.run(a,a).unwrap(),Value::Boolean(v) if v==!a.is_nan()));
             let v = nullish.run(a, 7.0).unwrap();
             assert!(if a != 0.0 && !a.is_nan() {
@@ -608,7 +665,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "const p=Promise.resolve(a);const o={x:p};return o.x===a?a:b;",
         "const o={x:1n};return a;",
         "const o=true?{}:{get x(){return a;}};return a;",
-        "const o={x:a};return o.x;",
         "const o={};return o;",
         "let o={};o=a;return a;",
         "const o={};o={};return a;",
@@ -621,9 +677,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
                 "{body}"
             );
         }
-    }
-    for ts in [false, true] {
-        assert!(compile("function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",ts).is_err());
     }
 }
 
