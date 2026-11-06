@@ -7,6 +7,7 @@ pub(super) struct Task<'e, 'a> {
     pub method: Method,
     pub receiver: Option<ValueId>,
     pub inputs: [Option<ValueId>; 2],
+    pub fragments: Vec<ValueId>,
     pub argument: usize,
     pub pending: bool,
     pub depth: usize,
@@ -23,7 +24,12 @@ impl Lowering<'_, '_> {
         if task.receiver.is_none() {
             task.receiver = Some(values.pop().expect("String receiver").id());
         } else if task.pending {
-            task.inputs[task.argument - 1] = Some(values.pop().expect("String argument").id());
+            let value = values.pop().expect("String argument").id();
+            if matches!(task.method, Method::Concat) {
+                task.fragments.push(value);
+            } else {
+                task.inputs[task.argument - 1] = Some(value);
+            }
             task.pending = false;
         }
         if task.call.arguments.len() > 1000 {
@@ -36,15 +42,18 @@ impl Lowering<'_, '_> {
             let argument = argument
                 .as_expression()
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
-            let needle = task.method.search() && task.argument == 0;
+            let concat = matches!(task.method, Method::Concat);
+            let needle = concat || (task.method.search() && task.argument == 0);
             if needle && !self.stored.string(argument.node_id()) {
                 return Err(unsupported(
                     argument,
-                    "String search requires a known String needle",
+                    "String method requires a known String argument",
                 ));
             }
-            task.pending = task.argument < task.method.arguments()
-                && (needle || !crate::lower::string_methods::undefined(argument, self.semantic));
+            task.pending = concat
+                || (task.argument < task.method.arguments()
+                    && (needle
+                        || !crate::lower::string_methods::undefined(argument, self.semantic)));
             let mode = if needle {
                 Mode::Managed
             } else if task.pending {
@@ -61,7 +70,7 @@ impl Lowering<'_, '_> {
         if task.method.search() && task.inputs[0].is_none() {
             return Err(unsupported(
                 task.node,
-                "String search requires a known String needle",
+                "String method requires a known String argument",
             ));
         }
         for (input, default) in task
@@ -83,10 +92,32 @@ impl Lowering<'_, '_> {
                 *input = Some(result);
             }
         }
+        if matches!(task.method, Method::Concat) {
+            // Save every argument before concatenating: argument effects and
+            // rejection happen before the intrinsic operation. String-only
+            // admission means no user coercion runs during this fold.
+            let mut left = task.receiver.expect("concat receiver");
+            for right in task.fragments {
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    task.node,
+                    Op::ManagedStringConcat {
+                        result,
+                        left,
+                        right,
+                    },
+                );
+                left = result;
+            }
+            values.push(Value::Managed(left));
+            return Ok(());
+        }
         let result = self.value(task.method.result());
         let input = task.receiver.expect("completed String receiver");
         let first = || task.inputs[0].expect("completed String first argument");
         let operation = match task.method {
+            Method::Concat => unreachable!("concat completed above"),
             Method::ToWellFormed => Op::ManagedStringToWellFormed { result, input },
             Method::IsWellFormed => Op::ManagedStringIsWellFormed { result, input },
             Method::Slice | Method::Substring => Op::ManagedStringRange {

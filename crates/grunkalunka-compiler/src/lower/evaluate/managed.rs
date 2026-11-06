@@ -678,6 +678,7 @@ impl Lowering<'_, '_> {
                 method,
                 receiver: None,
                 inputs: [None; 2],
+                fragments: Vec::new(),
                 argument: 0,
                 pending: false,
                 depth,

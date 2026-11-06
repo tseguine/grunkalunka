@@ -131,3 +131,19 @@ through helpers and stored fields. The guest copies only when repair is needed
 and never changes the original String. Both validation and repair scan linearly
 under the existing fuel budget; supplied arguments execute before the operation,
 including awaits. An A1 source-import case repairs a label before classification.
+
+## Composing String fragments
+
+`concat(...parts)` accepts a source-proven String receiver and zero to 1000
+source-proven String arguments. It preserves exact UTF-16, including unpaired
+surrogates and embedded NULs. The receiver and every argument are saved in source
+order before concatenation; suspension and rejection keep ordinary call effects.
+The result remains a known String through helpers, fields and captured handlers.
+
+This slice reuses the existing checked String-concatenation IR and guest allocator.
+It folds saved fragments from left to right and can copy growing prefixes;
+allocation and guest fuel limits still apply. General coercion (including an
+explicit undefined argument), spread arguments, borrowed/optional calls and
+prototype mutation remain outside this profile. Zero arguments return the
+receiver's String value. An A1 composition fixture builds an action label before
+passing scalar selection arguments to the existing service.
