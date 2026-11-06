@@ -3,15 +3,17 @@ use super::*;
 
 pub(super) enum Mutation {
     IndexDelete(NodeId),
+    Reorder(NodeId),
     AnyKeyWrite { receiver: NodeId, value: NodeId },
 }
 
 pub(super) fn call(call: &CallExpression<'_>) -> Option<Mutation> {
     let (operation, receiver) = array_mutations::operation(call)?;
     match operation {
-        array_mutations::Operation::Pop
-        | array_mutations::Operation::Shift
-        | array_mutations::Operation::Reverse => Some(Mutation::IndexDelete(receiver.node_id())),
+        array_mutations::Operation::Pop | array_mutations::Operation::Shift => {
+            Some(Mutation::IndexDelete(receiver.node_id()))
+        }
+        array_mutations::Operation::Reverse => Some(Mutation::Reorder(receiver.node_id())),
     }
 }
 

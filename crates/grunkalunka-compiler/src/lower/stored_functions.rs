@@ -837,6 +837,13 @@ impl Fields {
             let mut wildcard_additions = Vec::new();
             for mutation in &mutations {
                 match mutation {
+                    mutations::Mutation::Reorder(receiver) => {
+                        for origin in get(receiver) {
+                            if let Origin::Array(array) = origin {
+                                changed |= elements.reordered.insert(array);
+                            }
+                        }
+                    }
                     mutations::Mutation::IndexDelete(receiver) => {
                         for origin in get(receiver) {
                             if let Origin::Array(array) = origin {

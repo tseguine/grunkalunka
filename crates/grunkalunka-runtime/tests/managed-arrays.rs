@@ -696,3 +696,14 @@ fn array_shift_snapshots_receiver_and_runs_all_argument_effects() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn reversed_iteration_retains_record_and_string_origins() {
+    for source in [
+        "export function run(a,b){const xs=[{label:' One '},{label:' Two '}];let s='';for(const {label} of xs.reverse())s=s+label.trim();return s==='TwoOne'?1:0;}",
+        "export function run(a,b){const xs=[' A ',' BB ',' CCC '];xs.reverse();const [,...tail]=xs;let n=0;for(const s of tail)n=n*10+s.trim().length;return n;}",
+        "function flip(xs){return xs.reverse();}export function run(a,b){const xs=[' x ',' yy '];const f=()=>flip(xs);let n=0;for(const s of f())n=n*10+s.trim().length;return n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
