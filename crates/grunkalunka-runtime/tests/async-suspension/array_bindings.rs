@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn assignment_defaults_preserve_waits_skips_and_abrupt_completion() {
+    compare_promises(
+        &[
+            "let x=0,y=0;const source=[undefined,a];const result=([x=(await a,source[1]=b,a),y]=source);await b;return result===source&&x===a&&y===b?1:0;",
+            "let x=0,y=0;const source=[];[x=(await a,source[1]=b,a),y]=source;await b;return x===a&&y===undefined?1:0;",
+            "let x=0,n=0;[x=(n++,await Promise.reject(a))]=[b];await a;return n===0&&x===b?1:0;",
+            "let x=0,n=0;try{({x=(await Promise.reject(a))}={});n=100;}catch(e){await b;return n===0&&e===a?1:0;}return -1;",
+            "let x=0,y=0;const source={x:undefined,y:a};const result=({x=(await a,source.y=b,a),y}=source);await b;return result===source&&x===a&&y===b?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn assignment_planned_local_cells_keep_undefined_and_captures_across_await() {
     compare_promises(
         &[

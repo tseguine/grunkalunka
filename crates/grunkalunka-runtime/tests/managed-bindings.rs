@@ -4,8 +4,28 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn object_assignment_defaults_are_lazy_ordered_and_keep_rhs_snapshots() {
+    let original =
+        "export function run(a,b){let c='';({c='?'}={c:'abc'.at(a)});return c.charCodeAt(0);}";
+    common::compare_sources(original, original);
+    for body in [
+        "let x=0,y=0,n=0;({x=(n=n*10+1,a),y=(n=n*10+2,b)}={});return n*100+(x===a?10:0)+(y===b?1:0);",
+        "let x=0,y=0,n=0;({x=(n++,a),y=(n++,b)}={x:null,y:false});return n===0&&x===null&&y===false?1:0;",
+        "let x=0,y=0;const source={x:undefined,y:a};({x=(source.y=b,a),y}=source);return x===a&&y===b?1:0;",
+        "let x=0,y=0;let source={x:undefined,y:a};const original=source;const result=({x=(source={y:b},b),y}=source);return result===original&&source!==original&&x===b&&y===a?1:0;",
+        "let x=0,y=0;({first:x=a,last:y=x}={});return x===a&&y===a?1:0;",
+        "let x=0,rest={};const source={};({x=(source.y=b,a),...rest}=source);return x===a&&rest.x===undefined&&rest.y===b?1:0;",
+        "let x='';const undefined=a;({x='text'}={});return x.length;",
+        "let x='';const read=()=>x;({x='text'}={});return read().length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn object_assignments_preserve_cells_static_keys_rest_and_rhs_identity() {
     for body in [
+        "let x=a;({x}={x:b});return a;",
         "let x='',y='';({x,name:y}={x:'one',name:'two'});return x.length*10+y.length;",
         "let [x,y,z]=[];({x,y,z}={x:a,y:b});return x===a&&y===b&&z===undefined?1:0;",
         "let x='';const read=()=>x;({name:x}={name:'text'});return read().length;",
@@ -496,7 +516,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {toString}={};return a;",
         "const {__proto__}={};return a;",
         "var {x}={x:a};return a;",
-        "let x=a;({x}={x:b});return a;",
         "const {x}={x:a};x=b;return a;",
         "const x=a;{const {x}={x:x};return x===a?1:0;}",
         "const {x}={x:a};return x+1;",

@@ -124,6 +124,27 @@ fn pattern_definitions(
     }
 }
 
+fn assignment_definition(
+    identifier: &IdentifierReference<'_>,
+    selection: Rule,
+    site: NodeId,
+    default: Option<&Expression<'_>>,
+    semantic: &Semantic<'_>,
+    definitions: &mut Vec<Definition>,
+    rules: &mut Vec<(NodeId, Rule)>,
+) {
+    if let Some(symbol) = symbol(identifier, semantic) {
+        let id = identifier.node_id();
+        if let Some(default) = default {
+            rules.push((site, selection));
+            rules.push((id, Rule::Default(site, default.node_id())));
+        } else {
+            rules.push((id, selection));
+        }
+        definitions.push(Definition::Value(symbol, id));
+    }
+}
+
 impl Fields {
     pub(super) fn ordinary_object(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
@@ -671,21 +692,26 @@ impl Fields {
                     if let oxc_ast::ast::AssignmentTarget::ArrayAssignmentTarget(pattern) = &a.left
                     {
                         for (index, element) in pattern.elements.iter().enumerate() {
-                            if let Some(target) =
-                                element.as_ref().and_then(|e| e.as_assignment_target())
-                                && let Some(identifier) = target
+                            if let Some(element) = element {
+                                let (target, default) =
+                                    assignment_patterns::target_and_default(element);
+                                if let Some(identifier) = target
                                     .as_simple_assignment_target()
                                     .and_then(|t| target_identifier(t, 0).ok().flatten())
-                                && let Some(symbol) = symbol(identifier, semantic)
-                            {
-                                pattern_rules.push((
-                                    identifier.node_id(),
-                                    Rule::Member(
-                                        a.right.node_id(),
-                                        index.to_string().encode_utf16().collect(),
-                                    ),
-                                ));
-                                definitions.push(Definition::Value(symbol, identifier.node_id()));
+                                {
+                                    assignment_definition(
+                                        identifier,
+                                        Rule::Member(
+                                            a.right.node_id(),
+                                            index.to_string().encode_utf16().collect(),
+                                        ),
+                                        element.node_id(),
+                                        default,
+                                        semantic,
+                                        &mut definitions,
+                                        &mut pattern_rules,
+                                    );
+                                }
                             }
                         }
                         if let Some(rest) = &pattern.rest
@@ -712,30 +738,36 @@ impl Fields {
                         let mut excluded = BTreeSet::new();
                         for property in &pattern.properties {
                             use oxc_ast::ast::AssignmentTargetProperty as Property;
-                            let (identifier, key) = match property {
+                            let (identifier, key, default) = match property {
                                 Property::AssignmentTargetPropertyIdentifier(p) => (
                                     Some(&p.binding),
                                     Some(p.binding.name.encode_utf16().collect()),
+                                    p.init.as_ref(),
                                 ),
-                                Property::AssignmentTargetPropertyProperty(p) => (
-                                    p.binding
-                                        .as_assignment_target()
-                                        .and_then(|t| t.as_simple_assignment_target())
-                                        .and_then(|t| target_identifier(t, 0).ok().flatten()),
-                                    static_keys::property(&p.name, p.computed, 0),
-                                ),
+                                Property::AssignmentTargetPropertyProperty(p) => {
+                                    let (target, default) =
+                                        assignment_patterns::target_and_default(&p.binding);
+                                    (
+                                        target
+                                            .as_simple_assignment_target()
+                                            .and_then(|t| target_identifier(t, 0).ok().flatten()),
+                                        static_keys::property(&p.name, p.computed, 0),
+                                        default,
+                                    )
+                                }
                             };
                             if let Some(key) = key {
                                 excluded.insert(key.clone());
-                                if let Some(identifier) = identifier
-                                    && let Some(symbol) = symbol(identifier, semantic)
-                                {
-                                    pattern_rules.push((
-                                        identifier.node_id(),
+                                if let Some(identifier) = identifier {
+                                    assignment_definition(
+                                        identifier,
                                         Rule::Member(a.right.node_id(), key),
-                                    ));
-                                    definitions
-                                        .push(Definition::Value(symbol, identifier.node_id()));
+                                        property.node_id(),
+                                        default,
+                                        semantic,
+                                        &mut definitions,
+                                        &mut pattern_rules,
+                                    );
                                 }
                             }
                         }

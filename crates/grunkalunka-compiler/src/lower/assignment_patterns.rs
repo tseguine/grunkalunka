@@ -6,6 +6,22 @@ use oxc_ast::{
 };
 use std::collections::BTreeSet;
 
+pub(super) fn target_and_default<'n, 'a>(
+    element: &'n AssignmentTargetMaybeDefault<'a>,
+) -> (&'n AssignmentTarget<'a>, Option<&'n Expression<'a>>) {
+    match element {
+        AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(default) => {
+            (&default.binding, Some(&default.init))
+        }
+        _ => (
+            element
+                .as_assignment_target()
+                .expect("assignment target variant"),
+            None,
+        ),
+    }
+}
+
 pub(super) fn identifiers<'n, 'a>(
     root: &'n AssignmentTarget<'a>,
 ) -> Vec<&'n IdentifierReference<'a>> {
