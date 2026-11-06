@@ -475,6 +475,12 @@ pub(crate) fn infer(
         }
     }
     let mut definitions = Vec::new();
+    for symbol in assignment_patterns::local_symbols(semantic) {
+        bindings
+            .entry(symbol)
+            .or_default()
+            .extend(managed_value_kinds());
+    }
     let mut calls = Vec::new();
     let mut all_calls = Vec::new();
     for node in semantic.nodes().iter() {
@@ -650,6 +656,7 @@ pub(crate) fn infer(
 // Finite closure facts share the helper lattice; only actual lowering admits code.
 #[derive(Default)]
 pub(crate) struct ClosureKinds {
+    pub(super) assignment_bindings: BTreeSet<SymbolId>,
     pub(super) inputs: BTreeMap<SymbolId, Type>,
     pub(super) results: BTreeMap<NodeId, Type>,
     pub(super) calls: BTreeMap<NodeId, Type>,
@@ -700,6 +707,13 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     };
     // Known unresolved formals and calls start at bottom, never an invented Number.
     let mut bindings: BTreeMap<_, Kinds> = parameters.iter().map(|s| (*s, Kinds::new())).collect();
+    let assignment_bindings = assignment_patterns::local_symbols(semantic);
+    for symbol in &assignment_bindings {
+        bindings
+            .entry(*symbol)
+            .or_default()
+            .extend(managed_value_kinds());
+    }
     for symbol in definitions.keys().chain(writes.keys()) {
         bindings.entry(*symbol).or_default();
     }
@@ -916,6 +930,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         }
     }
     ClosureKinds {
+        assignment_bindings,
         inputs: parameters
             .iter()
             .filter_map(|s| bindings.get(s).and_then(managed_type).map(|ty| (*s, ty)))

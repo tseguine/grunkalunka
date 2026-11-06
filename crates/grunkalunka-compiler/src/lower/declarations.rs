@@ -213,7 +213,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             if self.fulfilled_promise_shape(initializer, 0) {
                 return value(initializer, Type::FulfilledPromise, evaluate::Mode::Promise);
             }
-            let ty = if let Some(ty) = self.managed_source_type(initializer, 0) {
+            let ty = if identifier
+                .symbol_id
+                .get()
+                .is_some_and(|s| self.managed_kinds.assignment_bindings.contains(&s))
+            {
+                Type::ManagedValue
+            } else if let Some(ty) = self.managed_source_type(initializer, 0) {
                 ty
             } else if !mutable
                 && self.promise_parameters.identities
@@ -262,7 +268,24 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     value: ir::Nullish::Undefined,
                 },
             );
-            self.commit_local_value(local, region, Type::General, result, mutable)?;
+            if identifier
+                .symbol_id
+                .get()
+                .is_some_and(|s| self.managed_kinds.assignment_bindings.contains(&s))
+            {
+                let boxed = self.value(Type::ManagedValue);
+                Self::push(
+                    region,
+                    local,
+                    Op::ManagedPrimitive {
+                        result: boxed,
+                        input: result,
+                    },
+                );
+                self.commit_local_value(local, region, Type::ManagedValue, boxed, mutable)?;
+            } else {
+                self.commit_local_value(local, region, Type::General, result, mutable)?;
+            }
             Ok(DeclarationInitializer::Complete)
         } else {
             Err("numeric local must have an initializer".into())

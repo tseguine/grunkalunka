@@ -4,6 +4,25 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn assignment_patterns_accept_numeric_and_implicitly_undefined_locals() {
+    for body in [
+        "let x=0,y=0;[x,y]=[a,b];return x===a&&y===b?1:0;",
+        "let x,y;const before=x===undefined&&y===undefined;[x,y]=[a,b];return before&&x===a&&y===b?1:0;",
+        "let x=0;const read=()=>x;[x]=['text'];return read()==='text'?1:0;",
+        "let x;const read=()=>x;const before=read()===undefined;[x]=[b];return before&&read()===b?1:0;",
+        "let tail=[];[,...tail]=[a,,b];return tail.length*10+(tail[0]===undefined&&tail[1]===b?1:0);",
+        "let x=0,rest={};const source={x:a,last:b};({x,...rest}=source);return x===a&&rest.last===b&&rest.x===undefined?1:0;",
+        "let x=0;{let x=0;[x]=[b];}return x;",
+    ] {
+        compare(body);
+    }
+    common::compare_sources(
+        "export function run(a,b){let x=0;[x]=['text'];return x==='text'?1:0;}",
+        "export function run(a:number,b:number):number{let x:number=0;[x]=['text'];return x==='text'?1:0;}",
+    );
+}
+
+#[test]
 fn array_assignments_write_existing_cells_and_return_the_original_rhs() {
     for body in [
         "let x='',y='';[x,y]=['first','second'];return x.length*10+y.length;",

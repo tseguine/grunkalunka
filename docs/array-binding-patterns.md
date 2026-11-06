@@ -7,7 +7,13 @@ Elisions, repeated targets, missing values and identifier rest targets preserve
 source order. Rest creates a fresh dense tail, including Undefined for holes.
 For example, `let first=''; [first]=['ready']` updates the existing variable.
 Defaults, nested assignment patterns and member targets remain separate work.
-Numeric-only slots are not silently repurposed to hold boxed property values.
+Ordinary local targets, including Number-initialized and bare `let` variables,
+use boxed storage from their declaration onward. Bare declarations still create
+intrinsic Undefined at declaration execution. Captures share that same cell;
+shadowed variables keep separate cells. This planning does not infer a later
+String/container kind from an annotation or bypass TDZ and const checks.
+Parameters and numeric consumption of boxed selected values retain their
+separate admission boundaries.
 The compiler units run in the fast PR profile; differential assignment cases
 extend the existing full `managed-array-bindings` suite.
 

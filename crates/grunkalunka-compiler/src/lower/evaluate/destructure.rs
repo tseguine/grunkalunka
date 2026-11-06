@@ -293,6 +293,38 @@ impl Lowering<'_, '_> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn assignment_patterns_plan_boxed_local_cells_without_annotation_proofs() {
+        for (body, admitted) in [
+            ("let x=0,y=0;[x,y]=[a,b];return x===a&&y===b?1:0;", true),
+            ("let x,y;({x,y}={x:a,y:b});return x===a&&y===b?1:0;", true),
+            ("let tail=[];[,...tail]=[a,b];return tail.length;", true),
+            (
+                "let rest={};({...rest}={name:'text'});return rest.name==='text'?1:0;",
+                true,
+            ),
+            (
+                "let x=0;const read=()=>x;[x]=['text'];return read()==='text'?1:0;",
+                true,
+            ),
+            (
+                "let x;const before=x===undefined;[x]=[a];return before&&x===a?1:0;",
+                true,
+            ),
+            ("let x=0;[x]=['text'];return x.length;", false),
+            ("let x=0;[x,y]=[a,b];let y=0;return a;", false),
+            ("const x=0;[x]=[a];return a;", false),
+            ("[a]=[b];return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            }
+        }
+        assert!(crate::compile("export function run(a:number,b:number):number{let x:number=0;[x]=['text'];return x==='text'?1:0;}", true).is_ok());
+    }
+
+    #[test]
     fn object_assignment_admission_and_provenance() {
         for (body, admitted) in [
             ("let x='';({x}={x:'text'});return x.length;", true),
