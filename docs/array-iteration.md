@@ -1,6 +1,7 @@
 # Array and String iteration
 
-Synchronous `for...of` admits one local `const` or `let` declaration over a
+Synchronous `for...of` admits a local `const`/`let` declaration, or
+an existing mutable managed-value assignment head, over a
 source-proven managed array or String. For arrays, the binding may be an identifier or a supported
 object/array pattern, including mixed nesting, identifier rest in arrays and objects, and
 defaults on leaves or nested patterns.
@@ -13,8 +14,10 @@ once; later reassignment of its source variable cannot redirect the loop.
 `for (const key in record)` and `for (let key in record)` now compile when
 the right-hand expression is a source-proven managed ordinary object,
 null-prototype dictionary, array or String. A Number receiver enumerates no
-keys. The head is an identifier declaration; `var`, assignment targets and
-destructuring heads remain separate language features. The loop binds the
+keys. The head accepts a `const`/`let` identifier declaration or assignment
+to an existing initialized mutable managed-value binding, for example
+`let key=''; for (key in object) { ... }`. `var`, member writes, and
+destructuring assignment heads remain separate language features. The loop binds the
 actual property name as a String, so ordinary String operations, helpers and
 captured lexical values compose with the body.
 
@@ -39,6 +42,13 @@ lexical cells, including `break`, `continue`, nested loops and supported
 suspension. The independent Node-Wasm/Wasmtime source-oracle tests cover
 ordering, deleted and newly added properties, mutable heads, String methods,
 captures and RHS snapshots.
+
+An assignment head does not create a new lexical binding: it writes the
+original variable on each step, so closures referencing it see later values.
+Source-known managed-value bindings are supported first; a numeric or primitive
+slot is not silently repurposed to hold a boxed String or array element.
+Declarations continue allocating a fresh captured cell for each iteration.
+TypeScript annotations do not prove a suitable runtime slot kind.
 
 ## Iteration and control
 
@@ -138,8 +148,8 @@ and carry their saved exclusions through suspension. Other object receivers
 require static keys. An array rest element can initialize an array or object pattern
 from the fresh tail before its loop body starts.
 
-The `for...of` slice rejects `for await...of`, `var`, assignment
-targets, unproven iterable values, mixed Array/String receivers and labels.
+The `for...of` slice rejects `for await...of`, `var`, member and destructuring
+assignment targets, unproven iterable values, mixed Array/String receivers and labels.
 The `for...in` slice has its separate source-proven enumerable-domain contract
 above. Synchronous source
 try/catch/finally retain their existing admission boundary.

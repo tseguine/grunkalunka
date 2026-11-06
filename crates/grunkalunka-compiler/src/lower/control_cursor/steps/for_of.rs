@@ -35,20 +35,34 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         {
             return Err(unsupported(&source, "for-await-of is not yet admitted"));
         }
-        let pattern = iteration::lexical_iteration_pattern(source.left())
-            .ok_or_else(|| unsupported(&source, "iteration requires one const or let binding"))?;
-        if source.is_in() && !matches!(pattern, BindingPattern::BindingIdentifier(_)) {
+        if let Some(pattern) = iteration::lexical_iteration_pattern(source.left()) {
+            if source.is_in() && !matches!(pattern, BindingPattern::BindingIdentifier(_)) {
+                return Err(unsupported(
+                    &source,
+                    "for-in requires an identifier binding",
+                ));
+            }
+            let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
+                unreachable!("checked lexical iteration binding");
+            };
+            self.charge_statement(declaration.as_ref())?;
+            if let BindingPattern::BindingIdentifier(identifier) = pattern {
+                self.charge_declaration_bindings(identifier.as_ref(), 1)?;
+            }
+        } else if let Some(identifier) = iteration::assignment_iteration_identifier(source.left())?
+        {
+            let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
+            if !binding.mutable || self.slots[binding.slot.0].ty != Type::ManagedValue {
+                return Err(unsupported(
+                    identifier,
+                    "iteration assignment requires an initialized mutable managed-value binding",
+                ));
+            }
+        } else {
             return Err(unsupported(
                 &source,
-                "for-in requires an identifier binding",
+                "iteration requires one const/let binding or existing mutable identifier",
             ));
-        }
-        let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
-            unreachable!("checked lexical iteration binding");
-        };
-        self.charge_statement(declaration.as_ref())?;
-        if let BindingPattern::BindingIdentifier(identifier) = pattern {
-            self.charge_declaration_bindings(identifier.as_ref(), 1)?;
         }
         let mode = if source.is_in() {
             match self.managed_source_type(source.right(), 0) {
@@ -272,60 +286,76 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 },
             );
             frame.presence = Some(present);
+            // Keep only the unconditionally executed cursor advance and own-key
+            // check in the prefix. Assigning the head (or creating its captured
+            // lexical cell) is conditional on the key still existing.
+            frame.prefix = Some(body);
+            body = self.region(source.body());
         }
-        let pattern = iteration::lexical_iteration_pattern(source.left())
-            .expect("admitted iteration binding");
-        let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
-            unreachable!("checked lexical iteration binding");
-        };
-        // A body-owned Initialize allocates a fresh captured cell each time,
-        // for const as well as let. No classic for-header renewal is needed.
-        let mutable = declaration.kind == VariableDeclarationKind::Let;
-        if let BindingPattern::BindingIdentifier(identifier) = pattern {
-            self.commit_binding_value(
-                identifier.as_ref(),
-                identifier.symbol_id.get().ok_or("missing for-of binding")?,
-                &mut body,
-                Type::ManagedValue,
-                selected,
-                mutable,
-            )?;
-            self.begin_for_of_body(frame, body, cursor);
+        if let Some(pattern) = iteration::lexical_iteration_pattern(source.left()) {
+            let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
+                unreachable!("checked lexical iteration binding");
+            };
+            // A lexical head allocates a fresh captured cell per iteration.
+            let mutable = declaration.kind == VariableDeclarationKind::Let;
+            if let BindingPattern::BindingIdentifier(identifier) = pattern {
+                self.commit_binding_value(
+                    identifier.as_ref(),
+                    identifier
+                        .symbol_id
+                        .get()
+                        .ok_or("missing iteration binding")?,
+                    &mut body,
+                    Type::ManagedValue,
+                    selected,
+                    mutable,
+                )?;
+                self.begin_for_of_body(frame, body, cursor);
+            } else {
+                let root_type = self.stored.container(pattern.node_id()).ok_or_else(|| {
+                    unsupported(
+                        pattern,
+                        "for-of binding patterns require source-proven container elements",
+                    )
+                })?;
+                let plan =
+                    self.prepare_binding_pattern(pattern, pattern.node_id(), root_type, mutable)?;
+                self.start_binding_pattern(
+                    bindings::BindingResume::ForOf(frame),
+                    plan,
+                    body,
+                    selected,
+                    cursor,
+                )?;
+            }
         } else {
-            let root_type = self.stored.container(pattern.node_id()).ok_or_else(|| {
-                unsupported(
-                    pattern,
-                    "for-of binding patterns require source-proven container elements",
-                )
-            })?;
-            let plan =
-                self.prepare_binding_pattern(pattern, pattern.node_id(), root_type, mutable)?;
-            self.start_binding_pattern(
-                bindings::BindingResume::ForOf(frame),
-                plan,
-                body,
-                selected,
-                cursor,
-            )?;
+            let identifier = iteration::assignment_iteration_identifier(source.left())?
+                .expect("validated existing iteration binding");
+            let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
+            let slot = binding.slot;
+            // Unlike a declaration, the existing cell is assigned on every step.
+            // Captures of that cell observe subsequent iterations.
+            Self::push(
+                &mut body,
+                &source,
+                Op::Store {
+                    slot,
+                    value: selected,
+                },
+            );
+            self.begin_for_of_body(frame, body, cursor);
         }
         Ok(())
     }
 
     pub(in super::super) fn begin_for_of_body<'n>(
         &mut self,
-        mut frame: Box<ForOfFrame<'n, 'ast>>,
+        frame: Box<ForOfFrame<'n, 'ast>>,
         body: Region,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) {
         let source = frame.source;
         let depth = frame.depth;
-        // Preserve the index advance even when a removed key skips the body.
-        let body = if frame.presence.is_some() {
-            frame.prefix = Some(body);
-            self.region(source.body())
-        } else {
-            body
-        };
         cursor.pending.push(Frame::ForOf(frame));
         self.in_loop_body = true;
         cursor.next = Some(Next::Statement {

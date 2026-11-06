@@ -34,6 +34,17 @@ pub(super) fn for_of_pattern<'n, 'a>(
     lexical_iteration_pattern(&source.left)
 }
 
+/// An existing lexical binding is an assignable iteration head. Patterns,
+/// members and unsupported TS targets retain their existing diagnostics.
+pub(super) fn assignment_iteration_identifier<'n, 'a>(
+    left: &'n ForStatementLeft<'a>,
+) -> Result<Option<&'n IdentifierReference<'a>>, String> {
+    left.as_simple_assignment_target()
+        .map(|target| target_identifier(target, 0))
+        .transpose()
+        .map(Option::flatten)
+}
+
 pub(super) fn for_of_binding<'n, 'a>(
     source: &'n ForOfStatement<'a>,
 ) -> Option<&'n BindingIdentifier<'a>> {
