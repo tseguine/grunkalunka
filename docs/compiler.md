@@ -1,7 +1,10 @@
 # Numeric compiler and runtime
 
-The separate [experimental async profile](async.md) now preserves undefined/null/
-Boolean/Number through await continuations with saved state and host Promise jobs. It does not change this
+The separate [experimental async profile](async.md) preserves represented values
+through await continuations and host Promise jobs. Its traced managed storage
+also retains objects, arrays, Strings, functions and captured cells across
+suspension and related child activations. Managed Promise payloads and public
+reference results remain separate limits. Async admission does not change this
 numeric profile's synchronous return contract or its rejection inventory.
 
 **Maintained implementation at development version 0.0.1:** Oxc parses JS/TS, a custom lowering
@@ -9,11 +12,13 @@ pass builds and verifies [typed numeric regions](ir.md), then emits WAT. `wat`
 encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
-The synchronous compiler also has an incremental [WasmGC data-object path](managed-values.md)
-through this same IR: literal construction, aliases, static property reads/writes,
-strict equality and truthiness, with the current numeric/primitive export boundary.
-Its documented prototype/coercion/capture restrictions remain explicit. Historical
-primitive-only descriptions below do not imply that this completes object support.
+The compiler also has a [WasmGC managed-value path](managed-values.md) through
+this same IR: objects, sparse arrays, lossless Strings, aliases, identity,
+checked property operations, helpers, closures and collection/String builtins.
+Its public numeric/primitive boundary and source-proof requirements remain
+explicit. Consult the [feature train](javascript-feature-train.md) and dedicated
+feature contracts for current managed admission; the numeric-only descriptions
+below do not describe the complete implemented source surface.
 
 [Synchronous local source errors](synchronous-errors.md) now compose with these
 profiles: a same-function lexical catch receives a primitive throw, including
@@ -34,8 +39,9 @@ See the [bounded source contract](#immutable-boolean-predicate-locals).
 
 Local `const` and `let` declarations support nested and mixed
 [object](object-binding-patterns.md) and [array](array-binding-patterns.md) binding
-patterns, including defaults on leaves or whole nested patterns, literal object
-keys, array elisions, empty patterns and identifier rest elements in arrays.
+patterns, including defaults on leaves or whole nested patterns, static identifier,
+String and numeric property names, array elisions, empty patterns, object rest,
+and array rest targeting an identifier or a nested object/array pattern.
 They work in ordinary declarations and traditional `for`
 initializers. [Intrinsic-array `for...of`](array-iteration.md) also accepts these
 patterns in a `const` or `let` head, completing every leaf before the loop body
@@ -65,11 +71,15 @@ carrier, so selected Numbers do not acquire numeric unboxing. The existing
 128-source-local budget counts identifier leaves, and iterative pattern
 processing admits at most 128 nested object/array container levels.
 
-Object rest, array rest with pattern targets, parameter and assignment patterns,
-dynamic object keys and primitive RHS coercion remain outside this admission.
-Iteration is limited to source-proven managed arrays with their intrinsic
-iterator; general iterables, `for-in`, `for await...of` and `var` or assignment
-heads remain separate work. These features do not change the public call ABI.
+Object rest copies remaining own enumerable data properties into a fresh ordinary
+object. Computed binding keys are admitted for source-proven null-prototype
+dictionaries when the key is a proven String; ordinary-object binding keys stay
+static. Parameter/assignment patterns, general key coercion and primitive RHS
+coercion remain outside this admission.
+Iteration supports source-proven arrays with their intrinsic iterator and
+Strings by Unicode code point. String loops use identifier bindings. General
+iterables, `for-in`, `for await...of` and `var` or assignment heads remain
+separate work. These features do not change the public call ABI.
 
 ## Expression evaluation control
 

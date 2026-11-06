@@ -8,10 +8,14 @@ the async profile; locally caught primitive throws now also execute
 [synchronously](synchronous-errors.md), including cleanup through finally.
 Cross-call and uncaught synchronous throws remain open. Numeric structured
 control flow can now suspend.
-Undefined/null/Boolean/Number values and uncaught rejection reasons survive that
-suspension; Strings, objects and arbitrary Promise values remain outside this slice.
+Undefined/null/Boolean/Number values and represented rejection reasons survive
+that suspension. The newer [managed-value path](managed-values.md) also retains
+traced references across suspension; this does not admit managed Promise
+settlements, rejection reasons or arbitrary Promise/thenable values.
 
-This page and the 919 rejection fixtures below describe the **numeric profile**.
+This page describes the **numeric profile's rejection frontier**. Current
+fixture counts come from the executable inventory and completed reports linked
+below; they change as exact sources graduate into supported profiles.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Thirteen exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -21,37 +25,40 @@ The value report has four selected rejected pairs, not an exhaustive inventory.
 The numeric profile admits one exported two-number function with numeric locals and immutable Boolean predicate locals,
 Number/Boolean expression statements, empty statements, assignments, branches, while/for/do loops,
 TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled loop break/continue and returns.
-Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
-features or valid program shapes outside that contract.
+The curated gaps below are rejected language features or valid program shapes
+outside that contract. This inventory does not establish the absence of defects
+in admitted programs; differential tests and current CI results supply that evidence.
 
 Selected primitive-Boolean operands of unary `+`, `-` and `~` explicitly produce
 Numbers. In the numeric profile this does not admit general Boolean storage, Boolean ABI returns or other
-primitive coercions; none of the 38 curated gaps is promoted by unary plus/minus.
+primitive coercions; the unary bridges do not themselves promote the curated gaps.
 
-The executable frontier contains 34 curated reference cases in
-`tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
+The executable frontier is defined in
+[`tests/compatibility/lowering-gaps.mjs`](../tests/compatibility/lowering-gaps.mjs).
+Each case has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
 
-Flat [object binding declarations](object-binding-patterns.md) now execute over
-proven managed objects. The exact `gap-local-destructure` source remains a valid
+[Object binding declarations](object-binding-patterns.md) execute over
+proven managed objects and arrays, including nested patterns, defaults and rest.
+The exact `gap-local-destructure` source remains a valid
 rejection fixture because its subsequent `x+b` expression needs numeric
 consumption of the boxed selected field. Its diagnostic now identifies that
 remaining boundary; the original source and independent numeric oracle are
-unchanged. Flat [array patterns](array-binding-patterns.md) admit identifier
-leaves, holes, empty patterns and lazy identifier-leaf defaults over proven
-managed arrays. A default runs only for Undefined; later steps read the current
+unchanged. [Array patterns](array-binding-patterns.md) admit identifier and nested
+pattern leaves, holes, empty patterns, defaults and rest over proven managed
+arrays. A default runs only for Undefined; later steps read the current
 array length, and iteration stays finished once exhausted even if a default
 grows the array. The original `for-destructure` and
 `declarators-later-destructure` sources use numeric parameters as their RHS, so
 they remain rejected with the source-proven managed-array diagnostic. Their
-sources and inventory hashes remain unchanged. Nested/rest patterns and general
-iterators remain outside this slice; `var` fixtures retain
+sources and inventory hashes remain unchanged. General iterable destructuring
+remains outside this slice; `var` fixtures retain
 their specific declaration diagnostic.
 
 | Area | Exact fixture IDs |
 | --- | --- |
-| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
+| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-delete`, `gap-property-in`, `gap-instanceof`, `gap-typeof-unresolved` |
 | General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Nested declarations and nested recursion | `gap-nested-function`, `gap-recursion` |
@@ -69,9 +76,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 746 open requirements
-across all 921 records. Each pins the exact source, extension and strict Module mode;
+covers the current negative fixtures beyond these numeric reference opt-ins.
+Its groups distinguish invalid sources, resource restrictions and open
+requirements. Each record pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -177,13 +184,15 @@ coercion; immutable Boolean predicate locals are covered by the const policy bel
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 36 remaining examples are a
+or change the reference result to match a lowering bug. The curated examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
-Type checking/type queries, a general JS-value ABI and the bridge between compiled
-code and WIT capabilities remain separate roadmap work. These tests do not select
-a value representation, GC strategy, final entry ABI or capability-profile defaults.
+Type checking/type queries and a general public JS-value ABI remain separate
+roadmap work. The bounded [A1 source-to-WIT bridge](a1-ui-source-import.md) already
+executes a scalar service call; general module imports and typed public reference
+interfaces remain outside that contract. This numeric rejection inventory does
+not select a final entry ABI or capability-profile defaults.
 
 The former `gap-bit-not` reference is now `bit-not-promoted-reference` in
 [`numeric-bit-not.mjs`](../tests/compatibility/numeric-bit-not.mjs). Numeric unary

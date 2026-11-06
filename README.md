@@ -14,10 +14,13 @@ The maintained implementation is at development version **0.0.1**. The project i
 still in PoC development: useful pieces are implemented and tested directly in
 the main workspace, while unresolved design questions may use disposable spikes.
 Compilation is deliberately profile-scoped: numeric and four-kind primitive
-entry points, experimental async/closure paths, and a synchronous
-[WasmGC-backed data-object slice](docs/managed-values.md). The object slice
-supports fresh literals, static own-property reads/writes, aliases,
-identity/truthiness and managed references through ordinary named helpers.
+entry points, experimental async/closure paths, and a
+[WasmGC-backed managed-value path](docs/managed-values.md). Managed objects,
+sparse arrays and lossless UTF-16 Strings compose with checked helpers,
+closures, nested binding patterns, collection operations and String processing.
+Engine-traced references survive supported awaits and related child activations
+within one generated instance. See the [current feature train](docs/javascript-feature-train.md)
+for the admitted combinations and their remaining limits.
 Known Number operations retain direct f64 execution and public exports retain
 the current numeric/primitive contracts. This is **not** full JavaScript/TypeScript,
 a general object/prototype implementation, browser APIs, or Node compatibility.
@@ -49,12 +52,13 @@ Wasmtime, and the differential regression corpus. [CI](docs/ci.md) runs the cano
 pushes and on native macOS through its separate `master`-triggered workflow. This is coverage of those runner
 configurations, not every host/runtime combination.
 
-String and JSON source experiments still use a separate, narrower
+String and JSON source experiments also retain a separate, narrower
 [heap profile](docs/heap-literals.md). The newer
 [managed-value path](docs/managed-values.md) instead uses the shared IR, while
-retaining narrow source admission and primitive host boundaries. Neither path
-implements general JS heap semantics, prototype lookup, arbitrary arrays or
-public reference-valued exports.
+retaining source-proven receiver/call contracts and primitive host boundaries.
+Scoped dictionary operations and intrinsic property membership are implemented;
+general prototype/accessor/coercion behaviour, arbitrary Promise payloads and
+public reference-valued exports remain outside the current contract.
 To replay only the differential compiler/runtime demonstration:
 
 ```sh
