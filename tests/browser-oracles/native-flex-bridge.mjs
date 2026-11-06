@@ -13,7 +13,7 @@ const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
   "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
   "selfAlignClipped", "selfAlignScrolled", "contentEnd", "contentCenter",
-  "contentBetween", "contentSingle", "contentNoWrap", "contentOverflow",
+  "contentBetween", "contentAround", "contentEvenly", "contentSingle", "contentNoWrap", "contentOverflow",
   "contentClipped", "contentScrolled", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const rectFields = ["x", "y", "width", "height"];
@@ -81,7 +81,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
   function validateStates(owner, states) {
     const path = "$." + owner + ".states";
     if (!keys(states, phases)) {
-      error(path, "exactly the thirty-eight named flex phases required");
+      error(path, "exactly the forty named flex phases required");
       return;
     }
     for (const phase of phases) {

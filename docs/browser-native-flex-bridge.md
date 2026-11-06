@@ -38,8 +38,8 @@ pixels permits an actual page scroll.
 
 Each phase starts from the original declarations, with only its named
 changes applied. The source records six named border rectangles and nine
-fixed viewport hit probes per phase: 228 rectangle slots and 342 hit slots
-across 38 phases. Rectangles are converted to document coordinates using the
+fixed viewport hit probes per phase: 240 rectangle slots and 360 hit slots
+across 40 phases. Rectangles are converted to document coordinates using the
 browser's actual scroll offsets. The boxless wrapper is omitted from the
 rectangle map; suppressed boxes remain explicit nulls.
 
@@ -77,6 +77,8 @@ rectangle map; suppressed boxes remain explicit nulls.
 | `contentEnd` | Wrap, height 100, items center, lines end | 162×112 | (26,108) | 138 |
 | `contentCenter` | Wrap, height 100, items center, lines center | 162×112 | (26,92) | 138 |
 | `contentBetween` | Wrap, width 100, height 140, lines `space-between` | 112×152 | (26,148) | 178 |
+| `contentAround` | Wrap, width 100, height 160, lines `space-around` | 112×172 | (26,158) | 198 |
+| `contentEvenly` | Wrap, width 100, height 140, lines `space-evenly` | 112×152 | (26,138) | 178 |
 | `contentSingle` | Wrap, width 220, height 60, items center, lines end | 232×72 | (174,56) | 98 |
 | `contentNoWrap` | Same declarations as `contentSingle`, but no wrap | 232×72 | (174,47) | 98 |
 | `contentOverflow` | Wrap, height 41, items center, lines center | 162×53 | (26,76) | 79 |
@@ -164,6 +166,13 @@ follows its parent, and the following block stays at y=138 in both phases.
 border at y=80 and the third at y=148. The first line does not move. This
 checks distribution over two intervals independently of the two-line case.
 
+The `contentAround` and `contentEvenly` phases use the same three natural
+lines. Around has 60px of extra height and uses half-size 10px outer gaps,
+adding 20px to each inner gap: its item border starts are y=36, 90 and
+158. Evenly has 40px extra height, divides it into four 10px intervals,
+and places the items at y=36, 80 and 138. The following block remains
+in normal flow, independently of those offsets.
+
 `contentSingle` has one actual wrapped line, whose natural height remains
 42px. End packing adds 18px before item centering. `contentNoWrap` applies
 the same declarations to a single-line flex container: `align-content` has
@@ -225,7 +234,7 @@ The native example paints distinct opaque item colors through `paint_scrolled`
 and reads actual canvas pixels. Overlap probes share the points that
 distinguish browser hit ordering; additional probes distinguish a child's
 paint before and after its parent's auto reset, wrapped and nowrap line sizes,
-and clipping at the host's bottom border. There are 21 native pixel assertions:
+and clipping at the host's bottom border. There are 23 native pixel assertions:
 
 | Phase | Native pixel | Visible item | Expected RGB |
 | --- | --- | --- | --- |
@@ -242,6 +251,8 @@ and clipping at the host's bottom border. There are 21 native pixel assertions:
 | `contentEnd` | (30,80) | `row-a` | (255,0,0) |
 | `contentCenter` | (30,80) | Host background | (255,255,255) |
 | `contentBetween` | (35,150) | `row-c` | (128,0,128) |
+| `contentAround` | (30,165) | `row-c` | (128,0,128) |
+| `contentEvenly` | (30,145) | `row-c` | (128,0,128) |
 | `contentSingle` | (110,52) | `row-inner` | (0,255,0) |
 | `contentNoWrap` | (110,52) | `row-b` | (0,0,255) |
 | `contentOverflow` | (30,80) | `row-c` | (128,0,128) |
@@ -258,7 +269,7 @@ comparison, a new receipt schema, or an additional dependency.
 
 ## Source validation and negative controls
 
-The comparator requires the complete 38-phase schema, exact rectangle and
+The comparator requires the complete 40-phase schema, exact rectangle and
 probe IDs, exact integer coordinates, the fixed viewport, and source-hashed
 Playwright provenance identifying the engine family and browser version.
 Missing samples, unknown targets, unexpected nulls, nonfinite/fractional
