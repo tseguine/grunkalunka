@@ -4,19 +4,32 @@ Start at the [project README](../README.md) for a supported build/check command,
 workspace map and high-level scope. This page routes readers to the maintained
 contracts; it is not a second feature inventory. For the current execution
 priorities see [milestones](milestones.md), the [JavaScript engine steering
-review](javascript-engine-steering.md) for cross-stream convergence gates, and
-the [research roadmap](roadmap.md) for longer-term questions.
+review](javascript-engine-steering.md) for current capabilities and remaining
+boundaries, and the [research roadmap](roadmap.md) for longer-term questions.
 
 ## Compiler and runtime
 
 - [Compiler/source admission](compiler.md) and [typed region IR](ir.md): admitted
   JS/TS profiles, diagnostics, verifier and backend.
 - [Managed values and source data objects](managed-values.md) and
-  [WasmGC decision](adr/0019-wasmgc-runtime.md): synchronous object subset,
-  traced references, typed synchronous captures and remaining dynamic/prototype/async exclusions.
+  [WasmGC decision](adr/0019-wasmgc-runtime.md): objects, sparse arrays, UTF-16
+  Strings, typed captures and traced references across supported suspension.
+  Public reference exports and managed Promise settlements remain separate.
+- [JavaScript feature train](javascript-feature-train.md),
+  [String methods](managed-string-methods.md),
+  [object bindings](object-binding-patterns.md),
+  [array bindings](array-binding-patterns.md), and
+  [iteration](array-iteration.md): practical source combinations and their
+  receiver, mutation and control-flow boundaries.
 - [Async and promises](async.md), [runtime closures](runtime-closures.md), and
   [bounded String/JSON source experiments](heap-literals.md): distinct
   implementations with distinct admission boundaries.
+- [Synchronous errors](synchronous-errors.md): local source throws, lexical
+  catches and finally completion; cross-call throw propagation remains outside
+  that contract.
+- [Source-lowering validation](lowering-refactor-validation-2026-11-03.md) and
+  [cross-phase inventory](lowering-cross-phase-reentry.md): the completed
+  source-cursor migration, its frozen evidence and residual native-stack scope.
 - [CLI](cli.md), [Node build API](build-api.md) and
   [opt-in diagnostics](observability.md): execution and debugging entry points.
 - [Known lowering gaps](lowering-gaps.md): **numeric-profile** rejection
@@ -27,13 +40,20 @@ the [research roadmap](roadmap.md) for longer-term questions.
 - [Capabilities](capabilities.md), [authorized Markdown/WIT outline](document-outline-authority.md)
   and [strict core-Wasm composition](adr/0008-strict-core-wasm-composition.md):
   explicit authority and transport experiments.
-- [A1 note preview](a1-note-preview.md) and
-  [source-compiled A1 UI import](a1-ui-source-import.md): runnable host-managed
-  preview and separate source-to-Rust service proof. Neither establishes an
-  integrated interactive app or public DOM API.
+- [Live A1 application](a1-live-application.md) and
+  [detached live package](a1-live-package.md): the connected bounded note app,
+  native pixels, browser input forwarding, note selection, reload and session
+  recovery. Rust owns the application state; the browser presents its output.
+- [A1 note preview](a1-note-preview.md),
+  [owned-session replay](a1-session-replay.md), and
+  [source-compiled A1 UI import](a1-ui-source-import.md): headless reproduction,
+  action/frame evidence and the scalar JS/TS-to-Rust/WIT service boundary.
+  These do not establish a public DOM or general typed reference API.
 - [Headless block layout](block-layout.md), [RGB painting](block-paint.md),
-  [hit testing](headless-hit-test.md), and [browser oracles](browser-oracles.md):
-  reusable experiments, not a full HTML/CSS/browser engine.
+  [hit testing](headless-hit-test.md), [native flex rows](native-flex-rows.md),
+  and [browser oracles](browser-oracles.md): resolved native layout contracts
+  and independent browser observations, with a full HTML/CSS engine still outside
+  the implemented surface.
 - [Component-composed environments](adr/0018-component-composed-environments.md):
   **proposed** architecture, not an accepted API or assigned workstream.
 
