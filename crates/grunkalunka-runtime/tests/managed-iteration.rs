@@ -56,6 +56,7 @@ fn iteration_assignment_heads_update_existing_mutable_cells() {
     for body in [
         "let key='';let n=0;for(key in {a:1,bb:2})n=n*10+key.length;return n+key.length;",
         "let key='initial';let n=0;for(key in {})n++;return n+key.length;",
+        "let key='';const items=[a,b,b];let n=0;for(key in items){n++;items.length=1;}return n*10+(key==='0'?1:0);",
         "let item='';let n=0;for(item of [' a ',' bb '])n=n*10+item.trim().length;return n+item.length;",
         "let item='';for(item of []){}return item.length;",
         "let key='';let n=0;const source={a:1,b:2};for(key in source){n++;if(key==='a')continue;}return n*10+key.length;",

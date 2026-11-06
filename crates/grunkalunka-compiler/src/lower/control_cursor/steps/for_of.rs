@@ -286,6 +286,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 },
             );
             frame.presence = Some(present);
+            // Keep only the unconditionally executed cursor advance and own-key
+            // check in the prefix. Assigning the head (or creating its captured
+            // lexical cell) is conditional on the key still existing.
+            frame.prefix = Some(body);
+            body = self.region(source.body());
         }
         if let Some(pattern) = iteration::lexical_iteration_pattern(source.left()) {
             let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
@@ -345,19 +350,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
     pub(in super::super) fn begin_for_of_body<'n>(
         &mut self,
-        mut frame: Box<ForOfFrame<'n, 'ast>>,
+        frame: Box<ForOfFrame<'n, 'ast>>,
         body: Region,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) {
         let source = frame.source;
         let depth = frame.depth;
-        // Preserve the index advance even when a removed key skips the body.
-        let body = if frame.presence.is_some() {
-            frame.prefix = Some(body);
-            self.region(source.body())
-        } else {
-            body
-        };
         cursor.pending.push(Frame::ForOf(frame));
         self.in_loop_body = true;
         cursor.next = Some(Next::Statement {

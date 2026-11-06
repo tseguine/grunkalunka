@@ -205,6 +205,23 @@ impl Fields {
         }
         let mut values = BTreeMap::new();
         let mut bindings: BTreeMap<SymbolId, Alternatives> = BTreeMap::new();
+        // Only lexical iteration *declarations* start initialized by their
+        // iteration step. Assignment heads must retain any earlier undefined
+        // origin of their preexisting binding, even before the first step.
+        let lexical_iteration_symbols = semantic
+            .nodes()
+            .iter()
+            .filter_map(|node| match node.kind() {
+                AstKind::ForOfStatement(source) => iteration::for_of_binding(source)
+                    .and_then(|identifier| identifier.symbol_id.get()),
+                AstKind::ForInStatement(source) => iteration::lexical_iteration_pattern(&source.left)
+                    .and_then(|pattern| match pattern {
+                        BindingPattern::BindingIdentifier(identifier) => identifier.symbol_id.get(),
+                        _ => None,
+                    }),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
         let iterations = semantic
             .nodes()
             .iter()
@@ -544,7 +561,7 @@ impl Fields {
                     {
                         if let Some(initializer) = &declaration.init {
                             definitions.push(Definition::Value(symbol, initializer.node_id()));
-                        } else if !iterations.contains_key(&symbol) {
+                        } else if !lexical_iteration_symbols.contains(&symbol) {
                             bindings
                                 .entry(symbol)
                                 .or_default()
