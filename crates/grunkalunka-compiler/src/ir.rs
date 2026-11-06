@@ -510,6 +510,12 @@ pub(crate) struct Failure {
 }
 
 #[derive(Debug)]
+pub(crate) enum RestKey {
+    Literal(Vec<u16>),
+    String(ValueId),
+}
+
+#[derive(Debug)]
 pub(crate) enum Op {
     ManagedArrayNew {
         result: ValueId,
@@ -613,7 +619,7 @@ pub(crate) enum Op {
     ManagedObjectRest {
         result: ValueId,
         object: ValueId,
-        excluded: Vec<Vec<u16>>,
+        excluded: Vec<RestKey>,
     },
     // Copy admitted own enumerable data properties, preserving boxed values.
     ManagedObjectSpread {
@@ -1391,8 +1397,16 @@ impl Verifier<'_> {
             } => {
                 self.value(*object, Type::ManagedObject, visible, span)?;
                 for key in excluded {
-                    u32::try_from(key.len())
-                        .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                    match key {
+                        RestKey::Literal(key) => {
+                            u32::try_from(key.len()).map_err(|_| {
+                                invalid(span, "managed property key exceeds Wasm32 length")
+                            })?;
+                        }
+                        RestKey::String(key) => {
+                            self.value(*key, Type::ManagedValue, visible, span)?
+                        }
+                    }
                 }
                 self.define(*result, Type::ManagedObject, visible, span)?;
             }

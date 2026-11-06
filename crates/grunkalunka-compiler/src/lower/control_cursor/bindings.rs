@@ -1,10 +1,11 @@
 //! Fields and array elements are selected only after the preceding binding
 //! completes. Every continuation retains the originally evaluated RHS.
 use super::*;
-use oxc_ast::ast::{AssignmentPattern, BindingIdentifier};
+use oxc_ast::ast::{AssignmentPattern, BindingIdentifier, BindingProperty};
 
 pub(super) struct DefaultBinding<'n, 'a> {
     state: BindingState<'n, 'a>,
+    output: Region,
     pending: LazyDefault,
     source: &'n AssignmentPattern<'a>,
 }
@@ -24,16 +25,18 @@ impl BindingResume<'_, '_> {
 }
 
 enum Container {
-    Object(ValueId),
+    Object {
+        value: ValueId,
+        excluded: Option<Vec<ir::RestKey>>,
+    },
     Array {
         value: ValueId,
         iterator: Option<array_bindings::IteratorState>,
     },
 }
 
-struct BindingState<'n, 'a> {
+pub(super) struct BindingState<'n, 'a> {
     plan: binding_patterns::BindingPlan<'n, 'a>,
-    output: Region,
     containers: Vec<Container>,
     selected: Option<ValueId>,
 }
@@ -79,10 +82,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             resume,
             BindingState {
                 plan,
-                output,
                 containers: Vec::new(),
                 selected: Some(value),
             },
+            output,
             cursor,
         )
     }
@@ -91,6 +94,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &mut self,
         resume: BindingResume<'n, 'ast>,
         mut state: BindingState<'n, 'ast>,
+        mut output: Region,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
@@ -106,7 +110,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     } else {
                         let result = self.value(Type::ManagedObject);
                         Self::push(
-                            &mut state.output,
+                            &mut output,
                             source,
                             Op::ManagedToObject {
                                 result,
@@ -115,7 +119,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         );
                         result
                     };
-                    state.containers.push(Container::Object(object));
+                    state.containers.push(Container::Object {
+                        value: object,
+                        excluded: source.rest.as_ref().map(|_| Vec::new()),
+                    });
                 }
                 BindingStep::Array { source, live } => {
                     let selected = state.selected.take().expect("selected array binding");
@@ -124,7 +131,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     } else {
                         let result = self.value(Type::ManagedArray);
                         Self::push(
-                            &mut state.output,
+                            &mut output,
                             source,
                             Op::ManagedToArray {
                                 result,
@@ -134,19 +141,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         result
                     };
                     let iterator =
-                        live.then(|| self.begin_array_binding_iterator(source, &mut state.output));
+                        live.then(|| self.begin_array_binding_iterator(source, &mut output));
                     state.containers.push(Container::Array {
                         value: array,
                         iterator,
                     });
                 }
                 BindingStep::Field { source, key } => {
-                    let Some(Container::Object(object)) = state.containers.last() else {
+                    let Some(Container::Object {
+                        value: object,
+                        excluded,
+                    }) = state.containers.last_mut()
+                    else {
                         unreachable!("object field has an object receiver");
                     };
+                    if let Some(excluded) = excluded {
+                        excluded.push(ir::RestKey::Literal(key.clone()));
+                    }
                     let selected = self.value(Type::ManagedValue);
                     Self::push(
-                        &mut state.output,
+                        &mut output,
                         source,
                         Op::ManagedGetOwn {
                             result: selected,
@@ -156,41 +170,53 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     );
                     state.selected = Some(selected);
                 }
+                BindingStep::ComputedField { source, key, depth } => {
+                    cursor.pending.push(Frame::PatternBindingKey {
+                        resume,
+                        state: Box::new(state),
+                        source,
+                    });
+                    cursor.next = Some(Next::Expression {
+                        source: key,
+                        output,
+                        depth,
+                        mode: evaluate::Mode::Managed,
+                    });
+                    return Ok(());
+                }
                 BindingStep::Element { source, index } => {
                     let Some(Container::Array { value, iterator }) = state.containers.last_mut()
                     else {
                         unreachable!("array element has an array receiver");
                     };
                     let selected = if let Some(iterator) = iterator {
-                        self.select_array_binding_step(
-                            source,
-                            &mut state.output,
-                            *value,
-                            iterator,
-                            index,
-                        )
+                        self.select_array_binding_step(source, &mut output, *value, iterator, index)
                     } else {
-                        self.read_array_binding_element(source, &mut state.output, *value, index)
+                        self.read_array_binding_element(source, &mut output, *value, index)
                     };
                     state.selected = Some(selected);
                 }
-                BindingStep::ObjectRest { source, excluded } => {
-                    let Some(Container::Object(object)) = state.containers.last() else {
+                BindingStep::ObjectRest(source) => {
+                    let Some(Container::Object {
+                        value: object,
+                        excluded,
+                    }) = state.containers.last_mut()
+                    else {
                         unreachable!("object rest has an object receiver");
                     };
                     let rest = self.value(Type::ManagedObject);
                     Self::push(
-                        &mut state.output,
+                        &mut output,
                         source,
                         Op::ManagedObjectRest {
                             result: rest,
                             object: *object,
-                            excluded,
+                            excluded: excluded.take().expect("planned object rest"),
                         },
                     );
                     let selected = self.value(Type::ManagedValue);
                     Self::push(
-                        &mut state.output,
+                        &mut output,
                         source,
                         Op::ManagedFromObject {
                             result: selected,
@@ -205,14 +231,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     };
                     let array = self.collect_array_binding_rest(
                         source,
-                        &mut state.output,
+                        &mut output,
                         *value,
                         iterator.as_ref(),
                         start,
                     );
                     let selected = self.value(Type::ManagedValue);
                     Self::push(
-                        &mut state.output,
+                        &mut output,
                         source,
                         Op::ManagedFromArray {
                             result: selected,
@@ -228,11 +254,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             iterator: Some(iterator),
                             ..
                         }) => iterator.undefined,
-                        _ => self.binding_undefined(&source.left, &mut state.output),
+                        _ => self.binding_undefined(&source.left, &mut output),
                     };
                     let pending = self.prepare_binding_default(
                         &source.left,
-                        &mut state.output,
+                        &mut output,
                         selected,
                         undefined,
                     );
@@ -241,6 +267,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         resume,
                         active: Box::new(DefaultBinding {
                             state,
+                            output,
                             pending,
                             source,
                         }),
@@ -257,7 +284,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     let selected = state.selected.take().expect("selected binding value");
                     self.publish_pattern_binding(
                         identifier,
-                        &mut state.output,
+                        &mut output,
                         selected,
                         state.plan.mutable,
                     )?;
@@ -270,13 +297,45 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         match resume {
             BindingResume::Declaration(mut sequence) => {
                 sequence.index += 1;
-                self.advance_declaration(sequence, state.output, cursor)
+                self.advance_declaration(sequence, output, cursor)
             }
             BindingResume::ForOf(frame) => {
-                self.begin_for_of_body(frame, state.output, cursor);
+                self.begin_for_of_body(frame, output, cursor);
                 Ok(())
             }
         }
+    }
+
+    pub(super) fn resume_pattern_binding_key<'n>(
+        &mut self,
+        resume: BindingResume<'n, 'ast>,
+        mut state: BindingState<'n, 'ast>,
+        source: &'n BindingProperty<'ast>,
+        mut output: Region,
+        key: ValueId,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        let Some(Container::Object { value, excluded }) = state.containers.last_mut() else {
+            unreachable!("computed binding field has an object receiver");
+        };
+        if let Some(excluded) = excluded {
+            excluded.push(ir::RestKey::String(key));
+        }
+        let selected = self.value(Type::ManagedValue);
+        Self::push(
+            &mut output,
+            source,
+            Op::ManagedGetOwnDynamic {
+                result: selected,
+                object: *value,
+                key,
+            },
+        );
+        state.selected = Some(selected);
+        self.advance_binding_pattern(resume, state, output, cursor)
     }
 
     pub(super) fn resume_pattern_binding_default<'n>(
@@ -292,18 +351,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     {
         let DefaultBinding {
             mut state,
+            mut output,
             pending,
             source,
         } = active;
-        let result = self.finish_binding_default(
-            &source.left,
-            &mut state.output,
-            pending,
-            consequent,
-            default,
-        );
+        let result =
+            self.finish_binding_default(&source.left, &mut output, pending, consequent, default);
         state.selected = Some(result);
-        self.advance_binding_pattern(resume, state, cursor)
+        self.advance_binding_pattern(resume, state, output, cursor)
     }
 
     pub(super) fn binding_undefined(

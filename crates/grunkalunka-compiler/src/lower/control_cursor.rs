@@ -354,6 +354,11 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         binding: binding_patterns::PatternBinding<'n, 'a>,
     },
+    PatternBindingKey {
+        resume: bindings::BindingResume<'n, 'a>,
+        state: Box<bindings::BindingState<'n, 'a>>,
+        source: &'n oxc_ast::ast::BindingProperty<'a>,
+    },
     /// A default retains every enclosing receiver and independent iterator
     /// state until its expression completes. Later fields remain unread.
     PatternBindingDefault {
@@ -599,7 +604,9 @@ impl Frame<'_, '_> {
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ObjectBindingSource { sequence, .. } => sequence.depth,
             Self::ArrayBindingSource { sequence, .. } => sequence.depth,
-            Self::PatternBindingDefault { resume, .. } => resume.depth(),
+            Self::PatternBindingKey { resume, .. } | Self::PatternBindingDefault { resume, .. } => {
+                resume.depth()
+            }
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::MaterializedDeclaration { sequence, .. } => sequence.depth,

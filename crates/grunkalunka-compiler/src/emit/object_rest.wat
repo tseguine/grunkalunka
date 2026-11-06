@@ -1,5 +1,5 @@
 ;; Build exclusions one key at a time so even a long pattern has bounded operand
-;; stack depth. All admitted source keys are fixed UTF-16 strings.
+;; stack depth. Both literal and evaluated keys retain their UTF-16 code units.
 (type $gc_rest_key (struct (field (ref null $gc_rest_key)) (field (ref null $gc_key))))
 
 (func $gc_rest_excludes (param $keys (ref null $gc_rest_key))

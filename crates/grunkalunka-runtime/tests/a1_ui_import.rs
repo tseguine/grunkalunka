@@ -634,3 +634,19 @@ fn imported_handler_separates_title_metadata_from_numbered_headings() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_selects_dictionary_state_and_counts_remaining_actions() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const actions = Object.create(null);
+            actions.expand = 1;
+            actions.collapse = 0;
+            actions.reload = 1;
+            const action = a > 0 ? 'expand' : 'collapse';
+            const {[action]:selected,...remaining} = actions;
+            return choose(selected === 1 ? 1 : 0, Object.keys(remaining).length);
+        }"#,
+    );
+}

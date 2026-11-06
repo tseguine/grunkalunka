@@ -62,3 +62,31 @@ fn rest_requires_a_visible_object_and_defines_a_fresh_object_value() {
         assert!(verify_module(&module).is_err());
     }
 }
+
+#[test]
+fn computed_rest_exclusions_require_visible_managed_values() {
+    let source = "export function run(a,b){const d=Object.create(null);const k='x';const {[k]:v,...rest}=d;return rest.x===undefined?1:0;}";
+    for fault in 0..2 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let rest = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                Op::ManagedObjectRest {
+                    result,
+                    object,
+                    excluded,
+                } => Some((result, object, excluded)),
+                _ => None,
+            })
+            .unwrap();
+        let [RestKey::String(key)] = rest.2.as_mut_slice() else {
+            panic!("missing computed exclusion")
+        };
+        *key = if fault == 0 { *rest.1 } else { *rest.0 };
+        assert!(verify_module(&module).is_err());
+    }
+}

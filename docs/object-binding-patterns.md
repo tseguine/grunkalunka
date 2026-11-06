@@ -83,6 +83,14 @@ variable leaves the saved receiver in place. At each nesting level only the
 keys selected directly by that pattern are excluded. Repeated keys, aliases
 and UTF-16 literal keys use the same property names as their field reads.
 
+For a source-proven null-prototype dictionary, a computed property such as
+`const {[key]: chosen, ...others} = dictionary` accepts a proven String key.
+The expression runs once at its place in the pattern, before selection or its
+default. Rest excludes that saved String even if a later key, default or await
+changes the variable. A failed key evaluation skips all following steps.
+Computed selections and fields of a rest object with a dynamic exclusion retain
+generic value kinds. Ordinary objects still require static binding keys.
+
 The copy preserves own-key order and retains the identity of referenced
 values. Changing a slot on either object leaves the other object's slot
 independent. Each loop iteration creates a fresh result. The result is a
@@ -103,7 +111,7 @@ This slice covers declarations with identifier leaves, nested object or array
 patterns and optional defaults on either, including identifier rest in arrays and objects.
 Destructuring assignment and parameter patterns remain separate work.
 [Array declarations](array-binding-patterns.md) have their own source-proven
-array admission. Dynamic property names and primitive RHS coercion are also
+array admission. General property-key conversion and primitive RHS coercion are
 outside this slice.
 
 Ordinary objects retain the existing intrinsic-prototype-key guard. Proven

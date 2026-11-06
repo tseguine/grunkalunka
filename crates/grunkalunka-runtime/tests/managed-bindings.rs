@@ -575,3 +575,16 @@ fn object_rest_field_consumers_reject_possible_incompatible_values() {
         }
     }
 }
+
+#[test]
+fn dictionary_binding_keys_run_once_and_exclude_their_saved_strings() {
+    for body in [
+        "const d=Object.create(null);d.x=a;d.y=b;d.z=undefined;let k='x',n=0;const {[ (n=n*10+1,k) ]:first,[ (n=n*10+2,k='y',k) ]:second,[ (n=n*10+3,k='x',k) ]:again,...rest}=d;const keys=Object.keys(rest);return n===123&&first===a&&second===b&&again===a&&keys.length===1&&keys[0]==='z'?1:0;",
+        "let source=Object.create(null);const old=source;source.keep=a;const other=Object.create(null);other.wrong=b;let k='missing';const {[(source=other,k)]:value=(old.keep=b,k='keep',1),...rest}=source;return value===1&&rest.keep===b&&rest.wrong===undefined&&Object.keys(rest).length===1?1:0;",
+        r"const d=Object.create(null);const k='\ud800';d[k]=a;d['\ufffd']=b;d.__proto__=a;const {[k]:x,[('__'+'proto__')]:y,...rest}=d;const keys=Object.keys(rest);return x===a&&y===a&&keys.length===1&&keys[0]==='\ufffd'&&rest['\ufffd']===b?1:0;",
+        "const d=Object.create(null);d.tag=a;const source=[d];const [{[(source[1]=b,'tag')]:value},...tail]=source;return value===a&&tail.length===1&&tail[0]===b?1:0;",
+        "const d=Object.create(null);d.key='value';d.value=a;let n=0;for(const {key='fallback',[key]:value,...rest} of [d,d]){if(value===a&&Object.keys(rest).length===0)n++;}return n;",
+    ] {
+        compare(body);
+    }
+}

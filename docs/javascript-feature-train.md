@@ -202,9 +202,11 @@ binding patterns and rest exclusions. An A1 handler extracts title metadata
 from a numbered record, trims a copied heading with a proven String value
 and passes the remaining heading count to the service. Retained-field proofs
 include writes through aliases to the source, the copy and shared child objects.
+A dictionary pattern can select a runtime String key and exclude its saved
+value from rest even if another key suspends or reassigns the source variable.
 
 Array rest with pattern targets, parameter and assignment patterns,
-dynamic object keys, primitive RHS coercion and general iterators remain
+general property-key conversion, primitive RHS coercion and general iterators remain
 follow-on work.
 `for-in`, `for await...of` and `var` or assignment loop heads are also outside this
 slice. The compiler work does not alter the concurrent A1 application's session,

@@ -927,3 +927,56 @@ fn chained_object_rest_copies_keep_field_proofs_on_a_small_stack() {
         assert!(result.is_ok(), "{result:?}");
     }
 }
+
+#[test]
+fn computed_binding_keys_require_dictionary_and_string_proofs() {
+    for (body, admitted) in [
+        (
+            "const d=Object.create(null);const k='x';const {[k]:v,...rest}=d;return Object.keys(rest).length;",
+            true,
+        ),
+        (
+            "const d=Object.create(null);const k=a?'x':'y';const {[k]:v}=d;return v===undefined?1:0;",
+            true,
+        ),
+        ("const d={x:a};const k='x';const {[k]:v}=d;return a;", false),
+        (
+            "const d=a?Object.create(null):{};const k='x';const {[k]:v}=d;return a;",
+            false,
+        ),
+        (
+            "const d=Object.create(null);const k=a?'x':b;const {[k]:v}=d;return a;",
+            false,
+        ),
+        (
+            "const d=Object.create(null);const k='x';const {[k]:v='ok'}=d;return v.trim().length;",
+            false,
+        ),
+        (
+            "const d=Object.create(null);const k='x';const {[k]:v,...rest}=d;const {label='ok'}=rest;return label.trim().length;",
+            false,
+        ),
+        (
+            "const d=Object.create(null);const {[k]:v,k='x'}=d;return a;",
+            false,
+        ),
+        (
+            "const d=Object.create(null);d.key='x';const {key,[key]:v}=d;return a;",
+            false,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, false, typed);
+            if admitted {
+                assert!(result.is_ok(), "{source}: {result:?}");
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error.contains("unsupported") && !error.contains("internal IR"),
+                    "{source}: {error}"
+                );
+            }
+        }
+    }
+}

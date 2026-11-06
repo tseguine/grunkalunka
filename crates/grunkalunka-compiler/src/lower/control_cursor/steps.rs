@@ -273,6 +273,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     value.expect("pattern binding source"),
                     cursor,
                 ),
+            Frame::PatternBindingKey {
+                resume,
+                state,
+                source,
+            } => self.resume_pattern_binding_key(
+                resume,
+                *state,
+                source,
+                output_region,
+                value.expect("computed binding key"),
+                cursor,
+            ),
             Frame::PatternBindingDefault { resume, active } => self.resume_pattern_binding_default(
                 resume,
                 *active,
@@ -554,6 +566,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::DeclarationValue { .. }
             | Frame::ObjectBindingSource { .. }
             | Frame::ArrayBindingSource { .. }
+            | Frame::PatternBindingKey { .. }
             | Frame::PatternBindingDefault { .. }
             | Frame::CheckedDeclarationClosure { .. }
             | Frame::MaterializedDeclaration { .. }

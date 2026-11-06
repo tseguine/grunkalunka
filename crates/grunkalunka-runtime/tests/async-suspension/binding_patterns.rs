@@ -134,3 +134,14 @@ fn object_rest_strings_and_records_retain_their_types_across_await() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn computed_dictionary_keys_survive_suspension_and_abrupt_completion() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);d.first=a;d.second=b;d.third=a;let k='first';const {[k]:x,[(await a,k='third','second')]:y,...rest}=d;await b;const keys=Object.keys(rest);return x===a&&y===b&&keys.length===1&&keys[0]==='third'&&rest.third===a?1:0;",
+            "const d=Object.create(null);d.keep=b;let n=0;try{const {[(n=1,await Promise.reject(a),'absent')]:x=(n=2,1),...rest}=d;n=3;}catch(e){await b;return n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
