@@ -1125,3 +1125,23 @@ fn to_well_formed_repairs_lone_surrogates_and_preserves_sources() {
         compare_sources(s, &s.replace("run(a,b)", "run(a: number,b: number)"));
     }
 }
+
+#[test]
+fn concat_method_saves_all_fragments_and_preserves_utf16() {
+    for body in [
+        "return ''.concat().length+'abc'.concat().length;",
+        "return 'a'.concat('b','','c','d')==='abcd'?1:0;",
+        r"return '\ud800'.concat('\udc00','\0','\udfff')==='\ud800\udc00\0\udfff'?1:0;",
+        "let n=0;const s=(n=1,'a').concat((n=n*10+2,'b'),(n=n*10+3,'c'),(n=n*10+4,'d'));return s==='abcd'?n:-1;",
+        "let s='a';let t='b';const result=s['concat'](t,(s='x',t='y','c'));return result==='abc'&&s==='x'&&t==='y'?1:0;",
+        "let n=0;'a'.concat((n=1,'b'),(n=n*10+2,'c'));return n;",
+        "const o={concat:(x,y)=>x+y};return o.concat(a,b);",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+    compare_sources(
+        "function label(s,t){return s.concat(': ',t);}export function run(a,b){const box={label:label('Menu',a>0?'Open':'Close')};return box.label.startsWith('Menu: ')?1:0;}",
+        "function label(s: number,t: boolean){return s.concat(': ',t);}export function run(a: number,b: number){const box={label:label('Menu',a>0?'Open':'Close')};return box.label.startsWith('Menu: ')?1:0;}",
+    );
+}

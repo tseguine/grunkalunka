@@ -740,3 +740,15 @@ fn to_well_formed_keeps_receiver_and_repaired_text_across_awaits() {
         &[(1.0, 2.0), (0.0, -0.0)],
     );
 }
+
+#[test]
+fn concat_method_saves_fragments_across_awaits_and_stops_on_rejection() {
+    compare_promises(
+        &[
+            "let s='a';let t='b';const result=s.concat((await a,t),(await b,s='x',t='y','c'));await a;return result==='abc'&&s==='x'&&t==='y'?1:0;",
+            "let n=0;const s='a'.concat((await a,n=1,'b'),(await b,n=n*10+2,'c'));await a;return s==='abc'?n:-1;",
+            "let n=0;try{'a'.concat((await a,'b'),(await Promise.reject(b),'c'),(n=1,'d'));}catch(e){return n;}return -1;",
+        ],
+        &[(1.0, 2.0), (0.0, -0.0)],
+    );
+}

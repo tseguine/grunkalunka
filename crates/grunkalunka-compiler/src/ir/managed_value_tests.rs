@@ -1387,3 +1387,27 @@ fn well_formed_repair_requires_managed_text_and_result() {
         );
     }
 }
+
+#[test]
+fn string_concat_method_requires_string_arguments_and_bounded_arity() {
+    for body in [
+        "return ''.concat(a).length;",
+        "return ''.concat(undefined).length;",
+        "return ''.concat(null).length;",
+        "return ''.concat(true).length;",
+        "return ''.concat({}).length;",
+        "return ''.concat(...['a']).length;",
+        "return ''?.concat('a').length;",
+        "const s=a?'a':null;return s.concat('b').length;",
+    ] {
+        assert!(
+            crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    for (n, admitted) in [(0, true), (3, true), (1000, true), (1001, false)] {
+        let arguments = vec!["''"; n].join(",");
+        let source = format!("export function run(a,b){{return 'x'.concat({arguments}).length;}}");
+        assert_eq!(crate::lower_source(&source, false).is_ok(), admitted, "{n}");
+    }
+}
