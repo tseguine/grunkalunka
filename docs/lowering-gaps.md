@@ -58,7 +58,7 @@ their specific declaration diagnostic.
 
 | Area | Exact fixture IDs |
 | --- | --- |
-| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-delete`, `gap-property-in`, `gap-instanceof`, `gap-typeof-unresolved` |
+| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-delete`, `gap-instanceof`, `gap-typeof-unresolved` |
 | General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Nested declarations and nested recursion | `gap-nested-function`, `gap-recursion` |
