@@ -566,6 +566,12 @@ pub(crate) enum Op {
         needle: Option<ValueId>,
         from: Option<ValueId>,
     },
+    ManagedArraySlice {
+        result: ValueId,
+        array: ValueId,
+        start: ValueId,
+        end: ValueId,
+    },
     ManagedArrayAt {
         result: ValueId,
         array: ValueId,
@@ -1418,6 +1424,17 @@ impl Verifier<'_> {
                     self.value(*from, Type::Number, visible, span)?;
                 }
                 self.define(*result, kind.result(), visible, span)?;
+            }
+            Op::ManagedArraySlice {
+                result,
+                array,
+                start,
+                end,
+            } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.value(*start, Type::Number, visible, span)?;
+                self.value(*end, Type::Number, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
             }
             Op::ManagedArrayAt {
                 result,

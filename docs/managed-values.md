@@ -1051,3 +1051,23 @@ factories and argument snapshots. Receiver and surplus effects still execute onc
 they do not become declared input facts. Type annotations remain erased. Two-MiB
 stack, 128-local boundary and explicit opaque/unknown/signature/async guards cover
 the limits. This changes source analysis, not the call ABI or coroutine frames.
+
+## Array range copies
+
+Proven intrinsic arrays support `slice(start, end)` and literal-computed
+`['slice']` calls. Number endpoints use JavaScript relative-index clamping;
+omitted or supported explicit Undefined start/end select zero/current length.
+The receiver and evaluated endpoints are saved before later argument effects.
+Length and contents are read after all arguments finish, including surplus
+arguments and supported suspension. Only own indexed data entries are copied;
+holes stay absent, named properties are excluded, slots are fresh, and child
+references keep their identity. A two-pass sparse-table copy costs space and
+time proportional to stored entries rather than logical length.
+
+The result is a proven Array and composes with helpers, captured handlers,
+iteration, length, own-key queries and boxed indexed reads. This initial slice
+keeps copied element kinds conservative. Borrowed/optional calls, spread call
+arguments, endpoint object coercion, custom species and prototype changes remain
+outside the admitted surface. Ordinary source methods named `slice` retain their
+existing call behavior. Tests in `managed-arrays.rs`, the suspension suite and
+`a1_ui_import.rs` compare source behavior across native JS, Node-Wasm and Wasmtime.

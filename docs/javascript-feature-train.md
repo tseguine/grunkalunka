@@ -220,6 +220,8 @@ to the code points of a label, including a final supplementary character.
 An enabled-action list can answer `enabled.includes(requested)` directly
 before the handler invokes the service. Array `indexOf` and `lastIndexOf`
 also supply the position of a matching action, including when duplicates occur.
+Array `slice` lets a helper select a window of those actions for a captured
+handler, preserving holes and the identities of copied records.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain

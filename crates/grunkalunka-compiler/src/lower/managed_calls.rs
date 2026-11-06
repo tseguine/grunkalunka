@@ -145,7 +145,9 @@ fn kinds(
                 let receiver = values.pop().expect("method receiver kinds");
                 let supported = |kind: &Kind| {
                     *kind == Kind::String
-                        || (*kind == Kind::Array && method.array_search().is_some())
+                        || (*kind == Kind::Array
+                            && (method.array_search().is_some()
+                                || matches!(method, string_methods::Method::Slice)))
                 };
                 let result = match method.result() {
                     Type::ManagedValue => Kind::String,
@@ -153,16 +155,23 @@ fn kinds(
                     Type::Predicate => Kind::GeneralPrimitive,
                     _ => unreachable!("String method result kind"),
                 };
-                values.push(if receiver.iter().any(supported) {
+                if receiver.iter().any(supported) {
                     if receiver.iter().all(supported) {
-                        [result].into()
-                    } else {
-                        fallback.insert(result);
-                        fallback
+                        fallback.clear();
                     }
-                } else {
-                    fallback
-                });
+                    for kind in receiver.iter().filter(|kind| supported(kind)) {
+                        fallback.insert(
+                            if *kind == Kind::Array
+                                && matches!(method, string_methods::Method::Slice)
+                            {
+                                Kind::Array
+                            } else {
+                                result
+                            },
+                        );
+                    }
+                }
+                values.push(fallback);
             }
             Task::Member(length) => {
                 let receiver = values.pop().expect("receiver source kinds");
