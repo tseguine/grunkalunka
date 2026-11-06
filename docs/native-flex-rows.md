@@ -19,7 +19,7 @@ parser or a cascade.
 | Item width bounds and edges | Existing min/max widths, content/border-box sizing, fixed or integral-percentage margins and padding apply before placement. |
 | Item height | Existing intrinsic, explicit or definite-percentage height; no cross-axis stretching. |
 | `Style::column_gap` | Nonnegative integer pixels between successive active items. Default zero; no leading or trailing gap. |
-| `Style::justify_content` | `FlexJustify::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` use each line's remaining content width. |
+| `Style::justify_content` | `FlexJustify::Start` by default; `SafeEnd`, `SafeCenter`, `SpaceBetween`, `SpaceAround` and `SpaceEvenly` use each line's remaining content width. |
 | `Style::align_items` | `FlexAlign::Start` by default; `SafeEnd` and `SafeCenter` align each item's outer margin box within its line without stretching. |
 | `Style::align_self` | `None` uses the generated parent row's `align_items`; `Some(FlexAlign)` overrides it for this actual item without inheritance or stretching. |
 | `Style::align_content` | `FlexAlignContent::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` place natural lines within a wrapped row's used content height. No effect on nowrap rows. |
@@ -96,14 +96,18 @@ item widths, percentage references, greedy line collection or source order.
 | `FlexJustify::SafeEnd` | Put all nonnegative remaining space before the line. |
 | `FlexJustify::SafeCenter` | Put half the nonnegative remaining space before the line. An odd remainder is rejected. |
 | `FlexJustify::SpaceBetween` | Add an equal share of remaining space to every existing between-item gap. With at most one item, use start placement. |
+| `FlexJustify::SpaceAround` | Add half-size outer gaps and twice that share between items; one item centers. |
+| `FlexJustify::SpaceEvenly` | Add equal shares to both outer gaps and every between-item gap; one item centers. |
 
-Safe end and center fall back to start when a line overflows. Space-between
-also falls back to start on overflow; it does not squeeze or replace a declared
-gap. Empty lines require no alignment calculation. Zero-width and visibility-
-hidden items still participate, including in the space-between divisor.
+Every selected distribution falls back to start when a line overflows; none
+squeeze or replace declared gaps. Empty lines require no alignment calculation.
+Zero-width and visibility-hidden items still participate. Around divides free
+space by twice the item count for integral outer half-gaps; evenly divides it
+by one more than the item count. Each completed wrapped line uses its own
+item count and available width.
 
 `LayoutError::FractionalFlexJustify { node }` identifies the row whose selected
-center offset or space-between share needs fractional CSS pixels. Overflow
+center offset or distributed interval needs fractional CSS pixels. Overflow
 fallback happens before that check, so an overflowing line does not fail merely
 because the negative remainder is odd. Positive fractional values are rejected
 without rounding.
