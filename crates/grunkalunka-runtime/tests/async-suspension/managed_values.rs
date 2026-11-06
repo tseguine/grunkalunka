@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn mixed_property_logical_assignments_preserve_selection_across_awaits() {
+    compare_promises(
+        &[
+            "const o={x:null};const value=o.x??=(await b,'new');return value==='new'&&o.x===value?1:0;",
+            "const o={x:'old'};o.x||=(await Promise.reject(b),'new');return o.x==='old'?1:0;",
+            "const xs=[false];xs[0]&&=(await Promise.reject(b),'new');return xs[0]===false?1:0;",
+            "const o={x:null};try{o.x??=(await Promise.reject(b),'new');}catch(e){return o.x===null&&e===b?1:0;}return -1;",
+            "let current={x:null};const old=current;const value=current.x??=(await b,current={x:false},'new');return old.x===value&&current.x===false?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn mixed_boxed_local_logical_assignments_select_suspension_and_store() {
     compare_promises(
         &[
