@@ -682,3 +682,22 @@ fn string_at_saves_receiver_index_and_missing_results_across_awaits() {
         &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn code_point_at_saves_receiver_index_and_boxed_results_across_awaits() {
+    compare_promises(
+        &[
+            r"let s='A\u{1f600}';const c=s.codePointAt((await a,s='xyz',1),(await b));await a;return c===128512&&s==='xyz'?1:0;",
+            "const c='abc'.codePointAt((await a,-1));await b;return c===undefined?1:0;",
+            "let n=0;const c='abc'.codePointAt(void(await a,n=1),(await b,n=n*10+2));await a;return c===97?n:-1;",
+            "let n=0;try{'abc'.codePointAt(await Promise.reject(b),n=1);}catch(e){return n;}return -1;",
+            "const c='abc'.codePointAt(await a);await b;return c===undefined?0:c===97?1:c===98?2:c===99?3:-1;",
+        ],
+        &[
+            (1.0, 2.0),
+            (0.0, -0.0),
+            (-1.0, 0.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

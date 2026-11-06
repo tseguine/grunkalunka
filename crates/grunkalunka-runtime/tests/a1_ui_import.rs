@@ -937,3 +937,16 @@ fn imported_handler_selects_a_trailing_action_marker() {
     }"#,
     );
 }
+
+#[test]
+fn imported_handler_classifies_a_unicode_action_marker() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    function marker(label) { return label.codePointAt(0); }
+    export function run(a,b) {
+        const label = a > 0 ? '\u{1f50d} Find' : '';
+        const handle = () => choose(marker(label) === 128269 ? 1 : 0, 2);
+        return +handle();
+    }"#,
+    );
+}

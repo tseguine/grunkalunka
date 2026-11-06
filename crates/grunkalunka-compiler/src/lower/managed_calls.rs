@@ -14,6 +14,8 @@ mod input_flow;
 enum Kind {
     Primitive,
     GeneralPrimitive,
+    // A primitive result already carried by the managed-value lane.
+    BoxedPrimitive,
     Object,
     Array,
     String,
@@ -66,14 +68,17 @@ fn seed_for_of_binding(
 }
 
 fn managed_type(kinds: &Kinds) -> Option<Type> {
-    (kinds.contains(&Kind::Object) || kinds.contains(&Kind::Array) || kinds.contains(&Kind::String))
-        .then_some(if kinds.len() == 1 && kinds.contains(&Kind::Object) {
-            Type::ManagedObject
-        } else if kinds.len() == 1 && kinds.contains(&Kind::Array) {
-            Type::ManagedArray
-        } else {
-            Type::ManagedValue
-        })
+    (kinds.contains(&Kind::Object)
+        || kinds.contains(&Kind::Array)
+        || kinds.contains(&Kind::String)
+        || kinds.contains(&Kind::BoxedPrimitive))
+    .then_some(if kinds.len() == 1 && kinds.contains(&Kind::Object) {
+        Type::ManagedObject
+    } else if kinds.len() == 1 && kinds.contains(&Kind::Array) {
+        Type::ManagedArray
+    } else {
+        Type::ManagedValue
+    })
 }
 
 fn symbol(identifier: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
@@ -154,6 +159,9 @@ fn kinds(
                                 || matches!(method, string_methods::Method::Slice)))
                 };
                 let result = match method.result() {
+                    Type::ManagedValue if matches!(method, string_methods::Method::CodePointAt) => {
+                        Kind::BoxedPrimitive
+                    }
                     Type::ManagedValue => Kind::String,
                     Type::Number => Kind::Primitive,
                     Type::Predicate => Kind::GeneralPrimitive,

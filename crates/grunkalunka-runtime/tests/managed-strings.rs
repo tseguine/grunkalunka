@@ -1021,3 +1021,33 @@ fn string_at_selects_relative_utf16_units_and_preserves_missing_results() {
         compare_sources(source, source);
     }
 }
+
+#[test]
+fn code_point_at_decodes_pairs_and_returns_undefined_outside_the_string() {
+    for body in [
+        r"const c='A\u{1f600}Z'.codePointAt(a);return c===undefined?0:c===65?1:c===128512?2:c===56832?3:c===90?4:-1;",
+        r"const c='A\u{1f600}Z'.codePointAt(a+1.75);return c===undefined?0:c===65?1:c===128512?2:c===56832?3:c===90?4:-1;",
+        r"return '\ud800\udc00'.codePointAt(0)===65536&&'\udbff\udfff'.codePointAt(0)===1114111&&'\ud800\udc00'.codePointAt(1)===56320?1:0;",
+        r"return '\ud800'.codePointAt(0)===55296&&'\udbffx'.codePointAt(0)===56319&&'\udfff'.codePointAt(0)===57343&&'\udc00\ud800'.codePointAt(0)===56320&&'\ud800\ud800'.codePointAt(0)===55296?1:0;",
+        r"return '\0\uffff'.codePointAt(0)===0&&'\0\uffff'.codePointAt(1)===65535&&'e\u0301'.codePointAt(1)===769?1:0;",
+        "return 'abc'.codePointAt()===97&&'abc'.codePointAt(undefined)===97&&'abc'.codePointAt(NaN)===97&&'abc'.codePointAt(-0)===97&&'abc'.codePointAt(-0.5)===97?1:0;",
+        "return ''.codePointAt(0)===undefined&&'abc'.codePointAt(3)===undefined&&'abc'.codePointAt(-1)===undefined&&'abc'.codePointAt(Infinity)===undefined&&'abc'.codePointAt(-Infinity)===undefined&&'abc'.codePointAt(1e300)===undefined?1:0;",
+        "let n=0;let s='abc';const c=(n=1,s)['codePointAt']((s='xyz',n=n*10+2,1),(n=n*10+3));return c===98&&s==='xyz'?n:-1;",
+        "let n=0;const c='abc'.codePointAt(void(n=1),n=n*10+2);return c===97?n:-1;",
+        "const undefined=1;return 'abc'.codePointAt(undefined)===98?1:0;",
+        "let n=0;'abc'.codePointAt((n=1,1),n=n*10+2);return n;",
+        "const c='abc'.codePointAt(a);const box={c};return box.c===undefined?0:typeof box.c==='number'?1:-1;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+    for source in [
+        "function point(s){return s.codePointAt(0);}export function run(a,b){return point('A')===65&&point('')===undefined?1:0;}",
+        "function echo(x){return x;}export function run(a,b){const c='A'.codePointAt(a);return echo(c)===65?1:0;}",
+        "export function run(a,b){const text='A';const point=()=>text.codePointAt(a);return point()===65?1:0;}",
+        "export function run(a,b){const o={codePointAt:x=>x+1};return o.codePointAt(a);}",
+        r"export function run(a,b){let count=0;for(const c of 'A\u{1f600}B'){if(c.codePointAt(0)===128512)count++;}return count;}",
+    ] {
+        compare_sources(source, source);
+    }
+}

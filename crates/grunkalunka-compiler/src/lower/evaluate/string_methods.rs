@@ -104,6 +104,11 @@ impl Lowering<'_, '_> {
                 input,
                 index: first(),
             },
+            Method::CodePointAt => Op::ManagedStringCodePointAt {
+                result,
+                input,
+                index: first(),
+            },
             Method::CharCodeAt => Op::ManagedStringCharCodeAt {
                 result,
                 input,
