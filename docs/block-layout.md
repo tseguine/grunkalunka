@@ -15,9 +15,8 @@ of visible blocks, plus scroll extents.
   gaps and selected safe alignment on both axes. Actual items may override the
   row's cross-axis default through `Style::align_self`, with `None` restoring
   the default. Wrapped rows can pack natural lines at start, safe end or safe
-  center, or distribute extra height between lines through `align_content`.
-  Item widths must be fixed or
-  integral percentages. [The row contract](native-flex-rows.md) defines sizing,
+  center, or distribute extra height between, around or evenly among lines
+  through `align_content`. Item widths must be fixed or integral percentages. [The row contract](native-flex-rows.md) defines sizing,
   line collection, used versus natural line heights, boxless wrappers and
   unsupported cases.
 - Shared paint/input order for the selected non-positioned block/row profile:

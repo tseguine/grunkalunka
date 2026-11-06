@@ -76,6 +76,7 @@ fn line_packing_preserves_box_edges_gaps_item_alignment_and_following_flow() {
         (FlexAlignContent::SafeEnd, [57, 59, 75, 99]),
         (FlexAlignContent::SafeCenter, [31, 33, 49, 73]),
         (FlexAlignContent::SpaceBetween, [5, 7, 49, 99]),
+        (FlexAlignContent::SpaceEvenly, [18, 20, 49, 86]),
     ] {
         blocks[1].style.align_content = mode;
         let frame = layout(&blocks, 100, 120).unwrap();
@@ -89,6 +90,90 @@ fn line_packing_preserves_box_edges_gaps_item_alignment_and_following_flow() {
         assert_eq!(frame.boxes[5].unwrap().content, rect(4, fourth_y, 30, 6));
         assert_eq!(frame.boxes[1].unwrap().content, rect(4, 5, 60, 100));
         assert_eq!(frame.boxes[6].unwrap().content, rect(0, 111, 100, 2));
+    }
+}
+
+#[test]
+fn distributed_line_spacing_uses_outer_gaps_and_retains_safe_overflow() {
+    let mut blocks = [
+        row(None, 20, 94, FlexAlignContent::SpaceAround),
+        item(0, 20, 10),
+        item(0, 20, 10),
+        item(0, 20, 10),
+    ];
+    blocks[0].style.row_gap = 2;
+    // Three natural 10px lines and two 2px gaps use 34px, leaving 60px.
+    for (mode, expected) in [
+        (FlexAlignContent::SpaceAround, [10, 42, 74]),
+        (FlexAlignContent::SpaceEvenly, [15, 42, 69]),
+    ] {
+        blocks[0].style.align_content = mode;
+        let frame = layout(&blocks, 20, 110).unwrap();
+        assert_eq!(frame.boxes[0].unwrap().content, rect(0, 0, 20, 94));
+        for (node, y) in expected.into_iter().enumerate() {
+            assert_eq!(
+                frame.boxes[node + 1].unwrap().content,
+                rect(0, y, 20, 10),
+                "{mode:?}, item {node}"
+            );
+        }
+    }
+
+    // A fractional outer interval is unsupported, rather than rounded.
+    blocks[0].style.height = Length::Px(95);
+    for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
+        blocks[0].style.align_content = mode;
+        assert_eq!(
+            layout(&blocks, 20, 110),
+            Err(LayoutError::FractionalFlexAlignContent { node: 0 })
+        );
+    }
+
+    // An overflowing line group falls back to start before divisibility tests.
+    blocks[0].style.height = Length::Px(33);
+    for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
+        blocks[0].style.align_content = mode;
+        let frame = layout(&blocks, 20, 110).unwrap();
+        for (node, y) in [0, 12, 24].into_iter().enumerate() {
+            assert_eq!(frame.boxes[node + 1].unwrap().content.y, y);
+        }
+    }
+    // align-content never changes the single formatting line of NoWrap.
+    blocks[0].style.flex_wrap = FlexWrap::NoWrap;
+    blocks[0].style.height = Length::Px(95);
+    for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
+        blocks[0].style.align_content = mode;
+        let frame = layout(&blocks, 20, 110).unwrap();
+        for node in 1..=3 {
+            assert_eq!(frame.boxes[node].unwrap().content.y, 0);
+        }
+    }
+}
+
+#[test]
+fn one_wrapped_line_centers_with_around_and_evenly_but_empty_rows_do_not_fail() {
+    let mut blocks = [
+        row(None, 20, 51, FlexAlignContent::SpaceAround),
+        item(0, 10, 11),
+    ];
+    // A single actual wrapped line gets equal free space on both sides.
+    for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
+        blocks[0].style.align_content = mode;
+        assert_eq!(layout(&blocks, 20, 60).unwrap().boxes[1].unwrap().content.y, 20);
+        blocks[0].style.height = Length::Px(50);
+        assert_eq!(
+            layout(&blocks, 20, 60),
+            Err(LayoutError::FractionalFlexAlignContent { node: 0 })
+        );
+        blocks[0].style.height = Length::Px(51);
+    }
+    blocks[1].style.display = Display::None;
+    blocks[0].style.height = Length::Px(1);
+    for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
+        blocks[0].style.align_content = mode;
+        let frame = layout(&blocks, 20, 60).unwrap();
+        assert!(frame.boxes[1].is_none());
+        assert_eq!(frame.boxes[0].unwrap().content.height, 1);
     }
 }
 
