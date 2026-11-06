@@ -212,3 +212,17 @@
     br $candidate
   end
   unreachable)
+
+;; Relative code-unit selection. Test bounds before integer conversion; unlike
+;; charAt, an absent position returns Undefined rather than an empty String.
+(func $gc_string_at (param $value (ref null $gc_value)) (param $index f64)
+  (result (ref null $gc_value)) (local $length f64)
+  local.get $value call $gc_string_key array.len f64.convert_i32_u local.set $length
+  local.get $index call $gc_string_integer local.set $index
+  local.get $index f64.const 0 f64.lt
+  if local.get $length local.get $index f64.add local.set $index end
+  local.get $index f64.const 0 f64.ge
+  local.get $index local.get $length f64.lt i32.and
+  if (result (ref null $gc_value))
+    local.get $value local.get $index call $gc_string_char_at
+  else i32.const 0 f64.const 0 ref.null eq struct.new $gc_value end)

@@ -6,6 +6,7 @@ pub(super) enum Method {
     Slice,
     Substring,
     CharAt,
+    At,
     CharCodeAt,
     StartsWith,
     Includes,
@@ -27,10 +28,15 @@ impl Method {
         }
     }
 
+    pub(super) fn returns_string(self) -> bool {
+        self.result() == Type::ManagedValue && !matches!(self, Self::At)
+    }
+
     pub(super) fn result(self) -> Type {
         match self {
             Self::Slice
             | Self::Substring
+            | Self::At
             | Self::CharAt
             | Self::Trim
             | Self::TrimStart
@@ -49,7 +55,7 @@ impl Method {
             | Self::EndsWith
             | Self::IndexOf
             | Self::LastIndexOf => 2,
-            Self::CharAt | Self::CharCodeAt => 1,
+            Self::At | Self::CharAt | Self::CharCodeAt => 1,
             Self::Trim | Self::TrimStart | Self::TrimEnd => 0,
         }
     }
@@ -91,6 +97,7 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
     let method = match name {
         "slice" => Method::Slice,
         "substring" => Method::Substring,
+        "at" => Method::At,
         "charAt" => Method::CharAt,
         "charCodeAt" => Method::CharCodeAt,
         "startsWith" => Method::StartsWith,

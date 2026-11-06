@@ -94,6 +94,11 @@ impl Lowering<'_, '_> {
                 end: task.inputs[1].expect("completed String end"),
                 substring: matches!(task.method, Method::Substring),
             },
+            Method::At => Op::ManagedStringAt {
+                result,
+                input,
+                index: first(),
+            },
             Method::CharAt => Op::ManagedStringCharAt {
                 result,
                 input,

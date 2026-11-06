@@ -7,6 +7,7 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
             matches!(
                 op,
                 ir::Op::ManagedStringRange { .. }
+                    | ir::Op::ManagedStringAt { .. }
                     | ir::Op::ManagedStringCharAt { .. }
                     | ir::Op::ManagedStringCharCodeAt { .. }
                     | ir::Op::ManagedStringSearch { .. }

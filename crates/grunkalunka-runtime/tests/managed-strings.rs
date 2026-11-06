@@ -993,3 +993,31 @@ fn has_own_string_receiver_proofs_reject_incompatible_aliases_and_annotations() 
         );
     }
 }
+
+#[test]
+fn string_at_selects_relative_utf16_units_and_preserves_missing_results() {
+    for body in [
+        "const c='abc'.at(a);return c===undefined?0:c==='a'?1:c==='b'?2:c==='c'?3:-1;",
+        "const c='abc'.at(a+1.75);return c===undefined?0:c==='a'?1:c==='b'?2:c==='c'?3:-1;",
+        "return 'abc'.at(-1)==='c'&&'abc'.at(-3)==='a'&&'abc'.at(-4)===undefined&&'abc'.at(3)===undefined&&''.at(0)===undefined?1:0;",
+        "return 'abc'.at()==='a'&&'abc'.at(undefined)==='a'&&'abc'.at(NaN)==='a'&&'abc'.at(-0)==='a'&&'abc'.at(-0.5)==='a'?1:0;",
+        "return 'abc'.at(1e300)===undefined&&'abc'.at(-1e300)===undefined&&'abc'.at(Infinity)===undefined&&'abc'.at(-Infinity)===undefined?1:0;",
+        r"return 'A\u{1f600}\ud800'.at(1)==='\ud83d'&&'A\u{1f600}\ud800'.at(-2)==='\ude00'&&'A\u{1f600}\ud800'.at(-1)==='\ud800'&&'\0'.at(0)==='\0'?1:0;",
+        "let n=0;let s='abc';const c=(n=1,s)['at']((s='xyz',n=n*10+2,-1),(n=n*10+3));return c==='c'&&s==='xyz'?n:-1;",
+        "let n=0;const c='abc'.at(void(n=1),n=n*10+2);return c==='a'?n:-1;",
+        "const undefined=-1;return 'abc'.at(undefined)==='c'?1:0;",
+        "let n=0;'abc'.at((n=1,-1),n=n*10+2);return n;",
+        "const c='abc'.at(a);const box={c};return box.c===undefined?0:typeof box.c==='string'?1:-1;",
+        "const x=[1,2,3];return x.at(-1)===3&&'abc'.at(-1)==='c'?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+    for source in [
+        "function last(s){return s.at(-1);}export function run(a,b){return last('menu/')==='/'&&last('')===undefined?1:0;}",
+        "export function run(a,b){const text='menu/';const handler=()=>text.at(-1)==='/'?a:b;return handler();}",
+        "export function run(a,b){const o={at:x=>x+1};return o.at(a);}",
+    ] {
+        compare_sources(source, source);
+    }
+}
