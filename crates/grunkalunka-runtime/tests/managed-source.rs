@@ -7,6 +7,7 @@ mod common;
 #[test]
 fn runtime_delete_keys_keep_receiver_snapshots_and_source_order() {
     for body in [
+        "const d=Object.create(null);const key='x';delete d[key];return a;",
         "const o={x:a,y:b};const key=a?'x':'y';return delete o[key]&&!Object.hasOwn(o,key)&&Object.keys(o).length===1?1:0;",
         "let current={x:a};const original=current;const key=()=>{current={x:b};return 'x';};const removed=delete current[key()];return removed&&original.x===undefined&&current.x===b?1:0;",
         "let key='old',n=0;const o={old:a,next:b};const receiver=()=>{n++;key='next';return o;};delete receiver()[key];return n===1&&o.old===a&&o.next===undefined?1:0;",
@@ -240,7 +241,6 @@ fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
         "const d=Object.create(null);const key='x';d[key]+=a;return a;",
         "const d=Object.create(null);const key='x';d[key]??=a;return a;",
         "const d=Object.create(null);const key='x';d[key]++;return a;",
-        "const d=Object.create(null);const key='x';delete d[key];return a;",
         "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
         "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
         "const d=Object.create(null);const key='x';d.x=()=>a;const alias=d;alias[key]=b;return d.x();",
