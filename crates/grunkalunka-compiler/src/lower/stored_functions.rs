@@ -214,11 +214,16 @@ impl Fields {
             .filter_map(|node| match node.kind() {
                 AstKind::ForOfStatement(source) => iteration::for_of_binding(source)
                     .and_then(|identifier| identifier.symbol_id.get()),
-                AstKind::ForInStatement(source) => iteration::lexical_iteration_pattern(&source.left)
-                    .and_then(|pattern| match pattern {
-                        BindingPattern::BindingIdentifier(identifier) => identifier.symbol_id.get(),
-                        _ => None,
-                    }),
+                AstKind::ForInStatement(source) => {
+                    iteration::lexical_iteration_pattern(&source.left).and_then(|pattern| {
+                        match pattern {
+                            BindingPattern::BindingIdentifier(identifier) => {
+                                identifier.symbol_id.get()
+                            }
+                            _ => None,
+                        }
+                    })
+                }
                 _ => None,
             })
             .collect::<BTreeSet<_>>();
