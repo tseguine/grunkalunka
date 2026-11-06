@@ -35,9 +35,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         {
             return Err(unsupported(&source, "for-await-of is not yet admitted"));
         }
-        let pattern = iteration::lexical_iteration_pattern(source.left()).ok_or_else(|| {
-            unsupported(&source, "iteration requires one const or let binding")
-        })?;
+        let pattern = iteration::lexical_iteration_pattern(source.left())
+            .ok_or_else(|| unsupported(&source, "iteration requires one const or let binding"))?;
         if source.is_in() && !matches!(pattern, BindingPattern::BindingIdentifier(_)) {
             return Err(unsupported(&source, "for-in requires an identifier binding"));
         }
@@ -67,12 +66,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 }
             }
         } else {
-            self.intrinsic_iterable_mode(source.right(), 0).ok_or_else(|| {
-                unsupported(
-                    source.right(),
-                    "for-of requires a source-proven Array or String",
-                )
-            })?
+            self.intrinsic_iterable_mode(source.right(), 0)
+                .ok_or_else(|| {
+                    unsupported(
+                        source.right(),
+                        "for-of requires a source-proven Array or String",
+                    )
+                })?
         };
         let header = self.region(&source);
         cursor.pending.push(Frame::ForOfSource {
@@ -270,8 +270,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             );
             frame.presence = Some(present);
         }
-        let pattern =
-            iteration::lexical_iteration_pattern(source.left()).expect("admitted iteration binding");
+        let pattern = iteration::lexical_iteration_pattern(source.left())
+            .expect("admitted iteration binding");
         let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
             unreachable!("checked lexical iteration binding");
         };
