@@ -72,6 +72,27 @@ native build prerequisites, so editing only these unit tests can run them alone.
 Changes to production application sources still select their existing feature
 checks as well.
 
+The document-outline report units run the actual
+`scripts/check-document-outline.mjs` orchestration with synthetic subprocess
+receipts and real temporary artifact files. They exercise the full report path
+on PRs without executing repeated native cost probes: guest/component identity,
+memory and timing invariants, denied reads and cleanup counts, native fixture
+parity, repeated-report identity, capture comparisons, and failure propagation.
+Linux, Windows, macOS and unsupported-host receipt shapes are simulated; these
+tests do not establish native behavior on those hosts. The real document smoke
+and full native reports retain their existing registrations.
+
+```sh
+node --test ci/impact/document-outline-profile.test.mjs \
+  ci/impact/document-outline-reports.test.mjs
+```
+
+These units are discovered by the existing impact-planner regression command
+in both profiles. Its source dependency on the document-outline check selects
+the units when the checker changes; the unit command itself starts no native
+processes. Test fixture failures are checked separately so a broken fake cannot
+masquerade as a successfully rejected external report.
+
 ## Current verification map (2026-11-01)
 
 The canonical [check catalog](../scripts/checks/README.md) and the
