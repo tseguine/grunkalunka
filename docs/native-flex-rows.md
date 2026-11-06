@@ -21,6 +21,7 @@ parser or a cascade.
 | `Style::column_gap` | Nonnegative integer pixels between successive active items. Default zero; no leading or trailing gap. |
 | `Style::justify_content` | `FlexJustify::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` use each line's remaining content width. |
 | `Style::align_items` | `FlexAlign::Start` by default; `SafeEnd` and `SafeCenter` align each item's outer margin box within its line without stretching. |
+| `Style::align_self` | `None` uses the generated parent row's `align_items`; `Some(FlexAlign)` overrides it for this actual item without inheritance or stretching. |
 | `Style::flex_wrap` | `FlexWrap::NoWrap` by default; `Wrap` greedily collects lines against the row's content width. |
 | `Style::row_gap` | Nonnegative integer pixels between actual lines. Default zero; unused for a single line. |
 | Row auto height | Natural height starts from the tallest normal-flow item margin box per line plus intervening row gaps; the existing intrinsic-height minimum and explicit height bounds then apply. |
@@ -147,6 +148,27 @@ Reading a completed nowrap row's used height for alignment does not make an
 auto height definite for percentage-height descendants. Existing percentage
 admission and full-width references for percentage margins remain unchanged.
 
+### Per-item overrides
+
+`Style::align_self` selects the same three resolved modes for one actual flex
+item. `None` represents the [CSS `align-self: auto` behavior](https://drafts.csswg.org/css-flexbox-1/#align-items-property):
+use `align_items` on the item's generated parent row. `Some(FlexAlign::Start)`,
+`Some(FlexAlign::SafeEnd)` and `Some(FlexAlign::SafeCenter)` override that default.
+Resetting the field to `None` restores the current row default on the next layout.
+This property is not inherited. A `Contents` wrapper's own override is ignored;
+its generated descendants select their own override or the actual row's default.
+The root and ordinary blocks that are not flex items ignore `align_self`.
+
+A nested row's `align_self` controls its position as an item of its outer row;
+its separate `align_items` still controls its own items. Overrides preserve the
+existing used-height versus natural-line-height distinction, margin-box sizing,
+safe overflow fallback, source order and final geometry projection. Only the
+effective mode can require fractional-center rejection: an explicit `Start` or
+`SafeEnd` does not inherit an unused row-center divisibility requirement. A hidden
+item retains that requirement for its selected center mode; a display-none
+subtree has no item obligation. Cross-axis auto margins, stretch and baseline
+alignment remain outside this resolved profile.
+
 ## Boxless and hidden nodes
 
 Active `Display::Contents` wrappers are flattened into the row's item sequence.
@@ -213,11 +235,13 @@ margins on row items. Ordinary block auto margins and auto margins on a row
 container in a block context keep their existing behavior. Boxless wrappers and
 display-none subtrees have no row-item sizing obligations.
 
-Flexible growth/shrinkage, stretching, baseline alignment, per-item alignment
-overrides, line distribution, other main-axis distributions, reverse directions,
+Flexible growth/shrinkage, stretching, baseline alignment, line distribution,
+other main-axis distributions, reverse directions,
 item reordering and percentage gaps are outside this profile. The public enum names the
 specific resolved row profile instead of implying that arbitrary `display:flex`
-declarations are supported. All row settings are ignored by other display modes.
+declarations are supported. Container row settings are ignored by other display
+modes; `align_self` applies to generated flex items regardless of their own
+block or row display mode.
 
 ## Verification and cost boundaries
 
@@ -237,6 +261,10 @@ paint/input/semantic behavior and final projection overflow.
 nowrap sizing, the one-line wrap distinction, per-item safe overflow, fractional
 and zero-height cases, nested axes and percentage references, hidden policies,
 semantic reflow, vertical scrolled clipping and projected-coordinate limits.
+`tests/flex_align_self.rs` checks mixed overrides and auto reset, effective-mode
+fractional admission, safe overflow, wrapped versus nowrap placement, boxless and
+nested-row defaults, ordinary descendants, semantic anchors, paint/scrolled hits
+and the same native-stack/node/depth/coordinate bounds.
 `tests/flex_paint_order.rs` asserts literal pixels and topmost targets for an
 item overflowing onto a following block, nested scope atomicity, ordinary
 subtrees, boxless and hidden nodes, transparent and untargetable boxes, inherited
