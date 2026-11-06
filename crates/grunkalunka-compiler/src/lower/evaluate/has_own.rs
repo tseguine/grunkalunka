@@ -190,7 +190,7 @@ impl Lowering<'_, '_> {
     }
 }
 
-fn literal_property_name(
+pub(super) fn literal_property_name(
     arg: &Expression<'_>,
     semantic: &Semantic<'_>,
     depth: usize,

@@ -413,7 +413,7 @@
     {
       "id": "delete",
       "kind": "open-requirement",
-      "assessment": "Literal-key delete now removes configurable own data properties from source-proven objects, dictionaries and arrays, returning a Boolean and preserving array length, aliases and insertion order. Field proofs include possible Undefined after deletion. Runtime source-proven String keys also work on objects and dictionaries, preserving receiver/key snapshots and invalidating possibly deleted fields through aliases. Primitive receivers, runtime array keys, non-reference operands, optional chains, general descriptors and catchable non-configurable deletion remain separate boundaries. The exact curated numeric-receiver source still rejects at that boundary.",
+      "assessment": "Literal-key delete now removes configurable own data properties from source-proven objects, dictionaries and arrays, returning a Boolean and preserving array length, aliases and insertion order. Field proofs include possible Undefined after deletion. Runtime source-proven String keys also work on objects and dictionaries, preserving receiver/key snapshots and invalidating possibly deleted fields through aliases. Proven Number/Boolean receivers delete successfully after ordered receiver/key evaluation; non-reference operands evaluate their value effects and return true. The exact curated numeric-receiver source now executes unchanged. Runtime array keys, nullish/String reference receivers, optional chains, general descriptors and catchable non-configurable deletion remain separate boundaries; deletion of the pristine Math namespace stays guarded.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-delete-operator",
@@ -1088,13 +1088,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "4d3a52377056d2f8f3bd8ef1fb8d722c94461ce13008e8bbf84655b4321d443d",
       "group": "typeof"
-    },
-    {
-      "id": "gap-delete",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "007d45b36dfd6d6d941189163094b261019a260d0f23ed0736c45fc848ac0d3f",
-      "group": "delete"
     },
     {
       "id": "gap-instanceof",

@@ -62,7 +62,7 @@ reject('global-update','Math++; return Math.abs(a);',reference);
 reject('property-write','Math.abs=a; return Math.abs(b);',assignment);
 reject('dead-property-write','if(false) Math.abs=a; return Math.abs(b);',assignment);
 reject('dead-global-write','if(false) Math=a; return Math.abs(b);',reference);
-reject('delete','delete Math.abs; return Math.abs(a);','delete requires a source-proven object or array');
+reject('delete','delete Math.abs; return Math.abs(a);','delete requires a proven Number, Boolean, object or array receiver');
 reject('const-write','const x=a; return Math.abs(x=b);','assignment to a const');
 reject('depth-limit',`return ${'Math.abs('.repeat(129)}a${')'.repeat(129)};`,'expression nesting exceeds');
 reject('statement-limit',`${'Math.abs(a);'.repeat(256)} return a;`,'at most 256 statements');
