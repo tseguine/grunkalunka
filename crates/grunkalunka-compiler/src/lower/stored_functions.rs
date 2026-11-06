@@ -1145,6 +1145,23 @@ impl Fields {
                             }
                         }
                     }
+                    mutations::Mutation::AnyKeyDelete(receiver) => {
+                        for origin in get(receiver) {
+                            if let Origin::Object(object)
+                            | Origin::NullObject(object)
+                            | Origin::Array(object) = origin
+                            {
+                                let undefined = BTreeSet::from([Origin::Undefined]);
+                                wildcard_additions.push((object, undefined.clone()));
+                                if matches!(origin, Origin::Array(_)) {
+                                    deleted.push(object);
+                                    if track_elements {
+                                        changed |= elements.wildcard(object, undefined);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     mutations::Mutation::AnyKeyWrite { receiver, value } => {
                         // A computed write may replace any key of every source
                         // allocation reached through aliases, captures or calls.

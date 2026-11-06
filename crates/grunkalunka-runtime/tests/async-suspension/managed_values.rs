@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn runtime_delete_keys_keep_saved_objects_across_waits_and_rejections() {
+    compare_promises(
+        &[
+            "let current={x:a};const original=current;delete current[(await a,current={x:b},'x')];await b;return original.x===undefined&&current.x===b?1:0;",
+            "const o={x:a};let n=0;const removed=delete o[(n++,await a,'x')];await b;return removed&&n===1&&o.x===undefined?1:0;",
+            "const o={x:a};try{delete o[(await Promise.reject(b),'x')];}catch(e){await a;return o.x===a&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn property_deletes_preserve_references_and_effects_across_suspension() {
     compare_promises(
         &[

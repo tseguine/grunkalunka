@@ -17,8 +17,12 @@ Field-kind analysis adds an Undefined alternative through aliases and helper
 arguments. It cannot keep assuming a deleted field is a String, container or
 callable. A supported destructuring default can replace that missing selection.
 
-The first slice admits String and Number literal keys, including negative and
-fractional numeric names. Runtime keys, primitive receivers, non-reference
+The key may be a String/Number literal, including negative and fractional numeric
+names. On objects and dictionaries, runtime source-proven String keys also work:
+the receiver is saved before the key expression runs, including across await or
+receiver-variable reassignment. A failed key expression leaves the object intact.
+Array runtime keys stay guarded because they might select non-configurable length.
+Primitive receivers, non-reference
 operands and optional chains remain separate work. Deleting an array's
 non-configurable length stays guarded until a source TypeError can be represented;
 it must not silently succeed or trap in the private helper.
