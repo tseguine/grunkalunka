@@ -325,10 +325,7 @@ impl Emitter<'_> {
                 }
                 self.output.push_str("ref.null $gc_rest_key\n");
                 for key in excluded {
-                    match key {
-                        ir::RestKey::Literal(key) => self.managed_key(key),
-                        ir::RestKey::String(value) => self.managed_key_value(*value),
-                    }
+                    self.property_key(key);
                     self.output.push_str("struct.new $gc_rest_key\n");
                 }
                 self.output.push_str("call $gc_object_rest\n");
@@ -341,7 +338,7 @@ impl Emitter<'_> {
             }
             Op::ManagedHasOwn { result, input, key } => {
                 self.get(*input);
-                self.managed_key_value(*key);
+                self.property_key(key);
                 self.output
                     .push_str(if self.function.values[input.0] == Type::ManagedArray {
                         "call $gc_array_has_own\n"
@@ -1032,6 +1029,13 @@ impl Emitter<'_> {
 
     fn region(&mut self, root: &Region) {
         self.emit_walk(Some(root), &[]);
+    }
+
+    fn property_key(&mut self, key: &ir::ManagedKey) {
+        match key {
+            ir::ManagedKey::Literal(units) => self.managed_key(units),
+            ir::ManagedKey::String(input) => self.managed_key_value(*input),
+        }
     }
 
     fn managed_key_value(&mut self, key: ValueId) {
@@ -1775,9 +1779,9 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
     let mut needed = false;
     ir::visit_operations(&function.body, &mut |op| {
         needed |= match op {
-            Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedString { units, .. } | Op::ManagedHasOwn {key: ir::ManagedKey::Literal(units),..} => units.len() > MAX_FIXED_TEXT_UNITS,
             Op::ManagedObjectRest { excluded, .. } => {
-                excluded.iter().any(|key| matches!(key, ir::RestKey::Literal(text) if text.len() > MAX_FIXED_TEXT_UNITS))
+                excluded.iter().any(|key| matches!(key, ir::ManagedKey::Literal(text) if text.len() > MAX_FIXED_TEXT_UNITS))
             }
             Op::ManagedGetOwn { key, .. }
             | Op::ManagedSetOwn { key, .. }

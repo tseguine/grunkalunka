@@ -430,3 +430,14 @@ fn has_own_preserves_receiver_and_key_across_awaits() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn has_own_runs_void_key_effects_before_ignored_arguments() {
+    compare_promises(
+        &[
+            "let n=0;const o={};const present=Object.hasOwn(o,void (await a,n=1),(await b,n=n*10+2,o.undefined=a));return present&&n===12?1:0;",
+            "let n=0;try{Object.hasOwn({},void (await Promise.reject(a)),n=1);}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

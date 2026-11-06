@@ -664,7 +664,8 @@ fn imported_handler_detects_explicit_undefined_action_metadata() {
             if (a > 0) overrides[key] = undefined;
             const configured = Object.hasOwn(overrides, key);
             const headings = ['First', 'Second'];
-            return choose(configured ? 1 : 0, headings.length);
+            const count = Object.hasOwn(headings, 1) ? headings.length : 0;
+            return choose(configured ? 1 : 0, count);
         }"#,
     );
 }

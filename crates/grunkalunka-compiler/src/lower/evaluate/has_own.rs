@@ -7,7 +7,7 @@ pub(super) struct Task<'e, 'a> {
     depth: usize,
     index: usize,
     input: Option<ValueId>,
-    key: Option<ValueId>,
+    key: Option<ir::ManagedKey>,
 }
 
 impl Lowering<'_, '_> {
@@ -56,16 +56,18 @@ impl Lowering<'_, '_> {
         let offset = invocation::offset(task.call);
         if task.index == offset + 1 {
             task.input = Some(values.pop().expect("has-own receiver").id());
-        } else if task.index == offset + 2 {
-            task.key = Some(values.pop().expect("has-own key").id());
+        } else if task.index == offset + 2 && task.key.is_none() {
+            task.key = Some(ir::ManagedKey::String(
+                values.pop().expect("has-own key").id(),
+            ));
         }
         let Some(arg) = task.call.arguments.get(task.index) else {
             let input = task.input.ok_or_else(|| {
                 unsupported(task.node, "Object.hasOwn requires a proven object or array")
             })?;
-            let key = task.key.ok_or_else(|| {
-                unsupported(task.node, "Object.hasOwn requires a proven String key")
-            })?;
+            let key = task
+                .key
+                .unwrap_or_else(|| ir::ManagedKey::Literal("undefined".encode_utf16().collect()));
             let result = self.value(Type::Predicate);
             Self::push(
                 regions.current(),
@@ -91,13 +93,18 @@ impl Lowering<'_, '_> {
                 }
             }
         } else if task.index == offset + 1 {
-            if !self.stored.string(arg.node_id()) {
+            if let Some(units) = literal_property_name(arg, self.semantic, depth) {
+                task.key = Some(ir::ManagedKey::Literal(units));
+                // In particular, void's operand still runs at the key's position.
+                Mode::Discard
+            } else if self.stored.string(arg.node_id()) {
+                Mode::Managed
+            } else {
                 return Err(unsupported(
                     arg,
-                    "Object.hasOwn requires a proven String key",
+                    "Object.hasOwn requires a known String or supported primitive key",
                 ));
             }
-            Mode::Managed
         } else {
             Mode::Discard
         };
@@ -106,4 +113,28 @@ impl Lowering<'_, '_> {
         work.push(Work::Eval(arg, depth, mode));
         Ok(())
     }
+}
+
+fn literal_property_name(
+    arg: &Expression<'_>,
+    semantic: &Semantic<'_>,
+    depth: usize,
+) -> Option<Vec<u16>> {
+    let key = closures::unwrapped(arg, depth)?;
+    if let Some(units) = static_keys::literal(key) {
+        return Some(units);
+    }
+    let name = match key {
+        Expression::BooleanLiteral(value) => {
+            if value.value {
+                "true"
+            } else {
+                "false"
+            }
+        }
+        Expression::NullLiteral(_) => "null",
+        _ if crate::lower::string_methods::undefined(key, semantic) => "undefined",
+        _ => return None,
+    };
+    Some(name.encode_utf16().collect())
 }

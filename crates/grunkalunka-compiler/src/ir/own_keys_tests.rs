@@ -86,7 +86,7 @@ fn fallible_own_keys_checks_all_completion_outputs_and_cannot_use_sync_emission(
 
 #[test]
 fn has_own_checks_receiver_key_visibility_and_boolean_result() {
-    let source = "export function run(a,b){const d={x:undefined};return Object.hasOwn(d,'x')?1:0;}";
+    let source = "export function run(a,b){const d={x:undefined};const name='x';return Object.hasOwn(d,name)?1:0;}";
     for fault in 0..4 {
         let mut module = crate::lower_source(source, false).unwrap();
         verify_module(&module).unwrap();
@@ -100,6 +100,9 @@ fn has_own_checks_receiver_key_visibility_and_boolean_result() {
                 _ => None,
             })
             .expect("source own-property operation");
+        let ManagedKey::String(key) = key else {
+            panic!("source dynamic key")
+        };
         match fault {
             0 => *input = *key,
             1 => *key = *input,
@@ -139,5 +142,15 @@ fn has_own_admits_string_keys_on_known_arrays_and_objects_only() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn has_own_can_emit_a_key_longer_than_the_fixed_wasm_constructor_limit() {
+    let key = "a".repeat(10_001);
+    let source = format!("export function run(a,b){{return Object.hasOwn({{}},'{key}')?1:0;}}");
+    for ts in [false, true] {
+        let artifact = crate::compile(&source, ts).unwrap();
+        assert!(artifact.wat.contains("local.set $gc_literal"));
     }
 }

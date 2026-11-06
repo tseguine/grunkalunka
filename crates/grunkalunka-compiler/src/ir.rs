@@ -510,7 +510,7 @@ pub(crate) struct Failure {
 }
 
 #[derive(Debug)]
-pub(crate) enum RestKey {
+pub(crate) enum ManagedKey {
     Literal(Vec<u16>),
     String(ValueId),
 }
@@ -619,7 +619,7 @@ pub(crate) enum Op {
     ManagedObjectRest {
         result: ValueId,
         object: ValueId,
-        excluded: Vec<RestKey>,
+        excluded: Vec<ManagedKey>,
     },
     // Copy admitted own enumerable data properties, preserving boxed values.
     ManagedObjectSpread {
@@ -629,7 +629,7 @@ pub(crate) enum Op {
     ManagedHasOwn {
         result: ValueId,
         input: ValueId,
-        key: ValueId,
+        key: ManagedKey,
     },
     // Checked non-null input specialization; source unknowns use the fallible form.
     ManagedOwnKeys {
@@ -1259,6 +1259,22 @@ impl Verifier<'_> {
         Ok(())
     }
 
+    fn managed_key(
+        &self,
+        key: &ManagedKey,
+        visible: &BTreeSet<ValueId>,
+        span: Span,
+    ) -> Result<(), String> {
+        match key {
+            ManagedKey::Literal(units) => {
+                u32::try_from(units.len())
+                    .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                Ok(())
+            }
+            ManagedKey::String(value) => self.value(*value, Type::ManagedValue, visible, span),
+        }
+    }
+
     fn reason_type(&self, value: ValueId, span: Span) -> Result<Type, String> {
         match self.function.values.get(value.0).copied() {
             Some(ty @ (Type::General | Type::AsyncValue)) => Ok(ty),
@@ -1411,16 +1427,7 @@ impl Verifier<'_> {
                     })?;
                 self.value(*object, ty, visible, span)?;
                 for key in excluded {
-                    match key {
-                        RestKey::Literal(key) => {
-                            u32::try_from(key.len()).map_err(|_| {
-                                invalid(span, "managed property key exceeds Wasm32 length")
-                            })?;
-                        }
-                        RestKey::String(key) => {
-                            self.value(*key, Type::ManagedValue, visible, span)?
-                        }
-                    }
+                    self.managed_key(key, visible, span)?;
                 }
                 self.define(*result, Type::ManagedObject, visible, span)?;
             }
@@ -1437,7 +1444,7 @@ impl Verifier<'_> {
                     .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
                     .ok_or_else(|| invalid(span, "has-own needs an object or array receiver"))?;
                 self.value(*input, ty, visible, span)?;
-                self.value(*key, Type::ManagedValue, visible, span)?;
+                self.managed_key(key, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::ManagedOwnKeys { result, input } => {
