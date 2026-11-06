@@ -52,6 +52,56 @@ fn for_in_keys_remain_strings_through_helpers_captures_and_let_writes() {
 }
 
 #[test]
+fn iteration_assignment_heads_update_existing_mutable_cells() {
+    for body in [
+        "let key='';let n=0;for(key in {a:1,bb:2})n=n*10+key.length;return n+key.length;",
+        "let key='initial';let n=0;for(key in {})n++;return n+key.length;",
+        "let item='';let n=0;for(item of [' a ',' bb '])n=n*10+item.trim().length;return n+item.length;",
+        "let item='';for(item of []){}return item.length;",
+        "let key='';let n=0;const source={a:1,b:2};for(key in source){n++;if(key==='a')continue;}return n*10+key.length;",
+        "let item='';let n=0;for(item of ['a','bb']){n+=item.length;if(item==='a')continue;}return n*10+item.length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn iteration_assignment_heads_preserve_shared_capture_cells_and_ts_erasure() {
+    for body in [
+        "let key='';const read=()=>key;let n=0;for(key in {a:1,bb:2})n+=read().length;return n*10+read().length;",
+        "let item='';const read=()=>item;let n=0;for(item of ['a','bb'])n+=read().length;return n*10+read().length;",
+    ] {
+        compare(body);
+    }
+    common::compare_sources(
+        "export function run(a,b){let key='';let n=0;for(key in {a:1,bb:2})n+=key.length;return n;}",
+        "export function run(a:number,b:number):number{let key:string='';let n:number=0;for(key in {a:1,bb:2})n+=key.length;return n;}",
+    );
+    common::compare_sources(
+        "export function run(a,b){let item='';let n=0;for(item of ['a','bb'])n+=item.length;return n;}",
+        "export function run(a:number,b:number):number{let item:string='';let n:number=0;for(item of ['a','bb'])n+=item.length;return n;}",
+    );
+}
+
+#[test]
+fn iteration_assignment_heads_reject_const_unbound_or_incompatible_slots() {
+    for body in [
+        "const key='';for(key in {a:1}){}return a;",
+        "const item='';for(item of ['a']){}return a;",
+        "for(key in {a:1}){}return a;",
+        "for(item of ['a']){}return a;",
+        "let item=a;for(item of ['a']){}return a;",
+        "let key=0;for(key in {a:1}){}return a;",
+        "let key='';for(key in null){}return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_rejected(&source, typed);
+        }
+    }
+}
+
+#[test]
 fn array_for_of_evaluates_one_rhs_and_keeps_the_original_array_and_selection() {
     for body in [
         "let calls=0;const make=()=>{calls++;return [a,b];};let n=0;for(const item of make())n++;return calls*10+n;",

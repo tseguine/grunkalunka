@@ -214,9 +214,15 @@ impl Fields {
                 };
                 iteration::for_of_binding(source)
                     .and_then(|binding| binding.symbol_id.get())
+                    .or_else(|| {
+                        iteration::assignment_iteration_identifier(&source.left)
+                            .ok()
+                            .flatten()
+                            .and_then(|identifier| symbol(identifier, semantic))
+                    })
                     .map(|symbol| (symbol, source.right.node_id()))
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<Vec<_>>();
         let mut definitions = iterations
             .iter()
             .map(|(symbol, receiver)| Definition::Iterated(*symbol, *receiver))
@@ -227,10 +233,18 @@ impl Fields {
             let AstKind::ForInStatement(source) = node.kind() else {
                 continue;
             };
-            if let Some(BindingPattern::BindingIdentifier(binding)) =
-                iteration::lexical_iteration_pattern(&source.left)
-                && let Some(symbol) = binding.symbol_id.get()
-            {
+            let symbol = iteration::lexical_iteration_pattern(&source.left)
+                .and_then(|pattern| match pattern {
+                    BindingPattern::BindingIdentifier(binding) => binding.symbol_id.get(),
+                    _ => None,
+                })
+                .or_else(|| {
+                    iteration::assignment_iteration_identifier(&source.left)
+                        .ok()
+                        .flatten()
+                        .and_then(|identifier| symbol(identifier, semantic))
+                });
+            if let Some(symbol) = symbol {
                 definitions.push(Definition::ForIn(symbol));
             }
         }
