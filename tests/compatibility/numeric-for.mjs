@@ -9,7 +9,6 @@ const cases = [
   ['for-omitted-step', 'let i=0; let x=a; for(;i<3;) { x+=b; i++; } return x;'],
   ['for-omitted-test', 'let x=a; for(let i=0;;i++) { if(i===3) return x; x+=b; } return b;'],
   ['for-all-omitted', 'for(;;) { return a; } return b;'],
-  ['for-in', 'for(const i in {}) {} return a;'],
   ['for-initializer-once', 'let i=0; let x=0; for(x++;i<3;i++) { a+=b; } return x;'],
   ['for-terminal-test-effect', 'let i=0; let x=a; for(;(i=i+1)<4;b=b+1) { x+=b; } return x+i+b;'],
   ['for-body-initialization', 'let x=a; for(let i=0;i<3;i++) { const y=b+i; x+=y; } return x;'],
@@ -26,6 +25,12 @@ const cases = [
   ['for-header-expression-depth', `for(${'('.repeat(128)}a${')'.repeat(128)};${'('.repeat(128)}0${')'.repeat(128)};${'('.repeat(128)}b${')'.repeat(128)}) {} return a;`],
 ];
 export const numericForPrograms = cases.map(([id, body]) => [id, body, body]);
+// Preserve the exact former rejected source bytes, including the legacy
+// parameter spacing and absent terminal newline, when it becomes executable.
+const formerForInSource = 'export function run(a,b) { for(const i in {}) {} return a; }';
+numericForPrograms.push(['for-in', '', '', undefined, undefined, {
+  sourceJS: formerForInSource, sourceTS: formerForInSource,
+}]);
 numericForPrograms.push(['for-typescript-headers',
   'let x=a; for(let i=0;i<3;i++) { x+=b; } return x;',
   'let x=a; for(let i:number=0;(i<3) as boolean;(<number>(i++))) { x+=b; } return x;']);
