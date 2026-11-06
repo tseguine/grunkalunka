@@ -28,6 +28,7 @@ enum Rule {
     Iterated(NodeId),
     Known(Origin),
     Copy(Vec<NodeId>),
+    AwaitNumber(NodeId),
     Logical(LogicalOperator, NodeId, NodeId),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
@@ -498,6 +499,9 @@ impl Fields {
                 AstKind::NumericLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::Number]));
                     None
+                }
+                AstKind::AwaitExpression(awaited) => {
+                    Some(Rule::AwaitNumber(awaited.argument.node_id()))
                 }
                 AstKind::UpdateExpression(_) => {
                     values.insert(id, BTreeSet::from([Origin::Number]));
@@ -1031,6 +1035,19 @@ impl Fields {
                     }
                     Rule::Known(origin) => BTreeSet::from([*origin]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
+                    Rule::AwaitNumber(input) => get(input)
+                        .into_iter()
+                        .map(|origin| {
+                            // A Number has no thenable assimilation. Other
+                            // origins cannot prove a numeric fulfillment; in
+                            // particular, an object must not retain its identity.
+                            if origin == Origin::Number {
+                                Origin::Number
+                            } else {
+                                Origin::Other
+                            }
+                        })
+                        .collect(),
                     Rule::Logical(operator, left, right) => {
                         let mut found = Alternatives::new();
                         let mut selects_right = false;

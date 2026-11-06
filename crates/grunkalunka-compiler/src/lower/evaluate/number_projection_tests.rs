@@ -1,4 +1,33 @@
 #[test]
+fn awaited_numbers_retain_proofs_without_assuming_thenable_results() {
+    for (body, admitted) in [
+        ("const o={x:await a};return o.x+b;", true),
+        ("let [x]=[a];return x+=await b;", true),
+        ("let [x]=[a];const result=x&&=await b;return +result;", true),
+        (
+            "const o={x:a};const result=o.x||=await b;return +result;",
+            true,
+        ),
+        ("const o={x:await (await a)};return o.x+b;", true),
+        ("const o={x:await 'text'};return o.x+b;", false),
+        ("const o={x:await (a?b:'text')};return o.x+b;", false),
+        (
+            "const o={x:await {then:resolve=>resolve(a)}};return o.x+b;",
+            false,
+        ),
+        ("const o={x:await {n:a}};return o.x+b;", false),
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile_async(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+        }
+    }
+    let source = "export async function run(a,b){const o={x:await ('text' as unknown as number)};return o.x+b;}";
+    assert!(crate::compile_async(source, true).is_err());
+}
+
+#[test]
 fn numeric_fields_and_patterns_use_positive_source_proofs() {
     for (body, admitted) in [
         ("return ({x:a}).x+b;", true),
