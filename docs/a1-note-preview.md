@@ -1,6 +1,6 @@
 # A1 candidate: source-scripted Markdown outline presentation
 
-## Current application stack (2026-11-05)
+## Current application stack (2026-11-06)
 
 The maintainer has assigned an independent A1 application stack from master,
 with the ongoing IR feature train retaining compiler/lowering ownership. The
@@ -50,15 +50,21 @@ component bytes and an action receipt. See the interaction guide for replay
 and denial. Hosted validation and native stack membership are tracked in the
 implementation PRs; checked-in tests are not an execution receipt.
 
-A1 remains **Planned** against its full acceptance criteria. Repeated
+A1 remains **in development**, with its bounded pilot, integration and recovery
+units completed in [#54](https://github.com/tseguine/grunkalunka/issues/54),
+[#52](https://github.com/tseguine/grunkalunka/issues/52) and
+[#549](https://github.com/tseguine/grunkalunka/issues/549). Repeated
 source-driven input, owned host state, live browser presentation, native viewport
 scrolling, fixed-catalog note selection, selected-note reload, readable bitmap
 repaint and a detached interaction
 package are now implemented. Each action still
-starts a fresh guest Store. General Unicode typography, native OS window integration and typed record/resource
-views remain open; [the typed interface handoff #483](https://github.com/tseguine/grunkalunka/issues/483)
-is separate compiler/application coordination. This stack does not select a final
-public API or change compiler/IR files. The local package described in the
+starts a fresh guest Store. General Unicode typography, native OS window
+integration and public typed record/resource views remain future capabilities.
+[The typed interface proposal #483](https://github.com/tseguine/grunkalunka/issues/483)
+was retired without selecting a design or concrete completion criterion. It is
+not an active implementation gate. The next broader A1 acceptance target needs
+an explicit scope; completed pilots and retired proposals do not themselves
+declare the whole milestone finished. The local package described in the
 historical sections below packages the older static preview; the current
 interaction bundle has its own entry and manifest.
 
@@ -166,15 +172,15 @@ existing crate dependencies; there is no additional Actions job.
 This is deliberately **not** a general HTML parser or CSS cascade: both the
 inert semantic HTML string and the native scene are projections of the *same*
 trusted typed WIT data, rather than parsing that string back into a browser DOM.
-The painter fills boxes; text labels are retained with their native anchors but
-are not drawn as glyphs. No font selection, glyph rasterization, real window,
-pointer dispatch or accessible browser tree has been demonstrated. These are
-explicit remaining front-end integration tasks, together with usable
-build/run/debug/package workflow evidence.
+At this initial presentation checkpoint, the painter filled boxes and retained
+text anchors without drawing glyphs. The later bitmap text, native interaction,
+live presentation and detached-package work is described in the current section
+above; a general font system, native OS window and accessible browser tree remain
+outside that bounded work.
 
-A1 remains **Planned**, not complete. The first-app/product choice remains
-provisional; there is no persistence, writable vault, external resource
-resolution or public source-language DOM binding.
+This initial checkpoint left A1 Planned. The application still has no writable
+vault, disk-persisted reading state, external resource resolution or public
+source-language DOM binding.
 
 No browser-oracle artifacts, current P1 measurement code or compiler-lowering
 paths are changed by this preparatory A1 unit. The proposed note viewer remains
@@ -238,9 +244,10 @@ These are application-level run/debug observations, **not** a published or
 portable distribution format. The current runner still needs Rust-built host
 executables, an installed Node runtime and the source checkout to compile
 the toggle. A separate bounded packaging exercise must preserve the portable
-Wasm artifacts and make the host/platform requirements explicit. Real glyph
-painting, HTML parsing, DOM/input behavior, persistence, installation and
-ship-ready packaging remain absent. **A1 remains Planned.**
+Wasm artifacts and make the host/platform requirements explicit. This historical
+run/debug checkpoint predates the native bitmap glyphs, connected input and
+detached live package described above. General HTML/DOM, persistence and
+ship-ready installation remain separate capabilities.
 
 
 ## Locally packaged A1 host (portability boundary experiment)
@@ -296,12 +303,21 @@ and does not bundle the user's Markdown document. This is a **local
 host-specific runnable distribution experiment**, not a platform-neutral
 installer or an accepted public distribution format. Cross-host execution of
 the *Wasm modules* does not imply that the bundled native binaries can run on
-another OS/architecture. The remaining A1 goals include real text/glyph
-rendering, an **integrated source-import-driven** application interaction, and
-product-level usability and packaging. A1 stays **Planned**.
+another OS/architecture. Later application units add readable bitmap glyphs,
+integrated source-import-driven interaction and detached live packaging; this
+static-package receipt does not describe their implementation or validation.
 
 
 ## Candidate next A1 acceptance and compiler priorities (steering, 2026-10-30)
+
+**Historical proposal, superseded by the completed bounded units above.** The
+input/service/readable-repaint integration and scalar native Rust control were
+implemented. The proposed typed public view interface was subsequently retired
+in #483 as unselected. The following original ordering is retained as design
+history, not as an active assignment or an additional acceptance requirement.
+
+<details>
+<summary>Original October 30 / November 1 proposed gates</summary>
 
 **2026-11-01 steering check:** [#280](https://github.com/tseguine/grunkalunka/pull/280)
 satisfies the *first compiler prerequisite*, not the integrated application gate.
@@ -404,3 +420,5 @@ glyphs and application-facing evidence. This document does not commandeer
 other streams or turn the private experiment into an accepted public API. A1
 remains `Planned` until the integrated interaction and developer-facing
 acceptance are demonstrated.
+
+</details>
