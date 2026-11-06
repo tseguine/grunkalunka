@@ -38,6 +38,43 @@ fn array_at_checks_its_receiver_and_index_before_emission() {
 }
 
 #[test]
+fn array_at_helpers_keep_boxed_results_after_string_at_recognition() {
+    for source in [
+        "function pick(x,i){return x.at(i);} export function run(a,b){const x=[a,b];return pick(x,1)===b?1:0;}",
+        "function pick(x,i){return x['at'](i);} export function run(a,b){const o={value:a};return pick([o],0)===o?1:0;}",
+        "function pick(x,i){return x.at(i);} function forward(x,i){return pick(x,i);} export function run(a,b){return forward([a],1)===undefined?1:0;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){const choose=()=>pick([a,b],1);return choose()===b?1:0;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){return pick('abc',a)==='b'?1:0;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){const o={at:i=>i};return pick(o,a);}",
+    ] {
+        for typescript in [false, true] {
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || crate::compile(source, typescript))
+                .unwrap()
+                .join()
+                .unwrap();
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+}
+
+#[test]
+fn at_helper_results_keep_receiver_and_missing_value_guards() {
+    for source in [
+        "function pick(x,i){return x.at(i);} export function run(a,b){return pick(['abc'],a).trim().length;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){return pick('abc',a).trim().length;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){const x=a?['abc']:null;return pick(x,0)===undefined?1:0;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){return pick([a,b],'0')===a?1:0;}",
+    ] {
+        for typescript in [false, true] {
+            let error = crate::compile(source, typescript).err().unwrap();
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
 fn array_pop_checks_its_receiver_and_boxed_result_before_emission() {
     let source = "export function run(a,b){const x=[a,b];return x.pop()===b?1:0;}";
     for wrong_result in [false, true] {

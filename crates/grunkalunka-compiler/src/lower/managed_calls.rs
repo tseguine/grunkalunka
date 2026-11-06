@@ -156,7 +156,10 @@ fn kinds(
                     *kind == Kind::String
                         || (*kind == Kind::Array
                             && (method.array_search().is_some()
-                                || matches!(method, string_methods::Method::Slice)))
+                                || matches!(
+                                    method,
+                                    string_methods::Method::At | string_methods::Method::Slice
+                                )))
                 };
                 let result = match method.result() {
                     Type::ManagedValue if matches!(method, string_methods::Method::CodePointAt) => {
@@ -177,15 +180,19 @@ fn kinds(
                         fallback.insert(Kind::GeneralPrimitive);
                     }
                     for kind in receiver.iter().filter(|kind| supported(kind)) {
-                        fallback.insert(
-                            if *kind == Kind::Array
-                                && matches!(method, string_methods::Method::Slice)
-                            {
-                                Kind::Array
-                            } else {
-                                result
-                            },
-                        );
+                        match (*kind, method) {
+                            (Kind::Array, string_methods::Method::At) => {
+                                // String recognition shares the spelling, not
+                                // the selected element's runtime kind or lane.
+                                fallback.extend(managed_value_kinds());
+                            }
+                            (Kind::Array, string_methods::Method::Slice) => {
+                                fallback.insert(Kind::Array);
+                            }
+                            _ => {
+                                fallback.insert(result);
+                            }
+                        }
                     }
                 }
                 values.push(fallback);
@@ -300,14 +307,9 @@ fn kinds(
                         if let Some((receiver, method)) = string_methods::call(call) {
                             work.push(Task::CollectionMethod(method, fallback));
                             work.push(Task::Expr(receiver, depth + 1));
-                        } else if let Some((receiver, result)) = array_at::receiver(call)
-                            .map(|r| (r, Type::ManagedValue))
-                            .or_else(|| {
-                                array_mutations::operation(call)
-                                    .map(|(op, receiver)| (receiver, op.result()))
-                            })
+                        } else if let Some((operation, receiver)) = array_mutations::operation(call)
                         {
-                            work.push(Task::ArrayElement(fallback, result));
+                            work.push(Task::ArrayElement(fallback, operation.result()));
                             work.push(Task::Expr(receiver, depth + 1));
                         } else {
                             values.push(fallback);
