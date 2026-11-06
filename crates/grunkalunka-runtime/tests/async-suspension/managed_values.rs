@@ -591,3 +591,15 @@ fn array_includes_saves_receiver_and_needle_before_later_awaits() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_index_search_retains_operands_and_uses_the_live_contents_after_awaits() {
+    compare_promises(
+        &[
+            "const xs=['x','y','x'];let needle='x';const i=xs.lastIndexOf(needle,(await a,needle='y',1),(await b,xs[1]='x'));return i*10+xs.indexOf(needle);",
+            "const xs=['x','x'];let n=0;const i=xs.lastIndexOf('x',void(await a,n++),(await b,xs[0]='y'));return n*10+i;",
+            "let n=0;try{[a].indexOf((n=1,b),(await Promise.reject(a),n=2));}catch(e){return n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

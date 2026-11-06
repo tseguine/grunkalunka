@@ -218,7 +218,8 @@ and iterate the fresh array while retaining the identities of its records.
 Spreading a String into a fresh array gives an A1 handler positional access
 to the code points of a label, including a final supplementary character.
 An enabled-action list can answer `enabled.includes(requested)` directly
-before the handler invokes the service.
+before the handler invokes the service. Array `indexOf` and `lastIndexOf`
+also supply the position of a matching action, including when duplicates occur.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain

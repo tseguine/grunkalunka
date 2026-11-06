@@ -825,3 +825,15 @@ fn imported_handler_checks_the_enabled_action_list_by_value() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_finds_the_last_matching_action_position() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const names = ['reload', 'expand', 'reload'];
+            const action = a > 0 ? 'expand' : 'reload';
+            return choose(names.lastIndexOf(action) === 1 ? 1 : 0, 2);
+        }"#,
+    );
+}

@@ -5,8 +5,8 @@ use super::*;
 #[cfg(test)]
 use std::cell::Cell;
 mod array_at;
-mod array_includes;
 mod array_pop;
+mod array_search;
 mod dictionary;
 mod has_own;
 mod managed;
@@ -1477,26 +1477,51 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
-                Work::ArrayIncludes {
+                Work::ArraySearch {
                     node,
+                    kind,
                     has_needle,
-                    has_from,
+                    from,
                 } => {
-                    let from = has_from.then(|| values.pop().expect("includes start").id());
-                    let needle = has_needle.then(|| values.pop().expect("includes needle").id());
-                    let array = values.pop().expect("includes array").id();
-                    let result = self.value(Type::Predicate);
+                    let from = match from {
+                        array_search::Start::Omitted => None,
+                        array_search::Start::Number => {
+                            Some(values.pop().expect("array search start").id())
+                        }
+                        array_search::Start::Undefined => {
+                            let zero = self.value(Type::Number);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Constant {
+                                    result: zero,
+                                    value: 0.0,
+                                },
+                            );
+                            Some(zero)
+                        }
+                    };
+                    let needle =
+                        has_needle.then(|| values.pop().expect("array search needle").id());
+                    let array = values.pop().expect("array search receiver").id();
+                    let result = self.value(kind.result());
                     Self::push(
                         regions.current(),
                         node,
-                        Op::ManagedArrayIncludes {
+                        Op::ManagedArraySearch {
+                            kind,
                             result,
                             array,
                             needle,
                             from,
                         },
                     );
-                    values.push(Value::Predicate(result));
+                    values.push(match kind {
+                        ir::ArraySearch::Includes => Value::Predicate(result),
+                        ir::ArraySearch::IndexOf | ir::ArraySearch::LastIndexOf => {
+                            Value::Number(result)
+                        }
+                    });
                 }
                 Work::ArrayAt(task) => self.resume_array_at(task, regions, values, work)?,
                 Work::ArrayPop(task) => self.resume_array_pop(task, regions, values, work)?,
