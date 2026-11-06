@@ -22,8 +22,16 @@ names. On objects and dictionaries, runtime source-proven String keys also work:
 the receiver is saved before the key expression runs, including across await or
 receiver-variable reassignment. A failed key expression leaves the object intact.
 Array runtime keys stay guarded because they might select non-configurable length.
-Primitive receivers, non-reference
-operands and optional chains remain separate work. Deleting an array's
+Proven Number and Boolean receivers have no own properties, so deletion returns
+true after the receiver and admitted primitive key expressions finish in order.
+Non-reference operands also evaluate their effects before returning true. In
+particular, `delete (0, object.key)` reads the selected value and leaves the
+property intact, while `delete (object.key)` still deletes that reference.
+Await and rejection follow the same distinction. The unchanged original numeric
+receiver fixture is now an executable canonical corpus case.
+
+Nullish and String reference receivers, optional chains, effectful object-key
+coercion and general descriptors remain separate work. Deleting an array's
 non-configurable length stays guarded until a source TypeError can be represented;
 it must not silently succeed or trap in the private helper.
 
