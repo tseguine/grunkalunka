@@ -159,7 +159,10 @@ fn one_wrapped_line_centers_with_around_and_evenly_but_empty_rows_do_not_fail() 
     // A single actual wrapped line gets equal free space on both sides.
     for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
         blocks[0].style.align_content = mode;
-        assert_eq!(layout(&blocks, 20, 60).unwrap().boxes[1].unwrap().content.y, 20);
+        assert_eq!(
+            layout(&blocks, 20, 60).unwrap().boxes[1].unwrap().content.y,
+            20
+        );
         blocks[0].style.height = Length::Px(50);
         assert_eq!(
             layout(&blocks, 20, 60),

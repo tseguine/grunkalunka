@@ -152,17 +152,17 @@ fn around_and_evenly_use_outer_gaps_and_keep_existing_item_sizes() {
     }
 
     // Neither distribution may move an overflowing item away from start.
-    let wide_item = [
-        row(None, 10, FlexJustify::SpaceEvenly),
-        item(0, 11, 1),
-    ];
+    let wide_item = [row(None, 10, FlexJustify::SpaceEvenly), item(0, 11, 1)];
     assert_eq!(
         layout(&wide_item, 10, 2).unwrap().boxes[1].unwrap().content,
         rect(0, 0, 11, 1)
     );
     let mut around = wide_item;
     around[0].style.justify_content = FlexJustify::SpaceAround;
-    assert_eq!(layout(&around, 10, 2).unwrap().boxes[1].unwrap().content.x, 0);
+    assert_eq!(
+        layout(&around, 10, 2).unwrap().boxes[1].unwrap().content.x,
+        0
+    );
 }
 
 #[test]
@@ -187,7 +187,10 @@ fn distributed_justify_operates_independently_on_wrapped_lines_and_one_item() {
         let frame = layout(&blocks, 57, 30).unwrap();
         for ((node, x), y) in (1..=5).zip(positions).zip([0, 0, 8, 8, 16]) {
             assert_eq!(
-                (frame.boxes[node].unwrap().content.x, frame.boxes[node].unwrap().content.y),
+                (
+                    frame.boxes[node].unwrap().content.x,
+                    frame.boxes[node].unwrap().content.y
+                ),
                 (x, y),
                 "{justify:?}, item {node}"
             );
@@ -197,7 +200,10 @@ fn distributed_justify_operates_independently_on_wrapped_lines_and_one_item() {
     // For one item, around and evenly both center the item.
     for justify in [FlexJustify::SpaceAround, FlexJustify::SpaceEvenly] {
         let single = [row(None, 7, justify), item(0, 1, 1)];
-        assert_eq!(layout(&single, 7, 2).unwrap().boxes[1].unwrap().content.x, 3);
+        assert_eq!(
+            layout(&single, 7, 2).unwrap().boxes[1].unwrap().content.x,
+            3
+        );
         let fractional = [row(None, 8, justify), item(0, 1, 1)];
         assert_eq!(
             layout(&fractional, 8, 2),
