@@ -15,6 +15,7 @@ pub(super) enum Work<'e, 'a> {
     ArrayAt(array_at::Task<'e, 'a>),
     ArrayMutation(array_mutation::Task<'e, 'a>),
     Dictionary(dictionary::Task<'e, 'a>),
+    Destructure(destructure::Task<'e, 'a>),
     ArraySlice(array_slice::Task<'e, 'a>),
     StringTemplate(string_template::Task<'e, 'a>),
     StringMethod(string_methods::Task<'e, 'a>),

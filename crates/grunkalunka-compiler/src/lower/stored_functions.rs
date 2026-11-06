@@ -668,6 +668,45 @@ impl Fields {
                     }
                 }
                 AstKind::AssignmentExpression(a) if a.operator == AssignmentOperator::Assign => {
+                    if let oxc_ast::ast::AssignmentTarget::ArrayAssignmentTarget(pattern) = &a.left
+                    {
+                        for (index, element) in pattern.elements.iter().enumerate() {
+                            if let Some(target) =
+                                element.as_ref().and_then(|e| e.as_assignment_target())
+                                && let Some(identifier) = target
+                                    .as_simple_assignment_target()
+                                    .and_then(|t| target_identifier(t, 0).ok().flatten())
+                                && let Some(symbol) = symbol(identifier, semantic)
+                            {
+                                pattern_rules.push((
+                                    identifier.node_id(),
+                                    Rule::Member(
+                                        a.right.node_id(),
+                                        index.to_string().encode_utf16().collect(),
+                                    ),
+                                ));
+                                definitions.push(Definition::Value(symbol, identifier.node_id()));
+                            }
+                        }
+                        if let Some(rest) = &pattern.rest
+                            && let Some(identifier) = rest
+                                .target
+                                .as_simple_assignment_target()
+                                .and_then(|t| target_identifier(t, 0).ok().flatten())
+                            && let Some(symbol) = symbol(identifier, semantic)
+                        {
+                            elements.add_rest(
+                                rest.node_id(),
+                                a.right.node_id(),
+                                pattern.elements.len() as u32,
+                            );
+                            pattern_rules.push((
+                                identifier.node_id(),
+                                Rule::Known(Origin::Array(rest.node_id())),
+                            ));
+                            definitions.push(Definition::Value(symbol, identifier.node_id()));
+                        }
+                    }
                     if let Some(name) = a
                         .left
                         .as_simple_assignment_target()

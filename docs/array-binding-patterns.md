@@ -1,4 +1,15 @@
-# Array binding declarations
+# Array bindings and assignments
+
+Array assignment patterns now write existing initialized mutable managed-value
+identifier cells, including captured cells. The RHS must be a source-proven
+Array; it executes once, and the assignment expression returns that same array.
+Elisions, repeated targets, missing values and identifier rest targets preserve
+source order. Rest creates a fresh dense tail, including Undefined for holes.
+For example, `let first=''; [first]=['ready']` updates the existing variable.
+Defaults, nested assignment patterns and member targets remain separate work.
+Numeric-only slots are not silently repurposed to hold boxed property values.
+The compiler units run in the fast PR profile; differential assignment cases
+extend the existing full `managed-array-bindings` suite.
 
 Local `const` and `let` declarations admit array binding patterns over
 source-proven managed arrays. Identifier leaves and nested object/array patterns

@@ -499,6 +499,10 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&l.left, depth + 1));
                         }
                         Expression::AssignmentExpression(a) => {
+                            if a.left.as_assignment_target_pattern().is_some() {
+                                work.push(Shape::Expr(&a.right, depth + 1));
+                                continue;
+                            }
                             match a.left.as_simple_assignment_target() {
                                 Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => {
                                     work.push(Shape::Member(
@@ -575,6 +579,9 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if self.schedule_destructure(node, depth, mode, work)? {
+            return Ok(true);
+        }
         if matches!(mode, Mode::Managed)
             && let Expression::ComputedMemberExpression(member) = node
             && !member.optional
