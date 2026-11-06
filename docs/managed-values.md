@@ -129,7 +129,7 @@ The helper operates on existing WasmGC references and can compose with helpers,
 closures and suspended activations; it introduces no host operation or new heap.
 
 [Object rest bindings](object-binding-patterns.md#object-rest) copy remaining
-own fields into a fresh object. Accessors, proxies, array spread and general prototype/Get
+own fields into a fresh object. Accessors, proxies and general prototype/Get
 semantics remain unsupported. A spread that might overwrite a known callable
 field invalidates that earlier source fact; an explicit later property can
 establish it again. This preserves rejection of an unproven field call rather
@@ -404,7 +404,13 @@ Tests compare this boundary with the native intrinsic names. The additional Arra
 guard does not restrict ordinary objects' own keys such as `map` or `push`.
 Prototype mutation and foreign references remain unavailable in this profile.
 
-Dynamic keys, array spread, methods, descriptors, coercions, invalid
+A single spread literal `[...items]` makes a shallow, dense copy of a proven
+Array. Each hole becomes an own Undefined element. Named properties are
+omitted, and copied references retain identity. The operand runs once,
+including when it suspends. Indexed and iterated values follow the source's
+element origins and include writes through aliases of the new array.
+
+Mixed literals with spread, descriptors, general key coercions, invalid
 or dynamic length writes and optional access still reject. Element snapshots use
 the general carrier: returning `items[1]` directly through a Number export still
 requires a primitive-result proof/projection, and exporting an array requires a

@@ -322,7 +322,9 @@ fn unsupported_array_semantics_reject_before_ir_validation() {
         "const x=[];x.length='2';return a;",
         "const x=[];x.length+=1;return a;",
         "const x=[];x.length++;return a;",
-        "const x=[...[a]];return a;",
+        "const x=[a,...[b]];return a;",
+        "const x=[...a];return a;",
+        "const x=[...{length:1,0:b}];return a;",
         "const x=[a];return x;",
         "const x=[a];return x[0].length;",
         "if(0){const x=[];x.map(a);}return a;",
@@ -432,5 +434,22 @@ fn array_is_array_rejects_optional_calls_and_spread_arguments() {
                 .expect("unsupported call");
             assert!(!error.contains("internal IR"), "{source}: {error}");
         }
+    }
+}
+
+#[test]
+fn copy_spread_creates_a_fresh_dense_array_and_preserves_child_identity() {
+    for body in [
+        "const x=[...[a]];return a;",
+        "const src=[,a,,undefined];src.named=b;const copy=[...src];let n=0;for(const key of Object.keys(copy))n+=key.length;return n===4&&copy.length===4&&Object.hasOwn(copy,0)&&!Object.hasOwn(src,0)&&!Object.hasOwn(copy,'named')?1:0;",
+        "const child={label:' x '};const src=[child];const copy=[...src];src[0]={label:' no '};child.label=' yes ';return src!==copy&&copy[0]===child?copy[0].label.trim().length:0;",
+        "const src=[a,b];const copy=[...[...src]];copy.length=0;return src.length*10+copy.length;",
+        "let n=0;const src=[a];const copy=[...(n++,src[1]=b,src)];return n===1&&copy[1]===b?1:0;",
+        "const src=[];const copy=[...src];return copy!==src&&copy.length===0?1:0;",
+        "const src=[{label:' hello '}];let n=0;for(const {label} of [...src])n+=label.trim().length;return n;",
+        "const names=Object.keys({expand:a});const copy=[...names];let n=0;for(const name of copy)n+=name.trim().length;return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
     }
 }

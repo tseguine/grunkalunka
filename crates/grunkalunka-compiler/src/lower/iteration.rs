@@ -1,6 +1,8 @@
 //! Original-source lexical iteration bindings shared with representation plans.
 use super::*;
-use oxc_ast::ast::{BindingIdentifier, ForOfStatement, ForStatementLeft};
+use oxc_ast::ast::{
+    ArrayExpression, ArrayExpressionElement, BindingIdentifier, ForOfStatement, ForStatementLeft,
+};
 
 /// Planning does not admit the iterable, await mode or body. The source cursor
 /// checks those before scheduling any execution or publishing this binding.
@@ -33,4 +35,13 @@ pub(super) fn for_of_binding<'n, 'a>(
         BindingPattern::BindingIdentifier(identifier) => Some(identifier),
         _ => None,
     }
+}
+
+pub(super) fn single_spread<'n, 'a>(
+    literal: &'n ArrayExpression<'a>,
+) -> Option<&'n Expression<'a>> {
+    let [ArrayExpressionElement::SpreadElement(spread)] = literal.elements.as_slice() else {
+        return None;
+    };
+    Some(&spread.argument)
 }

@@ -784,3 +784,20 @@ fn imported_handler_counts_characters_in_a_display_label() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_selects_from_a_shallow_copy_of_the_action_list() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const actions = [{name: ' reload '}, {name: a > 0 ? ' expand ' : ' collapse '}];
+            const visible = [...actions];
+            actions[0] = {name: ' replaced '};
+            let expanded = 0;
+            for (const {name} of visible) {
+                if (name.trim() === 'expand') expanded = 1;
+            }
+            return choose(expanded, visible.length);
+        }"#,
+    );
+}

@@ -557,3 +557,14 @@ fn string_for_of_keeps_the_saved_text_and_code_unit_offset_across_awaits() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn copy_spread_observes_the_resumed_source_and_retains_fresh_slots() {
+    compare_promises(
+        &[
+            "const src=[,a];const copy=[...(await b,src[1]=b,src)];await a;src[1]=a;return copy!==src&&Object.hasOwn(copy,0)&&copy[1]===b?1:0;",
+            "let n=0;try{const copy=[...(await Promise.reject(a),n=1,[b])];n=2;}catch(e){await b;return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

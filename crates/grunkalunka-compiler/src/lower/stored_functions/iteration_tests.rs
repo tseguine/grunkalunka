@@ -457,7 +457,7 @@ fn binding_defaults_cannot_infer_absence_from_spread_or_intrinsic_members() {
         "const source={...{label:a}};const {label='text'}=source;const observed=label;return a;",
         "const source={label:undefined,...{label:a}};const {label='text'}=source;const observed=label;return a;",
         "const source={label:undefined,[a]:b};const {label='text'}=source;const observed=label;return a;",
-        "const source=[...['text']];const [label='text']=source;const observed=label;return a;",
+        "const source=[...a,'text'];const [label='text']=source;const observed=label;return a;",
         "const source=[];const {label='text'}={label:source.length};const observed=label;return a;",
         "const source=[];const {label='text'}={label:source.map};const observed=label;return a;",
         "const source={};const {label='text'}={label:source.constructor};const observed=label;return a;",
@@ -642,6 +642,25 @@ fn enumerated_values_follow_initializers_alias_writes_and_output_mutations() {
         "const rows=Object.entries({x:'x'});for(const row of rows)row[1]=a;for(const [k,v] of rows){const observed=v;}return a;",
         "const list=Object.values({x:'x'});list.length=2;for(const v of list){const observed=v;}return a;",
         "const src={label:'x'};const record={x:src};src.label=b;for(const v of Object.values(record)){const observed=v.label;}return a;",
+    ] {
+        let fact = observe(body);
+        assert!(fact.other && !fact.string, "{body}: {fact:?}");
+    }
+}
+
+#[test]
+fn copy_spread_preserves_indexed_origins_without_aliasing_writes() {
+    for body in [
+        "const source=[...['text']];const [label='text']=source;const observed=label;return a;",
+        "const src=['x'];const copy=[...src];copy[0]=a;const observed=src[0];return a;",
+        "const src=[{label:'x'}];const copy=[...src];const observed=copy[0].label;return a;",
+        "const src=[,'x'];const copy=[...src];const [v='fallback']=copy;const observed=v;return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const src=[{label:'x'}];const copy=[...src];copy[0].label=a;const observed=src[0].label;return a;",
+        "const src=['x'];const copy=[...src];copy.length=3;for(const v of copy){const observed=v;}return a;",
     ] {
         let fact = observe(body);
         assert!(fact.other && !fact.string, "{body}: {fact:?}");
