@@ -27,7 +27,7 @@ enum Rule {
     Iterated(NodeId),
     Known(Origin),
     Copy(Vec<NodeId>),
-    Nullish(NodeId, NodeId),
+    Logical(LogicalOperator, NodeId, NodeId),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
@@ -198,7 +198,7 @@ impl Fields {
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
-                || matches!(node.kind(), AstKind::LogicalExpression(expression) if expression.operator == LogicalOperator::Coalesce)
+                || matches!(node.kind(), AstKind::LogicalExpression(_))
         }) {
             return Self::default();
         }
@@ -560,12 +560,11 @@ impl Fields {
                     c.consequent.node_id(),
                     c.alternate.node_id(),
                 ])),
-                AstKind::LogicalExpression(c) if c.operator == LogicalOperator::Coalesce => {
-                    Some(Rule::Nullish(c.left.node_id(), c.right.node_id()))
-                }
-                AstKind::LogicalExpression(c) => {
-                    Some(Rule::Copy(vec![c.left.node_id(), c.right.node_id()]))
-                }
+                AstKind::LogicalExpression(c) => Some(Rule::Logical(
+                    c.operator,
+                    c.left.node_id(),
+                    c.right.node_id(),
+                )),
                 AstKind::SequenceExpression(s) => Some(Rule::Copy(
                     s.expressions
                         .last()
@@ -694,9 +693,9 @@ impl Fields {
                 Rule::Call(_, _, Some((_, string_methods::Method::At)), _)
             )
         });
-        let has_nullish_selection = rules
+        let has_logical_selection = rules
             .iter()
-            .any(|(_, rule)| matches!(rule, Rule::Nullish(..)));
+            .any(|(_, rule)| matches!(rule, Rule::Logical(..)));
         let track_elements = has_iterations
             || has_relative_selection
             || !elements.rest_sources.is_empty()
@@ -736,18 +735,34 @@ impl Fields {
                     }
                     Rule::Known(origin) => BTreeSet::from([*origin]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
-                    Rule::Nullish(left, right) => {
-                        let left = get(left);
-                        let mut found = left
-                            .iter()
-                            .copied()
-                            .filter(|origin| !matches!(origin, Origin::Null | Origin::Undefined))
-                            .collect::<Alternatives>();
-                        if left.iter().any(|origin| {
-                            matches!(origin, Origin::Null | Origin::Undefined | Origin::Other)
-                        }) {
-                            // Unknown values may select either operand. Do not
-                            // mistake an empty, unresolved set for nullishness.
+                    Rule::Logical(operator, left, right) => {
+                        let mut found = Alternatives::new();
+                        let mut selects_right = false;
+                        for origin in get(left) {
+                            let nullish = matches!(origin, Origin::Null | Origin::Undefined);
+                            let truthy = matches!(
+                                origin,
+                                Origin::Object(_)
+                                    | Origin::NullObject(_)
+                                    | Origin::Array(_)
+                                    | Origin::Arrow(_)
+                                    | Origin::Named(_)
+                            );
+                            let (keep_left, use_right) = match operator {
+                                LogicalOperator::Coalesce => {
+                                    (!nullish, nullish || origin == Origin::Other)
+                                }
+                                LogicalOperator::Or => (!nullish, !truthy),
+                                LogicalOperator::And => (!truthy, !nullish),
+                            };
+                            if keep_left {
+                                found.insert(origin);
+                            }
+                            selects_right |= use_right;
+                        }
+                        if selects_right {
+                            // Strings may be empty and Other may have either
+                            // truthiness. An unresolved empty set proves neither.
                             found.extend(get(right));
                         }
                         found
@@ -967,7 +982,7 @@ impl Fields {
                 && (has_patterns
                     || has_iterations
                     || has_relative_selection
-                    || has_nullish_selection
+                    || has_logical_selection
                     || !elements.rest_sources.is_empty()
                     || !indexed_copy_inputs.is_empty())
                 && !finalized_unresolved

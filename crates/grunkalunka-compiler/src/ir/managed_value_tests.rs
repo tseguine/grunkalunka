@@ -1525,3 +1525,52 @@ fn nullish_result_origins_keep_receiver_and_unselected_source_guards() {
         }
     }
 }
+
+#[test]
+fn logical_result_origins_preserve_selected_receivers() {
+    for source in [
+        "export function run(a,b){const label=(a?null:' ready ')||' missing ';return label.trim().length;}",
+        "export function run(a,b){const row={label:' ready '}||a;return row.label.trim().length;}",
+        "export function run(a,b){const row=[]&&{label:' ready '};return row.label.trim().length;}",
+        "export function run(a,b){const label=(null&&a)??' missing ';return label.trim().length;}",
+        "function choose(x,y){return x||y;}export function run(a,b){const label=choose(a?null:' ready ',' missing ');return label.trim().length;}",
+        "export function run(a,b){const rows=[{label:' ready '}]||a;const read=()=>rows.at(a)??{label:' missing '};return read().label.trim().length;}",
+        "export function run(a,b){const marker=()=>a;const row=marker&&{label:' ready '};return row.label.trim().length;}",
+        "function marker(x){return x;}export function run(a,b){const row=marker&&{label:' ready '};return row.label.trim().length;}",
+        "export function run(a,b){const row=Object.create(null);row.label=' ready ';const selected=row||a;const label=selected.label??' missing ';return label.trim().length;}",
+    ] {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                for typescript in [false, true] {
+                    let result = crate::compile(source, typescript);
+                    assert!(result.is_ok(), "{source}: {:?}", result.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
+#[test]
+fn logical_result_origins_keep_unknown_truthiness_and_unselected_source_guards() {
+    for body in [
+        "const label=(a?null:b)||'fallback';return label.trim().length;",
+        "const label=(a?'text':false)||'fallback';return label.trim().length;",
+        "const label=0||'fallback';return label.trim().length;",
+        "const label='text'||a;return label.trim().length;",
+        "const row='text'&&{label:'ready'};return row.label.trim().length;",
+        "const label=a&&'text';return label.trim().length;",
+        "const label=(a?{}:null)&&'text';return label.trim().length;",
+        "const source={label:'text'};const row=source||{label:'fallback'};source.label=b;return row.label.trim().length;",
+        "const row={label:'text'}||missing();return row.label.trim().length;",
+        "const label=(null&&missing())??'fallback';return label.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            let error = crate::compile(&source, typescript).err().unwrap();
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
