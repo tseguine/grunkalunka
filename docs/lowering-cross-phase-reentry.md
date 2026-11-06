@@ -1,15 +1,20 @@
 # Cross-phase source/expression lowering reentry
 
-Updated: 2026-11-03. Frozen integrated baseline: master
+Integration status updated: 2026-11-06. The 2026-11-03 receipts use frozen master
 [`926a4aa`](https://github.com/tseguine/grunkalunka/commit/926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c).
-Status: effectful-source ownership and compatibility retirement are complete in
-the final in-review implementation. The dated receipts below remain historical;
+Effectful-source ownership and compatibility retirement merged in
+[#466](https://github.com/tseguine/grunkalunka/pull/466), with the final validation
+and completion records in [#467](https://github.com/tseguine/grunkalunka/pull/467)
+and [#468](https://github.com/tseguine/grunkalunka/pull/468).
+The dated receipts and their pre-merge review labels below remain historical;
 the [final inventory](#final-in-review-effectful-source-ownership) defines this
 bounded completion claim. Broader compiler/native-stack evidence remains separate.
 Complements
 [ADR 0020](adr/0020-source-lowering-control-kernel.md),
 [engine steering](javascript-engine-steering.md#source-lowering-architecture-completed-base-and-remaining-work)
-and [native-stack issue #281](https://github.com/tseguine/grunkalunka/issues/281).
+and the [native-stack requirements](../AGENTS.md#native-stack-hygiene).
+[#281](https://github.com/tseguine/grunkalunka/issues/281) is a retired tracker,
+not an outstanding migration gate or a whole-compiler stack proof.
 
 ## Integrated source/evaluator boundary at master `926a4aa`
 
@@ -282,7 +287,7 @@ Runtime verification passed 136 closure,
 9 module-callback, 9 managed-closure-input, 9 managed-function-value and 1 storage
 tests. All 426 async-suspension tests passed with no failures, ignored or filtered
 tests. The source implementation, scoped audit and bounded cost study are
-complete in this in-review series.
+complete in this series.
 
 The [cost report](lowering-refactor-validation-2026-11-03.md#compiler-time-and-process-memory)
 retains 840 primary process observations across 60 cases. Across the case-specific
@@ -336,13 +341,15 @@ result value is allocated, as well as the source order of effects.
    synchronous compatibility route.
 2. **Keep the audit scoped:** L3/L4 effectful-source ownership and L5 retirement
    are complete in this implementation. L6 consolidation of signature, callback,
-   stored-kind and Promise queries remains optional. New dynamic Get/Set/Call,
-   general source exceptions and GC-aware async identity have their own designs
-   and execution gates.
+   stored-kind and Promise queries remains optional. New dynamic Get/Set/Call
+   and general source exceptions retain their own contracts. Managed identity
+   across supported async activations was implemented separately; see
+   [managed suspension](managed-values.md#managed-values-across-related-coroutine-frames).
 3. **Retain measured closure evidence:** preserve the final composed graph and
    value-flow rationale, exact-head test receipts and compiler-time/peak-memory
    observations. A bounded workload measurement is not an asymptotic or
-   whole-compiler stack proof; the wider #281 acceptance invariant remains open.
+   whole-compiler stack proof. Retiring the open-ended #281 tracker does not
+   discharge the native-stack requirements or assign a new broad audit.
 4. **Measure ownership and stack behavior together:** retain
    `evaluator_tests::active_depth`, source-cursor entry/depth observations and
    the converted-family handoff counters. `EVALUATOR_CROSSINGS` counts source

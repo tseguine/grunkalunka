@@ -18,6 +18,14 @@ metadata interface is introduced. Type-guided optimization remains separate work
 `src/ir.rs` defines the representation and verifier. `src/emit.rs` emits structured
 Wasm. These files live in `crates/grunkalunka-compiler/`.
 
+Effectful source lowering uses one source cursor for statements, declaration
+initializers, evaluator resumptions, factories, definition checking and lifted
+bodies. The synchronous compatibility drivers were retired in
+[#466](https://github.com/tseguine/grunkalunka/pull/466); the
+[validation checkpoint](lowering-refactor-validation-2026-11-03.md) records the
+frozen artifact, runtime and call-graph evidence. Read-only source-fact queries,
+IR transformations and runtime scheduling keep their separate ownership.
+
 The verifier keeps pending regions, lexical visibility and child-completion
 continuations on an explicit stack. Its checks retain source order without native
 recursion through region nesting. CLI regressions exercise the default executable
@@ -28,8 +36,10 @@ ancestry persistent, synchronous structured WAT emission iterative, nested
 continuation splits iterative. The independent deep-region tests use small native
 thread stacks without changing source admission budgets. This **does not**
 establish that parsing, all frontend passes, every runtime operation, or guest
-Wasm execution have constant native-stack depth. See
-[stack-depth steering #281](https://github.com/tseguine/grunkalunka/issues/281).
+Wasm execution have constant native-stack depth. The
+[native-stack requirements](../AGENTS.md#native-stack-hygiene) still apply;
+[#281](https://github.com/tseguine/grunkalunka/issues/281) was retired as an
+open-ended tracker, without waiving those requirements or proving every phase.
 
 The newer [managed-value contract](managed-values.md) adds traced WasmGC
 `ManagedValue` / `ManagedObject` kinds, typed source helper reference transport
@@ -73,7 +83,9 @@ insufficient. Neither operation copies storage or allocates another container.
 These are internal checked projections, not JS TypeError completions. Source
 lowering uses them only when original-source alternatives prove one receiver
 kind, keeping the actual boxed lane until receiver use. Unknown receiver behavior
-and reference-aware coroutine frames remain separate work.
+remains outside this projection contract. Supported
+[coroutine frames](managed-values.md#managed-values-across-related-coroutine-frames)
+already retain traced reference lanes and shared managed identities.
 
 ## Checked managed function projection
 
@@ -83,9 +95,11 @@ environment, trapping on a wrong value kind or complete signature. The GC backen
 checks matching module table targets before exposing the typed callee: shared
 argument cells otherwise erase logical parameter types. It leaves ordinary typed
 `ClosureCall`, function storage and layouts unchanged. Source calls through known
-uniformly callable own fields now use this projection. Reference-aware coroutine
-frames remain separate work; an internal
-projection trap is not a JS exception outcome. See [managed values](managed-values.md).
+uniformly callable own fields now use this projection. Supported coroutine frames
+retain synchronous closure environments across suspension; managed Promise
+settlements and public reference transport remain outside that contract. An
+internal projection trap is not a JS exception outcome. See
+[managed values](managed-values.md).
 
 ## Modules and direct numeric calls
 
