@@ -6,6 +6,11 @@
 use super::*;
 
 pub(super) enum Work<'e, 'a> {
+    ArrayIncludes {
+        node: &'e Expression<'a>,
+        has_needle: bool,
+        has_from: bool,
+    },
     ArrayAt(array_at::Task<'e, 'a>),
     ArrayPop(array_pop::Task<'e, 'a>),
     Dictionary(dictionary::Task<'e, 'a>),

@@ -5,6 +5,7 @@ use super::*;
 #[cfg(test)]
 use std::cell::Cell;
 mod array_at;
+mod array_includes;
 mod array_pop;
 mod dictionary;
 mod has_own;
@@ -1476,6 +1477,27 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::ArrayIncludes {
+                    node,
+                    has_needle,
+                    has_from,
+                } => {
+                    let from = has_from.then(|| values.pop().expect("includes start").id());
+                    let needle = has_needle.then(|| values.pop().expect("includes needle").id());
+                    let array = values.pop().expect("includes array").id();
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::ManagedArrayIncludes {
+                            result,
+                            array,
+                            needle,
+                            from,
+                        },
+                    );
+                    values.push(Value::Predicate(result));
+                }
                 Work::ArrayAt(task) => self.resume_array_at(task, regions, values, work)?,
                 Work::ArrayPop(task) => self.resume_array_pop(task, regions, values, work)?,
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,

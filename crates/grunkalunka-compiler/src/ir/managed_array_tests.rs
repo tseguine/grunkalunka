@@ -613,3 +613,41 @@ fn arrays_use_traced_capture_cells_and_single_coroutine_globals() {
     verify_async_module(&m).unwrap();
     wat::parse_str(crate::emit::emit_async(&m).unwrap()).unwrap();
 }
+
+#[test]
+fn array_includes_requires_array_boxed_needle_and_number_position() {
+    let source = "export function run(a,b){const xs=[a];return xs.includes(b,a)?1:0;}";
+    let mut module = crate::lower_source(source, false).unwrap();
+    verify_module(&module).unwrap();
+    let (position, result, array, needle, from) = module.functions[0]
+        .body
+        .operations
+        .iter()
+        .enumerate()
+        .find_map(|(position, op)| match op.kind {
+            Op::ManagedArrayIncludes {
+                result,
+                array,
+                needle: Some(needle),
+                from: Some(from),
+            } => Some((position, result, array, needle, from)),
+            _ => None,
+        })
+        .unwrap();
+    for (array, needle, from, ty) in [
+        (from, needle, from, Type::Predicate),
+        (array, from, from, Type::Predicate),
+        (array, needle, needle, Type::Predicate),
+        (array, needle, from, Type::Number),
+    ] {
+        let function = &mut module.functions[0];
+        function.body.operations[position].kind = Op::ManagedArrayIncludes {
+            result,
+            array,
+            needle: Some(needle),
+            from: Some(from),
+        };
+        function.values[result.0] = ty;
+        assert!(verify_module(&module).is_err());
+    }
+}

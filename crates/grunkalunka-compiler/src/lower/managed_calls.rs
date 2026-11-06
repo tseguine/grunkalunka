@@ -112,7 +112,7 @@ fn kinds(
         StringConcat,
         Member(bool),
         ArrayElement(Kinds),
-        StringMethod(Type, Kinds),
+        CollectionMethod(string_methods::Method, Kinds),
     }
     let mut work = vec![Task::Expr(node, 0)];
     let mut values: Vec<Kinds> = Vec::new();
@@ -141,16 +141,21 @@ fn kinds(
                     [Kind::Primitive].into()
                 });
             }
-            Task::StringMethod(result, mut fallback) => {
-                let receiver = values.pop().expect("String method receiver kinds");
-                let result = match result {
+            Task::CollectionMethod(method, mut fallback) => {
+                let receiver = values.pop().expect("method receiver kinds");
+                let supported = |kind: &Kind| {
+                    *kind == Kind::String
+                        || (*kind == Kind::Array
+                            && matches!(method, string_methods::Method::Includes))
+                };
+                let result = match method.result() {
                     Type::ManagedValue => Kind::String,
                     Type::Number => Kind::Primitive,
                     Type::Predicate => Kind::GeneralPrimitive,
                     _ => unreachable!("String method result kind"),
                 };
-                values.push(if receiver.contains(&Kind::String) {
-                    if receiver.len() == 1 {
+                values.push(if receiver.iter().any(supported) {
+                    if receiver.iter().all(supported) {
                         [result].into()
                     } else {
                         fallback.insert(result);
@@ -265,7 +270,7 @@ fn kinds(
                             })
                             .unwrap_or_else(|| [Kind::Primitive].into());
                         if let Some((receiver, method)) = string_methods::call(call) {
-                            work.push(Task::StringMethod(method.result(), fallback));
+                            work.push(Task::CollectionMethod(method, fallback));
                             work.push(Task::Expr(receiver, depth + 1));
                         } else if let Some(receiver) = array_at::receiver(call).or_else(|| {
                             array_mutations::operation(call).map(|(_, receiver)| receiver)

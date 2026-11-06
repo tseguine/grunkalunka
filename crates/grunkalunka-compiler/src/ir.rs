@@ -543,6 +543,12 @@ pub(crate) enum Op {
         result: ValueId,
         array: ValueId,
     },
+    ManagedArrayIncludes {
+        result: ValueId,
+        array: ValueId,
+        needle: Option<ValueId>,
+        from: Option<ValueId>,
+    },
     ManagedArrayAt {
         result: ValueId,
         array: ValueId,
@@ -1379,6 +1385,21 @@ impl Verifier<'_> {
             Op::ManagedArrayLength { result, array } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedArrayIncludes {
+                result,
+                array,
+                needle,
+                from,
+            } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                if let Some(needle) = needle {
+                    self.value(*needle, Type::ManagedValue, visible, span)?;
+                }
+                if let Some(from) = from {
+                    self.value(*from, Type::Number, visible, span)?;
+                }
+                self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::ManagedArrayAt {
                 result,

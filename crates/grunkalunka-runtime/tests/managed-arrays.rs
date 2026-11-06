@@ -489,3 +489,47 @@ fn string_copy_spread_rejects_unknown_inputs_and_invalidated_string_proofs() {
         }
     }
 }
+
+#[test]
+fn array_includes_uses_same_value_zero_sparse_holes_and_numeric_start() {
+    for body in [
+        "const xs=[a,NaN,-0,null,false,'x'];return xs.includes(b)&&xs.includes(0)&&xs.includes(NaN)?1:0;",
+        "const object={n:a};const other={n:a};const fn=()=>b;const xs=[object,fn,['child']];return xs.includes(object)&&!xs.includes(other)&&xs.includes(fn)&&!xs.includes(()=>b)&&!xs.includes(['child'])?1:0;",
+        "const xs=[,a];xs.named='named';return xs.includes()&&!xs.includes(undefined,1)&&!xs.includes('named')&&![].includes()?1:0;",
+        "const xs=[a,undefined,,b];return xs['includes'](undefined,b)?1:0;",
+        "const xs=['x','y','z'];return xs.includes('y',a)?1:0;",
+        "const xs=['x','y','z'];return xs.includes('y',-1.9)||!xs.includes('y',-2.9)?0:1;",
+        "const xs=[];xs.length=4294967295;xs[4294967294]='z';return xs.includes(undefined)&&xs.includes('z',-1)&&!xs.includes(undefined,-1)&&!xs.includes('missing',4294967295)?1:0;",
+        "let n=0;let xs=['x'];const old=xs;const r=xs.includes((n=1,xs=['y'],'z'),(n=n*10+2,0),(n=n*10+3,old[0]='z'));return r&&n===123&&!xs.includes('z')?1:0;",
+        "let n=0;const xs=['a'];const r=xs.includes('a',void(n=1),(n=n*10+2));return r?n:0;",
+        "const obj={includes:x=>x};return obj.includes(a);",
+        "return +[a].includes(b);",
+        "let n=0;const xs=['x'];xs.includes('x',(n++,0));return n;",
+        "const xs=['x','y'];const read=()=>xs.includes('y');return read()?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn array_includes_requires_a_checked_receiver_and_position() {
+    for body in [
+        "const xs=a?[b]:null;return xs.includes(b)?1:0;",
+        "const xs=[b];return xs.includes(b,{})?1:0;",
+        "const xs=[b];return xs.includes(...[b])?1:0;",
+        "const xs=[b];xs.includes=()=>a;return xs.includes(b)?1:0;",
+        "const xs=[b];return xs.includes?.(b)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let err = grunkalunka_compiler::compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

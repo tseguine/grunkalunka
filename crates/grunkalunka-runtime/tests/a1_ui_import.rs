@@ -813,3 +813,15 @@ fn imported_handler_selects_the_last_character_in_a_display_label() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_checks_the_enabled_action_list_by_value() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const enabled = ['reload', 'expand'];
+            const requested = a > 0 ? 'expand' : 'collapse';
+            return choose(enabled.includes(requested) ? 1 : 0, enabled.length);
+        }"#,
+    );
+}
