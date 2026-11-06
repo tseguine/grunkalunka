@@ -626,10 +626,10 @@ fn imported_handler_separates_title_metadata_from_numbered_headings() {
     compare_composed_source(
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
         export function run(a, b) {
-            const note = {0:' Title ',1:'First',2:'Second'};
+            const note = {0:' Title ',1:' First ',2:' Second '};
             const {0:title,...headings} = note;
             note[1] = 'Replacement';
-            const enabled = a > 0 && title.trim() === 'Title' && headings[1] === 'First';
+            const enabled = a > 0 && title.trim() === 'Title' && headings[1].trim() === 'First';
             return choose(enabled ? 1 : 0, Object.keys(headings).length);
         }"#,
     );

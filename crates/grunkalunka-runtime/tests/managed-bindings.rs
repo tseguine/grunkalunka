@@ -540,3 +540,38 @@ fn numeric_key_annotations_erase_in_literals_bindings_and_reads() {
         "export function run(a:number,b:number){const o={[(-0 as unknown)]:a,1:b};const {[(0 as string)]:x,...r}=o;return x===a&&r[(1 as string)]===b&&r[0]===undefined?1:0;}",
     );
 }
+
+#[test]
+fn object_rest_fields_support_proven_nested_and_callable_consumers() {
+    for body in [
+        "const source={id:a,label:' ready ',row:{title:' nested '},items:['first'],apply:x=>x+1};const {id,...rest}=source;const {row:{title},items:[first]}=rest;return rest.label.trim()==='ready'&&title.trim()==='nested'&&first.length===5&&rest.apply(1)===2?1:0;",
+        "const {title,...first}={title:a,label:' entry '};const {missing,...second}=first;const {title:replacement=' default ',label}=second;return replacement.trim()==='default'&&label.trim()==='entry'?1:0;",
+        "const source={id:a,row:{value:b}};const {id,...rest}=source;rest.row.value=a;const same=source.row.value===a;rest.row={value:b};return same&&source.row!==rest.row&&rest.row.value===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_rest_field_consumers_reject_possible_incompatible_values() {
+    for body in [
+        "const source={label:'x'};const alias=source;alias.label=a;const {...rest}=source;return rest.label.trim().length;",
+        "const source={nested:{label:'x'}};const {...rest}=source;rest.nested.label=a;return source.nested.label.trim().length;",
+        "const source={label:'x'};const {...rest}=source;const alias=rest;alias.label=a;return rest.label.trim().length;",
+        "const source=a?{label:'x'}:{label:null};const {...rest}=source;return rest.label.trim().length;",
+        "const {label,...rest}={label:'x'};return rest.label.trim().length;",
+        "const {...rest}={...{label:b}};const {label='fallback'}=rest;return label.trim().length;",
+        "let current={label:'x'};for(let i=0;i<2;i++){const {...next}=current;current=next;}return current.label.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                error.contains("unsupported") && !error.contains("internal IR"),
+                "{source}: {error}"
+            );
+        }
+    }
+}

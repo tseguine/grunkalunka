@@ -86,8 +86,16 @@ and UTF-16 literal keys use the same property names as their field reads.
 The copy preserves own-key order and retains the identity of referenced
 values. Changing a slot on either object leaves the other object's slot
 independent. Each loop iteration creates a fresh result. The result is a
-proven ordinary object even for a null-prototype source. Copied values keep
-the generic managed carrier and have no inferred field kind.
+proven ordinary object even for a null-prototype source. The compiler follows each retained field back to its source and includes
+writes through aliases to the source or the copy. Excluded keys start absent
+and can be assigned on the copy. A retained field can use String methods,
+nested bindings or an existing typed call when all its possible values agree.
+The generic managed carrier still holds the runtime value.
+
+A child object stays shared, so a write through either reference contributes
+to that child's possible field values. Open spreads, incompatible alternatives
+and cyclic copy chains retain conservative results. The source analysis walks
+copy chains iteratively.
 
 ## Admission limits
 
