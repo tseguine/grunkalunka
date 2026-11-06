@@ -15,6 +15,7 @@ pub(super) enum Method {
     IndexOf,
     LastIndexOf,
     IsWellFormed,
+    ToWellFormed,
     Trim,
     TrimStart,
     TrimEnd,
@@ -43,6 +44,7 @@ impl Method {
             | Self::CharAt
             | Self::Trim
             | Self::TrimStart
+            | Self::ToWellFormed
             | Self::TrimEnd => Type::ManagedValue,
             Self::CharCodeAt | Self::IndexOf | Self::LastIndexOf => Type::Number,
             Self::IsWellFormed | Self::StartsWith | Self::Includes | Self::EndsWith => {
@@ -61,7 +63,11 @@ impl Method {
             | Self::IndexOf
             | Self::LastIndexOf => 2,
             Self::At | Self::CharAt | Self::CharCodeAt | Self::CodePointAt => 1,
-            Self::IsWellFormed | Self::Trim | Self::TrimStart | Self::TrimEnd => 0,
+            Self::ToWellFormed
+            | Self::IsWellFormed
+            | Self::Trim
+            | Self::TrimStart
+            | Self::TrimEnd => 0,
         }
     }
 
@@ -111,6 +117,7 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
         "endsWith" => Method::EndsWith,
         "indexOf" => Method::IndexOf,
         "lastIndexOf" => Method::LastIndexOf,
+        "toWellFormed" => Method::ToWellFormed,
         "isWellFormed" => Method::IsWellFormed,
         "trim" => Method::Trim,
         "trimStart" => Method::TrimStart,

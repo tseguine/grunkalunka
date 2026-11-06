@@ -1097,3 +1097,31 @@ fn is_well_formed_validates_utf16_and_preserves_effects() {
         compare_sources(s, &s.replace("run(a,b)", "run(a: number,b: number)"));
     }
 }
+
+#[test]
+fn to_well_formed_repairs_lone_surrogates_and_preserves_sources() {
+    for (text, expected) in [
+        (r"", r""),
+        (r"abc\0\uffff", r"abc\0\uffff"),
+        (r"\ud800", r"\ufffd"),
+        (r"\udfff", r"\ufffd"),
+        (r"a\ud800b", r"a\ufffdb"),
+        (r"\ud800\udc00", r"\ud800\udc00"),
+        (r"\udbff\udfff", r"\udbff\udfff"),
+        (r"\udc00\ud800", r"\ufffd\ufffd"),
+        (r"\ud800\ud800\udc00", r"\ufffd\ud800\udc00"),
+        (r"\ud800\udc00\udc00", r"\ud800\udc00\ufffd"),
+    ] {
+        let s = format!(
+            "export function run(a,b){{const s='{text}';const t=s.toWellFormed();return t==='{expected}'&&s==='{text}'&&t.isWellFormed()&&t.length===s.length?1:0;}}"
+        );
+        compare_sources(&s, &s);
+    }
+    for s in [
+        r"export function run(a,b){let s='\ud800';let n=0;const t=s['toWellFormed']((s='abc',n=1),n=n*10+2);return t==='\ufffd'&&s==='abc'?n:-1;}",
+        r"function repair(s){return s.toWellFormed();}export function run(a,b){const box={label:repair(' \ud800 ')};return box.label.trim()==='\ufffd'?1:0;}",
+        "export function run(a,b){const o={toWellFormed:()=>a};return o.toWellFormed();}",
+    ] {
+        compare_sources(s, &s.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+}

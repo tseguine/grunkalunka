@@ -976,3 +976,17 @@ fn imported_handler_validates_label_utf16() {
     }"#,
     );
 }
+
+#[test]
+fn imported_handler_repairs_label_utf16() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    function repair(s){return s.toWellFormed();}
+    export function run(a,b) {
+        const label=a>0?'Find \u{1f50d}':'Broken \ud800';
+        const clean=repair(label);
+        const handle=()=>choose(clean.endsWith('\ufffd')?0:1,2);
+        return +handle();
+    }"#,
+    );
+}

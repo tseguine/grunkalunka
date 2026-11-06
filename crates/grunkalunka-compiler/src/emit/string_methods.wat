@@ -283,3 +283,22 @@
   (local $text (ref null $gc_key))
   local.get $value call $gc_string_key local.tee $text i32.const 0
   call $gc_string_invalid local.get $text array.len i32.eq)
+
+;; Copy only when repair is needed. Never mutate the source String backing data.
+;; Each scan starts after the last replacement, so total scanning is linear.
+(func $gc_string_to_well_formed (param $value (ref null $gc_value))
+  (result (ref null $gc_value))
+  (local $source (ref null $gc_key)) (local $text (ref null $gc_key))
+  (local $at i32) (local $length i32)
+  local.get $value call $gc_string_key local.tee $source array.len local.set $length
+  local.get $source i32.const 0 call $gc_string_invalid local.set $at
+  local.get $at local.get $length i32.eq if local.get $value return end
+  local.get $length array.new_default $gc_key local.set $text
+  local.get $text i32.const 0 local.get $source i32.const 0 local.get $length
+  array.copy $gc_key $gc_key
+  loop $repair
+    local.get $text local.get $at i32.const 0xfffd array.set $gc_key
+    local.get $source local.get $at i32.const 1 i32.add call $gc_string_invalid local.set $at
+    local.get $at local.get $length i32.lt_u br_if $repair
+  end
+  i32.const 5 f64.const 0 local.get $text struct.new $gc_value)

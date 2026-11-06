@@ -536,6 +536,11 @@ impl Emitter<'_> {
                 writeln!(self.output, "i32.const {mode}\ncall $gc_string_search").unwrap();
                 self.set(*result);
             }
+            Op::ManagedStringToWellFormed { result, input } => {
+                self.get(*input);
+                self.output.push_str("call $gc_string_to_well_formed\n");
+                self.set(*result);
+            }
             Op::ManagedStringIsWellFormed { result, input } => {
                 self.get(*input);
                 self.output.push_str("call $gc_string_is_well_formed\n");

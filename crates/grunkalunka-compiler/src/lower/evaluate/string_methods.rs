@@ -87,6 +87,7 @@ impl Lowering<'_, '_> {
         let input = task.receiver.expect("completed String receiver");
         let first = || task.inputs[0].expect("completed String first argument");
         let operation = match task.method {
+            Method::ToWellFormed => Op::ManagedStringToWellFormed { result, input },
             Method::IsWellFormed => Op::ManagedStringIsWellFormed { result, input },
             Method::Slice | Method::Substring => Op::ManagedStringRange {
                 result,

@@ -729,3 +729,14 @@ fn is_well_formed_keeps_receiver_and_boolean_across_awaits() {
         &[(1.0, 2.0), (0.0, -0.0)],
     );
 }
+
+#[test]
+fn to_well_formed_keeps_receiver_and_repaired_text_across_awaits() {
+    compare_promises(
+        &[
+            r"let s='\ud800';const t=s.toWellFormed((await a,s='abc'));await b;return t==='\ufffd'&&s==='abc'?1:0;",
+            "let n=0;const t='abc'.toWellFormed((await a,n=1),(await b,n=n*10+2));await a;return t==='abc'?n:-1;",
+        ],
+        &[(1.0, 2.0), (0.0, -0.0)],
+    );
+}

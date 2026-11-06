@@ -1354,3 +1354,36 @@ fn well_formed_validation_requires_text_and_boolean_result() {
         );
     }
 }
+
+#[test]
+fn well_formed_repair_requires_managed_text_and_result() {
+    let mut m = crate::lower_source(
+        "export function run(a,b){return 'abc'.toWellFormed().length;}",
+        false,
+    )
+    .unwrap();
+    let op = m.functions[0]
+        .body
+        .operations
+        .iter()
+        .find(|o| matches!(o.kind, Op::ManagedStringToWellFormed { .. }))
+        .unwrap();
+    let Op::ManagedStringToWellFormed { result, input } = op.kind else {
+        unreachable!()
+    };
+    verify_module(&m).unwrap();
+    m.functions[0].values[result.0] = Type::Number;
+    assert!(verify_module(&m).is_err());
+    m.functions[0].values[result.0] = Type::ManagedValue;
+    m.functions[0].values[input.0] = Type::Number;
+    assert!(verify_module(&m).is_err());
+    for body in [
+        "const s=a?'abc':null;return s.toWellFormed().length;",
+        "return 'abc'?.toWellFormed().length;",
+        "return 'abc'.toWellFormed(...[]).length;",
+    ] {
+        assert!(
+            crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err()
+        );
+    }
+}
