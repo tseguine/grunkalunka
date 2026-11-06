@@ -81,6 +81,12 @@ impl Members<'_, '_> {
                 found.insert(Origin::Other);
             }
 
+            if self.elements.key_lists.contains(&object) && mutations::array_index(key).is_some() {
+                // Indexed access may miss even though every initially yielded
+                // element is a String. Previously collected alias writes still apply.
+                found.extend([Origin::String, Origin::Undefined]);
+                continue;
+            }
             if self.elements.pair_sites.contains(&object) && mutations::array_index(key) == Some(0)
             {
                 found.insert(Origin::String);

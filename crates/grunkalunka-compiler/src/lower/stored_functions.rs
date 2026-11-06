@@ -189,7 +189,7 @@ impl Fields {
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
-                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call,semantic)==Some(ir::OwnEnumeration::Entries))
+                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
         }) {
             return Self::default();
@@ -311,14 +311,20 @@ impl Fields {
             }
             let rule = match node.kind() {
                 AstKind::CallExpression(call)
-                    if object_intrinsics::enumeration(call, semantic)
-                        == Some(ir::OwnEnumeration::Entries) =>
+                    if let Some(kind) = object_intrinsics::enumeration(call, semantic) =>
                 {
-                    // The callee expression is a unique source site distinct
-                    // from the outer result, even for a literal-computed or .call form.
-                    let pair = call.callee.node_id();
-                    elements.entry_lists.insert(id, pair);
-                    elements.pair_sites.insert(pair);
+                    match kind {
+                        ir::OwnEnumeration::Keys => {
+                            elements.key_lists.insert(id);
+                        }
+                        ir::OwnEnumeration::Entries => {
+                            // The callee is a distinct allocation site for rows returned by this call.
+                            let pair = call.callee.node_id();
+                            elements.entry_lists.insert(id, pair);
+                            elements.pair_sites.insert(pair);
+                        }
+                        ir::OwnEnumeration::Values => (),
+                    }
                     values.insert(id, BTreeSet::from([Origin::Array(id)]));
                     None
                 }
@@ -621,8 +627,10 @@ impl Fields {
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
-        let track_elements =
-            has_iterations || !elements.rest_sources.is_empty() || !elements.entry_lists.is_empty();
+        let track_elements = has_iterations
+            || !elements.rest_sources.is_empty()
+            || !elements.entry_lists.is_empty()
+            || !elements.key_lists.is_empty();
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();

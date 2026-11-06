@@ -603,3 +603,23 @@ fn entry_pair_key_proofs_include_alias_writes_and_resizing() {
         assert!(!info.string && info.other, "{body}: {info:?}");
     }
 }
+
+#[test]
+fn enumerated_names_prove_yielded_strings_but_indexed_reads_can_miss() {
+    for body in [
+        "const keys=Object.keys({});for(const k of keys){const observed=k;}return a;",
+        "const [k='fallback']=Object.keys({x:a});const observed=k;return a;",
+        "const [...tail]=Object.keys({x:a});for(const k of tail){const observed=k;}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    let miss = observe("const keys=Object.keys({});const observed=keys[0];return a;");
+    assert!(miss.undefined && !miss.string && !miss.other, "{miss:?}");
+    for body in [
+        "const keys=Object.keys({x:a});const alias=keys;alias[0]=b;for(const k of keys){const observed=k;}return a;",
+        "const keys=Object.keys({x:a});keys.length=3;for(const k of keys){const observed=k;}return a;",
+    ] {
+        let fact = observe(body);
+        assert!(fact.other && !fact.string, "{body}: {fact:?}");
+    }
+}

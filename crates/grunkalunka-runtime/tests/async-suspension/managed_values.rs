@@ -196,6 +196,7 @@ fn object_keys_fallible_inputs_preserve_finalizers_and_argument_order() {
             "try{Object.keys(undefined);}finally{await a;return b;}",
             "let n=0;try{Object.keys.call((n++,null),null,(n++,await Promise.reject(b)));}catch(e){return n===2&&e===b?1:0;}return 0;",
             "let n=0;try{Object.keys(null,(n++,await a));}catch(e){return n===1&&typeof e==='object'?1:0;}return 0;",
+            "const keys=Object.keys({one:a,two:b});await a;let n=0;for(const key of keys){await b;n+=key.trim().length;}return n;",
             "const o={x:a};const k=Object.keys(o,(await b,o.y=b));await a;return k.length===2&&k[1]==='y'?1:0;",
             "try{Object.keys(null);}catch(e){const k=Object.keys(e);const o={e};await a;return k.length===0&&o.e===e&&typeof e==='object'&&!!e&&+(e)!==+(e)?1:0;}return 0;",
             "let saved=null;try{Object.keys(null);}catch(e){saved=e;}try{Object.keys(undefined);}catch(e){await a;return e!==saved&&!(e<saved)&&e<=saved&&!(e>saved)&&e>=saved?1:0;}return 0;",

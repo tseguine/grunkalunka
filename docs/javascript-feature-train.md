@@ -114,7 +114,9 @@ that record directly with a runtime action name, saving the computed String
 key before evaluating the property's value. `Object.values` snapshots the
 ordered action values into a fresh array for iteration, including explicit
 Undefined fields. `Object.entries` lets the handler destructure each fresh
-key/value pair and compare its name before invoking the service.
+key/value pair and compare its name before invoking the service. A handler
+that needs only names can iterate `Object.keys(actions)` and use String
+operations on each yielded name.
 
 ### Deliberate remaining limits
 

@@ -713,6 +713,22 @@ fn imported_handler_counts_the_values_of_an_action_record() {
 }
 
 #[test]
+fn imported_handler_selects_an_action_from_its_enumerated_names() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const action = a > 0 ? 'expand' : 'collapse';
+            const names = Object.keys({reload: true, [action]: undefined});
+            let expanded = 0;
+            for (const name of names) {
+                if (name.trim() === 'expand') expanded = 1;
+            }
+            return choose(expanded, names.length);
+        }"#,
+    );
+}
+
+#[test]
 fn imported_handler_iterates_action_entries_by_name() {
     compare_composed_source(
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";

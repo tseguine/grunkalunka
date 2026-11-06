@@ -166,7 +166,6 @@ fn array_for_of_rejects_tainted_or_unproven_specialized_values() {
         "for(let item of ['ready']){const read=()=>item.trim().length;item=a;return read();}return 0;",
         "for(let item of [{label:'ready'}]){item=a;return item.label.trim().length;}return 0;",
         "const items=[{label:' x '}];const row=items[0];row.label=a;for(const item of items)return item.label.trim().length;return 0;",
-        "for(const item of Object.keys({ready:a}))return item.trim().length;return 0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -442,7 +441,6 @@ fn tail_iteration_rejects_holes_incompatible_writes_and_opaque_sources() {
         "const [,...tail]=[0,,'x'];for(const item of tail)return item.trim().length;return 0;",
         "const source=[a,'x'];const alias=source;alias[1]=b;const [,...tail]=source;for(const item of tail)return item.trim().length;return 0;",
         "const [,...tail]=[a,'x'];tail.length=3;for(const item of tail)return item.trim().length;return 0;",
-        "const [...tail]=Object.keys('x');for(const item of tail)return item.trim().length;return 0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -459,5 +457,35 @@ fn array_rest_pattern_loop_heads_allocate_fresh_captured_leaves() {
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn object_keys_iterations_use_string_names_and_guard_indexed_misses() {
+    for body in [
+        "for(const item of Object.keys({ready:a}))return item.trim().length;return 0;",
+        "const [...tail]=Object.keys('x');for(const item of tail)return item.trim().length;return 0;",
+        "const record={first:a,second:b};let n=0;for(const key of Object.keys(record))n+=key.trim().length;return n;",
+        "const k=a?' first ':' second ';const o={[k]:b};const [key=' empty ']=Object.keys(o);return key.trim().length;",
+        "const [missing=' fallback ']=Object.keys({});return missing.trim().length;",
+        "const keys=Object.keys({x:a});const alias=keys;alias.named=b;let n=0;for(const key of alias)n+=key.trim().length;return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn object_keys_consumers_reject_overwrites_holes_and_unchecked_indices() {
+    for body in [
+        "const keys=Object.keys({x:a});const alias=keys;alias[0]=b;for(const name of keys)return name.trim().length;return 0;",
+        "const keys=Object.keys({x:a});keys.length=2;for(const name of keys)return name.trim().length;return 0;",
+        "const keys=Object.keys({});return keys[0].trim().length;",
+        "const keys=Object.keys({x:a});keys[0]=b;const [key='fallback']=keys;return key.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert_rejected(&source, ts);
+        }
     }
 }
