@@ -47,6 +47,10 @@ impl Lowering<'_, '_> {
                 Op::ManagedArrayPop { result, array },
                 Value::Managed(result),
             ),
+            crate::lower::array_mutations::Operation::Shift => (
+                Op::ManagedArrayShift { result, array },
+                Value::Managed(result),
+            ),
             crate::lower::array_mutations::Operation::Reverse => (
                 Op::ManagedArrayReverse { result, array },
                 Value::Array(result),

@@ -4,18 +4,20 @@ use super::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Operation {
     Pop,
+    Shift,
     Reverse,
 }
 impl Operation {
     pub(super) fn result(self) -> Type {
         match self {
-            Self::Pop => Type::ManagedValue,
+            Self::Pop | Self::Shift => Type::ManagedValue,
             Self::Reverse => Type::ManagedArray,
         }
     }
     pub(super) fn name(self) -> &'static str {
         match self {
             Self::Pop => "pop",
+            Self::Shift => "shift",
             Self::Reverse => "reverse",
         }
     }
@@ -43,6 +45,7 @@ pub(super) fn operation<'e, 'a>(
     Some((
         match name {
             "pop" => Operation::Pop,
+            "shift" => Operation::Shift,
             "reverse" => Operation::Reverse,
             _ => return None,
         },

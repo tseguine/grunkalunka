@@ -1093,3 +1093,18 @@ overridden methods, prototype mutation and generic array-like receivers remain
 outside the admitted surface. Existing `pop` and `reverse` share the same
 source-ordered argument scheduler. Source-unit and differential regression cases
 cover sparse slots, aliasing, argument effects, rejection and the A1 service call.
+
+## Consuming the front of an Array
+
+`shift()` and literal-computed `['shift']()` remove and return the first boxed
+value of a proven intrinsic array, or Undefined for an empty array or first-slot
+hole. Remaining indexed entries move down by one, preserving holes and named
+properties; the length decreases only when it was nonzero. Object and function
+values retain identity. The sparse-table implementation visits stored properties
+rather than logical length. It shares the pop/reverse scheduler, preserving the
+receiver across all argument effects and awaits before inspecting current data.
+
+As with `pop`, the returned value stays boxed and positional source proofs are
+invalidated through aliases. Borrowed/optional calls, spread arguments, overrides
+and generic array-like receivers remain separate work. The array, suspension and
+A1 suites cover queue consumption against native JS, Node-Wasm and Wasmtime.

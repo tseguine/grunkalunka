@@ -664,3 +664,35 @@ fn array_reverse_saves_receiver_before_argument_effects_helpers_and_captures() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn array_shift_removes_first_value_and_moves_sparse_indices() {
+    for body in [
+        "const xs=[a,b];const first=xs.shift();return first===a&&xs.length===1&&xs[0]===b&&!Object.hasOwn(xs,1)?1:0;",
+        "const xs=[,a,,undefined,b];const first=xs.shift();return first===undefined&&xs.length===4&&xs[0]===a&&!Object.hasOwn(xs,1)&&Object.hasOwn(xs,2)&&xs[3]===b?1:0;",
+        "const xs=[];xs.named=a;return xs.shift()===undefined&&xs.length===0&&xs.named===a?1:0;",
+        "const xs=[undefined];const first=xs.shift();return first===undefined&&xs.length===0&&!Object.hasOwn(xs,0)?1:0;",
+        "const xs=[,];const first=xs.shift();return first===undefined&&xs.length===0?1:0;",
+        "const xs=[];xs[7]='a';xs[2]='b';xs[0]='first';xs.named='keep';const first=xs.shift();const keys=Object.keys(xs);return first==='first'&&xs.length===7&&xs[1]==='b'&&xs[6]==='a'&&keys[0]==='1'&&keys[1]==='6'&&keys[2]==='named'&&xs.named==='keep'?1:0;",
+        "const child={v:a};const fn=()=>b;const xs=[child,fn,null,false];return xs.shift()===child&&xs.shift()===fn&&xs.shift()===null&&xs.shift()===false&&xs.length===0?1:0;",
+        "const xs=[];xs.length=10000;xs[9999]='last';return xs.shift()===undefined&&xs.length===9999&&xs[9998]==='last'&&!Object.hasOwn(xs,9999)?1:0;",
+        "const xs=[a];xs['01']=b;xs[4294967295]='named';xs.shift();return xs['01']===b&&xs[4294967295]==='named'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn array_shift_snapshots_receiver_and_runs_all_argument_effects() {
+    for source in [
+        "export function run(a,b){let xs=[a,b];const old=xs;let n=0;const first=xs.shift((n=1,xs=[]),(n=n*10+2,old[0]=b),(n=n*10+3,old.length=1));return first===b&&old.length===0&&xs.length===0?n:0;}",
+        "export function run(a,b){const xs=[a,b];return xs.shift(xs.shift())===b&&xs.length===0?1:0;}",
+        "function take(xs){return xs['shift']();}export function run(a,b){const xs=[a,b];const f=()=>take(xs);return f()===a&&xs[0]===b?1:0;}",
+        "export function run(a,b){const xs=[a,b];const take=()=>xs.shift();return take()===a&&take()===b?1:0;}",
+        "export function run(a,b){const obj={shift:x=>x};return obj.shift(a);}",
+        "export function run(a,b){const xs=[];xs[0]=xs;return xs.shift()===xs&&xs.length===0?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
