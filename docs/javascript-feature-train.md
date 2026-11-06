@@ -196,7 +196,10 @@ remain iterative, with the existing
 
 Object rest copies the remaining own data fields of a proven object into a
 fresh ordinary object after earlier defaults finish. The copy preserves slot
-independence and reference identity in declarations and loop heads.
+independence and reference identity in declarations and loop heads. Numeric
+literal keys use the same JS property name in constructors, member accesses,
+binding patterns and rest exclusions. An A1 handler extracts title metadata
+from a numbered record and passes the remaining heading count to the service.
 
 Array rest with pattern targets, parameter and assignment patterns,
 dynamic object keys, primitive RHS coercion and general iterators remain

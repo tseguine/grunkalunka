@@ -501,6 +501,18 @@ fn source_property_names_preserve_utf16_and_absent_values() {
 }
 
 #[test]
+fn numeric_literal_keys_use_ecmascript_names_in_records_and_dictionaries() {
+    for body in [
+        "const o={1:a};return a;",
+        "let n=0;const o={1:(n++,a),[+1]:(n++,b),[-0]:a,'01':b};const keys=Object.keys(o);return o[1]===b&&o[0]===a&&o['01']===b&&n===2&&keys.length===3&&keys[0]==='0'&&keys[1]==='1'&&keys[2]==='01'?1:0;",
+        "const o={0x10:a,1_000:b,1e-7:a,0.000001:b,1e20:a,1e21:b,9007199254740993:a,[1e999]:b};return o['16']===a&&o['1000']===b&&o['1e-7']===a&&o['0.000001']===b&&o['100000000000000000000']===a&&o['1e+21']===b&&o['9007199254740992']===a&&o.Infinity===b?1:0;",
+        "const d=Object.create(null);d[-1.5]=a;d[2]=b;const keys=Object.keys(d);return d['-1.5']===a&&d[2]===b&&keys[0]==='2'&&keys[1]==='-1.5'?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn source_object_annotations_do_not_change_runtime_identity() {
     compare_typed(
         "const o={x:a};const alias=o;return o===alias?a:b;",
@@ -514,7 +526,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "const o={};return o[a]?a:b;",
         "const o={get x(){return a;}};return o.x?a:b;",
         "const o={x(){return a;}};return a;",
-        "const o={1:a};return a;",
         "const o={x:Promise.resolve(a)};return o.x===a?a:b;",
         "const p=Promise.resolve(a);const o={x:p};return o.x===a?a:b;",
         "const o={x:1n};return a;",

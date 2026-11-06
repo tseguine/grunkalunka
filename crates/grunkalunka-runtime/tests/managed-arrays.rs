@@ -299,12 +299,22 @@ fn array_prototype_guards_match_native_intrinsic_names_without_restricting_objec
 }
 
 #[test]
-fn unsupported_array_semantics_reject_before_ir_validation() {
+fn numeric_literal_array_properties_only_grow_length_for_array_indices() {
     for body in [
-        "const x=[a];return x[b]===a?a:b;",
         "const x=[];x[0.5]=a;return a;",
         "const x=[];x[-1]=a;return a;",
         "const x=[];x[4294967296]=a;return a;",
+        "const x=[];x[-1]=a;x[0.5]=b;x[4294967295]=a;x[4294967296]=b;const initial=x.length;x[-0]=a;x[4294967294]=b;const before=x.length;x.length=0;const keys=Object.keys(x);return initial===0&&before===4294967295&&x[0]===undefined&&x[-1]===a&&x[0.5]===b&&keys.length===4&&keys[0]==='-1'&&keys[3]==='4294967296'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn unsupported_array_semantics_reject_before_ir_validation() {
+    for body in [
+        "const x=[a];return x[b]===a?a:b;",
         "const x=[];x.length=0.5;return a;",
         "const x=[];x.length=-1;return a;",
         "const x=[];x.length=4294967296;return a;",

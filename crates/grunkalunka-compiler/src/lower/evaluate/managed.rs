@@ -1,6 +1,6 @@
 //! Managed source values use the ordinary expression cursor and traced IR lanes.
 use super::*;
-use oxc_ast::ast::{ObjectExpression, ObjectPropertyKind, PropertyKey, PropertyKind};
+use oxc_ast::ast::{ObjectExpression, ObjectPropertyKind, PropertyKind};
 mod arrays;
 
 pub(super) enum ManagedWork<'e, 'a> {
@@ -135,7 +135,7 @@ fn member<'e, 'a>(
             )?,
         ))),
         Expression::ComputedMemberExpression(m) if !m.optional => {
-            let key = computed_key(node, &m.expression, array, dictionary, depth + 1)?;
+            let key = computed_key(node, &m.expression, depth + 1)?;
             Ok(Some((&m.object, member_key(node, key, array, dictionary)?)))
         }
         _ => Ok(None),
@@ -229,32 +229,16 @@ pub(in crate::lower) fn member_key(
 fn computed_key(
     node: &impl GetSpan,
     key: &Expression<'_>,
-    array: bool,
-    dictionary: bool,
     depth: usize,
 ) -> Result<Vec<u16>, String> {
-    let key = if array || dictionary {
-        closures::unwrapped_at(key, depth)
-            .ok_or_else(|| unsupported(node, "expression nesting exceeds this experiment's limit"))?
-            .0
-    } else {
-        key
-    };
-    match key {
-        Expression::StringLiteral(s) => Ok(s.value.encode_utf16().collect()),
-        Expression::NumericLiteral(n)
-            if array
-                && n.value >= 0.0
-                && n.value <= f64::from(u32::MAX)
-                && n.value.fract() == 0.0 =>
-        {
-            Ok((n.value as u32).to_string().encode_utf16().collect())
-        }
-        _ => Err(unsupported(
+    let (key, _) = closures::unwrapped_at(key, depth)
+        .ok_or_else(|| unsupported(node, "expression nesting exceeds this experiment's limit"))?;
+    static_keys::literal(key).ok_or_else(|| {
+        unsupported(
             node,
-            "managed property keys require a String literal or supported array index literal",
-        )),
-    }
+            "managed property keys require a String or numeric literal",
+        )
+    })
 }
 
 fn assignment_member<'e, 'a>(
@@ -280,7 +264,7 @@ fn assignment_member<'e, 'a>(
             )?,
         ))),
         SimpleAssignmentTarget::ComputedMemberExpression(m) if !m.optional => {
-            let key = computed_key(node, &m.expression, array, dictionary, depth + 1)?;
+            let key = computed_key(node, &m.expression, depth + 1)?;
             Ok(Some((&m.object, member_key(node, key, array, dictionary)?)))
         }
         _ => Ok(None),
@@ -1276,18 +1260,8 @@ impl Lowering<'_, '_> {
                         "managed accessors and methods are not yet admitted",
                     ));
                 }
-                let key = match &property.key {
-                    PropertyKey::StaticIdentifier(i) if !property.computed => {
-                        i.name.encode_utf16().collect()
-                    }
-                    PropertyKey::StringLiteral(s) => s.value.encode_utf16().collect(),
-                    _ => {
-                        return Err(unsupported(
-                            property.as_ref(),
-                            "managed literal keys require an identifier or String literal",
-                        ));
-                    }
-                };
+                let key = static_keys::property(&property.key, property.computed, depth + 1)
+                    .ok_or_else(|| unsupported(property.as_ref(), "managed literal keys require a static identifier, String or numeric literal"))?;
                 let key = checked_key(property.as_ref(), key)?;
                 work.push(Work::Managed(ManagedWork::LiteralValue {
                     node,

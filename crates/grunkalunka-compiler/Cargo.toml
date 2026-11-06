@@ -12,5 +12,5 @@ oxc_ast.workspace = true
 oxc_parser.workspace = true
 oxc_semantic.workspace = true
 oxc_span.workspace = true
-oxc_syntax.workspace = true
+oxc_syntax = { workspace = true, features = ["to_js_string"] }
 wat.workspace = true

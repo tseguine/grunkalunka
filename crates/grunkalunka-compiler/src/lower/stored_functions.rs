@@ -1,9 +1,6 @@
 //! Finite original-source heap alternatives; never effects or runtime targets.
 use super::*;
-use oxc_ast::{
-    AstKind,
-    ast::{ObjectPropertyKind, PropertyKey},
-};
+use oxc_ast::{AstKind, ast::ObjectPropertyKind};
 use oxc_syntax::{GetNodeId, node::NodeId};
 use std::collections::{BTreeMap, BTreeSet};
 mod elements;
@@ -52,17 +49,6 @@ fn symbol(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<Symbo
         .get()
         .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
 }
-fn key(node: &Expression<'_>) -> Option<Key> {
-    match closures::unwrapped(node, 0)? {
-        Expression::StringLiteral(s) => Some(s.value.encode_utf16().collect()),
-        Expression::NumericLiteral(n)
-            if n.value >= 0.0 && n.value <= f64::from(u32::MAX) && n.value.fract() == 0.0 =>
-        {
-            Some((n.value as u32).to_string().encode_utf16().collect())
-        }
-        _ => None,
-    }
-}
 fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternatives) -> bool {
     let entry = map.entry(key).or_default();
     let before = entry.len();
@@ -104,7 +90,7 @@ fn pattern_definitions(
                     pending.push((&rest.argument, Rule::Fresh(Origin::Object(rest.node_id()))));
                 }
                 for property in object.properties.iter().rev() {
-                    if let Some(key) = binding_patterns::key(property) {
+                    if let Some(key) = static_keys::property(&property.key, property.computed, 0) {
                         pending.push((&property.value, Rule::Member(id, key)));
                     }
                 }
@@ -323,15 +309,7 @@ impl Fields {
                             }
                         }
                         if let ObjectPropertyKind::ObjectProperty(property) = property {
-                            let name = match &property.key {
-                                PropertyKey::StaticIdentifier(k) if !property.computed => {
-                                    Some(k.name.encode_utf16().collect())
-                                }
-                                PropertyKey::StringLiteral(k) => {
-                                    Some(k.value.encode_utf16().collect())
-                                }
-                                _ => None,
-                            };
+                            let name = static_keys::property(&property.key, property.computed, 0);
                             if let Some(name) = name {
                                 own.insert(name, Some(property.value.node_id()));
                             } else {
@@ -545,7 +523,9 @@ impl Fields {
                                 ))
                             }
                             Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
-                                if let Some(key) = key(&m.expression) {
+                                if let Some(key) = closures::unwrapped(&m.expression, 0)
+                                    .and_then(static_keys::literal)
+                                {
                                     writes.push((m.object.node_id(), key, a.right.node_id()));
                                 } else {
                                     mutations.push(mutations::Mutation::AnyKeyWrite {
@@ -564,7 +544,9 @@ impl Fields {
                     m.property.name.encode_utf16().collect(),
                 )),
                 AstKind::ComputedMemberExpression(m) if !m.optional => {
-                    if let Some(key) = key(&m.expression) {
+                    if let Some(key) =
+                        closures::unwrapped(&m.expression, 0).and_then(static_keys::literal)
+                    {
                         Some(Rule::Member(m.object.node_id(), key))
                     } else {
                         // A dynamic read is an unknown boxed value, not an

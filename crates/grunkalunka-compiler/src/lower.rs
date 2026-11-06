@@ -52,6 +52,7 @@ mod promises;
 mod source_block_tests;
 mod source_control;
 mod source_errors;
+mod static_keys;
 mod storage;
 pub(super) mod stored_functions;
 pub(super) use callbacks::infer_callback_parameters;

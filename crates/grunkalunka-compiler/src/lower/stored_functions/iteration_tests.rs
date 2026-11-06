@@ -497,3 +497,22 @@ fn array_rest_origins_prove_the_new_receiver_but_keep_copied_elements_opaque() {
         assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }
+
+#[test]
+fn numeric_property_origins_follow_collisions_aliases_and_named_array_writes() {
+    for body in [
+        "const o={1:'safe'};const observed=o['1'];return a;",
+        "const o={'0':'safe'};const {[-0]:value}=o;const observed=value;return a;",
+        "const o={'-1.5':'safe'};const {[-1.5]:value}=o;const observed=value;return a;",
+        "const items=['safe'];items[-1]=a;for(const item of items){const observed=item;}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const o={1:'safe','1':a};const observed=o[1];return a;",
+        "const o={1:'safe'};const alias=o;alias[0x1]=a;const {1:value}=o;const observed=value;return a;",
+        "const o={[-0]:'safe'};o[0]=a;const observed=o['0'];return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+    }
+}

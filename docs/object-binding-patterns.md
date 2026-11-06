@@ -2,8 +2,8 @@
 
 Local `const` and `let` declarations admit object binding patterns over
 source-proven managed objects. This supports shorthand fields, renamed fields,
-and identifier or String-literal property names, including literal-computed
-String keys and nested object or array patterns. Identifier leaves and whole
+and static identifier, String and numeric property names, including literal-computed
+keys and nested object or array patterns. Identifier leaves and whole
 nested patterns may have lazy defaults, and nested array patterns may end in an
 identifier rest element. Object patterns can likewise collect remaining fields with
 `...rest`. The same declaration path applies in ordinary blocks,

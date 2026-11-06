@@ -233,7 +233,7 @@ lookup and silently discard inherited behavior.
 ## Synchronous source admission
 
 Fresh object literals admit ordinary initializer/shorthand properties with static
-identifier or String keys, including computed String literals. Values can contain
+identifier, String and numeric keys, including literal-computed names. Values can contain
 the four primitive kinds, Strings or other constructed objects and arrays. Properties evaluate left to
 right; duplicate keys retain the last value. Static reads/writes preserve aliases,
 receiver snapshots, RHS results and prior saved reads. Known-object bindings can be
@@ -262,8 +262,8 @@ checked against the actual native intrinsic names in tests. Other absent static
 keys return Undefined. This temporary admission boundary is not a chosen permanent
 object model or a replacement for prototype-aware lookup.
 
-Dynamic property keys, optional access, unknown-kind receivers, accessors, methods,
-spread and numeric literal keys reject. Implicit managed coercions, loose equality
+Ordinary-object reads still require a static key and a known receiver. Optional
+access, accessors and literal method definitions remain outside this profile. Implicit managed coercions, loose equality
 and reference-aware async frames remain separate work. Managed properties cannot
 be returned directly through the primitive ABI; observations must produce a supported primitive result.
 Known typed function values in managed containers and calls through proven
@@ -334,9 +334,12 @@ the four existing primitive kinds, Strings, objects and other arrays, including 
 rebinding, saved element reads and the receiver snapshot before an assignment RHS
 retain their identity/value semantics. Empty arrays are truthy.
 
-Known-array reads and plain writes admit static String keys and unsigned integer
-Number literals through 2^32-1. The backend distinguishes actual array indices
-from named properties. `length` reads, including computed static text, produce
+Known-array reads and plain writes accept static String and numeric literal keys.
+Numeric property names use the JavaScript spelling of the parsed Number, also in
+record literals, bindings, dictionary accesses and object-rest exclusions. For
+example, `0x10` names `"16"`, `-0` names `"0"`, and `1e21` names `"1e+21"`.
+Only a canonical array index below 2^32-1 can grow the array. A negative,
+fractional or larger numeric key selects a named property. `length` reads, including computed static text, produce
 known Numbers and preserve existing numeric layouts. Plain length writes accept
 valid unsigned integer literals through 2^32-1, retain the assigned Number result,
 remove truncated elements and leave holes on subsequent growth. Erased TS wrappers
@@ -349,7 +352,7 @@ Tests compare this boundary with the native intrinsic names. The additional Arra
 guard does not restrict ordinary objects' own keys such as `map` or `push`.
 Prototype mutation and foreign references remain unavailable in this profile.
 
-Dynamic keys, other numeric keys, spread, methods, descriptors, coercions, invalid
+Dynamic keys, array spread, methods, descriptors, coercions, invalid
 or dynamic length writes and optional access still reject. Element snapshots use
 the general carrier: returning `items[1]` directly through a Number export still
 requires a primitive-result proof/projection, and exporting an array requires a
