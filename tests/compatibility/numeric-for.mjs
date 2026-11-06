@@ -25,6 +25,12 @@ const cases = [
   ['for-header-expression-depth', `for(${'('.repeat(128)}a${')'.repeat(128)};${'('.repeat(128)}0${')'.repeat(128)};${'('.repeat(128)}b${')'.repeat(128)}) {} return a;`],
 ];
 export const numericForPrograms = cases.map(([id, body]) => [id, body, body]);
+// Preserve the exact former rejected source bytes, including the legacy
+// parameter spacing and absent terminal newline, when it becomes executable.
+const formerForInSource = 'export function run(a,b) { for(const i in {}) {} return a; }';
+numericForPrograms.push(['for-in', '', '', undefined, undefined, {
+  sourceJS: formerForInSource, sourceTS: formerForInSource,
+}]);
 numericForPrograms.push(['for-typescript-headers',
   'let x=a; for(let i=0;i<3;i++) { x+=b; } return x;',
   'let x=a; for(let i:number=0;(i<3) as boolean;(<number>(i++))) { x+=b; } return x;']);
@@ -56,7 +62,6 @@ const negatives = [
   ['for-init-call', 'for(Math.random();0;) {} return a;', expression],
   ['for-missing-return', 'for(let i=0;i<1;i++) { return a; }', returns],
   ['for-omitted-test-return-policy', 'for(;;) { return a; }', returns],
-  ['for-in', 'for(const i in {}) {} return a;', statement],
   ['for-of', 'for(const i of [a]) { return i; } return b;', 'expression is outside the numeric experiment: managed value requires an identity or managed storage position'],
   ['for-label', 'outer: for(;;) { return a; } return b;', statement],
   ['for-header-statement-limit', `for(let i=0;0;i++) { ${'a=b;'.repeat(253)} } return a;`, 'at most 256 statements'],

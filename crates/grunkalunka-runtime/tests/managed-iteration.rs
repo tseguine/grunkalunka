@@ -16,6 +16,42 @@ fn array_for_of_visits_values_holes_and_empty_arrays() {
 }
 
 #[test]
+fn for_in_enumerates_keys_in_ecmascript_order() {
+    for body in [
+        "const obj={b:a,'1':b,a:3,'0':a};let n=0;for(const key in obj)n=n*10+(key==='0'?1:key==='1'?2:key==='b'?3:4);return n;",
+        "const obj=Object.create(null);obj.z=a;obj.a=b;let n=0;for(const key in obj)n=n*10+(key==='z'?1:2);return n;",
+        "const items=[a,,b];items.foo=a;let n=0;for(let key in items)n=n*10+(key==='0'?1:key==='2'?2:3);return n;",
+        "let n=0;for(const key in 'A💠B')n+=key==='0'?1:key==='1'?2:key==='2'?4:key==='3'?8:0;return n;",
+        "let n=0;for(const key in {})n++;for(const key in a)n+=10;return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn for_in_retains_rhs_snapshot_and_skips_removed_keys() {
+    for body in [
+        "const source=[a,b,b];let n=0;for(const key in source){n=n*10+(key==='0'?1:key==='1'?2:3);source.pop();}return n;",
+        "const obj={a:1};let n=0;for(const key in obj){n++;obj.b=2;}return n;",
+        "let current={x:a,y:b},count=0;const original=current;for(const key in current){count++;current={z:a};}return count*10+(current!==original?1:0);",
+        "let n=0;for(const key in {a:1,b:2,c:3}){if(key==='b')continue;n++;if(key==='c')break;}return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn for_in_keys_remain_strings_through_helpers_captures_and_let_writes() {
+    for body in [
+        "let n=0;for(const key in {a:1,bb:2})n=n*10+key.length;return n;",
+        "let n=0;for(let key in {' a ':1,' bb ':2}){key=key.trim();n=n*10+key.length;}return n;",
+        "let first=()=>'',last=()=>'';for(const key in {a:1,bc:2}){const read=()=>key;if(key==='a')first=read;last=read;}return first().length*10+last().length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn array_for_of_evaluates_one_rhs_and_keeps_the_original_array_and_selection() {
     for body in [
         "let calls=0;const make=()=>{calls++;return [a,b];};let n=0;for(const item of make())n++;return calls*10+n;",
@@ -227,7 +263,7 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "for(const item of [a])item=b;return a;",
         "for(const item of [a])return item+1;return a;",
         "outer:for(const item of [a]){break outer;}return a;",
-        "for(const key in {item:a}){}return a;",
+        "for(var key in {item:a}){}return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {

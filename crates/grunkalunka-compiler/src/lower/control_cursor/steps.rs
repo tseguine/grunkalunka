@@ -152,6 +152,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             ControlNode::ForOf(source) => {
                 self.begin_for_of(source, output, depth, cursor)?;
             }
+            ControlNode::ForIn(source) => {
+                self.begin_for_in(source, output, depth, cursor)?;
+            }
             ControlNode::DoWhile(source) => {
                 // Do-while tests are admitted only after the body.
                 let body = self.region(&source.body);
@@ -407,7 +410,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 depth,
                 outer,
             } => {
-                let condition = self.region(&source.right);
+                let condition = self.region(source.right());
                 self.resume_for_of_source(
                     Box::new(ForOfFrame {
                         source,
@@ -417,6 +420,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         depth,
                         outer,
                         old_loop: self.in_loop_body,
+                        enumerated: None,
+                        presence: None,
+                        prefix: None,
                     }),
                     value.expect("for-of iterable"),
                     cursor,

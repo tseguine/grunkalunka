@@ -7,6 +7,7 @@ import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
 import { numericMathUnary } from './numeric-math-unary.mjs';
 import { numericCalls } from './numeric-calls.mjs';
+import { numericForPrograms } from './numeric-for.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
 import { syncCatchPrograms, promotedCatchGap } from './sync-catch.mjs';
@@ -289,9 +290,18 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 816);
+  assert.equal(inventory.records.size, 815);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('for-in promotes its exact former rejection into an executable source', () => {
+  const source = programSources(numericForPrograms.find(row => row[0] === 'for-in'));
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),
+    'a8a472951a967a352c4303be97c0ebf33b39fee11b1d3525d5eb3b0ddfd2d2f5');
+  assert.equal(source.oracleSource, source.sourceJS);
+  assert.ok(!rejected.some(row => row[0] === 'for-in'));
+  assert.ok(!catalog.records.some(row => row.id === 'for-in'));
 });
 
 test('managed objects execute both exact original discard rejection sources', () => {

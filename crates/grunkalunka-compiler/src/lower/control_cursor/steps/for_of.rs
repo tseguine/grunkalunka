@@ -10,37 +10,83 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         depth: usize,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if source.r#await {
-            return Err(unsupported(source, "for-await-of is not yet admitted"));
+        self.begin_iteration(IterationSource::Of(source), output, depth, cursor)
+    }
+
+    pub(super) fn begin_for_in<'n>(
+        &mut self,
+        source: &'n ForInStatement<'ast>,
+        output: Region,
+        depth: usize,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String> {
+        self.begin_iteration(IterationSource::In(source), output, depth, cursor)
+    }
+
+    fn begin_iteration<'n>(
+        &mut self,
+        source: IterationSource<'n, 'ast>,
+        output: Region,
+        depth: usize,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String> {
+        if let IterationSource::Of(for_of) = source
+            && for_of.r#await
+        {
+            return Err(unsupported(&source, "for-await-of is not yet admitted"));
         }
-        let pattern = iteration::for_of_pattern(source)
-            .ok_or_else(|| unsupported(source, "for-of requires one const or let binding"))?;
-        let ForStatementLeft::VariableDeclaration(declaration) = &source.left else {
-            unreachable!("checked lexical for-of binding");
+        let pattern = iteration::lexical_iteration_pattern(source.left())
+            .ok_or_else(|| unsupported(&source, "iteration requires one const or let binding"))?;
+        if source.is_in() && !matches!(pattern, BindingPattern::BindingIdentifier(_)) {
+            return Err(unsupported(
+                &source,
+                "for-in requires an identifier binding",
+            ));
+        }
+        let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
+            unreachable!("checked lexical iteration binding");
         };
         self.charge_statement(declaration.as_ref())?;
         if let BindingPattern::BindingIdentifier(identifier) = pattern {
             self.charge_declaration_bindings(identifier.as_ref(), 1)?;
         }
-        let mode = self
-            .intrinsic_iterable_mode(&source.right, 0)
-            .ok_or_else(|| {
-                unsupported(
-                    &source.right,
-                    "for-of requires a source-proven Array or String",
-                )
-            })?;
-        let header = self.region(source);
+        let mode = if source.is_in() {
+            match self.managed_source_type(source.right(), 0) {
+                Some(Type::ManagedObject) => evaluate::Mode::Object,
+                Some(Type::ManagedArray) => evaluate::Mode::Array,
+                Some(Type::ManagedValue)
+                    if self.stored.string(source.right().node_id())
+                        || self.stored.container(source.right().node_id()).is_some() =>
+                {
+                    evaluate::Mode::Managed
+                }
+                _ if self.numeric_result_shape(source.right(), 0) => evaluate::Mode::Number,
+                _ => {
+                    return Err(unsupported(
+                        source.right(),
+                        "for-in requires a source-proven object, array, String or Number",
+                    ));
+                }
+            }
+        } else {
+            self.intrinsic_iterable_mode(source.right(), 0)
+                .ok_or_else(|| {
+                    unsupported(
+                        source.right(),
+                        "for-of requires a source-proven Array or String",
+                    )
+                })?
+        };
+        let header = self.region(&source);
         cursor.pending.push(Frame::ForOfSource {
             source,
             output,
             depth,
             outer: self.bindings.len(),
         });
-        // Do not publish the head binding before RHS evaluation. References to
-        // its shadowing symbol retain the existing controlled TDZ rejection.
+        // RHS evaluation precedes publication of the shadowing head binding.
         cursor.next = Some(Next::Expression {
-            source: &source.right,
+            source: source.right(),
             output: header,
             depth: 0,
             mode,
@@ -55,11 +101,28 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         let source = frame.source;
-        let string = self.values[iterable.0] == Type::ManagedValue;
+        let mut iterable = iterable;
+        if source.is_in() {
+            // The source domain has immutable intrinsic prototypes and own data
+            // entries, so enumeration begins with the original own-key order.
+            let keys = self.value(Type::ManagedArray);
+            Self::push(
+                &mut frame.header,
+                &source,
+                Op::ManagedEnumerateOwn {
+                    kind: ir::OwnEnumeration::Keys,
+                    result: keys,
+                    input: iterable,
+                },
+            );
+            frame.enumerated = Some(iterable);
+            iterable = keys;
+        }
+        let string = !source.is_in() && self.values[iterable.0] == Type::ManagedValue;
         let zero = self.value(Type::Number);
         Self::push(
             &mut frame.header,
-            source,
+            &source,
             Op::Constant {
                 result: zero,
                 value: 0.0,
@@ -75,7 +138,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         });
         Self::push(
             &mut frame.header,
-            source,
+            &source,
             Op::Initialize {
                 slot: index,
                 value: zero,
@@ -85,7 +148,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let position = self.value(Type::Number);
         Self::push(
             &mut frame.condition,
-            source,
+            &source,
             Op::Load {
                 result: position,
                 slot: index,
@@ -96,7 +159,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             // A saved String is immutable. Arrays must re-read their live length.
             Self::push(
                 &mut frame.header,
-                source,
+                &source,
                 Op::ManagedStringLength {
                     result: length,
                     input: iterable,
@@ -105,7 +168,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         } else {
             Self::push(
                 &mut frame.condition,
-                source,
+                &source,
                 Op::ManagedArrayLength {
                     result: length,
                     array: iterable,
@@ -115,7 +178,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let condition = self.value(Type::Predicate);
         Self::push(
             &mut frame.condition,
-            source,
+            &source,
             Op::Compare {
                 result: condition,
                 operator: Compare::Less,
@@ -125,13 +188,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         );
         frame.condition.exit = Exit::Yield(condition);
 
-        let mut body = self.region(&source.body);
+        let mut body = self.region(source.body());
         // Condition and body are siblings. Reload the ancestor-owned slot and
         // advance before source body control flow, including continue or await.
         let position = self.value(Type::Number);
         Self::push(
             &mut body,
-            source,
+            &source,
             Op::Load {
                 result: position,
                 slot: index,
@@ -142,7 +205,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if string {
             Self::push(
                 &mut body,
-                source,
+                &source,
                 Op::ManagedStringIterValue {
                     result: selected,
                     input: iterable,
@@ -151,7 +214,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             );
             Self::push(
                 &mut body,
-                source,
+                &source,
                 Op::ManagedStringLength {
                     result: width,
                     input: selected,
@@ -160,7 +223,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         } else {
             Self::push(
                 &mut body,
-                source,
+                &source,
                 Op::ManagedArrayAt {
                     result: selected,
                     array: iterable,
@@ -169,7 +232,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             );
             Self::push(
                 &mut body,
-                source,
+                &source,
                 Op::Constant {
                     result: width,
                     value: 1.0,
@@ -179,7 +242,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let next = self.value(Type::Number);
         Self::push(
             &mut body,
-            source,
+            &source,
             Op::Binary {
                 result: next,
                 operator: Binary::Add,
@@ -189,15 +252,31 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         );
         Self::push(
             &mut body,
-            source,
+            &source,
             Op::Store {
                 slot: index,
                 value: next,
             },
         );
-        let pattern = iteration::for_of_pattern(source).expect("admitted for-of binding");
-        let ForStatementLeft::VariableDeclaration(declaration) = &source.left else {
-            unreachable!("checked lexical for-of binding");
+        if let Some(original) = frame.enumerated {
+            // Unlike a plain Object.keys loop, for-in skips a key removed
+            // before its visit. New keys do not join the initial enumeration.
+            let present = self.value(Type::Predicate);
+            Self::push(
+                &mut body,
+                &source,
+                Op::ManagedHasOwn {
+                    result: present,
+                    input: original,
+                    key: ir::ManagedKey::String(selected),
+                },
+            );
+            frame.presence = Some(present);
+        }
+        let pattern = iteration::lexical_iteration_pattern(source.left())
+            .expect("admitted iteration binding");
+        let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
+            unreachable!("checked lexical iteration binding");
         };
         // A body-owned Initialize allocates a fresh captured cell each time,
         // for const as well as let. No classic for-header renewal is needed.
@@ -234,16 +313,23 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
     pub(in super::super) fn begin_for_of_body<'n>(
         &mut self,
-        frame: Box<ForOfFrame<'n, 'ast>>,
+        mut frame: Box<ForOfFrame<'n, 'ast>>,
         body: Region,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) {
         let source = frame.source;
         let depth = frame.depth;
+        // Preserve the index advance even when a removed key skips the body.
+        let body = if frame.presence.is_some() {
+            frame.prefix = Some(body);
+            self.region(source.body())
+        } else {
+            body
+        };
         cursor.pending.push(Frame::ForOf(frame));
         self.in_loop_body = true;
         cursor.next = Some(Next::Statement {
-            source: &source.body,
+            source: source.body(),
             output: body,
             depth: depth + 1,
         });
@@ -263,20 +349,40 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             condition,
             outer,
             old_loop,
+            presence,
+            prefix,
             ..
         } = frame;
         self.in_loop_body = old_loop;
         self.bindings.truncate(outer);
+        let (body, completion) = match (presence, prefix) {
+            (Some(present), Some(mut prefix)) => {
+                let alternate = self.region(&source);
+                Self::push(
+                    &mut prefix,
+                    &source,
+                    Op::If {
+                        result: None,
+                        condition: present,
+                        consequent: body,
+                        alternate,
+                    },
+                );
+                (prefix, Completion::NORMAL.union(completion))
+            }
+            (None, None) => (body, completion),
+            _ => unreachable!("for-in key presence belongs to its prefix"),
+        };
         Self::push(
             &mut header,
-            source,
+            &source,
             Op::While {
                 condition,
                 body,
                 step: None,
             },
         );
-        Self::push(&mut output, source, Op::Block(header));
+        Self::push(&mut output, &source, Op::Block(header));
         cursor.completed = Some(Outcome::Statement(output, completion.pretest_loop()));
     }
 }
