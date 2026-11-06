@@ -179,6 +179,21 @@ fn array_at_transports_managed_elements_and_composes_with_helpers() {
 }
 
 #[test]
+fn array_at_defaults_compose_with_strings_records_copies_and_lazy_effects() {
+    for source in [
+        "export function run(a,b){const {text=' ? '}={text:[' first ',' second '].at(a)};return text.trim().length;}",
+        "function pick(xs,i){return xs.at(i);}function forward(xs,i){return pick(xs,i);}export function run(a,b){const rows=[{label:' first '},{label:' second '}];const read=()=>forward(rows,a);const {item={label:' missing '}}={item:read()};return item.label.trim().length;}",
+        "export function run(a,b){const {item=[]}={item:[[a],[a,b]].at(a)};return item.length;}",
+        "export function run(a,b){let n=0;const row={label:' first '};let rows=[row,{label:' second '}];const old=rows;const {item=(n++,{label:' missing '})}={item:rows.at((rows=[{label:' new '}],a))};old[0].label=' changed ';return item.label.trim().length*10+n;}",
+        "export function run(a,b){const rows=[{label:' first '},{label:' second '}];const [...copy]=rows.slice();const {item={label:' missing '}}={item:copy.at(a)};rows[0].label=' changed ';return item.label.trim().length;}",
+        "export function run(a,b){let n=0;const [text=(n++,' ? ')]=[[' first ',' second '].at(a)];return text.trim().length*10+n;}",
+        "export function run(a,b){const {key='none'}={key:Object.keys({first:a,second:b}).at(a)};return key.trim().length;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
 fn array_at_keeps_unsupported_receivers_coercions_and_overrides_explicit() {
     for body in [
         "const x=[a];return x.at('0')===a?1:0;",

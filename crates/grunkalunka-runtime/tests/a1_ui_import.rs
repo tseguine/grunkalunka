@@ -1020,3 +1020,17 @@ fn imported_handler_reads_an_action_marker_by_index() {
     "#,
     );
 }
+
+#[test]
+fn imported_handler_defaults_a_missing_selected_action_record() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        function pick(actions,index) { return actions.at(index); }
+        export function run(a,b) {
+            const actions=[{label:' Expand '},{label:' Collapse '}];
+            const {action={label:' Collapse '}}={action:pick(actions,a>0?0:8)};
+            const handle=()=>choose(action.label.trim()==='Expand'?1:0,actions.length);
+            return +handle();
+        }"#,
+    );
+}

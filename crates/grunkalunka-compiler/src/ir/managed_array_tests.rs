@@ -876,3 +876,46 @@ fn array_shift_keeps_unknown_receivers_and_invalidated_positions_explicit() {
     module.functions[0].body.operations[position].kind = Op::ManagedArrayShift { result, array };
     verify_module(&module).unwrap();
 }
+
+#[test]
+fn array_at_defaults_admit_typed_consumers_on_small_stacks() {
+    for source in [
+        "export function run(a,b){const {text=' ? '}={text:[' first ',' second '].at(a)};return text.trim().length;}",
+        "function pick(xs,i){return xs.at(i);}export function run(a,b){const rows=[{label:' first '},{label:' second '}];const {item={label:' missing '}}={item:pick(rows,a)};return item.label.trim().length;}",
+        "export function run(a,b){const {item=[]}={item:[[a],[a,b]].at(a)};return item.length;}",
+        "export function run(a,b){const xs=[' old '];const alias=xs;alias[0]=' new ';const {text=' ? '}={text:xs.at(a)};return text.trim().length;}",
+        "export function run(a,b){const xs=[' first ',' second '];const [...copy]=xs.slice();const {text=' ? '}={text:copy.at(a)};return text.trim().length;}",
+    ] {
+        for typescript in [false, true] {
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || crate::compile(source, typescript))
+                .unwrap()
+                .join()
+                .unwrap();
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+}
+
+#[test]
+fn array_at_defaults_do_not_establish_presence_or_erase_other_kinds() {
+    for body in [
+        "return ['text'].at(0).trim().length;",
+        "return ['text'].at(a).trim().length;",
+        "const {text='?'}={text:['text',b].at(a)};return text.trim().length;",
+        "const xs=['text'];const alias=xs;alias[0]=null;const {text='?'}={text:xs.at(a)};return text.trim().length;",
+        "const xs=[{label:'text'}];xs[0].label=b;const {item={label:'?'}}={item:xs.at(a)};return item.label.trim().length;",
+        "const {text='?'}={text:[,'text'].at(a)};return text.trim().length;",
+        "const xs=['text'];xs.length=2;const {text='?'}={text:xs.at(a)};return text.trim().length;",
+        "const {text=null}={text:['text'].at(a)};return text.trim().length;",
+        "const xs=['text'];delete xs[0];const {text='?'}={text:xs.at(a)};return text.trim().length;",
+        "const {f=()=>b}={f:[()=>a].at(a)};return f();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            let error = crate::compile(&source, typescript).err().unwrap();
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
