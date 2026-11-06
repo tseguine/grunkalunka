@@ -595,3 +595,40 @@ fn array_slice_saves_receiver_endpoints_and_runs_all_argument_effects() {
         "export function run(a:string,b:boolean):void{const src:number=[a,b];return (src as string)[('slice' as string)](1).length;}",
     );
 }
+
+#[test]
+fn array_slice_copied_values_retain_string_and_record_origins() {
+    for source in [
+        "export function run(a,b){const xs=[{label:' One '},{label:' Two '}];let n=0;for(const {label} of xs.slice(a,b))n+=label.trim().length;return n;}",
+        "function page(xs,start){return xs.slice(start);}export function run(a,b){const xs=[' One ',' Two '];const get=()=>page(xs,a);let n=0;for(const label of get())n+=label.trim().length;return n;}",
+        "export function run(a,b){const xs=[' x '];xs.named=a;const copy=xs.slice().slice();let n=0;for(const label of [...copy])n+=label.trim().length;return n;}",
+        "export function run(a,b){const xs=[' x '];const copy=xs.slice();copy[0]=a;return xs[0].trim().length;}",
+        "export function run(a,b){const xs=[' x '].slice(a);const [name='empty']=xs;return name.trim().length;}",
+        "export function run(a,b){const item={label:' x '};const xs=[item].slice();item.label=' changed ';let n=0;for(const {label} of xs)n+=label.trim().length;return n;}",
+        "export function run(a,b){const xs=[[' x '],[' y ']];let n=0;for(const [label] of xs.slice(a,b))n+=label.trim().length;return n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_slice_value_proofs_reject_holes_and_incompatible_alias_writes() {
+    for body in [
+        "const xs=['x'];const alias=xs;alias[0]=a;for(const s of xs.slice())s.trim();return a;",
+        "const copy=['x'].slice();copy[0]=a;for(const s of copy)s.trim();return a;",
+        "const xs=['x'];xs.length=2;for(const s of xs.slice())s.trim();return a;",
+        "const xs=[,'x'];for(const s of xs.slice())s.trim();return a;",
+        "const xs=[{label:'x'}];const copy=xs.slice();for(const child of copy)child.label=a;return xs[0].label.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let err = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

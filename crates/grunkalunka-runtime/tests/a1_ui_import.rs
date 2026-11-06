@@ -851,3 +851,21 @@ fn imported_handler_selects_from_a_window_of_actions() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_reads_labels_from_a_sliced_action_page() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        function page(items) { return items.slice(1, 3); }
+        export function run(a,b) {
+            const actions = [{label:' Ignore '}, {label:' Reload '}, {label:a > 0 ? ' Expand ' : ' Collapse '}];
+            const visible = page(actions);
+            let expanded = 0;
+            for (const {label} of visible) {
+                if (label.trim() === 'Expand') expanded = 1;
+            }
+            const handle = () => choose(expanded, visible.length);
+            return +handle();
+        }"#,
+    );
+}

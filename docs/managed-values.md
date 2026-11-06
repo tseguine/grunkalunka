@@ -1065,8 +1065,12 @@ references keep their identity. A two-pass sparse-table copy costs space and
 time proportional to stored entries rather than logical length.
 
 The result is a proven Array and composes with helpers, captured handlers,
-iteration, length, own-key queries and boxed indexed reads. This initial slice
-keeps copied element kinds conservative. Borrowed/optional calls, spread call
+iteration, length, own-key queries and boxed indexed reads. Iteration and binding defaults retain copied element kinds from all possible
+source indices, including aliases and writes to either array. Dynamic endpoints
+may select any subset, so analysis conservatively includes all source positions.
+Named fields do not contribute. Direct indexed reads can miss; holes, resizing
+and incompatible writes retain conservative guards. Shared child identities
+remain linked for field mutation analysis. Borrowed/optional calls, spread call
 arguments, endpoint object coercion, custom species and prototype changes remain
 outside the admitted surface. Ordinary source methods named `slice` retain their
 existing call behavior. Tests in `managed-arrays.rs`, the suspension suite and

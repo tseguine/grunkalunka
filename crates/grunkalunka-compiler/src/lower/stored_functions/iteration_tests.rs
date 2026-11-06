@@ -678,3 +678,28 @@ fn string_spread_index_proofs_distinguish_defaults_and_possible_misses() {
     let write = observe("const xs=[...'x'];xs[0]=a;const [s='x']=xs;const observed=s;return a;");
     assert!(write.other && !write.string, "{write:?}");
 }
+
+#[test]
+fn array_slice_values_follow_source_and_copy_aliases_without_named_fields() {
+    for body in [
+        "const src=['x'];src.named=a;for(const v of src.slice(b)){const observed=v;}return a;",
+        "const src=[{label:'x'}];for(const {label} of src.slice()){const observed=label;}return a;",
+        "const src=['x'];const copy=src.slice().slice();for(const v of copy){const observed=v;}return a;",
+        "const src=['x'];const copy=src.slice();copy[0]=a;const observed=src[0];return a;",
+        "const [v='fallback']=['x'].slice(a);const observed=v;return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const src=['x'];const alias=src;alias[0]=a;for(const v of src.slice()){const observed=v;}return a;",
+        "const src=['x'];const copy=src.slice();const alias=copy;alias[0]=a;for(const v of copy){const observed=v;}return a;",
+        "const src=['x'];src.length=2;for(const v of src.slice()){const observed=v;}return a;",
+        "const src=['x'];const copy=src.slice();copy.length=2;for(const v of copy){const observed=v;}return a;",
+        "const src=[,'x'];for(const v of src.slice()){const observed=v;}return a;",
+        "const src=[{label:'x'}];const copy=src.slice();for(const child of copy)child.label=a;const observed=src[0].label;return a;",
+        "const src=[{label:'x'}];src[0].label=a;for(const child of src.slice()){const observed=child.label;}return a;",
+    ] {
+        let facts = observe(body);
+        assert!(facts.other && !facts.string, "{body}: {facts:?}");
+    }
+}

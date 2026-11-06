@@ -3,7 +3,7 @@ use super::{Alternatives, BTreeMap, BTreeSet, Key, NodeId, Origin, extend, mutat
 
 #[derive(Default)]
 pub(super) struct Elements {
-    // Values arrays and entry pairs retain the possible identities of copied values.
+    // Values arrays, entry pairs and slices retain the possible copied identities.
     pub(super) enumerated_values: BTreeMap<NodeId, Alternatives>,
     pub(super) key_lists: BTreeSet<NodeId>,
     // Outer list and pair allocations are distinct. Rows from the same source
