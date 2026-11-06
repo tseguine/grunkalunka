@@ -2,6 +2,12 @@
 mod common;
 
 #[test]
+fn typeof_unresolvable_reference_executes_the_exact_former_guard_source() {
+    let source = "export function run(a,b){return typeof unknownGlobal==='undefined'?a:b;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
 fn typeof_property_values_returns_language_kind_strings() {
     for (value, kind) in [
         ("undefined", "undefined"),
@@ -65,7 +71,6 @@ fn typeof_callable_values_does_not_call_them() {
 #[test]
 fn typeof_keeps_global_tdz_and_unrepresented_operand_boundaries() {
     for source in [
-        "export function run(a,b){return typeof unknownGlobal==='undefined'?a:b;}",
         "export function run(a,b){return typeof Object==='undefined'?a:b;}",
         "export function run(a,b){const kind=typeof x;const x=a;return kind==='undefined'?a:b;}",
         "function f(x){return x;}export function run(a,b){const kind=typeof f;const f=()=>a;return kind==='function'?a:b;}",

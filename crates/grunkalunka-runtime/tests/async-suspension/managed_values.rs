@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn number_property_writes_save_old_values_and_commit_only_after_await_success() {
+    compare_promises(
+        &[
+            "let current={n:a};const old=current;const value=current.n+=(await b,current={n:b},b);return old.n===value&&current.n===b?1:0;",
+            "const o={n:a};try{o.n+=await Promise.reject(b);}catch(e){await a;return o.n===a&&e===b?1:0;}return -1;",
+            "const o={n:a};await b;return o.n++;",
+            "const o={n:a};await b;return o.n+=b;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn typeof_unresolvable_names_keep_text_and_control_flow_across_awaits() {
     compare_promises(
         &[

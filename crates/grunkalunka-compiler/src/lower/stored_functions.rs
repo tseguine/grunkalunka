@@ -416,6 +416,37 @@ impl Fields {
                 // including through captured and erased TypeScript targets.
                 bindings.entry(target).or_default().insert(Origin::Other);
             }
+            let numeric_property = match node.kind() {
+                AstKind::UpdateExpression(update) => Some(&update.argument),
+                AstKind::AssignmentExpression(assignment)
+                    if evaluate::property_update::compound(assignment.operator).is_some() =>
+                {
+                    assignment.left.as_simple_assignment_target()
+                }
+                _ => None,
+            };
+            if let Some(target) = numeric_property {
+                match target {
+                    SimpleAssignmentTarget::StaticMemberExpression(member) => writes.push((
+                        member.object.node_id(),
+                        member.property.name.encode_utf16().collect(),
+                        id,
+                    )),
+                    SimpleAssignmentTarget::ComputedMemberExpression(member) => {
+                        if let Some(key) = closures::unwrapped(&member.expression, 0)
+                            .and_then(static_keys::literal)
+                        {
+                            writes.push((member.object.node_id(), key, id));
+                        } else {
+                            mutations.push(mutations::Mutation::AnyKeyWrite {
+                                receiver: member.object.node_id(),
+                                value: id,
+                            });
+                        }
+                    }
+                    _ => (),
+                }
+            }
             let rule = match node.kind() {
                 AstKind::CallExpression(call)
                     if let Some(kind) = object_intrinsics::enumeration(call, semantic) =>
@@ -457,6 +488,16 @@ impl Fields {
                     None
                 }
                 AstKind::NumericLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::UpdateExpression(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::AssignmentExpression(assignment)
+                    if evaluate::property_update::compound(assignment.operator).is_some() =>
+                {
                     values.insert(id, BTreeSet::from([Origin::Number]));
                     None
                 }
