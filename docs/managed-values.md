@@ -918,16 +918,21 @@ within the admitted domain, not arbitrary exotic objects or descriptors.
 in argument evaluation. It copies boxed values into fresh slots, preserving
 child object identity. Sparse holes and array length are omitted; present
 Undefined entries are included. Each String code unit contributes a one-unit
-String, including lone surrogates. The values array supports ordinary managed
-operations and iteration, with generic element kinds.
-
+String, including lone surrogates. When the source fields and observed writes
+all yield Strings, each iterated value supports String operations. When they
+yield known records, loop heads can destructure their fields. Data literals,
+null-prototype dictionaries and UTF-16 String inputs participate. Spread
+sources and unidentified allocations retain generic values. A fixed outer
+index can miss, even when all yielded elements share a kind.
 
 `Object.entries` uses that same enumeration and creates a separate fresh,
 dense `[key, value]` pair for each result. Pair slots can change independently
 of the input and of other pairs; referenced objects retain identity. A
 `for...of` head can destructure the pair and use String operations on its key.
-The value remains generic. Replacing rows, overwriting their keys, shrinking
-arrays or creating holes can invalidate those proofs. No fixed outer index
+Its value slot carries the same source alternatives as `Object.values`.
+Writes to source objects, returned pairs and shared child records are included
+in the proof. Replacing rows, overwriting slots, shrinking an array or creating
+holes can invalidate it. No fixed outer index
 is assumed to exist merely because the source is an entries call.
 
 The frontend recognizes the unshadowed intrinsics, including a literal computed

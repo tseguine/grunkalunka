@@ -623,3 +623,27 @@ fn enumerated_names_prove_yielded_strings_but_indexed_reads_can_miss() {
         assert!(fact.other && !fact.string, "{body}: {fact:?}");
     }
 }
+
+#[test]
+fn enumerated_values_follow_initializers_alias_writes_and_output_mutations() {
+    for body in [
+        "const k=a?'x':'y';for(const v of Object.values.call(null,{fixed:'x',[k]:'y'})){const observed=v;}return a;",
+        "const src=Object.create(null);src[a?'one':'two']='x';for(const [k,v] of Object.entries(src)){const observed=v;}return a;",
+        "const src=[,'x'];src.named='y';for(const v of Object.values(src)){const observed=v;}return a;",
+        "const [v='x']=Object.values({});const observed=v;return a;",
+        "for(const [k,v] of Object.entries('xy')){const observed=v;}return a;",
+        "const src={x:{label:'x'}};for(const v of Object.values(src)){const observed=v.label;}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const src={x:'x'};const alias=src;alias.y=b;for(const v of Object.values(src)){const observed=v;}return a;",
+        "const src={x:'x',...{y:b}};for(const [k,v] of Object.entries(src)){const observed=v;}return a;",
+        "const rows=Object.entries({x:'x'});for(const row of rows)row[1]=a;for(const [k,v] of rows){const observed=v;}return a;",
+        "const list=Object.values({x:'x'});list.length=2;for(const v of list){const observed=v;}return a;",
+        "const src={label:'x'};const record={x:src};src.label=b;for(const v of Object.values(record)){const observed=v.label;}return a;",
+    ] {
+        let fact = observe(body);
+        assert!(fact.other && !fact.string, "{body}: {fact:?}");
+    }
+}

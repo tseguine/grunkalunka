@@ -118,7 +118,9 @@ key/value pair and compare its name before invoking the service. A handler
 that needs only names can iterate `Object.keys(actions)` and use String
 operations on each yielded name. `Array.isArray(options.items)` lets an A1
 handler choose a service argument according to whether the current value is
-a list or a single action record.
+a list or a single action record. When an action table contains labelled
+records, `for (const [name, {label}] of Object.entries(actions))` can trim
+each label and select the matching service argument.
 
 ### Deliberate remaining limits
 

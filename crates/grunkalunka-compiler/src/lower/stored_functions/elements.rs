@@ -3,6 +3,8 @@ use super::{Alternatives, BTreeMap, BTreeSet, Key, NodeId, Origin, extend, mutat
 
 #[derive(Default)]
 pub(super) struct Elements {
+    // Values arrays and entry pairs retain the possible identities of copied values.
+    pub(super) enumerated_values: BTreeMap<NodeId, Alternatives>,
     pub(super) key_lists: BTreeSet<NodeId>,
     // Outer list and pair allocations are distinct. Rows from the same source
     // call share a conservative pair site for mutation analysis.
@@ -95,6 +97,19 @@ impl Elements {
             if self.key_lists.contains(&array) {
                 // An empty result yields nothing; every initial yielded name is a String.
                 found.insert(Origin::String);
+                continue;
+            }
+            if let Some(snapshot) = self.enumerated_values.get(&array) {
+                if self.pair_sites.contains(&array) {
+                    if start == 0 {
+                        found.insert(Origin::String);
+                    }
+                    if start <= 1 {
+                        found.extend(snapshot);
+                    }
+                } else {
+                    found.extend(snapshot);
+                }
                 continue;
             }
             if let Some(pair) = self.entry_lists.get(&array) {

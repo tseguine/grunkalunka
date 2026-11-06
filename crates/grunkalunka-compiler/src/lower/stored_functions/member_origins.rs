@@ -21,6 +21,68 @@ pub(super) struct Members<'a, 'ast> {
 }
 
 impl Members<'_, '_> {
+    pub(super) fn enumerable_values(&self, receiver: NodeId) -> Alternatives {
+        let mut found = Alternatives::new();
+        let origins = |id: NodeId| self.values.get(&id).into_iter().flatten().copied();
+        for origin in origins(receiver) {
+            let site = match origin {
+                Origin::Object(site) | Origin::Array(site) | Origin::NullObject(site) => site,
+                Origin::String => {
+                    found.insert(Origin::String);
+                    continue;
+                }
+                _ => {
+                    found.insert(Origin::Other);
+                    continue;
+                }
+            };
+            // Dynamic names can collide, but every value of a data property
+            // still originates in an initializer or a write to this allocation.
+            match self.semantic.nodes().kind(site) {
+                AstKind::ObjectExpression(object) => {
+                    for property in &object.properties {
+                        match property {
+                            ObjectPropertyKind::ObjectProperty(p) => {
+                                found.extend(origins(p.value.node_id()))
+                            }
+                            ObjectPropertyKind::SpreadProperty(_) => {
+                                found.insert(Origin::Other);
+                            }
+                        }
+                    }
+                }
+                AstKind::ArrayExpression(array) => {
+                    for element in &array.elements {
+                        if let Some(expr) = element.as_expression() {
+                            found.extend(origins(expr.node_id()));
+                        } else if matches!(
+                            element,
+                            oxc_ast::ast::ArrayExpressionElement::SpreadElement(_)
+                        ) {
+                            found.insert(Origin::Other);
+                        }
+                        // Holes have no own enumerable entry.
+                    }
+                }
+                _ if matches!(origin, Origin::NullObject(_)) => (),
+                _ => {
+                    found.insert(Origin::Other);
+                }
+            }
+            for ((_, key), written) in self
+                .field_writes
+                .range((site, Key::new())..)
+                .take_while(|((object, _), _)| *object == site)
+            {
+                if !matches!(origin, Origin::Array(_)) || key.as_slice() != LENGTH {
+                    found.extend(written);
+                }
+            }
+            found.extend(self.wildcard_writes.get(&site).into_iter().flatten());
+        }
+        found
+    }
+
     pub(super) fn select(&self, receiver: NodeId, source_key: &Key) -> Alternatives {
         enum Step {
             Read(Origin, Option<u32>),
@@ -94,6 +156,22 @@ impl Members<'_, '_> {
                     found.insert(Origin::Other);
                 }
                 continue;
+            }
+            if let Some(snapshot) = self.elements.enumerated_values.get(&object)
+                && let Some(index) = mutations::array_index(key)
+            {
+                if !self.elements.pair_sites.contains(&object) {
+                    found.extend(snapshot);
+                    found.insert(Origin::Undefined);
+                    continue;
+                }
+                if index == 1 {
+                    found.extend(snapshot);
+                    if self.elements.may_resize.contains(&object) {
+                        found.insert(Origin::Other);
+                    }
+                    continue;
+                }
             }
             if shifted.is_some() && self.elements.may_resize.contains(&object) {
                 // Structural mutations may have exhausted the iterator before

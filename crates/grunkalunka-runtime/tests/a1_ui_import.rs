@@ -755,3 +755,19 @@ fn imported_handler_distinguishes_action_lists_from_single_records() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_reads_labels_from_enumerated_action_records() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const action = a > 0 ? 'expand' : 'collapse';
+            const actions = {reload: {label: ' Reload '}, [action]: {label: ' Toggle '}};
+            let toggle = 0;
+            for (const [name, {label}] of Object.entries(actions)) {
+                if (name === 'expand' && label.trim() === 'Toggle') toggle = 1;
+            }
+            return choose(toggle, Object.keys(actions).length);
+        }"#,
+    );
+}

@@ -535,3 +535,14 @@ fn array_is_array_retains_its_argument_over_await_and_abrupt_extras() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn enumeration_keeps_label_values_and_child_records_across_awaits() {
+    compare_promises(
+        &[
+            "const src={x:' one ',y:' two '};const labels=Object.values(src);await a;src.x='replaced';let n=0;for(const label of labels){await b;n+=label.trim().length;}return n;",
+            "const child={label:' old '};const rows=Object.entries({item:child});await a;child.label=' changed ';let n=0;for(const [key,{label}] of rows){await b;n+=key.trim().length+label.trim().length;}return n;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
