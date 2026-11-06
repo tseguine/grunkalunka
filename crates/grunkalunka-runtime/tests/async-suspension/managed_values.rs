@@ -14,6 +14,19 @@ fn number_property_writes_save_old_values_and_commit_only_after_await_success() 
 }
 
 #[test]
+fn boxed_number_local_writes_save_old_values_and_commit_after_await_success() {
+    compare_promises(
+        &[
+            "let [x]=[a];const value=x+=(await b,x=b,b);return x===value?value:NaN;",
+            "let {x}={x:a};try{x-=await Promise.reject(b);}catch(e){await a;return x===a&&e===b?1:0;}return -1;",
+            "let [x]=[a];await b;return x++;",
+            "let {x}={x:a};const value=x-=await b;return x===value?value:NaN;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn typeof_unresolvable_names_keep_text_and_control_flow_across_awaits() {
     compare_promises(
         &[

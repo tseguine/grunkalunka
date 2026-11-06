@@ -53,6 +53,7 @@ struct FunctionFlow {
 #[derive(Default)]
 pub(crate) struct Fields {
     values: BTreeMap<NodeId, Alternatives>,
+    number_updates: BTreeSet<NodeId>,
 }
 fn symbol(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
     id.reference_id
@@ -173,6 +174,9 @@ impl Fields {
         self.values
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Number))
+    }
+    pub(super) fn number_update(&self, node: NodeId) -> bool {
+        self.number_updates.contains(&node)
     }
     pub(super) fn container(&self, node: NodeId) -> Option<Type> {
         let values = self.values.get(&node)?;
@@ -329,6 +333,7 @@ impl Fields {
         let mut enumeration_inputs = Vec::new();
         let mut indexed_copy_inputs = Vec::new();
         let mut writes = Vec::new();
+        let mut numeric_targets = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
         let parameters = |parameters: &oxc_ast::ast::FormalParameters<'_>| {
@@ -410,11 +415,13 @@ impl Fields {
                 }
                 _ => None,
             };
-            if let Some(target) = numeric_target.and_then(|name| symbol(name, semantic)) {
-                // A numeric update or compound write can replace an initially
-                // Undefined General cell. Keep its non-Undefined alternative,
-                // including through captured and erased TypeScript targets.
-                bindings.entry(target).or_default().insert(Origin::Other);
+            if let Some(target) = numeric_target
+                && let Some(symbol) = symbol(target, semantic)
+            {
+                // Admission needs the alternatives in the cell before this
+                // update. The expression's own rule separately proves the new
+                // result kind, including String alternatives for +=.
+                numeric_targets.push((target.node_id(), id, symbol));
             }
             let numeric_property = match node.kind() {
                 AstKind::UpdateExpression(update) => Some(&update.argument),
@@ -494,6 +501,20 @@ impl Fields {
                 AstKind::UpdateExpression(_) => {
                     values.insert(id, BTreeSet::from([Origin::Number]));
                     None
+                }
+                AstKind::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::Addition
+                        && assignment
+                            .left
+                            .as_simple_assignment_target()
+                            .and_then(|target| target_identifier(target, 0).ok().flatten())
+                            .is_some() =>
+                {
+                    let target = assignment
+                        .left
+                        .as_simple_assignment_target()
+                        .expect("checked identifier assignment target");
+                    Some(Rule::Addition(target.node_id(), assignment.right.node_id()))
                 }
                 AstKind::AssignmentExpression(assignment)
                     if evaluate::property_update::compound(assignment.operator).is_some() =>
@@ -964,6 +985,8 @@ impl Fields {
             || !enumeration_inputs.is_empty()
             || !indexed_copy_inputs.is_empty();
         let mut finalized_unresolved = false;
+        let mut numeric_writes_classified = false;
+        let mut number_updates = BTreeSet::new();
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
             let members = member_origins::Members {
@@ -1300,11 +1323,44 @@ impl Fields {
                     }
                 }
             }
+            if !changed && !numeric_writes_classified {
+                numeric_writes_classified = true;
+                let symbols = numeric_targets
+                    .iter()
+                    .map(|(_, _, symbol)| *symbol)
+                    .collect::<BTreeSet<_>>();
+                for symbol in symbols {
+                    let binding_is_number = bindings.get(&symbol).is_some_and(|origins| {
+                        origins.len() == 1 && origins.contains(&Origin::Number)
+                    });
+                    let targets_are_number = numeric_targets
+                        .iter()
+                        .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                        .all(|(_, result, _)| {
+                            values.get(result).is_some_and(|origins| {
+                                origins.len() == 1 && origins.contains(&Origin::Number)
+                            })
+                        });
+                    if binding_is_number && targets_are_number {
+                        number_updates.extend(
+                            numeric_targets
+                                .iter()
+                                .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                                .map(|(target, _, _)| *target),
+                        );
+                    } else {
+                        changed |= extend(&mut bindings, symbol, BTreeSet::from([Origin::Other]));
+                    }
+                }
+            }
             if !changed {
                 break;
             }
         }
-        Self { values }
+        Self {
+            values,
+            number_updates,
+        }
     }
 }
 

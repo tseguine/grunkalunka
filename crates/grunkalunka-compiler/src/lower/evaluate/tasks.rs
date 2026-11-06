@@ -17,6 +17,7 @@ pub(super) enum Work<'e, 'a> {
     Dictionary(dictionary::Task<'e, 'a>),
     PropertyDelete(property_delete::Task<'e, 'a>),
     PropertyUpdate(property_update::Task<'e, 'a>),
+    LocalUpdate(local_update::Task<'e, 'a>),
     Destructure(destructure::Task<'e, 'a>),
     ArraySlice(array_slice::Task<'e, 'a>),
     StringTemplate(string_template::Task<'e, 'a>),
