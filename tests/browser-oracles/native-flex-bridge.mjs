@@ -10,7 +10,9 @@ const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
 const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "relative", "clipped", "scrolled", "justifyEnd", "justifyCenter", "spaceBetween",
   "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
-  "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign", "restored"];
+  "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
+  "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
+  "selfAlignClipped", "selfAlignScrolled", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const rectFields = ["x", "y", "width", "height"];
 const viewportFields = ["width", "height", "devicePixelRatio"];
@@ -37,7 +39,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
     kind: "grunkalunka-native-browser-flex",
     status: "invalid",
     conformance: "not-assessed",
-    comparisonScope: "exact selected fixed-size row/wrap/alignment geometry and viewport hits, including non-positioned flex overlap; no CSS parsing, flex factors, intrinsic flex sizing or general stacking",
+    comparisonScope: "exact selected fixed-size row/wrap/container and per-item alignment geometry and viewport hits, including non-positioned flex overlap; no CSS parsing, flex factors, intrinsic flex sizing or general stacking",
     sourceSha256, invalid, incompatible, differences, native, browser
   };
 
@@ -77,7 +79,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
   function validateStates(owner, states) {
     const path = "$." + owner + ".states";
     if (!keys(states, phases)) {
-      error(path, "exactly the twenty-four named flex phases required");
+      error(path, "exactly the thirty named flex phases required");
       return;
     }
     for (const phase of phases) {
@@ -87,7 +89,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
         error(point, "complete flex sample required");
         continue;
       }
-      if (sample.scrollY !== (["scrolled", "scrolledAlign"].includes(phase) ? 10 : 0)) {
+      if (sample.scrollY !== (["scrolled", "scrolledAlign", "selfAlignScrolled"].includes(phase) ? 10 : 0)) {
         error(point + ".scrollY", "actual phase-specific scroll position required");
       }
       if (!keys(sample.boxes, ids)) {
@@ -181,6 +183,9 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
       }
       if (!sameRect(receipt.states.alignCenter.boxes[id], receipt.states.scrolledAlign.boxes[id])) {
         error("$." + owner + ".states.scrolledAlign.boxes." + id, "scroll changed aligned document-space geometry");
+      }
+      if (!sameRect(receipt.states.selfAlignClipped.boxes[id], receipt.states.selfAlignScrolled.boxes[id])) {
+        error("$." + owner + ".states.selfAlignScrolled.boxes." + id, "scroll changed item-aligned document-space geometry");
       }
       if (!sameRect(receipt.states.safeOverflow.boxes[id], receipt.states.overlapClipped.boxes[id])) {
         error("$." + owner + ".states.overlapClipped.boxes." + id, "clipping changed overlap layout geometry");

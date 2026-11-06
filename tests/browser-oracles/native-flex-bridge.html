@@ -54,7 +54,10 @@
     "flexWrap", "alignItems", "alignContent", "justifyContent", "columnGap", "rowGap",
     "flexGrow", "flexShrink", "flexBasis", "minWidth"];
   const host = document.getElementById("row-host");
+  const a = document.getElementById("row-a");
   const b = document.getElementById("row-b");
+  const c = document.getElementById("row-c");
+  const contents = document.getElementById("row-contents");
   const after = document.getElementById("row-after");
   const inner = document.getElementById("row-inner");
 
@@ -80,7 +83,10 @@
 
   function reset(wrap = false) {
     host.removeAttribute("style");
+    a.removeAttribute("style");
     b.removeAttribute("style");
+    c.removeAttribute("style");
+    contents.removeAttribute("style");
     after.removeAttribute("style");
     inner.removeAttribute("style");
     if (wrap) host.style.flexWrap = "wrap";
@@ -211,6 +217,54 @@
   host.style.alignItems = "safe center";
   window.scrollTo(0, 10);
   states.scrolledAlign = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe center";
+  a.style.alignSelf = "flex-start";
+  contents.style.alignSelf = "safe flex-end";
+  contents.style.alignItems = "flex-start";
+  inner.style.alignSelf = "safe flex-end";
+  b.style.alignSelf = "safe flex-end";
+  states.selfAlignMixed = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe center";
+  a.style.alignSelf = "flex-start";
+  contents.style.alignSelf = "safe flex-end";
+  contents.style.alignItems = "flex-start";
+  inner.style.alignSelf = "safe flex-end";
+  b.style.alignSelf = "safe flex-end";
+  b.style.alignSelf = "auto";
+  states.selfAlignAuto = sample();
+  reset(true);
+  host.style.width = "220px";
+  host.style.height = "60px";
+  host.style.alignItems = "safe center";
+  a.style.alignSelf = "safe flex-end";
+  contents.style.alignSelf = "safe flex-end";
+  c.style.alignSelf = "flex-start";
+  states.selfAlignWrap = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "20px";
+  a.style.alignSelf = "safe center";
+  b.style.alignSelf = "safe flex-end";
+  c.style.alignSelf = "safe center";
+  states.selfAlignOverflow = sample();
+  reset();
+  host.style.width = "220px";
+  host.style.height = "36px";
+  host.style.overflow = "clip";
+  a.style.alignSelf = "safe flex-end";
+  b.style.alignSelf = "safe center";
+  b.style.position = "relative";
+  b.style.top = "15px";
+  c.style.alignSelf = "safe center";
+  states.selfAlignClipped = sample();
+  window.scrollTo(0, 10);
+  states.selfAlignScrolled = sample();
   reset();
   states.restored = sample();
 

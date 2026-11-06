@@ -14,7 +14,9 @@ const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
 const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "relative", "clipped", "scrolled", "justifyEnd", "justifyCenter", "spaceBetween",
   "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
-  "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign", "restored"];
+  "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
+  "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
+  "selfAlignClipped", "selfAlignScrolled", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const computedFields = ["display", "boxSizing", "width", "height", "flexDirection",
   "flexWrap", "alignItems", "alignContent", "justifyContent", "columnGap", "rowGap",
@@ -67,6 +69,16 @@ function states() {
       [131, 49, 25, 8], [189, 47, 42, 18], [0, 98, 180, 12]],
     clippedAlign: [[20, 20, 228, 40], [39, 30, 64, 24], [118, 28, 56, 36],
       [121, 31, 25, 8], [187, 36, 42, 18], [0, 66, 180, 12]],
+    selfAlignMixed: [[20, 20, 232, 72], [26, 26, 64, 24], [105, 46, 56, 36],
+      [108, 49, 25, 8], [174, 47, 42, 18], [0, 98, 180, 12]],
+    selfAlignAuto: [[20, 20, 232, 72], [26, 26, 64, 24], [105, 37, 56, 36],
+      [108, 40, 25, 8], [174, 47, 42, 18], [0, 98, 180, 12]],
+    selfAlignWrap: [[20, 20, 232, 72], [26, 44, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [174, 26, 42, 18], [0, 98, 180, 12]],
+    selfAlignOverflow: [[20, 20, 232, 32], [26, 26, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [174, 27, 42, 18], [0, 58, 180, 12]],
+    selfAlignClipped: [[20, 20, 232, 48], [26, 38, 64, 24], [105, 43, 56, 36],
+      [108, 46, 25, 8], [174, 35, 42, 18], [0, 74, 180, 12]],
   };
   const targets = {
     nowrap: ["row-a", "row-inner", "row-c", "row-after", "row-b", null, "row-host", "row-host", null],
@@ -92,13 +104,20 @@ function states() {
     relativeAlign: ["row-host", "row-host", "row-host", "row-host", "row-host", null, "row-host", "row-host", "row-host"],
     clippedAlign: ["row-host", "row-host", "row-host", null, null, null, "row-host", "row-a", null],
     scrolledAlign: ["row-host", "row-inner", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
+    selfAlignMixed: ["row-a", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
+    selfAlignAuto: ["row-a", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
+    selfAlignWrap: ["row-host", "row-inner", "row-c", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
+    selfAlignOverflow: ["row-a", "row-inner", "row-c", null, "row-b", null, "row-host", "row-host", "row-host"],
+    selfAlignClipped: ["row-host", "row-host", "row-host", "row-after", "row-b", null, "row-host", "row-host", "row-host"],
+    selfAlignScrolled: ["row-a", "row-host", "row-c", null, null, null, "row-host", "row-host", "row-host"],
   };
   rows.scrolled = rows.wrap;
   rows.scrolledAlign = rows.alignCenter;
+  rows.selfAlignScrolled = rows.selfAlignClipped;
   rows.restored = rows.nowrap;
   targets.restored = targets.nowrap;
   return Object.fromEntries(phases.map(phase => [phase, {
-    scrollY: ["scrolled", "scrolledAlign"].includes(phase) ? 10 : 0,
+    scrollY: ["scrolled", "scrolledAlign", "selfAlignScrolled"].includes(phase) ? 10 : 0,
     boxes: Object.fromEntries(ids.map((id, index) => {
       const value = rows[phase][index];
       return [id, value === null ? null : Object.fromEntries(
@@ -147,8 +166,8 @@ test("complete fixed-row, alignment and overlap receipts agree for each identifi
     assert.equal(report.sourceSha256, sha(fixture));
     assert.deepEqual([report.invalid, report.incompatible, report.differences], [[], [], []]);
     assert.deepEqual(Object.keys(report.native.states), phases);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 144);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 216);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 180);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 270);
   }
 });
 
@@ -161,6 +180,7 @@ test("missing, extra and malformed phase data cannot become equality", () => {
     r => { r.states.wrap.scrollY = 10; },
     r => { r.states.scrolled.scrollY = 0; },
     r => { r.states.scrolledAlign.scrollY = 0; },
+    r => { r.states.selfAlignScrolled.scrollY = 0; },
     r => { r.states.alignCenter.scrollY = 10; },
     r => { delete r.states.wrap.boxes["row-c"]; },
     r => { r.states.wrap.boxes["row-contents"] = null; },
@@ -172,6 +192,7 @@ test("missing, extra and malformed phase data cannot become equality", () => {
     r => { r.states.wrap.boxes["row-c"].height = Infinity; },
     r => { r.states.wrap.boxes["row-c"].y = Number.MAX_SAFE_INTEGER + 1; },
     r => { r.states.alignEnd.boxes["row-b"].y = 46.5; },
+    r => { r.states.selfAlignMixed.boxes["row-b"].y = 46.5; },
     r => { r.states.nestedOverlap.boxes["row-inner"] = null; },
     r => { delete r.states.wrap.hits.outside; },
     r => { r.states.wrap.hits.extra = null; },
@@ -243,12 +264,27 @@ test("overlap hits distinguish tree order and incorrect nested item grouping wit
   }
 });
 
+test("an ignored auto reset reports both moved subtree boxes without unrelated differences", () => {
+  const pair = receipts();
+  pair.native.states.selfAlignAuto.boxes["row-b"].y = 46;
+  pair.native.states.selfAlignAuto.boxes["row-inner"].y = 49;
+  const report = compare(pair);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.selfAlignAuto.boxes.row-b.y", left: 46, right: 37 },
+    { kind: "geometry", path: "$.states.selfAlignAuto.boxes.row-inner.y", left: 49, right: 40 }
+  ]);
+});
+
 test("restoration, scroll and overlap clipping invariants apply to each receipt independently", () => {
   const mutations = [
     r => { r.states.restored.boxes["row-c"].y += 1; },
     r => { r.states.restored.hits.a = "row-host"; },
     r => { r.states.scrolled.boxes["row-c"].y -= 10; },
     r => { r.states.scrolledAlign.boxes["row-b"].y -= 10; },
+    r => { r.states.selfAlignScrolled.boxes["row-b"].y -= 10; },
     r => { r.states.alignCenter.boxes["row-inner"].x += 1; },
     r => { r.states.overlapClipped.boxes["row-b"].height -= 1; },
   ];
@@ -382,6 +418,30 @@ test("positioned-after source mutation authenticates one changed overlap hit wit
     { kind: "hit", path: "$.states.safeOverflow.hits.gap-wrap", left: "row-b", right: "row-after" }
   ]);
   assert.equal(compare(pair).status, "incompatible", "mutated capture must not authenticate as original source");
+});
+
+test("per-item source mutation authenticates only the changed subtree and hit", () => {
+  const originalRule = '  b.style.alignSelf = "safe flex-end";\n  states.selfAlignMixed = sample();';
+  const changedRule = '  b.style.alignSelf = "flex-start";\n  states.selfAlignMixed = sample();';
+  const source = fixture.toString("utf8");
+  assert.equal(source.split(originalRule).length, 2, "one reviewed per-item alignment assignment");
+  const changed = Buffer.from(source.replace(originalRule, changedRule));
+  const pair = receipts();
+  pair.browser.states.selfAlignMixed.boxes["row-b"].y = 28;
+  pair.browser.states.selfAlignMixed.boxes["row-inner"].y = 31;
+  pair.browser.states.selfAlignMixed.hits.b = "row-inner";
+  assert.equal(compareNativeFlexBridge(pair.native, pair.browser, changed).status, "incompatible");
+  pair.browser.provenance.fixtureSha256 = sha(changed);
+  const report = compareNativeFlexBridge(pair.native, pair.browser, changed);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.selfAlignMixed.boxes.row-b.y", left: 46, right: 28 },
+    { kind: "geometry", path: "$.states.selfAlignMixed.boxes.row-inner.y", left: 49, right: 31 },
+    { kind: "hit", path: "$.states.selfAlignMixed.hits.b", left: "row-host", right: "row-inner" }
+  ]);
+  assert.equal(compare(pair).status, "incompatible", "changed source is not the original source");
 });
 
 test("invalid JSON values produce diagnostics and fixture bytes are mandatory", () => {
