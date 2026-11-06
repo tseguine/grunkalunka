@@ -10,11 +10,11 @@ fn own_keys_checks_visible_inputs_and_array_results() {
         .unwrap();
         verify_module(&module).unwrap();
         let root = &mut module.functions[0];
-        let Op::ManagedOwnKeys { result, input } = &mut root
+        let Op::ManagedEnumerateOwn { result, input, .. } = &mut root
             .body
             .operations
             .iter_mut()
-            .find(|op| matches!(op.kind, Op::ManagedOwnKeys { .. }))
+            .find(|op| matches!(op.kind, Op::ManagedEnumerateOwn { .. }))
             .unwrap()
             .kind
         else {
@@ -52,15 +52,16 @@ fn fallible_own_keys_checks_all_completion_outputs_and_cannot_use_sync_emission(
             continue;
         }
         let root = &mut module.functions[0];
-        let Op::TryManagedOwnKeys {
+        let Op::TryManagedEnumerateOwn {
             result,
             input,
             failure,
+            ..
         } = &mut root
             .body
             .operations
             .iter_mut()
-            .find(|op| matches!(op.kind, Op::TryManagedOwnKeys { .. }))
+            .find(|op| matches!(op.kind, Op::TryManagedEnumerateOwn { .. }))
             .unwrap()
             .kind
         else {
@@ -261,4 +262,26 @@ fn dynamic_in_validates_both_operands_and_omits_unused_prototype_helpers() {
     )
     .unwrap();
     assert!(!own.wat.contains("(global $object_prototype_names"));
+}
+
+#[test]
+fn values_uses_the_same_checked_and_fallible_enumeration_boundary_as_keys() {
+    let sync = "export function run(a,b){const o={x:a};return Object.values(o).length;}";
+    let module = crate::lower_source(sync, false).unwrap();
+    assert!(any_operation(
+        &module.functions[0].body,
+        &mut |op| matches!(
+            op,
+            Op::ManagedEnumerateOwn {
+                kind: OwnEnumeration::Values,
+                ..
+            }
+        )
+    ));
+    verify_module(&module).unwrap();
+    let sync = "export function run(a,b){return Object.values(a?{}:null).length;}";
+    let err = crate::compile(sync, false).err().unwrap();
+    assert!(err.contains("nullable Object.values"), "{err}");
+    let source = "export async function run(a,b){try{return Object.values(null).length;}catch(e){return 1;}}";
+    assert!(crate::compile_async(source, false).is_ok());
 }

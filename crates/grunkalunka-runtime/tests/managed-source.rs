@@ -861,3 +861,29 @@ fn computed_literal_keys_reject_unknown_coercions_and_invalidated_field_kinds() 
         }
     }
 }
+
+#[test]
+fn object_values_snapshots_enumerable_data_in_own_key_order() {
+    for body in [
+        "const child={x:a};const o={z:child,10:b,2:a,empty:undefined};o.z=child;const vs=Object.values(o);o.z=null;vs[0]=b;return vs.length===4&&o[2]===a&&vs[1]===b&&vs[2]===child&&vs[3]===undefined?1:0;",
+        "const arr=[,a,,undefined];arr.named=b;const vs=Object.values(arr);return vs.length===3&&vs[0]===a&&Object.hasOwn(vs,1)&&vs[1]===undefined&&vs[2]===b?1:0;",
+        "const d=Object.create(null);d.__proto__=a;d.constructor=undefined;const vs=Object['values'](d);return vs.length===2&&vs[0]===a&&vs[1]===undefined?1:0;",
+        r"const vs=Object.values('A\u{1f600}\ud800');return vs.length===4&&vs[0]==='A'&&vs[1]==='\ud83d'&&vs[2]==='\ude00'&&vs[3]==='\ud800'?1:0;",
+        "const a1=Object.values(a),a2=Object.values(a);return a1!==a2&&a1.length===0&&Object.values(true).length===0?1:0;",
+        "const Object={values:(x)=>x};return Object.values(a);",
+    ] {
+        compare(body);
+    }
+    let source = "function chars(s){return Object.values(s);}export function run(a,b){const chars1=chars('ab');return chars1.length===2&&chars1[0]==='a'&&chars1[1]==='b'?1:0;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn object_values_observes_saved_receivers_after_all_argument_effects() {
+    for body in [
+        "let o={x:a};const original=o;let n=0;const vs=Object.values.call((n=1,null),(n=n*10+2,o),(n=n*10+3,original.x=b,o={y:a}));return n===123&&vs.length===1&&vs[0]===b?1:0;",
+        "const k='enabled';const o={ [k]:undefined, reload:a };const [flag,value]=Object.values(o);return flag===undefined&&value===a?1:0;",
+    ] {
+        compare(body);
+    }
+}

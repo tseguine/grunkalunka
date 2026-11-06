@@ -890,7 +890,7 @@ remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
 rejected programs as supported.
 
-## Own enumerable key arrays
+## Own enumerable keys and values
 
 `Object.keys` builds a fresh managed array from the currently represented
 data-only domain. Objects and sparse arrays enumerate existing own data entries:
@@ -904,7 +904,14 @@ This follows [Object.keys](https://tc39.es/ecma262/multipage/fundamental-objects
 and [ordinary key ordering](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinaryownpropertykeys)
 within the admitted domain, not arbitrary exotic objects or descriptors.
 
-The frontend recognizes the unshadowed intrinsic, including a literal computed
+`Object.values` uses the same ordering and takes its snapshot at the same point
+in argument evaluation. It copies boxed values into fresh slots, preserving
+child object identity. Sparse holes and array length are omitted; present
+Undefined entries are included. Each String code unit contributes a one-unit
+String, including lone surrogates. The values array supports ordinary managed
+operations and iteration, with generic element kinds.
+
+The frontend recognizes the unshadowed intrinsics, including a literal computed
 member and the existing `.call` form. Arguments execute once, left to right;
 ignored receiver/surplus arguments execute before enumeration. TypeScript types
 remain erased. Known nonnull values use a checked specialization. Unknown or

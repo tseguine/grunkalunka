@@ -20,7 +20,7 @@ pub(super) fn inspect(module: &ir::Module) -> Needs {
     for (index, function) in module.functions.iter().enumerate() {
         let synchronous_helper = index != 0 && !ir::is_async_closure(function);
         ir::visit_operations(&function.body, &mut |op| match op {
-            Op::TryManagedOwnKeys { .. } => {
+            Op::TryManagedEnumerateOwn { .. } => {
                 needs.queued = true;
                 needs.errors = true;
                 needs.error_kinds = true;

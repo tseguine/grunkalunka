@@ -8,7 +8,7 @@
   i64.const -1 i64.eq if i32.const 1 return end
   local.get $x local.get $y i64.lt_u)
 
-(func $gc_keys_props (param $props (ref null $gc_props)) (result (ref null $gc_array))
+(func $gc_enumerate_props (param $props (ref null $gc_props)) (param $kind i32) (result (ref null $gc_array))
   (local $sorted (ref null $gc_props)) (local $out (ref null $gc_props))
   (local $entry (ref null $gc_entry)) (local $previous (ref null $gc_entry))
   (local $index i32) (local $position i32) (local $length i32)
@@ -35,28 +35,41 @@
     local.get $index local.get $length i32.ge_u br_if $copied
     local.get $out local.get $index
     local.get $index call $gc_spread_index
-    i32.const 5 f64.const 0
-    local.get $sorted local.get $index array.get $gc_props struct.get $gc_entry 0
-    struct.new $gc_value struct.new $gc_entry array.set $gc_props
+    local.get $sorted local.get $index array.get $gc_props local.set $entry
+    local.get $kind i32.eqz
+    if (result (ref null $gc_value))
+      i32.const 5 f64.const 0 local.get $entry struct.get $gc_entry 0 struct.new $gc_value
+    else
+      local.get $entry struct.get $gc_entry 1
+    end
+    struct.new $gc_entry array.set $gc_props
     local.get $index i32.const 1 i32.add local.set $index br $copy
   end end
   local.get $length local.get $out struct.new $gc_object struct.new $gc_array)
 
-(func $gc_keys_indices (param $length i32) (result (ref null $gc_array))
+(func $gc_enumerate_string (param $text (ref null $gc_key)) (param $kind i32) (result (ref null $gc_array))
   (local $out (ref null $gc_props)) (local $key (ref null $gc_key)) (local $index i32)
-  local.get $length array.new_default $gc_props local.set $out
+  (local $length i32)
+  local.get $text array.len local.tee $length array.new_default $gc_props local.set $out
   block $done loop $next
     local.get $index local.get $length i32.ge_u br_if $done
     local.get $index call $gc_spread_index local.set $key
     local.get $out local.get $index local.get $key
-    i32.const 5 f64.const 0 local.get $key struct.new $gc_value
+    i32.const 5 f64.const 0
+    local.get $kind i32.eqz
+    if (result (ref null $gc_key))
+      local.get $key
+    else
+      local.get $text local.get $index array.get_u $gc_key array.new_fixed $gc_key 1
+    end
+    struct.new $gc_value
     struct.new $gc_entry array.set $gc_props
     local.get $index i32.const 1 i32.add local.set $index br $next
   end end
   local.get $length local.get $out struct.new $gc_object struct.new $gc_array)
 
 ;; Checked specialization: nullish inputs here are private invariant failures.
-(func $gc_own_keys_known (param $value (ref null $gc_value)) (result (ref null $gc_array))
+(func $gc_enumerate_known (param $value (ref null $gc_value)) (param $kind i32) (result (ref null $gc_array))
   local.get $value struct.get $gc_value 0 i32.const 1 i32.le_u if unreachable end
   local.get $value struct.get $gc_value 0 i32.const 7 i32.gt_u if unreachable end
   local.get $value struct.get $gc_value 0 i32.const 4 i32.eq
@@ -67,10 +80,10 @@
     else
       local.get $value struct.get $gc_value 2 ref.cast (ref $gc_object)
     end
-    struct.get $gc_object 0 call $gc_keys_props return
+    struct.get $gc_object 0 local.get $kind call $gc_enumerate_props return
   end
   local.get $value struct.get $gc_value 0 i32.const 5 i32.eq
   if
-    local.get $value struct.get $gc_value 2 ref.cast (ref $gc_key) array.len call $gc_keys_indices return
+    local.get $value struct.get $gc_value 2 ref.cast (ref $gc_key) local.get $kind call $gc_enumerate_string return
   end
   i32.const 0 call $gc_array_new)

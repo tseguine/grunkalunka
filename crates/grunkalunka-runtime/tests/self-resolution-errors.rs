@@ -63,7 +63,7 @@ fn own_keys_source_throws_are_distinct_from_invalid_private_values_and_records()
         r#"{} (export "test_memory" (memory 0))
         (func (export "known_null")
           i32.const 1 f64.const 0 ref.null eq struct.new $gc_value
-          call $gc_own_keys_known drop))"#,
+          i32.const 0 call $gc_enumerate_known drop))"#,
         &artifact.wat[..end]
     );
     let mut config = wasmtime::Config::new();

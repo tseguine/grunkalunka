@@ -128,7 +128,8 @@ fn array_rest_densifies_holes_and_excludes_named_properties() {
             array: source,
             start,
         });
-        let keys = value(f, Type::ManagedArray, |result| Op::ManagedOwnKeys {
+        let keys = value(f, Type::ManagedArray, |result| Op::ManagedEnumerateOwn {
+            kind: OwnEnumeration::Keys,
             result,
             input: rest,
         });

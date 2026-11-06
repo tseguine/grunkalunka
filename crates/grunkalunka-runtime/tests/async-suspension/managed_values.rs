@@ -497,3 +497,16 @@ fn computed_literal_keys_survive_value_awaits_and_key_rejections() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn object_values_keeps_snapshot_order_and_routes_nullish_typeerrors() {
+    compare_promises(
+        &[
+            "let o={x:a};const saved=o;const vs=Object.values(o,(await b,saved.x=b,o={y:a}));await a;saved.x=a;return vs.length===1&&vs[0]===b?1:0;",
+            "let n=0;try{Object.values(null,(await a,n=1));}catch(e){await b;return n===1&&typeof e==='object'?1:0;}return -1;",
+            "try{Object.values();}catch(first){try{Object.values(undefined);}catch(second){return first!==second&&typeof first==='object'?1:0;}}return -1;",
+            "const input=a?{x:b}:null;try{const values=Object.values(input);await b;return values[0]===b?1:0;}catch(e){return typeof e==='object'?2:0;}",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

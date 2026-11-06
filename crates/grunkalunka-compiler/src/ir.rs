@@ -509,6 +509,22 @@ pub(crate) struct Failure {
     pub reason: ValueId,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub(crate) enum OwnEnumeration {
+    Keys = 0,
+    Values = 1,
+}
+
+impl OwnEnumeration {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Keys => "keys",
+            Self::Values => "values",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum ManagedKey {
     Literal(Vec<u16>),
@@ -639,12 +655,14 @@ pub(crate) enum Op {
         key: ManagedKey,
     },
     // Checked non-null input specialization; source unknowns use the fallible form.
-    ManagedOwnKeys {
+    ManagedEnumerateOwn {
+        kind: OwnEnumeration,
         result: ValueId,
         input: ValueId,
     },
     // Semantic ToObject/enumeration; normal and throw outputs are distinct.
-    TryManagedOwnKeys {
+    TryManagedEnumerateOwn {
+        kind: OwnEnumeration,
         result: ValueId,
         input: ValueId,
         failure: Failure,
@@ -1475,7 +1493,7 @@ impl Verifier<'_> {
                 self.managed_key(key, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
-            Op::ManagedOwnKeys { result, input } => {
+            Op::ManagedEnumerateOwn { result, input, .. } => {
                 let ty = self
                     .function
                     .values
@@ -1495,10 +1513,11 @@ impl Verifier<'_> {
                 self.value(*input, ty, visible, span)?;
                 self.define(*result, Type::ManagedArray, visible, span)?;
             }
-            Op::TryManagedOwnKeys {
+            Op::TryManagedEnumerateOwn {
                 result,
                 input,
                 failure,
+                ..
             } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::ManagedArray, visible, span)?;

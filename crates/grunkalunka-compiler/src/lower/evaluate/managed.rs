@@ -371,7 +371,7 @@ impl Lowering<'_, '_> {
                             values.push(Some(Type::ManagedValue));
                         }
                         Expression::CallExpression(call)
-                            if object_intrinsics::is_method(call, self.semantic, "keys") =>
+                            if object_intrinsics::enumeration(call, self.semantic).is_some() =>
                         {
                             values.push(Some(Type::ManagedArray))
                         }
@@ -751,9 +751,10 @@ impl Lowering<'_, '_> {
         }
         if matches!(mode, Mode::Array)
             && let Expression::CallExpression(call) = node
-            && object_intrinsics::is_method(call, self.semantic, "keys")
+            && let Some(kind) = object_intrinsics::enumeration(call, self.semantic)
         {
             work.push(Work::OwnKeys(super::own_keys::Task {
+                kind,
                 node,
                 call,
                 index: 0,
