@@ -2,12 +2,16 @@
 
 Date: 2026-11-01
 
-Status: proposed architectural record with implemented checkpoints. Source-control
-and the initial source/evaluator seam are integrated at the frozen master revision
-below; the final effectful-source ownership and compatibility retirement are in
-review. The original proposal and its dated limitations remain design history.
-The [final checkpoint](#final-in-review-source-ownership-and-retirement) describes
-the current implementation scope without asserting formal ADR acceptance or a
+Status: proposed architectural record with implemented checkpoints. Integration
+status checked 2026-11-06: the final effectful-source ownership and compatibility
+retirement merged in [#466](https://github.com/tseguine/grunkalunka/pull/466),
+followed by the validation and completion records in
+[#467](https://github.com/tseguine/grunkalunka/pull/467) and
+[#468](https://github.com/tseguine/grunkalunka/pull/468).
+The original proposal and dated checkpoints retain their historical review labels,
+revisions and limitations. The
+[final checkpoint](#final-in-review-source-ownership-and-retirement) describes
+the implemented scope; integration does not assert formal ADR acceptance or a
 whole-compiler native-stack bound.
 
 ## Context
@@ -29,8 +33,10 @@ the first, rebuilding a source-dependent native call stack. At the proposal's
 sequences, `if`, `for`,
 `while`/`do-while`, try/catch, try/finally and concise function bodies. They
 carried much of the same mechanics but legitimately differed in source semantics.
-The native-stack acceptance invariant is tracked by
-[stack hygiene #281](https://github.com/tseguine/grunkalunka/issues/281).
+The native-stack acceptance invariant was recorded in
+[stack hygiene #281](https://github.com/tseguine/grunkalunka/issues/281). That
+open-ended tracker is now retired; the
+[engineering requirements](../../AGENTS.md#native-stack-hygiene) remain in force.
 This proposal addresses structural maintenance and composability, not just a
 currently reproduced native stack failure.
 
@@ -471,11 +477,14 @@ substitutes for a native-stack bound. Preserve the 2 MiB admitted and just-over-
 limit probes, exact diagnostics and output/runtime comparisons on supported
 hosts. Local receipts do not establish hosted exact-head CI or merge status;
 measured compiler-time/peak-memory results must retain their workload and host
-limits. [#281](https://github.com/tseguine/grunkalunka/issues/281) retains its
-broader cross-phase acceptance scope.
+limits. [#281](https://github.com/tseguine/grunkalunka/issues/281) was retired as an
+open-ended tracker. Its closure establishes no additional stack proof and removes
+none of the engineering requirements; concrete residual findings need their own
+bounded reproducer and completion criterion.
 
 L6 query consolidation remains optional until demonstrated duplication or a
 concrete source semantic extension needs it. This refactor neither introduces a
-universal dynamic ABI/new CFG nor implements general Get/Set/Call exceptions or
-GC-aware async identity. The typed Region IR and runtime scheduler retain their
-existing contracts.
+universal dynamic ABI/new CFG nor implements general Get/Set/Call exceptions.
+Managed identity across supported async activations was implemented separately;
+see [managed suspension](../managed-values.md#managed-values-across-related-coroutine-frames).
+The typed Region IR and runtime scheduler retain their separate contracts.

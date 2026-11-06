@@ -2,9 +2,16 @@
 
 Date: 2026-11-03
 
+Integration status checked 2026-11-06: the implementation in
+[#466](https://github.com/tseguine/grunkalunka/pull/466), this validation record in
+[#467](https://github.com/tseguine/grunkalunka/pull/467), and the completion record
+in [#468](https://github.com/tseguine/grunkalunka/pull/468) are merged.
+The exact revisions, measurements and original CI snapshot below remain frozen
+evidence from the refactor, not measurements of later feature work.
+
 ## Result and scope
 
-The in-review continuation series completes the planned effectful source-lowering
+The continuation series completes the planned effectful source-lowering
 migration. Statements and declaration initializers, evaluator resumptions, local
 and runtime factories, disposable definition checks, and real lifted closure
 bodies now use the shared source cursor. The final cleanup deletes 22 synchronous
@@ -24,8 +31,9 @@ retirement in [engine steering](javascript-engine-steering.md). L6 remains optio
 until a source semantic extension needs it. The separate signature/Promise query
 component, parser and semantic implementation, automatic destruction, async IR
 transforms, emission, and runtime scheduling retain their own contracts. This
-checkpoint does not close the broader cross-phase invariant in
-[#281](https://github.com/tseguine/grunkalunka/issues/281).
+checkpoint does not establish a whole-compiler native-stack bound. The later
+retirement of the open-ended [#281 tracker](https://github.com/tseguine/grunkalunka/issues/281)
+does not waive the [native-stack requirements](../AGENTS.md#native-stack-hygiene).
 
 ## Exact revisions
 
@@ -289,10 +297,11 @@ snapshot, not a prediction of later checks or merges.
 | #435–439 and #441–459, 24 PRs | Stack #440, ID 2963533, size 24 | Five completed successful checks each, including Linux, Windows and actual native Apple Silicon fallback |
 | #460–466, 7 PRs | Not enrolled; raw stack metadata is null | No head check runs yet |
 
-The remaining branches need native stack registration before their expected
-hosted feedback. Ordinary dependent PR creation does not establish registration
-or a hosted pass. The follow-on evidence and documentation PRs are outside this
-production snapshot; their actual head status must be checked independently.
+At that snapshot, the remaining branches still needed native stack registration
+before their expected hosted feedback. The series subsequently merged, as recorded
+above. Ordinary dependent PR creation does not itself establish registration or
+a hosted pass; this historical table is not a current queue of unfinished work.
+The follow-on evidence and documentation PRs are outside this production snapshot.
 
 The existing platform rehearsal has a separately reproduced failure on unchanged
 starting master: its expected-command assertion omits existing dependency
