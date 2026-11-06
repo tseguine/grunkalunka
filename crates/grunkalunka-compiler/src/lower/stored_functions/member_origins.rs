@@ -144,7 +144,9 @@ impl Members<'_, '_> {
             if let Some(written) = self.wildcard_writes.get(&object) {
                 found.extend(written);
             }
-            if self.index_deletes.contains(&object) && mutations::array_index(key).is_some() {
+            if (self.index_deletes.contains(&object) || self.elements.reordered.contains(&object))
+                && mutations::array_index(key).is_some()
+            {
                 found.insert(Origin::Other);
             }
 

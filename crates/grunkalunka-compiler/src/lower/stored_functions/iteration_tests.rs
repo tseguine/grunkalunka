@@ -703,3 +703,24 @@ fn array_slice_values_follow_source_and_copy_aliases_without_named_fields() {
         assert!(facts.other && !facts.string, "{body}: {facts:?}");
     }
 }
+
+#[test]
+fn reversed_iteration_keeps_values_but_not_original_positions() {
+    for body in [
+        "const xs=['x','y'];xs.reverse();for(const v of xs){const observed=v;}return a;",
+        "const xs=[{label:'x'}];for(const {label} of xs.reverse()){const observed=label;}return a;",
+        "const xs=['x','y'];xs.reverse();const [,...tail]=xs;for(const v of tail){const observed=v;}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const xs=[a,'x'];xs.reverse();const [,...tail]=xs;for(const v of tail){const observed=v;}return a;",
+        "const xs=['x',a];xs.reverse();const observed=xs[0];return a;",
+        "const xs=['x'];const alias=xs.reverse();alias[0]=a;for(const v of xs){const observed=v;}return a;",
+        "const xs=[,'x'];xs.reverse();for(const v of xs){const observed=v;}return a;",
+        "const xs=['x'];xs.reverse();xs.pop();for(const v of xs){const observed=v;}return a;",
+    ] {
+        let facts = observe(body);
+        assert!(facts.other && !facts.string, "{body}: {facts:?}");
+    }
+}

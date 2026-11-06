@@ -1086,8 +1086,10 @@ private guest helper visits stored entries instead of logical length; it invokes
 no host operation. Helpers, captured handlers and suspension retain the returned
 alias, so writes through it affect the source array.
 
-This slice invalidates positional field/callable/String proofs through aliases
-of a reversed array. Boxed reads, identity comparisons, length, own-key queries
+Reversal invalidates positional field/callable/String proofs through aliases
+of a reversed array, while iteration retains the union of possible element
+origins. A rest suffix after reversal considers every original position. Holes,
+resizing and incompatible writes retain their conservative guards. Boxed reads, identity comparisons, length, own-key queries
 and searches remain available. Optional/borrowed calls, spread arguments,
 overridden methods, prototype mutation and generic array-like receivers remain
 outside the admitted surface. Existing `pop` and `reverse` share the same

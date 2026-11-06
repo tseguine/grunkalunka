@@ -15,6 +15,7 @@ pub(super) struct Elements {
     writes: BTreeMap<(NodeId, u32), Alternatives>,
     wildcard_writes: BTreeMap<NodeId, Alternatives>,
     maybe_holes: BTreeSet<NodeId>,
+    pub(super) reordered: BTreeSet<NodeId>,
     pub(super) may_resize: BTreeSet<NodeId>,
 }
 
@@ -90,6 +91,12 @@ impl Elements {
                     active.remove(&array);
                     continue;
                 }
+            };
+            // A suffix after reordering can contain any original position.
+            let start = if self.reordered.contains(&array) {
+                0
+            } else {
+                start
             };
             if self.maybe_holes.contains(&array) || index_deletes.contains(&array) {
                 found.insert(Origin::Other);

@@ -648,3 +648,13 @@ fn array_shift_observes_current_contents_after_awaits_and_stops_on_rejection() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn reversed_iteration_origins_survive_suspension() {
+    compare_promises(
+        &[
+            "const xs=[{label:' x '},{label:' yy '}];xs.reverse(await a);let n=0;for(const {label} of xs){await b;n=n*10+label.trim().length;}return n;",
+        ],
+        &[(1.0, 2.0), (0.0, 0.0)],
+    );
+}
