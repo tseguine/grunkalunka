@@ -34,7 +34,6 @@ export const directiveRejected = [
   ['directive-function-budget-limit', source('"hint";'.repeat(256) + 'return a;'), 'js', 'at most 256 statements'],
   ['directive-mixed-budget-limit', '"hint";'.repeat(128) + source('"hint";'.repeat(128) + 'return a;'), 'js', 'at most 256 statements'],
   ['directive-body-statement-budget', '"hint";' + source(';'.repeat(255) + 'return a;'), 'js', 'at most 256 statements'],
-  ['directive-template', source('`hint`; return a;'), 'js', expression],
   ['directive-asi-add', source('"hint"\n+a; return a;'), 'js', expression],
   ['directive-asi-call', source('"hint"\n(a); return a;'), 'js', expression],
   ['directive-post-export', source('return a;') + '"hint";', 'js', top],

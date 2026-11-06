@@ -1,5 +1,11 @@
 #[path = "managed/common.rs"]
 mod common;
+
+#[test]
+fn discarded_template_executes_the_exact_former_rejection_source() {
+    let source = "export function run(a,b) { `hint`; return a; }";
+    common::compare_sources(source, source);
+}
 use common::compare_sources;
 
 #[test]

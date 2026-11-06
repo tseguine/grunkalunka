@@ -2532,13 +2532,6 @@
       "group": "statement-count"
     },
     {
-      "id": "directive-template",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c065b2637dfdcfaaedbc9e9e803bd26e38a99dad68bdcb8b37dc8775999e39ff",
-      "group": "string-values"
-    },
-    {
       "id": "directive-asi-add",
       "extension": "js",
       "sourceMode": "module-strict",
