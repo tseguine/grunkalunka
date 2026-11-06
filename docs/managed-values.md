@@ -233,7 +233,11 @@ lookup and silently discard inherited behavior.
 ## Synchronous source admission
 
 Fresh object literals admit ordinary initializer/shorthand properties with static
-identifier, String and numeric keys, including literal-computed names. Values can contain
+identifier, String and numeric keys. A computed definition can also use a
+proven runtime String. The key evaluates once before its value; a later
+definition with the same key updates the existing position. A computed
+`["__proto__"]` defines an own data field. The uncomputed prototype-setting
+form keeps its existing admission guard. Values can contain
 the four primitive kinds, Strings or other constructed objects and arrays. Properties evaluate left to
 right; duplicate keys retain the last value. Static reads/writes preserve aliases,
 receiver snapshots, RHS results and prior saved reads. Known-object bindings can be
@@ -257,7 +261,9 @@ export function run(a, b) {
 All admitted object references originate in fresh literals and cannot enter through
 the numeric host arguments or escape through a reference export. Prototype mutation
 is unavailable. To keep own-property operations faithful, **every intrinsic
-Object.prototype key rejects**, even when a literal would shadow it. The guard is
+Object.prototype key rejects in ordinary member access**, even when a computed
+literal has defined a shadowing own field. Own-property presence, enumeration
+and rest can observe such a field. The guard is
 checked against the actual native intrinsic names in tests. Other absent static
 keys return Undefined. This temporary admission boundary is not a chosen permanent
 object model or a replacement for prototype-aware lookup.

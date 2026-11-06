@@ -682,3 +682,15 @@ fn imported_handler_tests_a_runtime_key_on_an_ordinary_action_record() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_builds_a_record_with_the_runtime_action_name() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const action = a > 0 ? 'expand' : 'collapse';
+            const available = {reload: true, [action]: undefined};
+            return choose('expand' in available ? 1 : 0, Object.keys(available).length);
+        }"#,
+    );
+}

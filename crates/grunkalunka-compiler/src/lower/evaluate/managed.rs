@@ -1,7 +1,7 @@
 //! Managed source values use the ordinary expression cursor and traced IR lanes.
 use super::*;
-use oxc_ast::ast::{ObjectExpression, ObjectPropertyKind, PropertyKind};
 mod arrays;
+mod objects;
 
 pub(super) enum ManagedWork<'e, 'a> {
     DictionaryNew(&'e Expression<'a>),
@@ -41,21 +41,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         left: ValueId,
         negated: bool,
     },
-    Literal {
-        node: &'e Expression<'a>,
-        literal: &'e ObjectExpression<'a>,
-        index: usize,
-        object: ValueId,
-        depth: usize,
-    },
-    LiteralValue {
-        node: &'e Expression<'a>,
-        literal: &'e ObjectExpression<'a>,
-        index: usize,
-        object: ValueId,
-        depth: usize,
-        key: Option<Vec<u16>>,
-    },
+    Literal(objects::ObjectWork<'e, 'a>),
     Read {
         node: &'e Expression<'a>,
         key: Vec<u16>,
@@ -890,13 +876,9 @@ impl Lowering<'_, '_> {
                         node,
                         Op::ManagedObjectNew { result: object },
                     );
-                    work.push(Work::Managed(ManagedWork::Literal {
-                        node,
-                        literal,
-                        index: 0,
-                        object,
-                        depth,
-                    }));
+                    work.push(Work::Managed(ManagedWork::Literal(
+                        objects::ObjectWork::new(node, literal, object, depth),
+                    )));
                     return Ok(true);
                 }
                 Expression::CallExpression(call) => {
@@ -1189,78 +1171,8 @@ impl Lowering<'_, '_> {
                 let value = values.last().expect("managed assignment result").id();
                 Self::push(regions.current(), node, Op::Store { slot, value });
             }
-            ManagedWork::Literal {
-                node,
-                literal,
-                index,
-                object,
-                depth,
-            } => {
-                let Some(property) = literal.properties.get(index) else {
-                    values.push(Value::Object(object));
-                    return Ok(());
-                };
-                let property = match property {
-                    ObjectPropertyKind::ObjectProperty(property) => property,
-                    ObjectPropertyKind::SpreadProperty(spread) => {
-                        work.push(Work::Managed(ManagedWork::LiteralValue {
-                            node,
-                            literal,
-                            index,
-                            object,
-                            depth,
-                            key: None,
-                        }));
-                        work.push(Work::Eval(&spread.argument, depth + 1, Mode::Managed));
-                        return Ok(());
-                    }
-                };
-                if property.kind != PropertyKind::Init || property.method {
-                    return Err(unsupported(
-                        property.as_ref(),
-                        "managed accessors and methods are not yet admitted",
-                    ));
-                }
-                let key = static_keys::property(&property.key, property.computed, depth + 1)
-                    .ok_or_else(|| unsupported(property.as_ref(), "managed literal keys require a static identifier, String or numeric literal"))?;
-                let key = checked_key(property.as_ref(), key)?;
-                work.push(Work::Managed(ManagedWork::LiteralValue {
-                    node,
-                    literal,
-                    index,
-                    object,
-                    depth,
-                    key: Some(key),
-                }));
-                work.push(Work::Eval(&property.value, depth + 1, Mode::Managed));
-            }
-            ManagedWork::LiteralValue {
-                node,
-                literal,
-                index,
-                object,
-                depth,
-                key,
-            } => {
-                let value = values.pop().expect("literal property value").id();
-                Self::push(
-                    regions.current(),
-                    node,
-                    match key {
-                        Some(key) => Op::ManagedSetOwn { object, key, value },
-                        None => Op::ManagedObjectSpread {
-                            object,
-                            input: value,
-                        },
-                    },
-                );
-                work.push(Work::Managed(ManagedWork::Literal {
-                    node,
-                    literal,
-                    index: index + 1,
-                    object,
-                    depth,
-                }));
+            ManagedWork::Literal(task) => {
+                self.complete_object(task, regions, values, work)?;
             }
             ManagedWork::FunctionProjection { node, signature } => {
                 let input = values.pop().expect("stored function value").id();
