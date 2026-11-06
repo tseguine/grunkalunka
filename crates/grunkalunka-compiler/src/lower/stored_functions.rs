@@ -337,6 +337,11 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            if let AstKind::UnaryExpression(unary) = node.kind()
+                && let Some(mutation) = mutations::delete(unary)
+            {
+                mutations.push(mutation);
+            }
             if let AstKind::CallExpression(call) = node.kind()
                 && let Some(receiver) = string_methods::call(call)
                     .filter(|(_, method)| matches!(method, string_methods::Method::Slice))
@@ -1107,6 +1112,25 @@ impl Fields {
             let mut wildcard_additions = Vec::new();
             for mutation in &mutations {
                 match mutation {
+                    mutations::Mutation::KeyDelete { receiver, key } => {
+                        for origin in get(receiver) {
+                            if let Origin::Object(object)
+                            | Origin::NullObject(object)
+                            | Origin::Array(object) = origin
+                            {
+                                let undefined = BTreeSet::from([Origin::Undefined]);
+                                write_additions.push(((object, key.clone()), undefined.clone()));
+                                if matches!(origin, Origin::Array(_))
+                                    && mutations::array_index(key).is_some()
+                                {
+                                    deleted.push(object);
+                                    if track_elements {
+                                        changed |= elements.write(object, key, undefined, &fields);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     mutations::Mutation::Reorder(receiver) => {
                         for origin in get(receiver) {
                             if let Origin::Array(array) = origin {

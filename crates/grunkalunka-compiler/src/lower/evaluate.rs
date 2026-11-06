@@ -16,6 +16,7 @@ pub(super) use managed::member_key as managed_member_key;
 mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
+mod property_delete;
 mod string_methods;
 mod string_template;
 mod tasks;
@@ -1532,6 +1533,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     self.resume_array_mutation(task, regions, values, work)?
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
+                Work::PropertyDelete(task) => self.finish_property_delete(task, regions, values),
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?
