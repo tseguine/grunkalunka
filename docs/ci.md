@@ -129,6 +129,14 @@ than imposing a conflicting second aggregate deadline. Existing shorter
 individual test limits remain in force. These limits fail the job; they do not
 skip, retry or mark a slow test successful.
 
+JSON composition also prepares its three exact artifacts before its PR test
+clock starts: the optimized Wasm JSON guest, the native `json_guest_check`
+example, and the native `json_composition` example. Their explicit Cargo builds
+use the compilation allowance; the unchanged JSON/heap oracles still run under
+the two-minute execution limit. This prevents a cold Wasmtime/Cranelift build
+from consuming that test budget. Full master verification retains its original
+single JSON composition command and coverage.
+
 A local reproduction, after installing the toolchain and Node, is:
 
 ```sh

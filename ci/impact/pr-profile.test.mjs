@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
-import { loadCanonicalCommands, projectPrCommands } from '../../scripts/check-catalog.mjs';
+import { commandTimeoutMs, loadCanonicalCommands, projectPrCommands } from '../../scripts/check-catalog.mjs';
 import { planImpact } from './impact.mjs';
 
 const read = path => readFileSync(new URL('../../' + path, import.meta.url), 'utf8')
@@ -183,6 +183,42 @@ test('exhaustive native replays remain full-only while document smoke and licens
   const license = { command: 'node', args: ['scripts/licenses.mjs'] };
   assert.deepEqual(projectPrCommands(poc), [license], 'POC exclusion must retain its license inventory');
   assert.deepEqual(commandFor(pr, 'scripts/licenses.mjs'), license);
+});
+
+test('JSON composition prepares its guest and native examples before the unchanged bounded oracle', () => {
+  const path = 'scripts/check-json-composition.mjs';
+  const original = commandFor(full, path);
+  assert.deepEqual(original, { command: 'node', args: [path] });
+  const projection = projectPrCommands(json('scripts/checks/021000-json-composition.json'));
+  assert.deepEqual(projection.at(-1), original, 'all original JSON/heap/engine checks still execute');
+  assert.equal(projection.length, 4, 'prepare exactly the three Cargo artifacts used by the oracle');
+  const preparations = projection.slice(0, -1);
+  const value = (args, flag) => args[args.indexOf(flag) + 1];
+  const artifacts = preparations.map(({ command, args }) => {
+    assert.equal(command, 'cargo');
+    assert.equal(args[0], 'build', 'preparation must not consume the test execution budget');
+    assert.ok(args.includes('--offline'));
+    assert.ok(args.includes('--locked'));
+    assert.equal(value(args, '-j'), '2');
+    assert.equal(commandTimeoutMs(command, args, 'pr'), 600_000);
+    return {
+      package: value(args, '-p'),
+      example: args.includes('--example') ? value(args, '--example') : null,
+      target: args.includes('--target') ? value(args, '--target') : 'host',
+      profile: args.includes('--release') ? 'release' : 'debug',
+    };
+  });
+  assert.deepEqual(artifacts, [
+    { package: 'grunkalunka-json-guest', example: null, target: 'wasm32-unknown-unknown', profile: 'release' },
+    { package: 'grunkalunka-runtime', example: 'json_guest_check', target: 'host', profile: 'debug' },
+    { package: 'grunkalunka-wasm-link', example: 'json_composition', target: 'host', profile: 'debug' },
+  ]);
+  const first = pr.findIndex(check => check.command === preparations[0].command &&
+    JSON.stringify(check.args) === JSON.stringify(preparations[0].args));
+  assert.ok(first >= 0);
+  assert.deepEqual(pr.slice(first, first + projection.length), projection,
+    'the live canonical PR inventory prepares all artifacts before invoking the oracle');
+  assert.equal(commandTimeoutMs(original.command, original.args, 'pr'), 120_000);
 });
 
 test('edits to exact-owned A1 test names select the PR filter regression check', () => {
