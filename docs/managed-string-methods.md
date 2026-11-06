@@ -124,3 +124,10 @@ its scalar WIT service boundary. See the specification's
 It accepts source-proven Strings, preserves all supplied argument effects and
 returns a Boolean through helpers, fields and suspension. Validation is an
 iterative guest scan; no host imports or Unicode normalization are introduced.
+
+`toWellFormed()` replaces each unpaired surrogate with U+FFFD, preserving valid
+pairs, all other code units and the UTF-16 length. It returns a known String
+through helpers and stored fields. The guest copies only when repair is needed
+and never changes the original String. Both validation and repair scan linearly
+under the existing fuel budget; supplied arguments execute before the operation,
+including awaits. An A1 source-import case repairs a label before classification.

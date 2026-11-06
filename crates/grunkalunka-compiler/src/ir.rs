@@ -677,6 +677,10 @@ pub(crate) enum Op {
         position: ValueId,
         kind: StringSearch,
     },
+    ManagedStringToWellFormed {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedStringIsWellFormed {
         result: ValueId,
         input: ValueId,
@@ -1641,7 +1645,8 @@ impl Verifier<'_> {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
-            Op::ManagedStringTrim { result, input, .. } => {
+            Op::ManagedStringToWellFormed { result, input }
+            | Op::ManagedStringTrim { result, input, .. } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
