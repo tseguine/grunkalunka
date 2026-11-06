@@ -185,4 +185,35 @@ test('live native/browser parity and independent negative controls',
         { kind: 'hit', path: '$.states.safeOverflow.hits.gap-wrap', left: 'row-b', right: 'row-after' },
       ]);
     });
+
+    await t.test('real per-item alignment mutation moves only its subtree and one hit', async () => {
+      const original = (await readFile(flexSourceFile)).toString('utf8');
+      const originalRule = '  b.style.alignSelf = "safe flex-end";\n  states.selfAlignMixed = sample();';
+      const changedRule = '  b.style.alignSelf = "flex-start";\n  states.selfAlignMixed = sample();';
+      assert.equal(original.split(originalRule).length, 2, 'one reviewed per-item alignment assignment');
+      const mutated = Buffer.from(original.replace(originalRule, changedRule));
+      const directory = join(out, 'flex-self-alignment-sensitivity');
+      await mkdir(directory, { recursive: true });
+      const snapshot = join(directory, 'align-self-mutation.html');
+      await writeFile(snapshot, mutated, { flag: 'wx', mode: 0o444 });
+      // The parent alignment, other items and original native receipt stay
+      // unchanged. Only this actual item's declaration changes in fresh source.
+      const capture = await collectOne(engine, {
+        browserTypes, playwrightVersion: version, fixturePath: snapshot,
+      });
+      await writeFile(join(directory, 'capture.json'),
+        JSON.stringify(capture, null, 2) + '\n', { flag: 'wx' });
+      const report = compareNativeFlexBridge(flexNative, capture, mutated);
+      await writeFile(join(directory, 'comparison.json'),
+        JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+      assert.equal(report.status, 'different', 'real per-item alignment mutation must be detected');
+      assert.equal(report.conformance, 'not-assessed');
+      assert.deepEqual(report.invalid, []);
+      assert.deepEqual(report.incompatible, []);
+      assert.deepEqual(report.differences, [
+        { kind: 'geometry', path: '$.states.selfAlignMixed.boxes.row-b.y', left: 46, right: 28 },
+        { kind: 'geometry', path: '$.states.selfAlignMixed.boxes.row-inner.y', left: 49, right: 31 },
+        { kind: 'hit', path: '$.states.selfAlignMixed.hits.b', left: 'row-host', right: 'row-inner' },
+      ]);
+    });
   });

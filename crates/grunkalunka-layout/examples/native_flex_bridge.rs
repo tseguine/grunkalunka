@@ -27,7 +27,7 @@ const PROBES: [(&str, u32, u32); 9] = [
     ("gap", 95, 30),
     ("outside", 250, 50),
 ];
-const PHASES: [&str; 24] = [
+const PHASES: [&str; 30] = [
     "nowrap",
     "wrap",
     "wide",
@@ -51,6 +51,12 @@ const PHASES: [&str; 24] = [
     "relativeAlign",
     "clippedAlign",
     "scrolledAlign",
+    "selfAlignMixed",
+    "selfAlignAuto",
+    "selfAlignWrap",
+    "selfAlignOverflow",
+    "selfAlignClipped",
+    "selfAlignScrolled",
     "restored",
 ];
 
@@ -165,6 +171,7 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
             | "scrolled"
             | "wrapAlign"
             | "wrapSingle"
+            | "selfAlignWrap"
     ) {
         blocks[1].style.flex_wrap = FlexWrap::Wrap;
     }
@@ -228,6 +235,44 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
                 blocks[1].style.descendant_clip = DescendantClip::PaddingBox;
             }
         }
+        "selfAlignMixed" | "selfAlignAuto" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.height = Length::Px(60);
+            blocks[1].style.align_items = FlexAlign::SafeCenter;
+            blocks[2].style.align_self = Some(FlexAlign::Start);
+            // The boxless wrapper and ordinary child do not apply this field.
+            blocks[3].style.align_self = Some(FlexAlign::SafeEnd);
+            blocks[3].style.align_items = FlexAlign::Start;
+            blocks[5].style.align_self = Some(FlexAlign::SafeEnd);
+            blocks[4].style.align_self = Some(FlexAlign::SafeEnd);
+            if phase == "selfAlignAuto" {
+                blocks[4].style.align_self = None;
+            }
+        }
+        "selfAlignWrap" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.height = Length::Px(60);
+            blocks[1].style.align_items = FlexAlign::SafeCenter;
+            blocks[2].style.align_self = Some(FlexAlign::SafeEnd);
+            blocks[3].style.align_self = Some(FlexAlign::SafeEnd);
+            blocks[6].style.align_self = Some(FlexAlign::Start);
+        }
+        "selfAlignOverflow" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.height = Length::Px(20);
+            blocks[2].style.align_self = Some(FlexAlign::SafeCenter);
+            blocks[4].style.align_self = Some(FlexAlign::SafeEnd);
+            blocks[6].style.align_self = Some(FlexAlign::SafeCenter);
+        }
+        "selfAlignClipped" | "selfAlignScrolled" => {
+            blocks[1].style.width = Length::Px(220);
+            blocks[1].style.height = Length::Px(36);
+            blocks[1].style.descendant_clip = DescendantClip::PaddingBox;
+            blocks[2].style.align_self = Some(FlexAlign::SafeEnd);
+            blocks[4].style.align_self = Some(FlexAlign::SafeCenter);
+            blocks[4].style.relative_offset.y = 15;
+            blocks[6].style.align_self = Some(FlexAlign::SafeCenter);
+        }
         "nowrap" | "wrap" | "scrolled" | "restored" => {}
         _ => panic!("unknown native flex phase"),
     }
@@ -237,7 +282,7 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
     }
     (
         blocks,
-        if matches!(phase, "scrolled" | "scrolledAlign") {
+        if matches!(phase, "scrolled" | "scrolledAlign" | "selfAlignScrolled") {
             10
         } else {
             0
@@ -382,6 +427,35 @@ fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
             expected[3] = rect(121, 31, 25, 8);
             expected[4] = rect(187, 36, 42, 18);
             expected[5] = rect(0, 66, 180, 12);
+        }
+        "selfAlignMixed" | "selfAlignAuto" => {
+            expected[0] = rect(20, 20, 232, 72);
+            expected[2] = rect(105, 46, 56, 36);
+            expected[3] = rect(108, 49, 25, 8);
+            expected[4] = rect(174, 47, 42, 18);
+            expected[5] = rect(0, 98, 180, 12);
+            if phase == "selfAlignAuto" {
+                expected[2] = rect(105, 37, 56, 36);
+                expected[3] = rect(108, 40, 25, 8);
+            }
+        }
+        "selfAlignWrap" => {
+            expected[0] = rect(20, 20, 232, 72);
+            expected[1] = rect(26, 44, 64, 24);
+            expected[5] = rect(0, 98, 180, 12);
+        }
+        "selfAlignOverflow" => {
+            expected[0] = rect(20, 20, 232, 32);
+            expected[4] = rect(174, 27, 42, 18);
+            expected[5] = rect(0, 58, 180, 12);
+        }
+        "selfAlignClipped" | "selfAlignScrolled" => {
+            expected[0] = rect(20, 20, 232, 48);
+            expected[1] = rect(26, 38, 64, 24);
+            expected[2] = rect(105, 43, 56, 36);
+            expected[3] = rect(108, 46, 25, 8);
+            expected[4] = rect(174, 35, 42, 18);
+            expected[5] = rect(0, 74, 180, 12);
         }
         _ => panic!("unknown native flex phase"),
     }
@@ -569,6 +643,40 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
                 None,
             ]
         }
+        "selfAlignMixed" | "selfAlignAuto" => {
+            expected = [
+                Some("row-a"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-b"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                Some("row-host"),
+            ]
+        }
+        "selfAlignWrap" => {
+            expected[0] = Some("row-host");
+            expected[3] = Some("row-host");
+            expected[8] = Some("row-host");
+        }
+        "selfAlignOverflow" => {
+            expected[3] = None;
+            expected[8] = Some("row-host");
+        }
+        "selfAlignClipped" => {
+            expected[0] = Some("row-host");
+            expected[1] = Some("row-host");
+            expected[2] = Some("row-host");
+            expected[8] = Some("row-host");
+        }
+        "selfAlignScrolled" => {
+            expected[1] = Some("row-host");
+            expected[3] = None;
+            expected[4] = None;
+            expected[8] = Some("row-host");
+        }
         _ => panic!("unknown native flex phase"),
     }
     expected
@@ -584,7 +692,7 @@ fn box_json(value: Option<Rect>) -> String {
     }
 }
 
-fn assert_order_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_y: u32) {
+fn assert_native_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_y: u32) {
     const BLUE: Rgb = Rgb::new(0, 0, 255);
     const GREEN: Rgb = Rgb::new(0, 255, 0);
     const PURPLE: Rgb = Rgb::new(128, 0, 128);
@@ -594,6 +702,11 @@ fn assert_order_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_y
         "overlapClipped" => (118, 62, ORANGE),
         "nestedOverlap" => (180, 30, PURPLE),
         "nestedOverflow" => (118, 62, GREEN),
+        "selfAlignMixed" => (110, 52, GREEN),
+        "selfAlignAuto" => (110, 52, BLUE),
+        "selfAlignWrap" => (180, 30, PURPLE),
+        "selfAlignOverflow" | "selfAlignClipped" => (118, 62, BLUE),
+        "selfAlignScrolled" => (118, 62, Rgb::WHITE),
         _ => return,
     };
     let paints: Vec<_> = blocks
@@ -615,7 +728,7 @@ fn assert_order_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_y
         .collect();
     let canvas =
         paint_scrolled(frame, &paints, Rgb::WHITE, 0, scroll_y).expect("native flex-order paint");
-    assert_eq!(canvas.pixel(x, y), Some(expected), "{phase}: overlap pixel");
+    assert_eq!(canvas.pixel(x, y), Some(expected), "{phase}: native pixel");
 }
 
 fn receipt(phase: &str) -> (Frame, String) {
@@ -657,7 +770,7 @@ fn receipt(phase: &str) -> (Frame, String) {
         })
         .collect::<Vec<_>>()
         .join(",");
-    assert_order_pixels(&frame, &blocks, phase, scroll_y);
+    assert_native_pixels(&frame, &blocks, phase, scroll_y);
     (
         frame,
         format!(r#""{phase}":{{"scrollY":{scroll_y},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#),
@@ -667,6 +780,7 @@ fn receipt(phase: &str) -> (Frame, String) {
 fn main() {
     let mut baseline = None;
     let mut aligned = None;
+    let mut self_clipped = None;
     let states = PHASES
         .into_iter()
         .map(|phase| {
@@ -682,6 +796,14 @@ fn main() {
                     aligned.as_ref(),
                     Some(&frame),
                     "aligned scroll preserves full frame"
+                );
+            } else if phase == "selfAlignClipped" {
+                self_clipped = Some(frame);
+            } else if phase == "selfAlignScrolled" {
+                assert_eq!(
+                    self_clipped.as_ref(),
+                    Some(&frame),
+                    "item-aligned scroll preserves full frame"
                 );
             }
             state
