@@ -106,7 +106,9 @@ rest list and recognizes the array's own non-enumerable length. String
 receivers expose their length and UTF-16 code-unit indices. Numeric literal
 keys use the same property name as member access. The `in` operator also
 tests presence in proven null-prototype dictionaries, evaluating its key before
-the receiver. The keyed A1 action handler can use that source syntax directly.
+the receiver. Static keys on ordinary objects and arrays also account for
+their inherited intrinsic names. The keyed A1 action handler can use the
+dictionary form directly.
 
 ### Deliberate remaining limits
 

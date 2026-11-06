@@ -351,15 +351,21 @@ argument effects still execute. Nullable or otherwise unproven receivers
 require additional handling. The semantic reference is
 [Object.hasOwn](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.hasown).
 
-## Dictionary membership
+## Property membership
 
 For a proven null-prototype dictionary, `key in dictionary` checks presence
 even when the stored value is Undefined. The left operand is evaluated and
 saved before the right operand. A change to the key variable during receiver
 evaluation leaves the saved name intact. A failure in the left expression
 prevents receiver evaluation. The supported keys match the known Strings and
-static primitive names used by `Object.hasOwn`. A receiver that could inherit
-properties requires separate prototype-aware handling.
+static primitive names used by `Object.hasOwn`. On ordinary objects and arrays, static key names also admit membership tests.
+A name inherited from the known intrinsic prototype is present even when
+there is no own property. For other static names the own table decides, so
+an array's length, holes and named properties keep their usual behavior.
+In both cases the RHS still evaluates. For a possible mix of ordinary and
+null-prototype objects, only keys with no inherited behavior share that
+specialization. Dynamic keys on non-dictionary receivers need runtime
+prototype membership.
 
 ## Synchronous source arrays
 

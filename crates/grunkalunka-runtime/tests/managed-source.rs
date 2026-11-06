@@ -736,8 +736,6 @@ fn dictionary_in_saves_the_key_before_evaluating_the_receiver() {
 fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
     for body in [
         "const k='constructor';return k in {}?1:0;",
-        "return 'length' in [a]?1:0;",
-        "return 'x' in (a?Object.create(null):{})?1:0;",
         "return 'x' in null?1:0;",
         "return a in Object.create(null)?1:0;",
         "return {} in Object.create(null)?1:0;",
@@ -752,5 +750,35 @@ fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
                 "{source}: {err}"
             );
         }
+    }
+}
+
+#[test]
+fn static_in_distinguishes_own_fields_and_intrinsic_prototypes() {
+    for body in [
+        "return 'length' in [a]?1:0;",
+        "return 'x' in (a?Object.create(null):{})?1:0;",
+        "const o={own:undefined};return 'own' in o&&'constructor' in o&&'__proto__' in o&&!('map' in o)&&!('missing' in o)?1:0;",
+        "const items=[,undefined];return 'map' in items&&'toString' in items&&'length' in items&&!(0 in items)&&1 in items?1:0;",
+        "const d=Object.create(null);return !('toString' in d)&&'toString' in {}&&'toString' in []?1:0;",
+        "let n=0;const yes='toString' in (n++,{});const also='map' in (n=n*10+2,[]);return yes&&also&&n===12?1:0;",
+        "let n=0;const result=void(n=1) in (n=n*10+2,{undefined:0});return result&&n===12?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn static_in_agrees_with_native_intrinsic_string_names() {
+    let output=std::process::Command::new("node").args(["-e","for(const obj of [Object.prototype,Array.prototype]) console.log(Object.getOwnPropertyNames(obj).join(','))"]).output().unwrap();
+    assert!(output.status.success());
+    let names = String::from_utf8(output.stdout).unwrap();
+    for (receiver, keys) in ["{}", "[]"].iter().zip(names.lines()) {
+        let clauses = keys
+            .split(',')
+            .map(|key| format!("({key:?} in obj)"))
+            .collect::<Vec<_>>()
+            .join("&&");
+        compare(&format!("const obj={receiver};return {clauses}?1:0;"));
     }
 }

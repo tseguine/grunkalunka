@@ -463,3 +463,14 @@ fn dictionary_in_saves_the_key_across_receiver_awaits() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn inherited_in_keys_preserve_awaits_in_known_receivers() {
+    compare_promises(
+        &[
+            "let n=0;const present='constructor' in (await a,n=1,{});const method='map' in (await b,n=n*10+2,[]);return present&&method&&n===12?1:0;",
+            "let n=0;try{'map' in (await Promise.reject(a),n=1,[]);}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

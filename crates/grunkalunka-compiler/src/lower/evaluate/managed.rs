@@ -92,24 +92,7 @@ fn checked_key(node: &impl GetSpan, key: Vec<u16>) -> Result<Vec<u16>, String> {
     // Objects enter only by fresh literal construction. No admitted source can
     // mutate their prototype or import a foreign reference. Until prototype
     // operations exist, reject every intrinsic prototype key, even if shadowed.
-    const INHERITED: &[&str] = &[
-        "constructor",
-        "__defineGetter__",
-        "__defineSetter__",
-        "hasOwnProperty",
-        "__lookupGetter__",
-        "__lookupSetter__",
-        "isPrototypeOf",
-        "propertyIsEnumerable",
-        "toString",
-        "valueOf",
-        "__proto__",
-        "toLocaleString",
-    ];
-    if INHERITED
-        .iter()
-        .any(|name| key.iter().copied().eq(name.encode_utf16()))
-    {
+    if crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key) {
         return Err(unsupported(
             node,
             "managed prototype properties are not yet admitted",
@@ -175,49 +158,7 @@ pub(in crate::lower) fn member_key(
         return Ok(key);
     }
     let key = checked_key(node, key)?;
-    const ARRAY_INHERITED: &[&str] = &[
-        "at",
-        "concat",
-        "copyWithin",
-        "fill",
-        "find",
-        "findIndex",
-        "findLast",
-        "findLastIndex",
-        "lastIndexOf",
-        "pop",
-        "push",
-        "reverse",
-        "shift",
-        "unshift",
-        "slice",
-        "sort",
-        "splice",
-        "includes",
-        "indexOf",
-        "join",
-        "keys",
-        "entries",
-        "values",
-        "forEach",
-        "filter",
-        "flat",
-        "flatMap",
-        "map",
-        "every",
-        "some",
-        "reduce",
-        "reduceRight",
-        "toReversed",
-        "toSorted",
-        "toSpliced",
-        "with",
-    ];
-    if array
-        && ARRAY_INHERITED
-            .iter()
-            .any(|s| key.iter().copied().eq(s.encode_utf16()))
-    {
+    if array && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key) {
         return Err(unsupported(
             node,
             "managed array prototype properties are not yet admitted",

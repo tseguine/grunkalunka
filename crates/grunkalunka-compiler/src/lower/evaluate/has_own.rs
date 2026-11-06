@@ -2,6 +2,11 @@
 //! evaluating their operands in the order required by the source operation.
 use super::*;
 
+pub(super) enum Membership {
+    Own(Option<Vec<u16>>),
+    Inherited,
+}
+
 pub(super) struct Task<'e, 'a> {
     node: &'e Expression<'a>,
     call: &'e CallExpression<'a>,
@@ -50,15 +55,43 @@ impl Lowering<'_, '_> {
                 "in requires a proven String or supported primitive key",
             ));
         };
-        if !self.stored.dictionary(binary.right.node_id()) {
+        let receiver = binary.right.node_id();
+        let ty = self.receiver_type(&binary.right, depth + 1);
+        let (mode, membership) = if self.stored.dictionary(receiver) {
+            (Mode::Object, Membership::Own(literal))
+        } else if let Some(ty @ (Type::ManagedObject | Type::ManagedArray)) = ty {
+            let key = literal.ok_or_else(|| {
+                unsupported(
+                    &binary.left,
+                    "dynamic in keys require a proven null-prototype dictionary",
+                )
+            })?;
+            let inherited = crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key)
+                || (ty == Type::ManagedArray
+                    && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key));
+            if inherited && ty == Type::ManagedObject && !self.stored.ordinary_object(receiver) {
+                return Err(unsupported(
+                    &binary.right,
+                    "in cannot assume an inherited key on a mixed-prototype receiver",
+                ));
+            }
+            (
+                Mode::managed(ty),
+                if inherited {
+                    Membership::Inherited
+                } else {
+                    Membership::Own(Some(key))
+                },
+            )
+        } else {
             return Err(unsupported(
                 &binary.right,
-                "in requires a proven null-prototype dictionary",
+                "in requires a proven object or array",
             ));
-        }
+        };
         // Stack the RHS first so the cursor saves the LHS key before RHS effects.
-        work.push(Work::In { node, literal });
-        work.push(Work::Eval(&binary.right, depth + 1, Mode::Object));
+        work.push(Work::In { node, membership });
+        work.push(Work::Eval(&binary.right, depth + 1, mode));
         work.push(Work::Eval(&binary.left, depth + 1, key_mode));
         Ok(())
     }

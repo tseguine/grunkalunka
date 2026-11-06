@@ -117,6 +117,15 @@ fn pattern_definitions(
 }
 
 impl Fields {
+    pub(super) fn ordinary_object(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values
+                    .iter()
+                    .all(|origin| matches!(origin, Origin::Object(_)))
+        })
+    }
+
     pub(super) fn dictionary(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()
