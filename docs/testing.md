@@ -83,15 +83,31 @@ tests do not establish native behavior on those hosts. The real document smoke
 and full native reports retain their existing registrations.
 
 ```sh
-node --test ci/impact/document-outline-profile.test.mjs \
-  ci/impact/document-outline-reports.test.mjs
+node --test tests/checks/*.test.mjs
 ```
 
-These units are discovered by the existing impact-planner regression command
-in both profiles. Its source dependency on the document-outline check selects
-the units when the checker changes; the unit command itself starts no native
-processes. Test fixture failures are checked separately so a broken fake cannot
-masquerade as a successfully rejected external report.
+These units have their own canonical command in both profiles. Changes confined
+to `tests/checks/` select that command with no Cargo build prerequisites, rather
+than changing the global impact-planner implementation. Changes to the real
+document checker select the fast units alongside the existing native feature
+checks. Test fixture failures are checked separately so a broken fake cannot
+masquerade as a successfully rejected external report. Unknown inputs and unsafe
+registration changes still use the complete fast PR profile.
+
+The executable checker is imported with a distinct URL for each isolated case.
+Node's coverage reporter counts those URL variants separately; its combined
+percentage is not a merged coverage measurement of the checker. Inspect a named
+path with production-only coverage, for example:
+
+```sh
+node --test --experimental-test-coverage \
+  --test-coverage-include=scripts/check-document-outline.mjs \
+  --test-name-pattern='full document report validation accepts coherent linux receipts' \
+  tests/checks/document-outline-reports.test.mjs
+```
+
+That report measures one full successful report path. Run the unfiltered unit
+command above for malformed receipts and failure/cleanup decisions as well.
 
 ## Current verification map (2026-11-01)
 
