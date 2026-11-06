@@ -22,7 +22,7 @@ impl Lowering<'_, '_> {
         if !binding.mutable || self.slots[binding.slot.0].ty != Type::ManagedValue {
             return Err(unsupported(
                 identifier,
-                "assignment patterns require initialized mutable managed-value bindings",
+                "assignment target must be an initialized identifier with mutable managed-value storage",
             ));
         }
         Ok(binding.slot)
