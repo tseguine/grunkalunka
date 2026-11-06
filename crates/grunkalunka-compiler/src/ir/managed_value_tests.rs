@@ -1314,3 +1314,10 @@ fn code_point_at_keeps_boxed_results_and_requires_proven_inputs() {
         assert!(crate::lower_source(&source, false).is_err(), "{source}");
     }
 }
+
+#[test]
+fn string_at_default_proofs_do_not_admit_unsupported_pattern_assignment() {
+    let source =
+        "export function run(a,b){let c='';({c='?'}={c:'abc'.at(a)});return c.charCodeAt(0);}";
+    assert!(crate::lower_source(source, false).is_err());
+}

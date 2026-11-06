@@ -1051,3 +1051,23 @@ fn code_point_at_decodes_pairs_and_returns_undefined_outside_the_string() {
         compare_sources(source, source);
     }
 }
+
+#[test]
+fn string_at_defaults_prove_present_text_and_keep_lazy_fallback_effects() {
+    for body in [
+        "const {c='?'}={c:'abc'.at(a)};return c.length+c.charCodeAt(0);",
+        "const [c='?']=['abc'.at(a)];return c.trim().length+c.charCodeAt(0);",
+        "let n=0;const {c=(n=1,'?')}={c:'abc'.at(a)};return n*1000+c.charCodeAt(0);",
+        r"const {c='?'}={c:'\u{1f600}'.at(a)};return c.charCodeAt(0);",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+    for source in [
+        "function last(s){return s.at(-1);}export function run(a,b){const {c='?'}={c:last(a>0?'menu/':'')};return c.charCodeAt(0);}",
+        "function unit(s,i){const {c='?'}={c:s.at(i)};return c;}export function run(a,b){return unit('abc',a).charCodeAt(0);}",
+        "export function run(a,b){const text=a>0?'menu/':'';const handle=()=>{const {c='?'}={c:text.at(-1)};return c.charCodeAt(0);};return handle();}",
+    ] {
+        compare_sources(source, source);
+    }
+}

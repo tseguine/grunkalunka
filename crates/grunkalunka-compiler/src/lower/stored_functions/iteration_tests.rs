@@ -776,3 +776,34 @@ fn relative_string_selection_does_not_prove_a_string() {
         observe_source("export function run(a,b){const observed='abc'.charAt(a);return 0;}").string
     );
 }
+
+#[test]
+fn string_at_defaults_replace_missing_units_without_laundering_other_origins() {
+    for body in [
+        "const {c='?'}={c:'abc'.at(a)};const observed=c;return a;",
+        "const obj={at:x=>'x'};const {c='?'}={c:obj.at(a)};const observed=c;return a;",
+        "const [c='?']=['abc'.at(a)];const observed=c;return a;",
+        "const box={c:'abc'.at(a)};const alias=box;const {c='?'}=alias;const observed=c;return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    let selected = observe("const observed='abc'.at(a);return a;");
+    assert!(!selected.string && selected.undefined && !selected.other);
+    assert_eq!(
+        observe_source(
+            "function last(s){return s.at(-1);}export function run(a,b){const {c='?'}={c:last('')};const observed=c;return a;}"
+        ),
+        STRING
+    );
+    for body in [
+        "const box={c:'abc'.at(a)};box.c=b;const {c='?'}=box;const observed=c;return a;",
+        "const box={c:'abc'.at(a)};const alias=box;alias.c=null;const {c='?'}=box;const observed=c;return a;",
+        "const {c=b}={c:'abc'.at(a)};const observed=c;return a;",
+        "const {c='?'}={c:'abc'.codePointAt(a)};const observed=c;return a;",
+        "const xs=['abc'];const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const obj={at:x=>x};const {c='?'}={c:obj.at(a)};const observed=c;return a;",
+        "let s='abc';const read=()=>{const {c='?'}={c:s.at(0)};const observed=c;return 0;};s=a;return read();",
+    ] {
+        assert!(!observe(body).string, "{body}");
+    }
+}
