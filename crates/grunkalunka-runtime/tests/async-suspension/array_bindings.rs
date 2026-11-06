@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn assignment_planned_local_cells_keep_undefined_and_captures_across_await() {
+    compare_promises(
+        &[
+            "let x;const read=()=>x;const before=read()===undefined;await a;[x]=[b];await a;return before&&read()===b?1:0;",
+            "let x=0;const read=()=>x;({name:x}={name:(await a,'text')});await b;return read()==='text'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn assignment_patterns_keep_rhs_and_captured_cells_across_await() {
     compare_promises(
         &[

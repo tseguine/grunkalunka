@@ -59,7 +59,9 @@ add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'General bindin
 add('local-destructure', 'bindings', 'const {x}={x:a}; return x+b;', 6,
   `${expression}: managed value requires an identity or managed storage position`,
   { prerequisites: ['numeric consumption of managed field values'] });
-add('destructuring-write', 'bindings', 'let x=a; [x]=[b]; return x;', 2, 'assignment target must be an initialized identifier', { prerequisites: ['array values'] });
+add('destructuring-write', 'bindings', 'let x=a; [x]=[b]; return x;', 2,
+  `${expression}: managed value requires an identity or managed storage position`,
+  { prerequisites: ['numeric consumption of managed field values'] });
 add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators are not admitted',
   { source: 'export function run(a=4,b=2) { return a+b; }', args: [] });
 add('rest', 'bindings', '', 6, ordinaryParameters,

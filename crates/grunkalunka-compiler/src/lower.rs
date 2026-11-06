@@ -19,6 +19,7 @@ use crate::{is_type_declaration, unsupported};
 
 mod array_at;
 mod array_mutations;
+mod assignment_patterns;
 mod async_values;
 mod awaited;
 mod binding_patterns;
