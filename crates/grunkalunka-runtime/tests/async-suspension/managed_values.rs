@@ -546,3 +546,14 @@ fn enumeration_keeps_label_values_and_child_records_across_awaits() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn string_for_of_keeps_the_saved_text_and_code_unit_offset_across_awaits() {
+    compare_promises(
+        &[
+            r"let text=a?'A\u{1f600}B':'\ud800Z';let n=0;for(const ch of (await b,text)){await a;text='new';if(ch==='A')continue;n=n*10+ch.length;}return n;",
+            r"let n=0;for(const ch of 'A\u{1f600}B'){try{await a;if(ch.length===2)break;n++;}finally{await b;n+=10;}}return n;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

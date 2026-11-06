@@ -213,7 +213,9 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "let item=a;for(item of [b]){}return a;",
         "const row={value:a};for(row.value of [b]){}return a;",
         "for(const item of a){}return a;",
-        "for(const item of 'abc'){}return a;",
+        "const source=a?'abc':[b];for(const item of source){}return a;",
+        "for(const [first] of 'abc'){}return a;",
+        "for(let item of 'abc'){item=a;return item.trim().length;}return 0;",
         "for(const item of {0:a,length:1}){}return a;",
         "for(const item of null){}return a;",
         "for(const item of undefined){}return a;",
@@ -487,5 +489,21 @@ fn object_keys_consumers_reject_overwrites_holes_and_unchecked_indices() {
         for ts in [false, true] {
             assert_rejected(&source, ts);
         }
+    }
+}
+
+#[test]
+fn string_for_of_yields_code_points_and_preserves_unpaired_surrogates() {
+    for body in [
+        "for(const item of 'abc'){}return a;",
+        r"let n=0;for(const ch of 'A\u{1f600}\ud800x\udc00'){if(ch==='A')n=n*10+1;else if(ch==='\u{1f600}')n=n*10+2;else if(ch==='\ud800')n=n*10+3;else if(ch==='x')n=n*10+4;else if(ch==='\udc00')n=n*10+5;else return -1;}return n;",
+        r"let n=0;for(const ch of '\ud800\ud801\udc01\udc02\udbff\udfff\ud800')n=n*3+ch.length;return n;",
+        r"let text='A\u{1f600}B',n=0;for(const ch of text){text='rebound';if(ch==='A')continue;n=n*10+ch.length;}return n;",
+        "let n=0;for(const ch of (n=1,''))n=2;return n;",
+        r"let first=()=>0,last=()=>0,n=0;for(let ch of 'x\u{1f600}'){const get=()=>ch.length;if(n===0)first=get;last=get;n++;}return first()*10+last();",
+        r"const obj={label:a?'A\u{1f600}':' B '};let n=0;for(const ch of obj.label.trim()){if(ch==='B')break;n+=ch.length;}return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
     }
 }

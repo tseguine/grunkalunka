@@ -1,4 +1,4 @@
-//! Intrinsic managed-array iteration on the shared source cursor.
+//! Intrinsic Array and String iteration on the shared source cursor.
 use super::*;
 use oxc_ast::ast::ForStatementLeft;
 
@@ -23,15 +23,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             self.charge_declaration_bindings(identifier.as_ref(), 1)?;
         }
         let ty = self.managed_source_type(&source.right, 0);
-        if ty != Some(Type::ManagedArray)
-            && !(ty == Some(Type::ManagedValue)
+        let mode = if self.stored.string(source.right.node_id()) {
+            evaluate::Mode::Managed
+        } else if ty == Some(Type::ManagedArray)
+            || (ty == Some(Type::ManagedValue)
                 && self.stored.container(source.right.node_id()) == Some(Type::ManagedArray))
         {
+            evaluate::Mode::Array
+        } else {
             return Err(unsupported(
                 &source.right,
-                "for-of requires a source-proven managed array",
+                "for-of requires a source-proven Array or String",
             ));
-        }
+        };
         let header = self.region(source);
         cursor.pending.push(Frame::ForOfSource {
             source,
@@ -45,7 +49,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             source: &source.right,
             output: header,
             depth: 0,
-            mode: evaluate::Mode::Array,
+            mode,
         });
         Ok(())
     }
@@ -53,10 +57,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn resume_for_of_source<'n>(
         &mut self,
         mut frame: Box<ForOfFrame<'n, 'ast>>,
-        array: ValueId,
+        iterable: ValueId,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         let source = frame.source;
+        let string = self.values[iterable.0] == Type::ManagedValue;
         let zero = self.value(Type::Number);
         Self::push(
             &mut frame.header,
@@ -93,14 +98,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             },
         );
         let length = self.value(Type::Number);
-        Self::push(
-            &mut frame.condition,
-            source,
-            Op::ManagedArrayLength {
-                result: length,
-                array,
-            },
-        );
+        if string {
+            // A saved String is immutable. Arrays must re-read their live length.
+            Self::push(
+                &mut frame.header,
+                source,
+                Op::ManagedStringLength {
+                    result: length,
+                    input: iterable,
+                },
+            );
+        } else {
+            Self::push(
+                &mut frame.condition,
+                source,
+                Op::ManagedArrayLength {
+                    result: length,
+                    array: iterable,
+                },
+            );
+        }
         let condition = self.value(Type::Predicate);
         Self::push(
             &mut frame.condition,
@@ -126,15 +143,45 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 slot: index,
             },
         );
-        let one = self.value(Type::Number);
-        Self::push(
-            &mut body,
-            source,
-            Op::Constant {
-                result: one,
-                value: 1.0,
-            },
-        );
+        let selected = self.value(Type::ManagedValue);
+        let width = self.value(Type::Number);
+        if string {
+            Self::push(
+                &mut body,
+                source,
+                Op::ManagedStringIterValue {
+                    result: selected,
+                    input: iterable,
+                    index: position,
+                },
+            );
+            Self::push(
+                &mut body,
+                source,
+                Op::ManagedStringLength {
+                    result: width,
+                    input: selected,
+                },
+            );
+        } else {
+            Self::push(
+                &mut body,
+                source,
+                Op::ManagedArrayAt {
+                    result: selected,
+                    array: iterable,
+                    index: position,
+                },
+            );
+            Self::push(
+                &mut body,
+                source,
+                Op::Constant {
+                    result: width,
+                    value: 1.0,
+                },
+            );
+        }
         let next = self.value(Type::Number);
         Self::push(
             &mut body,
@@ -143,7 +190,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 result: next,
                 operator: Binary::Add,
                 left: position,
-                right: one,
+                right: width,
             },
         );
         Self::push(
@@ -152,16 +199,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Op::Store {
                 slot: index,
                 value: next,
-            },
-        );
-        let selected = self.value(Type::ManagedValue);
-        Self::push(
-            &mut body,
-            source,
-            Op::ManagedArrayAt {
-                result: selected,
-                array,
-                index: position,
             },
         );
         let pattern = iteration::for_of_pattern(source).expect("admitted for-of binding");

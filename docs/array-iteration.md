@@ -1,7 +1,7 @@
-# Array iteration
+# Array and String iteration
 
 Synchronous `for...of` admits one local `const` or `let` declaration over a
-source-proven managed array. Its binding may be an identifier or a supported
+source-proven managed array or String. For arrays, the binding may be an identifier or a supported
 object/array pattern, including mixed nesting, identifier rest in arrays and objects, and
 defaults on leaves or nested patterns.
 The loop works in ordinary source functions, helpers and supported async
@@ -10,7 +10,14 @@ once; later reassignment of its source variable cannot redirect the loop.
 
 ## Iteration and control
 
-Each step reads the original array's current length. Appending through admitted
+String loops use an identifier binding. Each step yields one Unicode code point
+as a String. Two code units are returned together for a valid surrogate pair.
+An unpaired surrogate is returned as its original one-unit String. The cursor
+advances by the width of the yielded String before body control flow, so a
+`continue` or suspended body resumes at the next character. Empty Strings
+still evaluate the RHS once.
+
+Each array step reads the original array's current length. Appending through admitted
 index writes can extend the loop, while truncation or `pop` can shorten it.
 Sparse holes yield Undefined. Named properties do not participate. Empty arrays
 execute no iterations, but their initializer effects still occur.
@@ -100,7 +107,7 @@ require static keys. An array rest element can initialize an array or object pat
 from the fresh tail before its loop body starts.
 
 This slice rejects `for await...of`, `var`, assignment targets,
-Strings, unproven iterable values and labels. Synchronous source
+unproven iterable values, mixed Array/String receivers and labels. Synchronous source
 try/catch/finally retain their existing admission boundary.
 
 The index slot and generated header regions do not count as source locals or
@@ -126,4 +133,5 @@ and hosted verification results separately.
 
 The semantic references are ECMAScript's
 [for-in/of evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements)
+[String iteration](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype-%symbol.iterator%),
 and [array iterator next](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%arrayiteratorprototype%.next).

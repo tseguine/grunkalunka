@@ -468,6 +468,16 @@ impl Emitter<'_> {
                 .unwrap();
                 self.set(*result);
             }
+            Op::ManagedStringIterValue {
+                result,
+                input,
+                index,
+            } => {
+                self.get(*input);
+                self.get(*index);
+                self.output.push_str("call $gc_string_iter_value\n");
+                self.set(*result);
+            }
             Op::ManagedStringCharAt {
                 result,
                 input,
@@ -1633,6 +1643,7 @@ fn emit_verified(
         output.push_str(array_rest::runtime(module));
         output.push_str(string_concat::runtime(module));
         output.push_str(string_methods::runtime(module));
+        output.push_str(string_methods::iteration_runtime(module));
     }
     output.push_str(")\n");
     Ok(output)

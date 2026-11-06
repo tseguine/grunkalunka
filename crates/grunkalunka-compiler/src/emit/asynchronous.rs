@@ -1596,6 +1596,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(super::array_rest::runtime(module));
         output.push_str(super::string_concat::runtime(module));
         output.push_str(super::string_methods::runtime(module));
+        output.push_str(super::string_methods::iteration_runtime(module));
         if error_kinds {
             output.push_str(super::own_keys::FALLIBLE);
         }

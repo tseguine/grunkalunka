@@ -98,7 +98,7 @@ destructuring, const, TDZ, unresolved and function-binding writes remain rejecte
 The former `gap-for` reference is now `for-promoted-reference` in
 [`numeric-for.mjs`](../tests/compatibility/numeric-for.mjs), with additional scope,
 ordering, omission and source-budget checks. Local `const`/`let` identifier
-`for...of` bindings now iterate over source-proven managed arrays. The original
+`for...of` bindings now iterate over source-proven managed arrays or Strings. The original
 `for-of` rejection fixture still requires a numeric return from its boxed
 selected element, so its source and inventory hash remain unchanged while its
 diagnostic identifies that remaining boundary. `for...in`, general iterables,

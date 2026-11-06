@@ -771,3 +771,16 @@ fn imported_handler_reads_labels_from_enumerated_action_records() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_counts_characters_in_a_display_label() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const label = a > 0 ? 'A\u{1f600}' : 'B';
+            let characters = 0;
+            for (const ch of label) characters++;
+            return choose(characters - 1, 2);
+        }"#,
+    );
+}

@@ -1226,3 +1226,23 @@ fn managed_typeof_requires_a_managed_input_and_managed_text_result() {
     module.functions[0].values[5] = Type::Predicate;
     assert!(verify_module(&module).is_err());
 }
+
+#[test]
+fn string_iteration_emits_its_reader_only_for_a_proven_string_loop() {
+    for (input, needs_reader) in [("'a'", true), ("['a']", false)] {
+        let source = format!(
+            "export function run(a,b){{let n=0;for(const ch of {input})n+=ch.length;return n;}}"
+        );
+        let module = crate::lower_source(&source, false).unwrap();
+        verify_module(&module).unwrap();
+        assert_eq!(
+            any_operation(&module.functions[0].body, &mut |op| matches!(
+                op,
+                Op::ManagedStringIterValue { .. }
+            )),
+            needs_reader
+        );
+        let wat = crate::emit::emit(&module).unwrap();
+        assert_eq!(wat.contains("(func $gc_string_iter_value"), needs_reader);
+    }
+}

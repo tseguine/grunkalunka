@@ -601,6 +601,12 @@ pub(crate) enum Op {
         end: ValueId,
         substring: bool,
     },
+    // The next intrinsic String iterator value at a UTF-16 offset.
+    ManagedStringIterValue {
+        result: ValueId,
+        input: ValueId,
+        index: ValueId,
+    },
     ManagedStringCharAt {
         result: ValueId,
         input: ValueId,
@@ -1565,6 +1571,11 @@ impl Verifier<'_> {
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringIterValue {
                 result,
                 input,
                 index,

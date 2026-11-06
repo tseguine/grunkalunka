@@ -210,7 +210,10 @@ identifiers or nested patterns. It evaluates the iterable once and initializes
 every head leaf before entering the body. Captured leaves receive fresh cells
 each iteration. Existing completion machinery handles
 unlabelled loop control and supported suspension in the RHS, head defaults or
-body. See [array iteration](array-iteration.md) for its intrinsic-array scope.
+body. See [Array and String iteration](array-iteration.md). A proven String can also
+drive an identifier loop. An A1 handler can count characters in a display
+label, treating a supplementary character as a single iteration and preserving
+lone surrogate code units.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain
