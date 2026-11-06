@@ -9,6 +9,7 @@ mod asynchronous;
 mod cells;
 mod closures;
 mod gc_closures;
+mod has_own;
 #[cfg(test)]
 mod iterative_emitter_tests;
 mod layout;
@@ -337,6 +338,17 @@ impl Emitter<'_> {
                 self.get(*object);
                 self.get(*input);
                 self.output.push_str("call $gc_object_spread\n");
+            }
+            Op::ManagedHasOwn { result, input, key } => {
+                self.get(*input);
+                self.managed_key_value(*key);
+                self.output
+                    .push_str(if self.function.values[input.0] == Type::ManagedArray {
+                        "call $gc_array_has_own\n"
+                    } else {
+                        "call $gc_has_own\n"
+                    });
+                self.set(*result);
             }
             Op::ManagedOwnKeys { result, input } => {
                 let ty = self.function.values[input.0];
@@ -1551,6 +1563,7 @@ fn emit_verified(
         output.push_str(include_str!("emit/managed.wat"));
         output.push_str(managed_spread::runtime(module));
         output.push_str(object_rest::runtime(module));
+        output.push_str(has_own::runtime(module));
         output.push_str(own_keys::runtime(module));
         output.push_str(array_at::runtime(module));
         output.push_str(array_pop::runtime(module));

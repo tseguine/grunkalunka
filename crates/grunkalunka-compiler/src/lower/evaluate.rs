@@ -7,6 +7,7 @@ use std::cell::Cell;
 mod array_at;
 mod array_pop;
 mod dictionary;
+mod has_own;
 mod managed;
 pub(super) use managed::member_key as managed_member_key;
 mod own_keys;
@@ -1462,6 +1463,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?
                 }
+                Work::HasOwn(task) => self.resume_has_own(task, regions, values, work)?,
                 Work::OwnKeys(task) => self.resume_own_keys(task, regions, values, work)?,
                 Work::Managed(task) => {
                     self.complete_managed(task, regions, values, work)?;

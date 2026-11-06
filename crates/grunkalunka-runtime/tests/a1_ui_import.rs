@@ -653,3 +653,18 @@ fn imported_handler_selects_dictionary_state_and_counts_remaining_actions() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_detects_explicit_undefined_action_metadata() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const overrides = Object.create(null);
+            const key = 'expanded';
+            if (a > 0) overrides[key] = undefined;
+            const configured = Object.hasOwn(overrides, key);
+            const headings = ['First', 'Second'];
+            return choose(configured ? 1 : 0, headings.length);
+        }"#,
+    );
+}

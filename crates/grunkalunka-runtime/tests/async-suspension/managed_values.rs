@@ -418,3 +418,15 @@ fn managed_async_values_keep_erased_types_and_small_stack_limits() {
         }
     }
 }
+
+#[test]
+fn has_own_preserves_receiver_and_key_across_awaits() {
+    compare_promises(
+        &[
+            "let o={},k='x';const old=o;const present=Object.hasOwn(o,(await a,k),(await b,k='y',o={},old.x=undefined));await a;return present&&!Object.hasOwn(o,'x')?1:0;",
+            "const x=[a];const present=Object.hasOwn(x,'0',(await a,x.length=0));await b;return !present&&Object.hasOwn(x,'length')?1:0;",
+            "let n=0;try{Object.hasOwn({},(await Promise.reject(a),'x'),n=1);}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
