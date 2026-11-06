@@ -344,13 +344,8 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         active: declarations::ActiveDeclarationValue<'n, 'a>,
     },
-    /// The original object RHS is evaluated once before any field is selected.
-    ObjectBindingSource {
-        sequence: Box<DeclarationSequence<'n, 'a>>,
-        binding: binding_patterns::PatternBinding<'n, 'a>,
-    },
-    /// The intrinsic array RHS is saved before any indexed binding is published.
-    ArrayBindingSource {
+    /// Evaluate the proven container once before selecting its fields or elements.
+    PatternBindingSource {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         binding: binding_patterns::PatternBinding<'n, 'a>,
     },
@@ -602,8 +597,7 @@ impl Frame<'_, '_> {
             Self::ForOfSource { depth, .. } => *depth,
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
-            Self::ObjectBindingSource { sequence, .. } => sequence.depth,
-            Self::ArrayBindingSource { sequence, .. } => sequence.depth,
+            Self::PatternBindingSource { sequence, .. } => sequence.depth,
             Self::PatternBindingKey { resume, .. } | Self::PatternBindingDefault { resume, .. } => {
                 resume.depth()
             }

@@ -155,3 +155,14 @@ fn rest_target_defaults_suspend_after_the_entire_tail_is_copied() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_property_bindings_read_live_length_and_saved_receivers_after_await() {
+    compare_promises(
+        &[
+            "const src=[undefined,b];const {0:first=(await a,src.length=0,src[2]=a,1),length:n,...rest}=src;await b;return n===3&&rest[2]===a&&rest.length===undefined?1:0;",
+            "const src=[a,undefined,' saved '];const [,...{0:x=(await a,src[2]='changed',b),1:y,length:n}]=src;return x===b&&y.trim()==='saved'&&n===2?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

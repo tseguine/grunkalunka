@@ -1,7 +1,7 @@
 # Object binding declarations
 
 Local `const` and `let` declarations admit object binding patterns over
-source-proven managed objects. This supports shorthand fields, renamed fields,
+source-proven managed objects and arrays. This supports shorthand fields, renamed fields,
 and static identifier, String and numeric property names, including literal-computed
 keys and nested object or array patterns. Identifier leaves and whole
 nested patterns may have lazy defaults, and nested array patterns may end in an
@@ -22,8 +22,8 @@ their leaves finish in source order. A default inside a nested pattern completes
 before the next outer property is read. Replacing an outer property or rebinding
 the original source does not redirect a nested selection already in progress.
 Empty nested patterns still select and validate their receiver. Each nested
-object pattern requires an all-object source proof after any whole-pattern default; nullable,
-array or unknown alternatives do not satisfy that proof. Nested array patterns
+object pattern requires a coherent object or array receiver after any
+whole-pattern default. Nullable or unknown alternatives retain their guards. Nested array patterns
 use their own all-array proof and independent iterator state described in
 [array bindings](array-binding-patterns.md).
 
@@ -72,6 +72,16 @@ most 128 nested binding-container levels, and evaluation uses the existing sourc
 cursor. This slice adds no runtime imports, public ABI or native recursion
 proportional to pattern size. Nested array rest uses the private operation
 described in [array bindings](array-binding-patterns.md).
+
+## Property bindings on arrays
+
+A property pattern can read an array by static key. In `const {0: first,
+length, ...others} = items`, the two reads observe the current indexed value
+and length in source order. The rest object then copies the remaining
+enumerable own entries, including named fields. Holes have no entries and
+the array's length is never enumerable. Existing array prototype guards
+apply to reads. The same rule works on arrays inside nested patterns and
+in loop heads.
 
 ## Object rest
 

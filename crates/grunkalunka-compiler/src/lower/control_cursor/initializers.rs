@@ -133,29 +133,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 });
                 Ok(())
             }
-            declarations::DeclarationInitializer::Object(binding) => {
+            declarations::DeclarationInitializer::Pattern(binding) => {
                 let source = binding.source;
+                let mode = binding.mode;
                 cursor
                     .pending
-                    .push(Frame::ObjectBindingSource { sequence, binding });
+                    .push(Frame::PatternBindingSource { sequence, binding });
                 cursor.next = Some(Next::Expression {
                     source,
                     output,
                     depth: 0,
-                    mode: evaluate::Mode::Object,
-                });
-                Ok(())
-            }
-            declarations::DeclarationInitializer::Array(binding) => {
-                let source = binding.source;
-                cursor
-                    .pending
-                    .push(Frame::ArrayBindingSource { sequence, binding });
-                cursor.next = Some(Next::Expression {
-                    source,
-                    output,
-                    depth: 0,
-                    mode: evaluate::Mode::Array,
+                    mode,
                 });
                 Ok(())
             }

@@ -264,8 +264,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 value.expect("declaration initializer value"),
                 cursor,
             ),
-            Frame::ObjectBindingSource { sequence, binding }
-            | Frame::ArrayBindingSource { sequence, binding } => self
+            Frame::PatternBindingSource { sequence, binding } => self
                 .resume_pattern_binding_source(
                     sequence,
                     binding,
@@ -564,8 +563,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::EvaluateFactoryValue { .. }
             | Frame::DeclarationValue { .. }
-            | Frame::ObjectBindingSource { .. }
-            | Frame::ArrayBindingSource { .. }
+            | Frame::PatternBindingSource { .. }
             | Frame::PatternBindingKey { .. }
             | Frame::PatternBindingDefault { .. }
             | Frame::CheckedDeclarationClosure { .. }

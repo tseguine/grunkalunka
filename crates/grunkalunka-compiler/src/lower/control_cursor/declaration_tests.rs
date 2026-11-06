@@ -11,7 +11,7 @@ fn object_rest_bindings_keep_receiver_and_scope_guards() {
             true,
         ),
         ("const {x,...rest}=a;return a;", false),
-        ("const {x,...rest}=[a];return a;", false),
+        ("const {x,...rest}=[a];return a;", true),
         ("const {child:{...rest}}={child:null};return a;", false),
         ("const {first=rest,...rest}={};return a;", false),
         ("const {...rest}={};rest={};return a;", false),
@@ -81,7 +81,6 @@ fn array_rest_bindings_compose_with_defaults_captures_and_iteration() {
 #[test]
 fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
     for body in [
-        "const [...{length}]=[a];return a;",
         "const [...rest]=a;return a;",
         "const [...rest]='text';return a;",
         "const [first=rest,...rest]=[];return a;",
@@ -320,7 +319,6 @@ fn nested_pattern_defaults_keep_kind_tdz_and_unsupported_pattern_guards() {
     for body in [
         "const {child:{}={}}={child:null};return a;",
         "const {child:{}={}}={child:a};return a;",
-        "const {child:{}=[]}={};return a;",
         "const [[]=[]]=[null];return a;",
         "const [[]={}]=[];return a;",
         "const {child:{}={}}={...{child:null}};return a;",
@@ -461,7 +459,6 @@ fn nested_object_bindings_preserve_admission_and_small_stack_depth_boundaries() 
     for body in [
         "const {child:{}}={};return a;",
         "const {child:{}}={child:null};return a;",
-        "const {child:{}}={child:[]};return a;",
         "const {child:{x}}={child:a};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
@@ -1020,5 +1017,36 @@ fn array_rest_pattern_targets_keep_independent_iteration_and_depth_limits() {
                 "{error}"
             );
         }
+    }
+}
+
+#[test]
+fn property_bindings_accept_arrays_and_keep_intrinsic_guards() {
+    for body in [
+        "const [...{length}]=[a];return a;",
+        "const {child:{}=[]}={};return a;",
+        "const {child:{}}={child:[]};return a;",
+        "const {0:first,length:n,...other}=[a,b];return n===2&&other[1]===b?1:0;",
+        "for(const {0:x,length:n} of [[a,b]])return x===a&&n===2?1:0;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, false, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+    for body in [
+        "const src=[a,,{label:'x'}];const [,...{0:first=(src[2]=null,1),1:row}]=src;return row.label.trim().length;",
+        "const {pop}=[a];return a;",
+        "const {constructor}= [a];return a;",
+        "const k='length';const {[k]:x}=[a,b];return a;",
+        "const {length}=a?[]:null;return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let error = on_small_stack(&source, false, false).0.unwrap_err();
+        assert!(
+            error.contains("unsupported") && !error.contains("internal IR"),
+            "{source}: {error}"
+        );
     }
 }
