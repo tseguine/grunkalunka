@@ -1,12 +1,12 @@
-# Native fixed-size rows, alignment and overlap versus browsers
+# Native fixed-size rows, line packing and overlap versus browsers
 
 This bridge compares the native row layout engine with actual Chromium, Firefox
 and WebKit measurements. Its Rust input and HTML source are separate: the native
 example constructs resolved styles directly, and the HTML records browser
 rectangles and hit targets. Neither implementation reads the other's geometry.
-Selected overlap and item-alignment phases also assert actual native canvas pixels, checking that
-native painting and hit testing agree on the visible item. Browser pixel parity
-is not measured by this bridge.
+Selected overlap, item-alignment and line-packing phases also assert actual native
+canvas pixels, checking that native painting and hit testing agree on the visible
+item. Browser pixel parity is not measured by this bridge.
 
 - [Native input and independent literal assertions](../crates/grunkalunka-layout/examples/native_flex_bridge.rs)
 - [HTML source](../tests/browser-oracles/native-flex-bridge.html)
@@ -17,8 +17,10 @@ is not measured by this bridge.
 The selected CSS profile uses `display:flex`, `flex-direction:row`,
 `align-content:flex-start`, and `flex:none;min-width:0` on the items. Baseline
 main-axis and cross-axis alignment is `flex-start`; the alignment phases
-independently set `safe flex-end`, `safe center`, or main-axis `space-between`.
+independently set `safe flex-end`, `safe center`, or `space-between`.
 Per-item phases set `align-self` while retaining the row's separate default.
+Line-packing phases set `align-content` on wrapping rows with definite heights;
+they preserve the natural line heights and the independently selected item alignment.
 The body uses `display:flow-root` to prevent root margin collapse, matching
 the native engine's explicit noncollapsing block flow. A `display:contents`
 wrapper contributes two items without contributing a box. The wrapper's
@@ -36,8 +38,8 @@ pixels permits an actual page scroll.
 
 Each phase starts from the original declarations, with only its named
 changes applied. The source records six named border rectangles and nine
-fixed viewport hit probes per phase: 180 rectangle slots and 270 hit slots
-across 30 phases. Rectangles are converted to document coordinates using the
+fixed viewport hit probes per phase: 228 rectangle slots and 342 hit slots
+across 38 phases. Rectangles are converted to document coordinates using the
 browser's actual scroll offsets. The boxless wrapper is omitted from the
 rectangle map; suppressed boxes remain explicit nulls.
 
@@ -72,6 +74,14 @@ rectangle map; suppressed boxes remain explicit nulls.
 | `selfAlignOverflow` | Width 220, height 20, row start; items center/end/center | 232×32 | (174,27) | 58 |
 | `selfAlignClipped` | Width 220, height 36, clip; items end/center/center, second item displaced down 15 | 232×48 | (174,35) | 74 |
 | `selfAlignScrolled` | Same as `selfAlignClipped`, actual page scroll y=10 | 232×48 | (174,35) | 74 |
+| `contentEnd` | Wrap, height 100, items center, lines end | 162×112 | (26,108) | 138 |
+| `contentCenter` | Wrap, height 100, items center, lines center | 162×112 | (26,92) | 138 |
+| `contentBetween` | Wrap, width 100, height 140, lines `space-between` | 112×152 | (26,148) | 178 |
+| `contentSingle` | Wrap, width 220, height 60, items center, lines end | 232×72 | (174,56) | 98 |
+| `contentNoWrap` | Same declarations as `contentSingle`, but no wrap | 232×72 | (174,47) | 98 |
+| `contentOverflow` | Wrap, height 41, items center, lines center | 162×53 | (26,76) | 79 |
+| `contentClipped` | Wrap, height 100, items center, lines `space-between`, clip, third item down 15 | 162×112 | (26,123) | 138 |
+| `contentScrolled` | Same as `contentClipped`, actual page scroll y=60 | 162×112 | (26,123) | 138 |
 | `restored` | Remove all phase declarations and restore scroll y=0 | 162×54 | (174,26) | 80 |
 
 All center/end declarations in the table use the `safe` modifier. A phase
@@ -140,6 +150,36 @@ item's border remains at y=43 in both receipts, but its (118,62) viewport probe
 changes from `row-b` to null when scrolling moves that probe below the
 padding clip and above the following block.
 
+The line-packing phases exercise [the native wrapped-line contract](native-flex-rows.md#cross-axis-line-packing).
+At width 150 the two natural lines use 42 + 8 + 18 = 68px, including the
+existing row gap. A 100px content height leaves 32px: `contentEnd` moves both
+lines down 32px, while `contentCenter` moves them down 16px. Item centering
+still uses each line's natural height, so the first item's 9px offset within
+the 42px line composes with the whole-line offset. The second item's child
+follows its parent, and the following block stays at y=138 in both phases.
+
+`contentBetween` forces three actual lines at width 100. Their outer heights
+24, 42 and 18 plus two 8px gaps use 100px of the 140px content height.
+`space-between` adds 20px to each existing gap, placing the second item's
+border at y=80 and the third at y=148. The first line does not move. This
+checks distribution over two intervals independently of the two-line case.
+
+`contentSingle` has one actual wrapped line, whose natural height remains
+42px. End packing adds 18px before item centering. `contentNoWrap` applies
+the same declarations to a single-line flex container: `align-content` has
+no effect, and item centering uses the full 60px line height. The second
+item's child is therefore at y=49 in the wrapped phase and y=40 in nowrap.
+In `contentOverflow`, the natural 68px exceeds the used 41px height by 27px.
+Safe center falls back to start before any fractional-center requirement;
+the third item overflows and receives the (30,80) hit above the following block.
+
+The clipped pair distributes 32px between two lines and then displaces the
+third item down another 15px, placing its border at y=123. Its visible portion
+ends at the host's padding edge y=130. The host's own bottom border remains
+visible outside that descendant clip. Scrolling by 60px preserves every
+document rectangle; the (30,80) viewport hit then reaches the following block
+at document y=140 because the third item's overlapping portion is clipped.
+
 The second item and its child must have null boxes in `hidden`. Relative
 displacement preserves the original line assignment and following block
 position. Clipping leaves the children's layout rectangles intact while
@@ -149,7 +189,8 @@ The native example checks its complete final frame against its initial
 frame. The comparator independently requires both native and browser
 baseline rectangles and hit targets to be restored, and requires document
 geometry to agree between `wrap`/`scrolled`, `alignCenter`/`scrolledAlign`,
-`selfAlignClipped`/`selfAlignScrolled`, and `safeOverflow`/`overlapClipped`.
+`selfAlignClipped`/`selfAlignScrolled`, `contentClipped`/`contentScrolled`,
+and `safeOverflow`/`overlapClipped`.
 
 ### Original paint-order regression
 
@@ -178,12 +219,13 @@ original reproduction and completion criterion. Those original 144 rectangle
 slots, 216 hit slots, and exact live source controls remain included in the
 expanded witness.
 
-### Native overlap and item-alignment pixels
+### Native overlap, item-alignment and line-packing pixels
 
 The native example paints distinct opaque item colors through `paint_scrolled`
 and reads actual canvas pixels. Overlap probes share the points that
-distinguish browser hit ordering; two extra item probes distinguish a child's
-paint before and after its parent's auto reset:
+distinguish browser hit ordering; additional probes distinguish a child's
+paint before and after its parent's auto reset, wrapped and nowrap line sizes,
+and clipping at the host's bottom border. There are 21 native pixel assertions:
 
 | Phase | Native pixel | Visible item | Expected RGB |
 | --- | --- | --- | --- |
@@ -197,6 +239,17 @@ paint before and after its parent's auto reset:
 | `selfAlignOverflow` | (118,62) | `row-b` | (0,0,255) |
 | `selfAlignClipped` | (118,62) | `row-b` | (0,0,255) |
 | `selfAlignScrolled` | (118,62) | Background | (255,255,255) |
+| `contentEnd` | (30,80) | `row-a` | (255,0,0) |
+| `contentCenter` | (30,80) | Host background | (255,255,255) |
+| `contentBetween` | (35,150) | `row-c` | (128,0,128) |
+| `contentSingle` | (110,52) | `row-inner` | (0,255,0) |
+| `contentNoWrap` | (110,52) | `row-b` | (0,0,255) |
+| `contentOverflow` | (30,80) | `row-c` | (128,0,128) |
+| `contentClipped` | (30,125) | `row-c` | (128,0,128) |
+| `contentClipped` | (30,130) | Host border | (0,0,0) |
+| `contentScrolled` | (30,65) | `row-c` | (128,0,128) |
+| `contentScrolled` | (30,70) | Host border | (0,0,0) |
+| `contentScrolled` | (30,80) | `row-after` | (255,128,0) |
 
 Each assertion fails before the native JSON receipt is emitted if painting
 disagrees. The browser evidence remains independent rectangle and hit
@@ -205,7 +258,7 @@ comparison, a new receipt schema, or an additional dependency.
 
 ## Source validation and negative controls
 
-The comparator requires the complete 30-phase schema, exact rectangle and
+The comparator requires the complete 38-phase schema, exact rectangle and
 probe IDs, exact integer coordinates, the fixed viewport, and source-hashed
 Playwright provenance identifying the engine family and browser version.
 Missing samples, unknown targets, unexpected nulls, nonfinite/fractional
@@ -245,7 +298,7 @@ A third fresh capture changes only the following block's explicit
 `position:static` assignment in `safeOverflow` to `position:relative`, with
 no offsets. This changes its CSS painting category without changing any
 rectangle. Exactly one hit must change: `safeOverflow.hits.gap-wrap` switches
-from `row-b` to `row-after`. Every other phase, all 180 rectangle slots,
+from `row-b` to `row-after`. Every other phase, all 228 rectangle slots,
 and restoration remain unchanged. The positioned variant is a browser-only
 negative control; native input remains in the non-positioned profile and
 does not acquire general positioned precedence or `z-index` support.
@@ -263,9 +316,27 @@ other items keep their declarations. Exactly three differences must result:
 The exact source replacement includes the phase's sample assignment, leaving
 the separate auto-reset and overflow declarations unchanged.
 
-All four mutations validate provenance against their own source bytes.
+A fifth capture changes only `contentEnd`'s `align-content` from
+`safe flex-end` to `flex-start`. Item sizes and item centering remain fixed,
+and both lines move up by the 32px spare height. Exactly six differences
+must result:
+
+| Observation in `contentEnd` | Original | Mutated |
+| --- | --- | --- |
+| `boxes.row-a.y` | 67 | 35 |
+| `boxes.row-b.y` | 60 | 28 |
+| `boxes.row-inner.y` | 63 | 31 |
+| `boxes.row-c.y` | 108 | 76 |
+| `hits.b` | `row-host` | `row-inner` |
+| `hits.wrap` | `row-a` | `row-c` |
+
+The replacement includes the phase's sample assignment, preserving the
+separate single-line and nowrap declarations. Each capture executes actual
+CSS in a fresh browser instance.
+
+All five mutations validate provenance against their own source bytes.
 A hash mismatch or any unexpected observation cannot count as successful
-detection. The original source, all four modified sources, original native
+detection. The original source, all five modified sources, original native
 receipt, fresh browser captures and comparison reports are retained. These
 controls check that real source changes reach geometry and input observations;
 synthetic offline receipts do not establish those results.
@@ -276,8 +347,9 @@ The native example and both bridge receipts use the existing
 `browser-native-bridge.yml` jobs. There is one native build job and the
 existing three-engine matrix, with no additional workflow or dependency.
 The original block bridge and its three live mutation controls still run,
-along with all four flex controls. Alignment and overlap use the existing fixture, example,
-comparator and hosted suite without changing the workflow or command catalog.
+along with all five flex controls. Item alignment, line packing and overlap
+use the existing fixture, example, comparator and hosted suite without changing
+the workflow or command catalog.
 Both PR/push source filters and the independent impact-workflow descriptor
 include the flex source and comparator inputs.
 
@@ -303,7 +375,7 @@ offline contracts and local captures using different engine versions.
 
 This witness does not implement HTML/CSS parsing or establish general flex
 conformance. Flex grow/shrink, intrinsic item width, automatic minimum sizing,
-other alignment distributions, cross-line alignment, baseline alignment,
+other alignment distributions, line stretching, baseline alignment,
 order, reverse axes, writing modes, text shaping, subpixel geometry and
 general positioned/stacking behavior remain outside
 the measured profile. The browser-engine changes do not alter A1 application,

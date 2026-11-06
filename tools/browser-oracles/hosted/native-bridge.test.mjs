@@ -216,4 +216,38 @@ test('live native/browser parity and independent negative controls',
         { kind: 'hit', path: '$.states.selfAlignMixed.hits.b', left: 'row-host', right: 'row-inner' },
       ]);
     });
+
+    await t.test('real line-packing mutation moves both lines and changes two hits', async () => {
+      const original = (await readFile(flexSourceFile)).toString('utf8');
+      const originalRule = '  host.style.alignContent = "safe flex-end";\n  states.contentEnd = sample();';
+      const changedRule = '  host.style.alignContent = "flex-start";\n  states.contentEnd = sample();';
+      assert.equal(original.split(originalRule).length, 2, 'one reviewed line-packing assignment');
+      const mutated = Buffer.from(original.replace(originalRule, changedRule));
+      const directory = join(out, 'flex-content-alignment-sensitivity');
+      await mkdir(directory, { recursive: true });
+      const snapshot = join(directory, 'align-content-mutation.html');
+      await writeFile(snapshot, mutated, { flag: 'wx', mode: 0o444 });
+      // Item sizes and alignments, other phases and native input remain fixed.
+      // A fresh browser executes the changed line-packing declaration itself.
+      const capture = await collectOne(engine, {
+        browserTypes, playwrightVersion: version, fixturePath: snapshot,
+      });
+      await writeFile(join(directory, 'capture.json'),
+        JSON.stringify(capture, null, 2) + '\n', { flag: 'wx' });
+      const report = compareNativeFlexBridge(flexNative, capture, mutated);
+      await writeFile(join(directory, 'comparison.json'),
+        JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+      assert.equal(report.status, 'different', 'real line-packing mutation must be detected');
+      assert.equal(report.conformance, 'not-assessed');
+      assert.deepEqual(report.invalid, []);
+      assert.deepEqual(report.incompatible, []);
+      assert.deepEqual(report.differences, [
+        { kind: 'geometry', path: '$.states.contentEnd.boxes.row-a.y', left: 67, right: 35 },
+        { kind: 'geometry', path: '$.states.contentEnd.boxes.row-b.y', left: 60, right: 28 },
+        { kind: 'geometry', path: '$.states.contentEnd.boxes.row-inner.y', left: 63, right: 31 },
+        { kind: 'geometry', path: '$.states.contentEnd.boxes.row-c.y', left: 108, right: 76 },
+        { kind: 'hit', path: '$.states.contentEnd.hits.b', left: 'row-host', right: 'row-inner' },
+        { kind: 'hit', path: '$.states.contentEnd.hits.wrap', left: 'row-a', right: 'row-c' },
+      ]);
+    });
   });

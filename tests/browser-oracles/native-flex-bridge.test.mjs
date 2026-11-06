@@ -16,7 +16,9 @@ const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
   "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
   "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
-  "selfAlignClipped", "selfAlignScrolled", "restored"];
+  "selfAlignClipped", "selfAlignScrolled", "contentEnd", "contentCenter",
+  "contentBetween", "contentSingle", "contentNoWrap", "contentOverflow",
+  "contentClipped", "contentScrolled", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const computedFields = ["display", "boxSizing", "width", "height", "flexDirection",
   "flexWrap", "alignItems", "alignContent", "justifyContent", "columnGap", "rowGap",
@@ -79,6 +81,20 @@ function states() {
       [108, 31, 25, 8], [174, 27, 42, 18], [0, 58, 180, 12]],
     selfAlignClipped: [[20, 20, 232, 48], [26, 38, 64, 24], [105, 43, 56, 36],
       [108, 46, 25, 8], [174, 35, 42, 18], [0, 74, 180, 12]],
+    contentEnd: [[20, 20, 162, 112], [26, 67, 64, 24], [105, 60, 56, 36],
+      [108, 63, 25, 8], [26, 108, 42, 18], [0, 138, 180, 12]],
+    contentCenter: [[20, 20, 162, 112], [26, 51, 64, 24], [105, 44, 56, 36],
+      [108, 47, 25, 8], [26, 92, 42, 18], [0, 138, 180, 12]],
+    contentBetween: [[20, 20, 112, 152], [26, 26, 64, 24], [31, 80, 56, 36],
+      [34, 83, 25, 8], [26, 148, 42, 18], [0, 178, 180, 12]],
+    contentSingle: [[20, 20, 232, 72], [26, 53, 64, 24], [105, 46, 56, 36],
+      [108, 49, 25, 8], [174, 56, 42, 18], [0, 98, 180, 12]],
+    contentNoWrap: [[20, 20, 232, 72], [26, 44, 64, 24], [105, 37, 56, 36],
+      [108, 40, 25, 8], [174, 47, 42, 18], [0, 98, 180, 12]],
+    contentOverflow: [[20, 20, 162, 53], [26, 35, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [26, 76, 42, 18], [0, 79, 180, 12]],
+    contentClipped: [[20, 20, 162, 112], [26, 35, 64, 24], [105, 28, 56, 36],
+      [108, 31, 25, 8], [26, 123, 42, 18], [0, 138, 180, 12]],
   };
   const targets = {
     nowrap: ["row-a", "row-inner", "row-c", "row-after", "row-b", null, "row-host", "row-host", null],
@@ -110,14 +126,24 @@ function states() {
     selfAlignOverflow: ["row-a", "row-inner", "row-c", null, "row-b", null, "row-host", "row-host", "row-host"],
     selfAlignClipped: ["row-host", "row-host", "row-host", "row-after", "row-b", null, "row-host", "row-host", "row-host"],
     selfAlignScrolled: ["row-a", "row-host", "row-c", null, null, null, "row-host", "row-host", "row-host"],
+    contentEnd: ["row-host", "row-host", "row-host", "row-a", "row-b", null, "row-host", "row-host", null],
+    contentCenter: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", null],
+    contentBetween: ["row-a", "row-host", null, "row-host", "row-host", null, "row-host", "row-host", null],
+    contentSingle: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
+    contentNoWrap: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
+    contentOverflow: ["row-host", "row-inner", "row-host", "row-c", "row-b", null, "row-host", "row-host", null],
+    contentClipped: ["row-host", "row-inner", "row-host", "row-host", "row-b", null, "row-host", "row-host", null],
+    contentScrolled: ["row-host", "row-host", "row-host", "row-after", "row-host", null, "row-host", "row-host", null],
   };
   rows.scrolled = rows.wrap;
   rows.scrolledAlign = rows.alignCenter;
   rows.selfAlignScrolled = rows.selfAlignClipped;
+  rows.contentScrolled = rows.contentClipped;
   rows.restored = rows.nowrap;
   targets.restored = targets.nowrap;
   return Object.fromEntries(phases.map(phase => [phase, {
-    scrollY: ["scrolled", "scrolledAlign", "selfAlignScrolled"].includes(phase) ? 10 : 0,
+    scrollY: phase === "contentScrolled" ? 60 :
+      (["scrolled", "scrolledAlign", "selfAlignScrolled"].includes(phase) ? 10 : 0),
     boxes: Object.fromEntries(ids.map((id, index) => {
       const value = rows[phase][index];
       return [id, value === null ? null : Object.fromEntries(
@@ -166,8 +192,8 @@ test("complete fixed-row, alignment and overlap receipts agree for each identifi
     assert.equal(report.sourceSha256, sha(fixture));
     assert.deepEqual([report.invalid, report.incompatible, report.differences], [[], [], []]);
     assert.deepEqual(Object.keys(report.native.states), phases);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 180);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 270);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 228);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 342);
   }
 });
 
@@ -181,6 +207,7 @@ test("missing, extra and malformed phase data cannot become equality", () => {
     r => { r.states.scrolled.scrollY = 0; },
     r => { r.states.scrolledAlign.scrollY = 0; },
     r => { r.states.selfAlignScrolled.scrollY = 0; },
+    r => { r.states.contentScrolled.scrollY = 10; },
     r => { r.states.alignCenter.scrollY = 10; },
     r => { delete r.states.wrap.boxes["row-c"]; },
     r => { r.states.wrap.boxes["row-contents"] = null; },
@@ -193,6 +220,7 @@ test("missing, extra and malformed phase data cannot become equality", () => {
     r => { r.states.wrap.boxes["row-c"].y = Number.MAX_SAFE_INTEGER + 1; },
     r => { r.states.alignEnd.boxes["row-b"].y = 46.5; },
     r => { r.states.selfAlignMixed.boxes["row-b"].y = 46.5; },
+    r => { r.states.contentCenter.boxes["row-a"].y = 51.5; },
     r => { r.states.nestedOverlap.boxes["row-inner"] = null; },
     r => { delete r.states.wrap.hits.outside; },
     r => { r.states.wrap.hits.extra = null; },
@@ -278,6 +306,22 @@ test("an ignored auto reset reports both moved subtree boxes without unrelated d
   ]);
 });
 
+test("missing between-line distribution reports every displaced line and descendant", () => {
+  const pair = receipts();
+  pair.native.states.contentBetween.boxes["row-b"].y = 60;
+  pair.native.states.contentBetween.boxes["row-inner"].y = 63;
+  pair.native.states.contentBetween.boxes["row-c"].y = 108;
+  const report = compare(pair);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.contentBetween.boxes.row-b.y", left: 60, right: 80 },
+    { kind: "geometry", path: "$.states.contentBetween.boxes.row-inner.y", left: 63, right: 83 },
+    { kind: "geometry", path: "$.states.contentBetween.boxes.row-c.y", left: 108, right: 148 }
+  ]);
+});
+
 test("restoration, scroll and overlap clipping invariants apply to each receipt independently", () => {
   const mutations = [
     r => { r.states.restored.boxes["row-c"].y += 1; },
@@ -285,6 +329,7 @@ test("restoration, scroll and overlap clipping invariants apply to each receipt 
     r => { r.states.scrolled.boxes["row-c"].y -= 10; },
     r => { r.states.scrolledAlign.boxes["row-b"].y -= 10; },
     r => { r.states.selfAlignScrolled.boxes["row-b"].y -= 10; },
+    r => { r.states.contentScrolled.boxes["row-c"].y -= 60; },
     r => { r.states.alignCenter.boxes["row-inner"].x += 1; },
     r => { r.states.overlapClipped.boxes["row-b"].height -= 1; },
   ];
@@ -440,6 +485,35 @@ test("per-item source mutation authenticates only the changed subtree and hit", 
     { kind: "geometry", path: "$.states.selfAlignMixed.boxes.row-b.y", left: 46, right: 28 },
     { kind: "geometry", path: "$.states.selfAlignMixed.boxes.row-inner.y", left: 49, right: 31 },
     { kind: "hit", path: "$.states.selfAlignMixed.hits.b", left: "row-host", right: "row-inner" }
+  ]);
+  assert.equal(compare(pair).status, "incompatible", "changed source is not the original source");
+});
+
+test("line-packing source mutation authenticates all moved lines and both changed hits", () => {
+  const originalRule = '  host.style.alignContent = "safe flex-end";\n  states.contentEnd = sample();';
+  const changedRule = '  host.style.alignContent = "flex-start";\n  states.contentEnd = sample();';
+  const source = fixture.toString("utf8");
+  assert.equal(source.split(originalRule).length, 2, "one reviewed line-packing assignment");
+  const changed = Buffer.from(source.replace(originalRule, changedRule));
+  const pair = receipts();
+  for (const id of ["row-a", "row-b", "row-inner", "row-c"]) {
+    pair.browser.states.contentEnd.boxes[id].y -= 32;
+  }
+  pair.browser.states.contentEnd.hits.b = "row-inner";
+  pair.browser.states.contentEnd.hits.wrap = "row-c";
+  assert.equal(compareNativeFlexBridge(pair.native, pair.browser, changed).status, "incompatible");
+  pair.browser.provenance.fixtureSha256 = sha(changed);
+  const report = compareNativeFlexBridge(pair.native, pair.browser, changed);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.contentEnd.boxes.row-a.y", left: 67, right: 35 },
+    { kind: "geometry", path: "$.states.contentEnd.boxes.row-b.y", left: 60, right: 28 },
+    { kind: "geometry", path: "$.states.contentEnd.boxes.row-inner.y", left: 63, right: 31 },
+    { kind: "geometry", path: "$.states.contentEnd.boxes.row-c.y", left: 108, right: 76 },
+    { kind: "hit", path: "$.states.contentEnd.hits.b", left: "row-host", right: "row-inner" },
+    { kind: "hit", path: "$.states.contentEnd.hits.wrap", left: "row-a", right: "row-c" }
   ]);
   assert.equal(compare(pair).status, "incompatible", "changed source is not the original source");
 });
