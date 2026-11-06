@@ -47,6 +47,12 @@ side, then store a newly boxed Number only after successful completion. Captures
 observe the updated cell. Missing, String or mixed-origin local values remain
 guarded rather than turning the private projection into general coercion.
 
+The same proven boxed Number cells support `&&=`, `||=` and `??=`. Logical
+assignment snapshots and tests the old Number once, evaluates and stores the RHS
+only on the selected branch, and returns the exact old or new Number. Because a
+proven Number is never nullish, `??=` retains the old cell and skips every RHS
+effect. RHS values that could change the cell's kind remain guarded.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.
