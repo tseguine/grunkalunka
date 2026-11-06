@@ -701,3 +701,20 @@ fn code_point_at_saves_receiver_index_and_boxed_results_across_awaits() {
         ],
     );
 }
+
+#[test]
+fn string_at_defaults_remain_lazy_across_suspension() {
+    compare_promises(
+        &[
+            "let n=0;const {c=(await b,n=1,'?')}={c:'abc'.at(await a)};await b;return n*1000+c.charCodeAt(0);",
+            "let s='abc';const {c='?'}={c:s.at((await a,s='',-1))};await b;return c.charCodeAt(0);",
+            "const [c=(await b,'?')]=['abc'.at(await a)];await b;return c.charCodeAt(0);",
+        ],
+        &[
+            (1.0, 2.0),
+            (-1.0, 0.0),
+            (4.0, 3.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

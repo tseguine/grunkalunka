@@ -32,7 +32,7 @@ enum Rule {
     Call(
         NodeId,
         Vec<NodeId>,
-        Option<(NodeId, bool)>,
+        Option<(NodeId, string_methods::Method)>,
         Option<(NodeId, bool)>,
     ),
     StringConcat(NodeId, NodeId),
@@ -570,13 +570,10 @@ impl Fields {
                         .filter_map(|argument| argument.as_expression().map(GetNodeId::node_id))
                         .collect(),
                     string_methods::call(call)
-                        .filter(|(_, method)| method.returns_string())
-                        .map(|(receiver, method)| {
-                            (
-                                receiver.node_id(),
-                                matches!(method, string_methods::Method::Slice),
-                            )
-                        }),
+                        .filter(|(_, method)| {
+                            method.returns_string() || matches!(method, string_methods::Method::At)
+                        })
+                        .map(|(receiver, method)| (receiver.node_id(), method)),
                     array_mutations::operation(call)
                         .filter(|(op, _)| {
                             matches!(
@@ -764,9 +761,9 @@ impl Fields {
                                 continue;
                             }
                         }
-                        if let Some((receiver, slice)) = string_receiver {
+                        if let Some((receiver, method)) = string_receiver {
                             let origins = get(receiver);
-                            if *slice
+                            if matches!(method, string_methods::Method::Slice)
                                 && !origins.is_empty()
                                 && origins
                                     .iter()
@@ -778,7 +775,14 @@ impl Fields {
                             if !origins.is_empty()
                                 && origins.iter().all(|origin| *origin == Origin::String)
                             {
-                                additions.push((*id, BTreeSet::from([Origin::String])));
+                                let mut result = BTreeSet::from([Origin::String]);
+                                if matches!(method, string_methods::Method::At) {
+                                    // No index/length proof: every relative selection
+                                    // may miss. A binding default can replace only
+                                    // this Undefined alternative, never other kinds.
+                                    result.insert(Origin::Undefined);
+                                }
+                                additions.push((*id, result));
                                 continue;
                             }
                         }

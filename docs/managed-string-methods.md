@@ -93,8 +93,12 @@ index and surplus-argument effects across suspension.
 
 The boxed String-or-Undefined result supports equality, fields, captures and
 ordinary helper returns. It does not prove a present String for `.length`,
-concatenation or further String methods; downstream refinement is a separate
-slice. Existing Array `at` and ordinary same-name object methods keep their paths.
+concatenation or further String methods. A destructuring declaration default can
+replace the possible Undefined with a known String: `const {c="?"}={c:text.at(index)}`
+then admits String operations on `c`. This proof follows ordinary helper returns
+and aliases, but any other value written through an alias or supplied by the
+default keeps the result unproven. The default remains lazy, including awaits.
+Existing Array `at` and ordinary same-name object methods keep their paths.
 An A1 source-import case selects a scalar action from a trailing label marker.
 
 ## Code-point classification

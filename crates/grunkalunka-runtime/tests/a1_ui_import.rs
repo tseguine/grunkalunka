@@ -950,3 +950,17 @@ fn imported_handler_classifies_a_unicode_action_marker() {
     }"#,
     );
 }
+
+#[test]
+fn imported_handler_defaults_a_missing_action_marker() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    function last(label) { return label.at(-1); }
+    export function run(a,b) {
+        const label = a > 0 ? 'Expand+' : '';
+        const {suffix='-'} = {suffix:last(label)};
+        const handle = () => choose(suffix.trim() === '+' ? 1 : 0, 2);
+        return +handle();
+    }"#,
+    );
+}
