@@ -49,8 +49,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             if let BindingPattern::BindingIdentifier(identifier) = pattern {
                 self.charge_declaration_bindings(identifier.as_ref(), 1)?;
             }
-        } else if let Some(identifier) =
-            iteration::assignment_iteration_identifier(source.left())?
+        } else if let Some(identifier) = iteration::assignment_iteration_identifier(source.left())?
         {
             let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
             if !binding.mutable || self.slots[binding.slot.0].ty != Type::ManagedValue {
@@ -297,7 +296,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             if let BindingPattern::BindingIdentifier(identifier) = pattern {
                 self.commit_binding_value(
                     identifier.as_ref(),
-                    identifier.symbol_id.get().ok_or("missing iteration binding")?,
+                    identifier
+                        .symbol_id
+                        .get()
+                        .ok_or("missing iteration binding")?,
                     &mut body,
                     Type::ManagedValue,
                     selected,
@@ -328,7 +330,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             let slot = binding.slot;
             // Unlike a declaration, the existing cell is assigned on every step.
             // Captures of that cell observe subsequent iterations.
-            Self::push(&mut body, &source, Op::Store { slot, value: selected });
+            Self::push(
+                &mut body,
+                &source,
+                Op::Store {
+                    slot,
+                    value: selected,
+                },
+            );
             self.begin_for_of_body(frame, body, cursor);
         }
         Ok(())
