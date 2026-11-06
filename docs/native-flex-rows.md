@@ -191,12 +191,16 @@ natural line measurements or the following block's flow position.
 | `FlexAlignContent::SafeEnd` | Put nonnegative remaining space before the first line. |
 | `FlexAlignContent::SafeCenter` | Put half the nonnegative remaining space before the first line. |
 | `FlexAlignContent::SpaceBetween` | Add an equal share to each between-line gap; a single line stays at the start. |
+| `FlexAlignContent::SpaceAround` | Give each line a half-size outer gap on both sides; interior gaps receive two shares. A single line centers. |
+| `FlexAlignContent::SpaceEvenly` | Divide remaining space equally among the two outer gaps and every between-line gap. A single line centers. |
 
 All selected modes use start packing when the natural line group overflows.
 `LayoutError::FractionalFlexAlignContent { node }` reports a positive center
-offset or between-line share that is not an integer. Safe fallback occurs
-before this check. Zero-height lines count in the distribution; an empty row
-has no line-placement obligation. A single line ignores `row_gap`.
+offset or distributed interval that is not an integer. Around uses twice
+the line count as its denominator to retain integral outer half-gaps;
+evenly uses one more than the line count. Safe fallback occurs before this
+check. Zero-height lines count in the distribution; an empty row has no
+line-placement obligation. A single line ignores `row_gap`.
 
 Packing changes neither line sizes nor item sizes. Each item's `align_items`
 or `align_self` offset still uses its unchanged natural line height. The
@@ -302,7 +306,9 @@ semantic reflow, vertical scrolled clipping and projected-coordinate limits.
 fractional admission, safe overflow, wrapped versus nowrap placement, boxless and
 nested-row defaults, ordinary descendants, semantic anchors, paint/scrolled hits
 and the same native-stack/node/depth/coordinate bounds.
-`tests/flex_align_content.rs` checks whole-line placement with all box edges,
+`tests/flex_align_content.rs` checks whole-line placement and the around/evenly
+outer-gap distributions (including single-line, overflow and fractional cases),
+with all box edges,
 existing gaps and item overrides; single-line wrap versus nowrap, safe overflow,
 fractional and zero-height distributions, height bounds and percentages,
 nested/boxless order, hidden reflow, text anchors, scrolled paint and padding
