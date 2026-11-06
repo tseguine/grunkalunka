@@ -224,7 +224,9 @@ fn kinds(
                     }
                     Expression::ObjectExpression(_) => values.push([Kind::Object].into()),
                     Expression::ArrayExpression(_) => values.push([Kind::Array].into()),
-                    Expression::StringLiteral(_) => values.push([Kind::String].into()),
+                    Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
+                        values.push([Kind::String].into())
+                    }
                     Expression::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
                         values.push([Kind::String].into());
                     }
@@ -379,6 +381,7 @@ fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
             AstKind::ObjectExpression(_)
             | AstKind::ArrayExpression(_)
             | AstKind::StringLiteral(_)
+            | AstKind::TemplateLiteral(_)
             | AstKind::BooleanLiteral(_)
             | AstKind::NullLiteral(_) => true,
             AstKind::UnaryExpression(u) => matches!(

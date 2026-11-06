@@ -1145,3 +1145,22 @@ fn concat_method_saves_all_fragments_and_preserves_utf16() {
         "function label(s: number,t: boolean){return s.concat(': ',t);}export function run(a: number,b: number){const box={label:label('Menu',a>0?'Open':'Close')};return box.label.startsWith('Menu: ')?1:0;}",
     );
 }
+
+#[test]
+fn template_literals_use_cooked_utf16_and_ordered_string_substitutions() {
+    for body in [
+        "return `hello`.length+``.length;",
+        r"return `a\n\t\u{1f600}\ud800\0`==='a\n\t\u{1f600}\ud800\0'?1:0;",
+        r"return `\`\${x}\\`==='`${x}\\'?1:0;",
+        "let x='first';const text=`${x}:${(x='second')}:${x}`;return text==='first:second:second'?1:0;",
+        "let n=0;const text=`pre${(n=1,'a')}mid${(n=n*10+2,'b')}post`;return text==='preamidbpost'?n:-1;",
+        "const name=a>0?'Open':'Close';return `Menu: ${name}`.startsWith('Menu: ')?1:0;",
+        "return `x${`y${'z'}`}q`==='xyzq'?1:0;",
+        r"return `\ud800${'\udc00'}`==='\ud800\udc00'?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+    let s = "function label(s){return `Menu: ${s}`;}export function run(a,b){const box={text:label(a>0?'Open':'Close')};return box.text.startsWith('Menu: ')?1:0;}";
+    compare_sources(s, s);
+}

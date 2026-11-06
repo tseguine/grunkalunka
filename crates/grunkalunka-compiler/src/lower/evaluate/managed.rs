@@ -357,7 +357,9 @@ impl Lowering<'_, '_> {
                         }
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
                         Expression::ArrayExpression(_) => values.push(Some(Type::ManagedArray)),
-                        Expression::StringLiteral(_) => values.push(Some(Type::ManagedValue)),
+                        Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
+                            values.push(Some(Type::ManagedValue))
+                        }
                         Expression::BinaryExpression(b)
                             if b.operator == BinaryOperator::Addition
                                 && self.stored.string(node.node_id()) =>
@@ -1059,6 +1061,22 @@ impl Lowering<'_, '_> {
                     work.push(Work::Managed(ManagedWork::Typeof(node)));
                     work.push(Work::Eval(&u.argument, depth + 1, Mode::Managed));
                 }
+                return Ok(true);
+            }
+            if let Expression::TemplateLiteral(template) = node {
+                if template.expressions.len() > 1000 {
+                    return Err(unsupported(
+                        node,
+                        "at most 1000 template substitutions are admitted",
+                    ));
+                }
+                work.push(Work::StringTemplate(super::string_template::Task {
+                    node,
+                    template,
+                    result: None,
+                    index: 0,
+                    depth,
+                }));
                 return Ok(true);
             }
             if let Expression::StringLiteral(literal) = node {

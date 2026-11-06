@@ -16,6 +16,7 @@ mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
 mod string_methods;
+mod string_template;
 mod tasks;
 mod values;
 use tasks::Work;
@@ -1530,6 +1531,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     self.resume_array_mutation(task, regions, values, work)?
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
+                Work::StringTemplate(task) => {
+                    self.resume_string_template(task, regions, values, work)?
+                }
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?
                 }

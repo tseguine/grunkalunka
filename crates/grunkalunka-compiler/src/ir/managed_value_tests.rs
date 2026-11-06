@@ -1411,3 +1411,25 @@ fn string_concat_method_requires_string_arguments_and_bounded_arity() {
         assert_eq!(crate::lower_source(&source, false).is_ok(), admitted, "{n}");
     }
 }
+
+#[test]
+fn templates_require_known_strings_and_bound_substitution_count() {
+    for body in [
+        "return `${a}`.length;",
+        "return `${undefined}`.length;",
+        "return `${null}`.length;",
+        "return `${true}`.length;",
+        "const x=a?'a':null;return `${x}`.length;",
+        "return tag`hello`.length;",
+    ] {
+        assert!(
+            crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    for (n, admitted) in [(0, true), (1000, true), (1001, false)] {
+        let parts = "${''}".repeat(n);
+        let source = format!("export function run(a,b){{return `{parts}`.length;}}");
+        assert_eq!(crate::lower_source(&source, false).is_ok(), admitted, "{n}");
+    }
+}
