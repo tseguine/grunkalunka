@@ -21,6 +21,7 @@ mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
 mod property_delete;
+mod property_logical;
 pub(super) mod property_update;
 mod string_methods;
 mod string_template;
@@ -1544,6 +1545,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
                 Work::PropertyUpdate(task) => {
                     self.resume_property_update(task, regions, values, work)
+                }
+                Work::PropertyLogical(task) => {
+                    self.resume_property_logical(task, regions, values, work)
                 }
                 Work::LocalLogical(task) => self.resume_local_logical(task, regions, values),
                 Work::LocalUpdate(task) => self.resume_local_update(task, regions, values),

@@ -37,6 +37,18 @@ fn number_property_updates_preserve_old_new_values_and_receiver_snapshots() {
 }
 
 #[test]
+fn number_property_logical_assignments_save_receivers_and_short_circuit() {
+    for body in [
+        "let current={n:a};const original=current;const value=current.n&&=(current={n:b},b);return original.n===value?value:NaN;",
+        "const values=[a];const value=values[0]||=b;return values[0]===value?value:NaN;",
+        "const o={n:a};let calls=0;const value=o.n??=(calls++,b);return calls===0&&value===a&&o.n===a?1:0;",
+        "const o={n:a};const read=()=>o.n;const value=o.n||=b;return read()===value?value:NaN;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn boxed_number_local_updates_preserve_old_new_values_and_cells() {
     for body in [
         "let [x]=[a];return x++;",

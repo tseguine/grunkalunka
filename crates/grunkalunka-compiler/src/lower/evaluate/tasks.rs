@@ -16,6 +16,7 @@ pub(super) enum Work<'e, 'a> {
     ArrayMutation(array_mutation::Task<'e, 'a>),
     Dictionary(dictionary::Task<'e, 'a>),
     PropertyDelete(property_delete::Task<'e, 'a>),
+    PropertyLogical(property_logical::Task<'e, 'a>),
     PropertyUpdate(property_update::Task<'e, 'a>),
     LocalLogical(local_logical::Task<'e, 'a>),
     LocalUpdate(local_update::Task<'e, 'a>),

@@ -35,6 +35,7 @@ import { commaSequences } from './comma-sequences.mjs';
 import { managedObjects } from './managed-objects.mjs';
 import { managedNumbers } from './managed-numbers.mjs';
 import { numericPropertyUpdates } from './numeric-property-updates.mjs';
+import { numericPropertyLogical } from './numeric-property-logical.mjs';
 import { numericLocalUpdates } from './numeric-local-updates.mjs';
 import { numericLocalLogical } from './numeric-local-logical.mjs';
 import { managedStrings } from './managed-strings.mjs';
@@ -101,7 +102,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 106;
+export const corpusVersion = 107;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -152,6 +153,7 @@ programs.push(...commaSequences);
 programs.push(...managedObjects);
 programs.push(...managedNumbers);
 programs.push(...numericPropertyUpdates);
+programs.push(...numericPropertyLogical);
 programs.push(...numericLocalUpdates);
 programs.push(...numericLocalLogical);
 programs.push(...managedStrings);

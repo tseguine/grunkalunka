@@ -1,0 +1,21 @@
+// Logical assignment over source-proven own Number data properties.
+export const numericPropertyLogical = [
+  ['numeric-property-logical-and',
+    'const o={n:a};const value=o.n&&=b;return o.n===value?value:NaN;',
+    'const o={n:a};const value=o.n&&=b;return o.n===value?value:NaN;'],
+  ['numeric-property-logical-or',
+    'const values=[a];const value=values[0]||=b;return values[0]===value?value:NaN;',
+    'const values=[a];const value=values[0]||=b;return values[0]===value?value:NaN;'],
+  ['numeric-property-logical-nullish-skip',
+    'const o={n:a};let calls=0;const value=o.n??=(calls++,b);return calls===0&&value===a&&o.n===a?1:0;',
+    'const o={n:a};let calls=0;const value=o.n??=(calls++,b);return calls===0&&value===a&&o.n===a?1:0;'],
+  ['numeric-property-logical-receiver-snapshot',
+    'let current={n:a};const original=current;const value=current.n&&=(current={n:b},b);return original.n===value?value:NaN;',
+    'let current={n:a};const original=current;const value=current.n&&=(current={n:b},b);return original.n===value?value:NaN;'],
+  ['numeric-property-logical-capture',
+    'const o={n:a};const read=()=>o.n;const value=o.n||=b;return read()===value?value:NaN;',
+    'const o={n:a};const read=()=>o.n;const value=o.n||=b;return read()===value?value:NaN;'],
+  ['numeric-property-logical-static-computed',
+    "const o={n:a};const value=o['n']&&=b;return o.n===value?value:NaN;",
+    "const o={n:a};const value=o['n']&&=b;return o.n===value?value:NaN;"],
+];
