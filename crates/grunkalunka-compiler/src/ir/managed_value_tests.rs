@@ -1477,3 +1477,51 @@ fn numeric_string_index_requires_number_and_keeps_missing_results() {
         );
     }
 }
+
+#[test]
+fn nullish_results_preserve_source_receiver_origins() {
+    for source in [
+        "export function run(a,b){const label=[' ready '].at(a)??' missing ';return label.trim().length;}",
+        "export function run(a,b){const label=(a?null:' ready ')??' missing ';return label.trim().length;}",
+        "function choose(x,y){return x??y;}export function run(a,b){const label=choose(a?null:' ready ',' missing ');return label.trim().length;}",
+        "export function run(a,b){const rows=[{label:' ready '}];const read=()=>rows.at(a)??{label:' missing '};return read().label.trim().length;}",
+        "export function run(a,b){const row={label:' ready '}??a;return row.label.trim().length;}",
+        "export function run(a,b){const row=(a?null:[a,b])??[];return row.length;}",
+        "export function run(a,b){const label='abc'.at(a)??'?';return label.trim().length;}",
+        "export function run(a,b){const box={label:null};const alias=box;alias.label=' ready ';const label=box.label??' missing ';return label.trim().length;}",
+    ] {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                for typescript in [false, true] {
+                    let result = crate::compile(source, typescript);
+                    assert!(result.is_ok(), "{source}: {:?}", result.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
+#[test]
+fn nullish_result_origins_keep_receiver_and_unselected_source_guards() {
+    for body in [
+        "const label=a??'fallback';return label.trim().length;",
+        "const label=(a?'text':false)??'fallback';return label.trim().length;",
+        "const label=(a?'text':0)??'fallback';return label.trim().length;",
+        "const label=(a?'text':0/0)??'fallback';return label.trim().length;",
+        "const label=['text',a].at(a)??'fallback';return label.trim().length;",
+        "const source={label:'text'};const alias=source;alias.label=a;const label=source.label??'fallback';return label.trim().length;",
+        "const source=[{label:'text'}];const row=source.at(a)??{label:'fallback'};source[0].label=b;return row.label.trim().length;",
+        "const label=(a?'text':undefined)??null;return label.trim().length;",
+        "const label='text'??missing();return label.trim().length;",
+        "const row={label:'text'}??{[a]:b};return row.label.trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            let error = crate::compile(&source, typescript).err().unwrap();
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}

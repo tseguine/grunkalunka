@@ -17,6 +17,7 @@ pub(super) enum Origin {
     Arrow(NodeId),
     Named(SymbolId),
     String,
+    Null,
     Undefined,
     Other,
 }
@@ -26,6 +27,7 @@ enum Rule {
     Iterated(NodeId),
     Known(Origin),
     Copy(Vec<NodeId>),
+    Nullish(NodeId, NodeId),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
@@ -196,6 +198,7 @@ impl Fields {
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
+                || matches!(node.kind(), AstKind::LogicalExpression(expression) if expression.operator == LogicalOperator::Coalesce)
         }) {
             return Self::default();
         }
@@ -369,6 +372,10 @@ impl Fields {
                 }
                 AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::String]));
+                    None
+                }
+                AstKind::NullLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Null]));
                     None
                 }
                 AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
@@ -553,6 +560,9 @@ impl Fields {
                     c.consequent.node_id(),
                     c.alternate.node_id(),
                 ])),
+                AstKind::LogicalExpression(c) if c.operator == LogicalOperator::Coalesce => {
+                    Some(Rule::Nullish(c.left.node_id(), c.right.node_id()))
+                }
                 AstKind::LogicalExpression(c) => {
                     Some(Rule::Copy(vec![c.left.node_id(), c.right.node_id()]))
                 }
@@ -684,6 +694,9 @@ impl Fields {
                 Rule::Call(_, _, Some((_, string_methods::Method::At)), _)
             )
         });
+        let has_nullish_selection = rules
+            .iter()
+            .any(|(_, rule)| matches!(rule, Rule::Nullish(..)));
         let track_elements = has_iterations
             || has_relative_selection
             || !elements.rest_sources.is_empty()
@@ -723,9 +736,25 @@ impl Fields {
                     }
                     Rule::Known(origin) => BTreeSet::from([*origin]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
+                    Rule::Nullish(left, right) => {
+                        let left = get(left);
+                        let mut found = left
+                            .iter()
+                            .copied()
+                            .filter(|origin| !matches!(origin, Origin::Null | Origin::Undefined))
+                            .collect::<Alternatives>();
+                        if left.iter().any(|origin| {
+                            matches!(origin, Origin::Null | Origin::Undefined | Origin::Other)
+                        }) {
+                            // Unknown values may select either operand. Do not
+                            // mistake an empty, unresolved set for nullishness.
+                            found.extend(get(right));
+                        }
+                        found
+                    }
                     Rule::Default(selected, fallback) => {
-                        // Only positively known Undefined is replaced. Other
-                        // still includes null, primitives and unknown receivers.
+                        // Only positively known Undefined is replaced. Null
+                        // and Other, including unknown receivers, remain.
                         // Keep the fallback union conservative even when the
                         // selected alternatives do not currently need it.
                         let mut found = get(selected);
@@ -938,6 +967,7 @@ impl Fields {
                 && (has_patterns
                     || has_iterations
                     || has_relative_selection
+                    || has_nullish_selection
                     || !elements.rest_sources.is_empty()
                     || !indexed_copy_inputs.is_empty())
                 && !finalized_unresolved

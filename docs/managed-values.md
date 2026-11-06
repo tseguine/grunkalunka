@@ -486,6 +486,16 @@ cases, but runs only when selected. Objects are truthy; String truthiness uses i
 length; `??` tests only Undefined/Null, preserving empty text, false, zero and NaN.
 `ManagedIsNullish` produces a predicate from the managed language-kind tag.
 
+Nullish results also retain their source receiver origins. An optional String,
+record or array selected by `at`, a field read, helper or captured callback can
+use a compatible `??` fallback and then feed a String method or container read.
+Unlike a binding default, `??` replaces both explicit Null and Undefined.
+Definitely non-nullish left operands keep their own origins without acquiring
+those of the unselected fallback; the fallback still undergoes source validation.
+The analysis retains every unknown or other non-nullish alternative and all
+alias writes. It does not infer that a selected element exists, narrow an unknown
+Number/Boolean into a String, or detach a selected child from later field writes.
+
 Logical results work in data properties, local bindings and ordinary helpers,
 including mixed primitive/reference helpers and discarded expressions. Static
 Number-only arguments retain f64. A Boolean/nullish argument to a helper that also
@@ -495,8 +505,10 @@ entry profiles use the same carrier when needed to retain their kind; other entr
 profiles retain the original primitive-result planning. Metadata supplies no kind
 proof. This does not add primitive projection from arbitrary managed results.
 
-Managed logical assignments, opaque/dynamic function calls, suspended frames and
-public managed exports remain outside this increment. Known typed function values
+The existing traced suspension path carries these selected values across awaits,
+including a lazy fallback that itself suspends. Managed logical assignments,
+opaque/dynamic function calls and public managed exports remain outside this
+increment. Known typed function values
 in the carrier are covered by later source increments. Unsupported
 operations in an unselected branch remain rejected.
 

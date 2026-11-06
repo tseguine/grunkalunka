@@ -166,6 +166,22 @@ fn array_at_defaults_keep_element_aliases_and_lazy_defaults_across_awaits() {
 }
 
 #[test]
+fn nullish_defaults_keep_selected_receivers_and_lazy_awaits() {
+    compare_promises(
+        &[
+            "let n=0;const rows=[{label:' first '},{label:' second '}];const item=rows.at(await a)??(await b,n++,{label:' missing '});await b;return item.label.trim().length*10+n;",
+            "const source={label:' first '};const rows=[source];const item=rows.at(await a)??(await b,{label:' missing '});await b;source.label=' changed ';return item.label.trim().length;",
+        ],
+        &[
+            (0.0, 2.0),
+            (-1.0, 0.0),
+            (4.0, 3.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn string_concat_retains_left_snapshots_across_await() {
     compare_promises(
         &[

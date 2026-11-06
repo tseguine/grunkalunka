@@ -158,3 +158,28 @@ fn array_logical_values_keep_identity_and_element_snapshots() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn nullish_defaults_compose_selected_strings_and_lazy_effects() {
+    for source in [
+        "export function run(a,b){const text=[' ready ',null,'',undefined].at(a)??' missing ';return text.trim().length;}",
+        "export function run(a,b){const text='abc'.at(a)??'?';return text.trim().length;}",
+        "function choose(x,y){return x??y;}export function run(a,b){const text=choose(a?null:' ready ',' missing ');return text.trim().length;}",
+        "export function run(a,b){let n=0;const box={label:a?null:' '};const text=(n++,box.label)??(n+=10,box.label=' changed ',' fallback ');return text.trim().length*100+n;}",
+        "export function run(a,b){let n=0;const text=''??(n++,a);return text.trim().length+n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn nullish_defaults_keep_selected_container_aliases_and_helper_captures() {
+    for source in [
+        "export function run(a,b){const original={label:' old '};const row=[original].at(a)??{label:' fallback '};original.label=' changed ';return row.label.trim().length;}",
+        "function choose(x,y){return x??y;}export function run(a,b){const source=a?null:{label:' ready '};const read=()=>choose(source,{label:' fallback '});return read().label.trim().length;}",
+        "export function run(a,b){const fallback=[b];const row=[[a,b],null].at(a)??fallback;return row===fallback?row.length:row.length+10;}",
+        "export function run(a,b){let n=0;const row={label:' keep '}??(n++,a);return row.label.trim().length+n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
