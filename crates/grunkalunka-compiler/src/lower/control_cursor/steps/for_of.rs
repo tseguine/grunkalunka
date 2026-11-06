@@ -38,7 +38,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let pattern = iteration::lexical_iteration_pattern(source.left())
             .ok_or_else(|| unsupported(&source, "iteration requires one const or let binding"))?;
         if source.is_in() && !matches!(pattern, BindingPattern::BindingIdentifier(_)) {
-            return Err(unsupported(&source, "for-in requires an identifier binding"));
+            return Err(unsupported(
+                &source,
+                "for-in requires an identifier binding",
+            ));
         }
         let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
             unreachable!("checked lexical iteration binding");
