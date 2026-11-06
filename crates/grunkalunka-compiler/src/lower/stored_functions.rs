@@ -400,13 +400,7 @@ impl Fields {
                     target_identifier(&update.argument, 0).ok().flatten()
                 }
                 AstKind::AssignmentExpression(assignment)
-                    if !matches!(
-                        assignment.operator,
-                        AssignmentOperator::Assign
-                            | AssignmentOperator::LogicalAnd
-                            | AssignmentOperator::LogicalOr
-                            | AssignmentOperator::LogicalNullish
-                    ) =>
+                    if assignment.operator != AssignmentOperator::Assign =>
                 {
                     assignment
                         .left
@@ -418,9 +412,10 @@ impl Fields {
             if let Some(target) = numeric_target
                 && let Some(symbol) = symbol(target, semantic)
             {
-                // Admission needs the alternatives in the cell before this
-                // update. The expression's own rule separately proves the new
-                // result kind, including String alternatives for +=.
+                // Admission needs the alternatives in the cell before numeric
+                // updates. The expression's own rule separately proves the new
+                // result kind, including String alternatives for += and the
+                // selected RHS alternatives of logical assignments.
                 numeric_targets.push((target.node_id(), id, symbol));
             }
             let numeric_property = match node.kind() {

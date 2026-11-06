@@ -11,6 +11,7 @@ mod array_slice;
 mod destructure;
 mod dictionary;
 mod has_own;
+mod local_logical;
 mod local_update;
 mod managed;
 #[cfg(test)]
@@ -1544,6 +1545,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::PropertyUpdate(task) => {
                     self.resume_property_update(task, regions, values, work)
                 }
+                Work::LocalLogical(task) => self.resume_local_logical(task, regions, values),
                 Work::LocalUpdate(task) => self.resume_local_update(task, regions, values),
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {

@@ -587,7 +587,8 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        if self.schedule_local_update(node, depth, mode, regions, values, work)?
+        if self.schedule_local_logical(node, depth, mode, regions, work)?
+            || self.schedule_local_update(node, depth, mode, regions, values, work)?
             || self.schedule_property_update(node, depth, mode, work)?
             || self.schedule_property_delete(node, depth, mode, work)?
             || self.schedule_destructure(node, depth, mode, work)?

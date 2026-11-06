@@ -27,6 +27,19 @@ fn boxed_number_local_writes_save_old_values_and_commit_after_await_success() {
 }
 
 #[test]
+fn boxed_number_local_logical_writes_select_awaits_and_commit_on_success() {
+    compare_promises(
+        &[
+            "let [x]=[a];const value=x&&=(await b,b);return +value;",
+            "let {x}={x:a};const value=x||=(await b,b);return +value;",
+            "let [x]=[a];const value=x??=(await Promise.reject(b),b);return +value;",
+            "let {x}={x:a};try{x||=(await Promise.reject(b),b);}catch(e){return e;}return +x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn typeof_unresolvable_names_keep_text_and_control_flow_across_awaits() {
     compare_promises(
         &[
