@@ -18,6 +18,15 @@ pub(super) enum Method {
 }
 
 impl Method {
+    pub(super) fn array_search(self) -> Option<ir::ArraySearch> {
+        match self {
+            Self::Includes => Some(ir::ArraySearch::Includes),
+            Self::IndexOf => Some(ir::ArraySearch::IndexOf),
+            Self::LastIndexOf => Some(ir::ArraySearch::LastIndexOf),
+            _ => None,
+        }
+    }
+
     pub(super) fn result(self) -> Type {
         match self {
             Self::Slice

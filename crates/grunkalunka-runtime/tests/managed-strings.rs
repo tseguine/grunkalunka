@@ -79,7 +79,6 @@ fn string_indices_reject_unproven_strings_and_unrepresented_coercions() {
         "let needle='c';const find=()=> 'abc'.lastIndexOf(needle);needle=a;return find();",
         "const xs=['abc'];return xs.at(0).indexOf('c');",
         "const xs=['c'];return 'abc'.lastIndexOf(xs.at(0));",
-        "const xs=['abc'];return xs.indexOf('abc');",
         "const s='abc';return s?.indexOf('c');",
         "const s='abc';return s.lastIndexOf?.('c');",
         "return 'abc'.indexOf.call('abc','c');",

@@ -670,16 +670,22 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if let Expression::CallExpression(call) = node
-            && let Some((receiver, crate::lower::string_methods::Method::Includes)) =
-                crate::lower::string_methods::call(call)
+            && let Some((receiver, method)) = crate::lower::string_methods::call(call)
+            && let Some(kind) = method.array_search()
             && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
             && matches!(
                 mode,
                 Mode::Predicate | Mode::Number | Mode::General | Mode::Managed | Mode::Discard
             )
         {
-            boolean_consumer(node, mode, "array includes produces a Boolean", work)?;
-            self.schedule_array_includes(node, call, receiver, depth, work)?;
+            if kind == ir::ArraySearch::Includes {
+                boolean_consumer(node, mode, "array includes produces a Boolean", work)?;
+            } else if matches!(mode, Mode::Discard) {
+                work.push(Work::Forget);
+            } else {
+                number_consumer(work, node, mode)?;
+            }
+            self.schedule_array_search(node, call, receiver, kind, depth, work)?;
             return Ok(true);
         }
         if matches!(mode, Mode::Managed)

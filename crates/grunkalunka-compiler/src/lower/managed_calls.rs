@@ -145,8 +145,7 @@ fn kinds(
                 let receiver = values.pop().expect("method receiver kinds");
                 let supported = |kind: &Kind| {
                     *kind == Kind::String
-                        || (*kind == Kind::Array
-                            && matches!(method, string_methods::Method::Includes))
+                        || (*kind == Kind::Array && method.array_search().is_some())
                 };
                 let result = match method.result() {
                     Type::ManagedValue => Kind::String,

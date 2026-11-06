@@ -680,8 +680,11 @@ pub(crate) fn general_mutable_bindings(
                 return None;
             };
             let (receiver, method) = string_methods::call(call)?;
-            (method.result() == Type::Number && stored.string(receiver.node_id()))
-                .then_some(call.node_id.get())
+            (method.result() == Type::Number
+                && (stored.string(receiver.node_id())
+                    || (method.array_search().is_some()
+                        && stored.container(receiver.node_id()) == Some(Type::ManagedArray))))
+            .then_some(call.node_id.get())
         })
         .collect();
     let mut call_results = BTreeMap::new();

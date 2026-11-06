@@ -413,6 +413,14 @@ and the search observes the resulting length and contents. The guest searches
 the stored entries, so a sparse array's logical length does not determine the
 number of iterations.
 
+`indexOf` and `lastIndexOf` return the first or last matching numeric
+position, with -1 for a miss. They use strict equality and skip holes.
+Stored properties can be out of insertion order, so the search selects the
+lowest or highest matching index in the requested range. An omitted
+`lastIndexOf` position starts at the final element. Explicit Undefined or
+NaN starts at zero. Argument snapshots and sparse traversal use the same
+machinery as `includes`.
+
 A single spread literal `[...items]` makes a shallow, dense copy of a proven
 Array. A proven String operand produces a dense array of the Strings yielded
 by its intrinsic iterator, including two-unit supplementary characters and

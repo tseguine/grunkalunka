@@ -64,6 +64,22 @@ pub(crate) enum StringTrim {
     Both,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ArraySearch {
+    Includes,
+    IndexOf,
+    LastIndexOf,
+}
+
+impl ArraySearch {
+    pub(crate) fn result(self) -> Type {
+        match self {
+            Self::Includes => Type::Predicate,
+            Self::IndexOf | Self::LastIndexOf => Type::Number,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum StringSearch {
     StartsWith,
@@ -543,7 +559,8 @@ pub(crate) enum Op {
         result: ValueId,
         array: ValueId,
     },
-    ManagedArrayIncludes {
+    ManagedArraySearch {
+        kind: ArraySearch,
         result: ValueId,
         array: ValueId,
         needle: Option<ValueId>,
@@ -1386,7 +1403,8 @@ impl Verifier<'_> {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
             }
-            Op::ManagedArrayIncludes {
+            Op::ManagedArraySearch {
+                kind,
                 result,
                 array,
                 needle,
@@ -1399,7 +1417,7 @@ impl Verifier<'_> {
                 if let Some(from) = from {
                     self.value(*from, Type::Number, visible, span)?;
                 }
-                self.define(*result, Type::Predicate, visible, span)?;
+                self.define(*result, kind.result(), visible, span)?;
             }
             Op::ManagedArrayAt {
                 result,

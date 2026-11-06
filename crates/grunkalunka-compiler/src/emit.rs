@@ -575,7 +575,8 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_array_get\n");
                 self.set(*result);
             }
-            Op::ManagedArrayIncludes {
+            Op::ManagedArraySearch {
+                kind,
                 result,
                 array,
                 needle,
@@ -591,9 +592,24 @@ impl Emitter<'_> {
                 if let Some(from) = from {
                     self.get(*from);
                 } else {
-                    self.output.push_str("f64.const 0\n");
+                    self.output
+                        .push_str(if *kind == ir::ArraySearch::LastIndexOf {
+                            "f64.const inf\n"
+                        } else {
+                            "f64.const 0\n"
+                        });
                 }
-                self.output.push_str("call $gc_array_includes\n");
+                let mode = match kind {
+                    ir::ArraySearch::Includes => 0,
+                    ir::ArraySearch::IndexOf => 1,
+                    ir::ArraySearch::LastIndexOf => 2,
+                };
+                writeln!(self.output, "i32.const {mode}\ncall $gc_array_search").unwrap();
+                self.output.push_str(if *kind == ir::ArraySearch::Includes {
+                    "i64.const 0\ni64.ge_s\n"
+                } else {
+                    "f64.convert_i64_s\n"
+                });
                 self.set(*result);
             }
             Op::ManagedArrayAt {
@@ -1685,10 +1701,10 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     indexed(output, array_at::runtime(module));
     if module.functions.iter().any(|f| {
         ir::any_operation(&f.body, &mut |op| {
-            matches!(op, Op::ManagedArrayIncludes { .. })
+            matches!(op, Op::ManagedArraySearch { .. })
         })
     }) {
-        output.push_str(include_str!("emit/array_includes.wat"));
+        output.push_str(include_str!("emit/array_search.wat"));
     }
     indexed(output, array_pop::runtime(module));
     indexed(output, array_rest::runtime(module));

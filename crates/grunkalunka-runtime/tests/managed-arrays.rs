@@ -533,3 +533,26 @@ fn array_includes_requires_a_checked_receiver_and_position() {
         }
     }
 }
+
+#[test]
+fn array_index_search_uses_numeric_order_skips_holes_and_matches_strictly() {
+    for body in [
+        "const xs=['abc'];return xs.indexOf('abc');",
+        "const xs=[];xs[7]='x';xs[1]='x';xs[4]='x';xs.named='x';return xs.indexOf('x')*10+xs.lastIndexOf('x');",
+        "const xs=[,undefined,,undefined];return xs.indexOf()*10+xs.lastIndexOf();",
+        "const xs=[,,];return xs.indexOf(undefined)+xs.lastIndexOf(undefined);",
+        "const xs=[a,NaN,0,-0,b];return xs.indexOf(NaN)===-1&&xs.lastIndexOf(NaN)===-1?xs.indexOf(b)*10+xs.lastIndexOf(b):-100;",
+        "const o={v:a};const xs=[o,{v:b},o];return xs.indexOf({v:a})===-1&&xs.lastIndexOf(o)===2?xs.indexOf(o):99;",
+        "const src=['x','y','x','y'];return src.indexOf('y',b)*10+src.lastIndexOf('x',b);",
+        "const xs=['y','x','x'];return xs.lastIndexOf('x')*10+xs.lastIndexOf('x',undefined);",
+        "const xs=['x','y','x','y'];return xs.indexOf('y',-2.9)*10+xs.lastIndexOf('x',-1.9);",
+        "const xs=[];xs[4294967294]='last';return xs.indexOf('last',-1)+xs.lastIndexOf('last');",
+        "let n=0;const xs=['x','y'];const i=xs.lastIndexOf('y',void(n++),xs[0]='y');return n*10+i;",
+        "const record={indexOf:x=>x,lastIndexOf:x=>x};return record.indexOf(a)+record.lastIndexOf(b);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let source = "function find(list,value){return list.indexOf(value);}export function run(a,b){const xs=['a','b'];const get=()=>xs['lastIndexOf']('b');return find(xs,'b')+get();}";
+    common::compare_sources(source, source);
+}
