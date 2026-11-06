@@ -296,3 +296,28 @@ for (const [name, text] of [
     assert.deepEqual(result.messages, []);
   });
 }
+
+for (const [name, token, position] of [
+  ['missing numeric field', '', 0],
+  ['scientific notation', '1e0', 0],
+  ['hexadecimal notation', '0x1', 0],
+  ['explicit plus sign', '+7', 2],
+  ['leading zero', '07', 2],
+  ['decimal point', '7.0', 2],
+  ['negative zero', '-0', 4],
+  ['negative leading zero', '-01', 4],
+]) {
+  test(`Markdown outline rejects noncanonical ${name} before starting a worker`, async t => {
+    const result = await invoke(t, 'outline', { mutate(call) {
+      if (call.phase === 'native') {
+        const record = [...row];
+        record[position] = token;
+        call.stdout = record.join(' ') + '\n';
+      }
+    } });
+    assert.equal(result.error?.code, 'ERR_ASSERTION');
+    assert.match(result.error.message, /canonical signed decimal/);
+    assert.equal(result.constructionAttempts, 0);
+    assert.deepEqual(result.messages, []);
+  });
+}

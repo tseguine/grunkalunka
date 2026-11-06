@@ -30,7 +30,13 @@ function nativeRows(text) {
   return text.replace(/\r\n/g, '\n').slice(0, -1).split('\n').map(line => {
     const fields = line.split(' ');
     assert.equal(fields.length, 7);
-    const numbers = fields.slice(0, 6).map(Number);
+    // Native output uses canonical signed decimal integers. Number(...) alone
+    // also admits empty fields, hexadecimal, exponents and signed zero; those
+    // are not native row fields and must not be normalized before comparison.
+    const numericFields = fields.slice(0, 6);
+    assert.ok(numericFields.every(field => /^(?:0|-?[1-9][0-9]*)$/.test(field)),
+      'native outline fields must be canonical signed decimal integers');
+    const numbers = numericFields.map(Number);
     assert.ok(numbers.every(Number.isSafeInteger));
     const hex = fields[6];
     assert.match(hex, /^(?:[a-f0-9]{2})*$/);
