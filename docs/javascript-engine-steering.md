@@ -1,6 +1,9 @@
 # JavaScript engine steering: semantic convergence gates
 
-Date: 2026-11-01. Evidence baseline: master commit [5f3c43c](https://github.com/tseguine/grunkalunka/commit/5f3c43cd802bb0da9f09b1941ef90ffc7e57ae6c).
+Current-state review: 2026-11-06, master
+[624de02](https://github.com/tseguine/grunkalunka/commit/624de02bfdbed407a1d4ff1526f00a26f71f92f9).
+The original review and source-lowering checkpoints below retain their dated
+evidence; their former pending/open statuses are historical.
 
 **Status: advisory execution steering.** The maintainer asked for this cross-stream review. It records observed implementation, proposed next proof points and existing ownership boundaries. It is not a new language profile, accepted ABI, automatic agent assignment or permission to interrupt unrelated work. [AGENTS.md](../AGENTS.md) remains authoritative for permissions, PR review and merging.
 
@@ -8,31 +11,49 @@ Date: 2026-11-01. Evidence baseline: master commit [5f3c43c](https://github.com/
 migration, the maintainer assigned an impact-ordered
 [JavaScript feature train](javascript-feature-train.md), with A1 priority and
 stacked PRs. That queue supersedes the older proposed compiler ordering below;
-the dated evidence and independently owned application acceptance gates remain.
+the dated evidence remains available without reopening completed or retired
+coordination issues.
 
 ## What is currently established
 
 - The maintained Oxc frontend lowers selected JS/TS through verified structured IR to real portable Wasm. Numeric and primitive-return profiles retain their contracts and specialized f64 paths.
-- The **synchronous** WasmGC path executes source ordinary-object and sparse-array literals, static own-property reads/writes, Strings with lossless UTF-16 equality/truthiness, aliases, typed helpers, captured managed references, returned closures and canonical function identities. Calls through own object/array fields require source-proven compatible synchronous signatures. See [managed values](managed-values.md) and [accepted WasmGC direction](adr/0019-wasmgc-runtime.md).
-- The **async** profile supports bounded Promise identity, settlement/adoption, captured scalar storage, suspended continuations and selected try/catch/finally/job ordering. It does **not** yet carry traced WasmGC values through suspended frames or provide general Promise/thenable or synchronous exception semantics.
-- A1 has authorized Markdown/WIT inspection, native layout/paint/hit/repaint and a **separate** source-compiled scalar call to a real Rust WIT service. No connected source-service-input-repaint application or rendered readable glyph pipeline is accepted.
-- Stack-hardening has converted many source, IR, emission and JSON walks to heap worklists, but the remaining native-stack audit is tracked in [#281](https://github.com/tseguine/grunkalunka/issues/281).
+- The WasmGC path executes objects, sparse arrays, lossless UTF-16 Strings, aliases, checked helpers, managed captures, returned closures and canonical function identities. Nested bindings/rest, scoped dictionary keys, property presence/enumeration, collection copies and String operations now compose with the application service. Calls through fields still need compatible source-proven signatures. See [managed values](managed-values.md), the [feature train](javascript-feature-train.md) and [accepted GC direction](adr/0019-wasmgc-runtime.md).
+- The **async** profile supports represented Promise identity, settlement/adoption, rejection notifications, suspended continuations and selected try/catch/finally/job ordering. Actual managed references remain traced across suspension and related child activations in one generated instance. Managed Promise settlements/reasons, managed await operands, general thenables and public reference results remain outside that contract.
+- [Synchronous source errors](synchronous-errors.md) support primitive throws caught in the same function, including cleanup through finally. Cross-call and uncaught synchronous throws and broader reason values remain separate boundaries.
+- A1 connects authorized Markdown/WIT, native input, an actual compiled JS/TS scalar service call, Rust-owned action state and readable bitmap repaint. [Live sessions](a1-live-application.md) add scrolling, note selection, per-note reading state, reload and reconnect; [detached packaging](a1-live-package.md) retains portable components. The typed public view proposal in [#483](https://github.com/tseguine/grunkalunka/issues/483) was retired without selecting or implementing that interface.
+- The planned source-lowering migration and obsolete-driver retirement are merged. Native-stack limits and small-stack tests remain engineering requirements. [#281](https://github.com/tseguine/grunkalunka/issues/281) was retired as an open-ended audit tracker; its closure does not prove every compiler/runtime path stack-independent.
 
 These are **different bounded execution profiles**, not a claim of general ECMAScript support or an implemented browser/Node environment. Historical observations lower in the roadmap and milestone ledger describe their named revisions, not this state.
 
-## Steering by concern
+## Resolved steering and remaining boundaries
 
-| Concern | Evidence and current owner boundary | Next bounded proof / exit criterion |
+| Concern | Completed or retired work | Remaining contract boundary |
 | --- | --- | --- |
-| **For-let closure admission** | [#374](https://github.com/tseguine/grunkalunka/pull/374) corrected the original numeric mismatch; [#334](https://github.com/tseguine/grunkalunka/issues/334) admits its two managed-result and stored-function fixtures through the existing iteration-cell renewal | The unchanged sources return `a` and `2`, respectively, for `(4, 2)` and `(0, 0)` in JS/TS on native JS, Node-Wasm and Wasmtime; retain the four existing numeric iteration-cell regressions |
-| **Semantic runtime path** | [#355](https://github.com/tseguine/grunkalunka/issues/355); general-value source lowering currently requires static keys/receivers and exhaustive typed field-call proofs | A genuinely runtime-dependent key or call operation has correct supported JS semantics, with an admitted catchable source TypeError and distinct internal/host failures |
-| **GC-aware suspension and identity** | [#356](https://github.com/tseguine/grunkalunka/issues/356) and root [#300](https://github.com/tseguine/grunkalunka/issues/300); synchronous traced references and numeric async frames are separate | Source-compiled managed object/closure survives a real suspension, forced collection, alias mutation, and ordered resume; two related activations share the intended identity domain and teardown is checked |
-| **First integrated app** | [#52](https://github.com/tseguine/grunkalunka/issues/52), [A1 preview](a1-note-preview.md) and [source WIT import](a1-ui-source-import.md); owner for the full next slice must be selected by maintainer | Input hit invokes source-compiled JS/TS, calls the actual authorized WIT service, changes state, and drives native reflow/repaint with readable headings; native Rust uses the same service contract |
-| **Robustness and evidence** | [#281](https://github.com/tseguine/grunkalunka/issues/281), [tests](testing.md), [CI](ci.md) | Retain small-stack admitted/rejection probes; distinguish executed admitted behavior, rejected sources, unexecuted scenarios, observed mismatches and independent runtime-only fixtures |
+| **For-let closure admission** | [#573](https://github.com/tseguine/grunkalunka/pull/573) completes [#334](https://github.com/tseguine/grunkalunka/issues/334)'s two unchanged managed-result/stored-function fixtures after #374's numeric repair | Preserve per-iteration cells and the existing numeric, managed-result and stored-function regressions as new forms are admitted |
+| **Semantic runtime path** | [#380](https://github.com/tseguine/grunkalunka/pull/380) implements runtime own-key enumeration and catchable nullish errors in the async profile; [#355](https://github.com/tseguine/grunkalunka/issues/355)'s indefinite remainder was retired | General Get/Set/Call, coercion, arbitrary prototypes/accessors and synchronous error propagation remain feature boundaries; retirement claims no complete-language or performance equivalence |
+| **GC-aware suspension and identity** | [#356](https://github.com/tseguine/grunkalunka/issues/356)'s bounded proof is complete through #370/#375/#377, with source oracles and forced collection in suspended related activations | Managed Promise payloads/reasons, public references and identity across independently instantiated host entries remain unsupported; umbrella [#300](https://github.com/tseguine/grunkalunka/issues/300) is retired |
+| **First integrated app** | [#52](https://github.com/tseguine/grunkalunka/issues/52) and [#54](https://github.com/tseguine/grunkalunka/issues/54) close their bounded integration/pilot objectives; [#549](https://github.com/tseguine/grunkalunka/issues/549) completes reading state and recovery | The connected application has a scalar service interface and fresh guest Store per action. A typed public view contract remains an unselected design choice, not an active #483 assignment |
+| **Robustness and evidence** | Source-lowering retirement is merged; [#281](https://github.com/tseguine/grunkalunka/issues/281)'s open-ended audit is retired | Retain small-stack probes, [tests](testing.md) and [CI](ci.md); track a new concrete defect with a bounded observable completion criterion |
 
-The labels above order concerns within their relevant streams; they do **not** stop the parallel compiler, IR/stack, A1, browser or document streams or silently hand work to an unassigned agent. The A1 proposal [#54](https://github.com/tseguine/grunkalunka/issues/54) remains unassigned until the maintainer chooses its owner.
+These remaining boundaries explain current capability, not a new assignment or
+an indefinite issue backlog. Closed implementation proofs and retired proposals
+have different meanings. Continue the maintainer's assigned feature train and
+independent workstreams; define new work in concrete reviewable units.
 
 ## Source-lowering architecture: completed base and remaining work
+
+The planned effectful-source migration through L3/L4 and L5 compatibility-driver
+retirement is merged through [#466](https://github.com/tseguine/grunkalunka/pull/466),
+with the evidence/design closure in [#467](https://github.com/tseguine/grunkalunka/pull/467)
+and [#468](https://github.com/tseguine/grunkalunka/pull/468). The shared source
+cursor owns statements, initializers, evaluator resumptions and lifted bodies;
+22 synchronous compatibility drivers were removed. See the
+[validation checkpoint](lowering-refactor-validation-2026-11-03.md).
+L6 remains conditional on a concrete semantic extension. These refactoring
+labels do not declare the similarly numbered language milestones complete.
+
+<details>
+<summary>Historical architecture assignment and pre-merge checkpoints (November 1–3)</summary>
 
 **Maintainer-assigned direction, 2026-11-01.** Continue the lowering-machine
 migration in bounded, independently reviewable units until source-dependent
@@ -232,7 +253,9 @@ full-language runtime, general synchronous exceptions, and GC-aware async
 identity have distinct implementation and evidence gates; do not make this
 lowering refactor implicitly claim or block them.
 
-## Runtime semantics, not ever-more mandatory proofs
+</details>
+
+## Runtime semantics and source proofs
 
 Preserve the existing specialized numeric, typed closure and known own-property paths. But a source-flow proof is optimization/admission evidence for an implemented subset, not an alternative definition of JavaScript. The next architecture should expose semantic Get/Set/Call/ToPropertyKey and normal/throw behavior independently of known-operand fast paths, incrementally and only as needed by executed programs.
 
@@ -242,11 +265,24 @@ The current structured IR and WasmGC choice do not need reversal. Keep proven f6
 
 ## Managed suspension and runtime lifetime
 
-Never store raw WasmGC references in a linear-memory numeric spill or conflate the managed-value carrier with the async Promise tag space. Decide the JavaScript agent's heap/instance identity domain, where suspended references are rooted, which jobs own resumptions, and how teardown invalidates late work before widening async admission. Compare a shared engine-traced activation/frame design against an explicit checked rooting bridge before committing to a general layout. Keep JS job semantics distinct from optional future parallelism.
+Never store raw WasmGC references in a linear-memory numeric spill or conflate
+the managed carrier with the async Promise tag space. The accepted initial
+[WasmGC design](adr/0019-wasmgc-runtime.md) keeps actual references in traced
+globals and per-activation records beside numeric control addresses. Related
+activations share one generated instance; completed roots are released and
+late/stale identities are checked. Public sharing across separate host entries
+and managed Promise payloads need their own contracts. Keep JS job semantics
+distinct from optional future parallelism.
 
 ## Application and verification gates
 
-**A1 integration is independent of general-JS completion.** Reuse the existing limited scalar source-to-WIT call and headless hit/repaint path; the next integrated example does not require a DOM, full CSS, ambient Node APIs, general Promise objects, or a full window system. Preserve WIT/capability permission checks and avoid unnecessary per-pixel component crossings. Require the same intended view/action semantics from native Rust and generated JS/TS.
+**A1 integration is independent of general-JS completion.** The live application
+already connects the scalar source-to-WIT call and native hit/repaint path.
+Further bounded application work can preserve that path without requiring a
+DOM, full CSS, ambient Node APIs, general Promise objects or a full window
+system. Preserve WIT/capability checks and avoid unnecessary per-pixel component
+crossings. A future public view/action interface needs concrete selected
+semantics and equivalent native Rust/generated JS behaviour before adoption.
 
 **Report verification categories separately:** admitted source with executed native-JS/Node-Wasm/Wasmtime comparisons; admitted source with known mismatches; rejected source (including invalid source and resource limits separately); source not attempted; and hand-built IR/runtime evidence that does not establish source admission. Compare nonnumeric effects and job order, not only final scalar bits. Start an original-harness Test262 pilot for a few *selected* supported language semantics; do not describe existing adapted fixtures as full Test262 coverage or make an unbounded suite a blanket PR gate. Use the current [executable corpus](../tests/compatibility/corpus.mjs) and [check catalog](../scripts/checks/README.md) for current counts; historical receipts remain dated.
 
