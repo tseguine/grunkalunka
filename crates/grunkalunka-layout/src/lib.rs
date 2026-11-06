@@ -89,6 +89,18 @@ pub enum FlexAlign {
     SafeCenter,
 }
 
+/// Cross-axis placement of natural lines in a wrapped, nonflexing row.
+/// Safe positions fall back to start on overflow; line sizes do not stretch.
+/// NoWrap rows and other display modes ignore this setting.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FlexAlignContent {
+    #[default]
+    Start,
+    SafeEnd,
+    SafeCenter,
+    SpaceBetween,
+}
+
 /// Already-resolved visibility declaration. Children inherit unless explicitly
 /// overridden; unlike display:none, a hidden ancestor retains its boxes and
 /// an explicitly visible descendant can be painted and hit.
@@ -239,6 +251,9 @@ pub struct Style {
     pub flex_wrap: FlexWrap,
     pub justify_content: FlexJustify,
     pub align_items: FlexAlign,
+    /// Place natural line boxes within a wrapped row's used content height.
+    /// The default retains start packing, rather than CSS's default stretch.
+    pub align_content: FlexAlignContent,
     /// Override the generated parent row's cross-axis alignment for this item.
     /// None defers to that row's `align_items` (the CSS `auto` behavior).
     /// Ignored on the root, boxless nodes and ordinary non-item blocks; this
@@ -421,6 +436,10 @@ pub enum LayoutError {
     FractionalFlexAlign {
         node: usize,
     },
+    /// This wrapped row's line placement requires fractional CSS pixels.
+    FractionalFlexAlignContent {
+        node: usize,
+    },
     Overflow,
 }
 
@@ -510,6 +529,7 @@ struct FlowSize {
 
 struct RowFlow {
     items: Vec<usize>,
+    line_ends: Vec<usize>,
     line_start: usize,
     next_x: u32,
     line_y: u32,
@@ -623,6 +643,57 @@ impl Engine<'_> {
                     free / 2
                 }
             };
+        }
+        Ok(())
+    }
+
+    fn align_lines(
+        &mut self,
+        node: usize,
+        row: &RowFlow,
+        flow_height: u32,
+    ) -> Result<(), LayoutError> {
+        if row.line_ends.is_empty() {
+            return Ok(());
+        }
+        let used_height = self.frame.boxes[node]
+            .expect("finished wrapped row box")
+            .content
+            .height;
+        // Flow height already includes natural line heights and actual row
+        // gaps, but not relative offsets or the container's intrinsic minimum.
+        // Safe overflow falls back before any fractional-share obligation.
+        let free = used_height.saturating_sub(flow_height);
+        let (leading, between) = match self.nodes[node].style.align_content {
+            FlexAlignContent::Start => (0, 0),
+            FlexAlignContent::SafeEnd => (free, 0),
+            FlexAlignContent::SafeCenter => {
+                if !free.is_multiple_of(2) {
+                    return Err(LayoutError::FractionalFlexAlignContent { node });
+                }
+                (free / 2, 0)
+            }
+            FlexAlignContent::SpaceBetween if row.line_ends.len() > 1 => {
+                let spaces =
+                    u32::try_from(row.line_ends.len() - 1).map_err(|_| LayoutError::Overflow)?;
+                if !free.is_multiple_of(spaces) {
+                    return Err(LayoutError::FractionalFlexAlignContent { node });
+                }
+                (0, free / spaces)
+            }
+            FlexAlignContent::SpaceBetween => (0, 0),
+        };
+        let mut start = 0;
+        for (index, &end) in row.line_ends.iter().enumerate() {
+            let index = u32::try_from(index).map_err(|_| LayoutError::Overflow)?;
+            let distributed = between.checked_mul(index).ok_or(LayoutError::Overflow)?;
+            let offset = add(leading, distributed)?;
+            for &item in &row.items[start..end] {
+                // Preserve the item's own alignment inside its unchanged
+                // natural line. The final projection moves descendants once.
+                self.alignment_offsets[item].y = add(self.alignment_offsets[item].y, offset)?;
+            }
+            start = end;
         }
         Ok(())
     }
@@ -742,6 +813,7 @@ impl Engine<'_> {
                         if self.nodes[current.node].style.display == Display::FlexRow {
                             current.row = Some(RowFlow {
                                 items: self.row_items(current.node),
+                                line_ends: Vec::new(),
                                 line_start: 0,
                                 next_x: prepared.content_x,
                                 line_y: prepared.content_y,
@@ -805,6 +877,7 @@ impl Engine<'_> {
                             current.next_child,
                             row.line_height,
                         )?;
+                        row.line_ends.push(current.next_child);
                         row.line_start = current.next_child;
                         row.line_y = add(add(row.line_y, row.line_height)?, style.row_gap)?;
                         row.next_x = container.content_x;
@@ -849,10 +922,10 @@ impl Engine<'_> {
                         current.next_y,
                     )?
                 };
-                if let Some(row) = &current.row {
+                if let Some(row) = &mut current.row {
                     // NoWrap is a single-line formatting context even when
                     // its height is clamped or smaller than an item. Wrap
-                    // keeps natural line heights with start line packing,
+                    // keeps natural line heights regardless of line packing,
                     // including when just one actual line was collected.
                     let line_height = match self.nodes[current.node].style.flex_wrap {
                         FlexWrap::NoWrap => {
@@ -864,6 +937,14 @@ impl Engine<'_> {
                         FlexWrap::Wrap => row.line_height,
                     };
                     self.align_line_items(current.node, row, current.next_child, line_height)?;
+                    if self.nodes[current.node].style.flex_wrap == FlexWrap::Wrap {
+                        if row.has_items {
+                            row.line_ends.push(current.next_child);
+                        }
+                        let flow_height = current.next_y
+                            - current.prepared.expect("entered wrapped row box").content_y;
+                        self.align_lines(current.node, row, flow_height)?;
+                    }
                 }
                 pending.pop();
                 completed = Some(size);
