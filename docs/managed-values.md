@@ -25,6 +25,13 @@ also checks the runtime language tag before reading its f64 payload; it performs
 no coercion or user-code calls. General runtime coercion and public reference
 results remain separate work.
 
+Awaiting a source-proven Number preserves its Number origin, including nested
+awaits and boxed storage or assignment RHS values. The existing suspension path
+still executes normally. This proof does not copy reference origins through
+await: objects and functions may participate in thenable assimilation, and
+unknown or mixed operands do not prove numeric fulfillment. Type assertions
+cannot turn such an operand into a Number proof.
+
 The exact original numeric-field, array-element, destructuring declaration,
 destructuring assignment and `for-of` rejection sources now execute unchanged in
 the canonical corpus. Compiler admission/verifier tests and synchronous/async

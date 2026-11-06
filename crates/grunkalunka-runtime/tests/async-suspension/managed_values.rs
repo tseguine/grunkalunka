@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn awaited_number_origins_compose_with_boxed_storage_and_writes() {
+    compare_promises(
+        &[
+            "const o={x:await a};return o.x+b;",
+            "let [x]=[a];return x+=await b;",
+            "let [x]=[a];const result=x&&=await b;return +result;",
+            "const o={x:a};const result=o.x||=await b;return +result;",
+            "const o={x:await (await a)};return o.x+b;",
+            "let n=0;const o={x:await (n++,a)};return o.x+n;",
+            "let [x]=[a];const result=x+=await (x=b,b);return result+x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn number_property_writes_save_old_values_and_commit_only_after_await_success() {
     compare_promises(
         &[
