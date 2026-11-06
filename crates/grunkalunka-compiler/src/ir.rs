@@ -514,6 +514,7 @@ pub(crate) struct Failure {
 pub(crate) enum OwnEnumeration {
     Keys = 0,
     Values = 1,
+    Entries = 2,
 }
 
 impl OwnEnumeration {
@@ -521,6 +522,7 @@ impl OwnEnumeration {
         match self {
             Self::Keys => "keys",
             Self::Values => "values",
+            Self::Entries => "entries",
         }
     }
 }

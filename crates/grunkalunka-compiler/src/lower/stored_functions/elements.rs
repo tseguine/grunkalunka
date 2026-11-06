@@ -3,6 +3,10 @@ use super::{Alternatives, BTreeMap, BTreeSet, Key, NodeId, Origin, extend, mutat
 
 #[derive(Default)]
 pub(super) struct Elements {
+    // Outer list and pair allocations are distinct. Rows from the same source
+    // call share a conservative pair site for mutation analysis.
+    pub(super) entry_lists: BTreeMap<NodeId, NodeId>,
+    pub(super) pair_sites: BTreeSet<NodeId>,
     // Rest allocation -> (source pattern, number of consumed positions).
     pub(super) rest_sources: BTreeMap<NodeId, (NodeId, u32)>,
     writes: BTreeMap<(NodeId, u32), Alternatives>,
@@ -86,6 +90,10 @@ impl Elements {
             found.extend(self.wildcard_writes.get(&array).into_iter().flatten());
             for (_, written) in self.writes.range((array, start)..=(array, u32::MAX)) {
                 found.extend(written);
+            }
+            if let Some(pair) = self.entry_lists.get(&array) {
+                found.insert(Origin::Array(*pair));
+                continue;
             }
             if let Some(&(source, skipped)) = self.rest_sources.get(&array) {
                 if active.contains(&array) {

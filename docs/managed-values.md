@@ -890,7 +890,7 @@ remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
 rejected programs as supported.
 
-## Own enumerable keys and values
+## Own enumerable keys, values and entries
 
 `Object.keys` builds a fresh managed array from the currently represented
 data-only domain. Objects and sparse arrays enumerate existing own data entries:
@@ -910,6 +910,15 @@ child object identity. Sparse holes and array length are omitted; present
 Undefined entries are included. Each String code unit contributes a one-unit
 String, including lone surrogates. The values array supports ordinary managed
 operations and iteration, with generic element kinds.
+
+
+`Object.entries` uses that same enumeration and creates a separate fresh,
+dense `[key, value]` pair for each result. Pair slots can change independently
+of the input and of other pairs; referenced objects retain identity. A
+`for...of` head can destructure the pair and use String operations on its key.
+The value remains generic. Replacing rows, overwriting their keys, shrinking
+arrays or creating holes can invalidate those proofs. No fixed outer index
+is assumed to exist merely because the source is an entries call.
 
 The frontend recognizes the unshadowed intrinsics, including a literal computed
 member and the existing `.call` form. Arguments execute once, left to right;

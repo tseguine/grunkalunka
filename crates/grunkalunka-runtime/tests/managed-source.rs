@@ -887,3 +887,49 @@ fn object_values_observes_saved_receivers_after_all_argument_effects() {
         compare(body);
     }
 }
+
+#[test]
+fn object_entries_yields_fresh_dense_pairs_with_ordered_keys_and_shared_values() {
+    for body in [
+        "const child={x:a};const o={z:child,10:b,2:a,empty:undefined};const rows=Object.entries(o);o.z=null;const order=Object.keys(o);let i=0;for(const row of rows){const [k,v]=row;if(k!==order.at(i)||row.length!==2)return -1;if(k==='z'&&v!==child)return -2;if(k==='empty'&&v!==undefined)return -3;i++;}return i;",
+        "const src=[,a,,undefined];src.named=b;const rows=Object.entries(src);let n=0;for(const [key,value] of rows){if(key==='1'&&value===a)n+=1;if(key==='3'&&value===undefined)n+=10;if(key==='named'&&value===b)n+=100;}return rows.length===3?n:-1;",
+        "const d=Object.create(null);d.constructor=a;d.__proto__=b;let n=0;for(const [key,value] of Object['entries'](d))n+=key.trim().length+(value===a?1:0);return n;",
+        "const o={x:a,y:b};const first=Object.entries(o);const next=Object.entries(o);return first!==next&&first[0]!==first[1]&&first[0]!==next[0]?1:0;",
+        "const child={value:a};const o={x:child};const rows=Object.entries(o);let ok=0;for(const pair of rows){if(pair[0].trim()==='x'&&pair[1]===child)ok=1;pair[1]=null;}return ok&&o.x===child?1:0;",
+        "const Object={entries:x=>x};return Object.entries(a);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_entries_exposes_each_utf16_unit_and_observes_surplus_argument_effects() {
+    for body in [
+        r"let n=0;for(const [k,v] of Object.entries('A\u{1f600}\ud800')){if(k==='0'&&v==='A')n+=1;if(k==='1'&&v==='\ud83d')n+=10;if(k==='2'&&v==='\ude00')n+=100;if(k==='3'&&v==='\ud800')n+=1000;}return n;",
+        "let o={x:a};const saved=o;let n=0;const rows=Object.entries.call((n=1,null),(n=n*10+2,o),(n=n*10+3,saved.x=b,o={}));let ok=0;for(const [key,value] of rows)if(key==='x'&&value===b)ok++;return n===123&&ok===1?1:0;",
+        "return Object.entries(a).length+Object.entries(false).length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_entries_rejects_unsound_pair_or_key_projections_after_mutation() {
+    for body in [
+        "const rows=Object.entries({x:a});rows[0]=a;for(const [key,value] of rows)return key.trim().length;return 0;",
+        "const rows=Object.entries({x:a});for(const pair of rows)pair[0]=b;for(const [key] of rows)return key.trim().length;return 0;",
+        "const rows=Object.entries({x:a});for(const pair of rows)pair.length=0;for(const [key] of rows)return key.trim().length;return 0;",
+        "for(const [key,value] of Object.entries({x:a}))return value.trim().length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let err = compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+}

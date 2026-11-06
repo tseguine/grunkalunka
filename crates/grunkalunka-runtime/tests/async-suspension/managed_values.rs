@@ -510,3 +510,15 @@ fn object_values_keeps_snapshot_order_and_routes_nullish_typeerrors() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn object_entries_retains_pairs_over_await_and_catches_nullable_receivers() {
+    compare_promises(
+        &[
+            "const src={label:a};const rows=Object.entries(src,(await a,src.label=b));src.label=a;let n=0;for(const [key,value] of rows){await b;if(key.trim()==='label'&&value===b)n++;}return n;",
+            "try{Object.entries(null,(await a,b));}catch(err){await b;return typeof err==='object'?1:0;}return -1;",
+            "const src=a?{x:b}:null;try{const rows=Object.entries(src);for(const [key,v] of rows)return key==='x'&&v===b?1:0;return 0;}catch(err){return typeof err==='object'?2:0;}",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

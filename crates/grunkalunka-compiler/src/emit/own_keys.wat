@@ -8,6 +8,20 @@
   i64.const -1 i64.eq if i32.const 1 return end
   local.get $x local.get $y i64.lt_u)
 
+;; kind: 0 = keys, 1 = values, 2 = fresh [key, value] pairs.
+(func $gc_enumeration_item (param $kind i32) (param $key (ref null $gc_key))
+  (param $value (ref null $gc_value)) (result (ref null $gc_value))
+  local.get $kind i32.const 1 i32.eq if local.get $value return end
+  local.get $kind i32.eqz
+  if i32.const 5 f64.const 0 local.get $key struct.new $gc_value return end
+  local.get $kind i32.const 2 i32.ne if unreachable end
+  i32.const 4 f64.const 0 i32.const 2
+  i32.const 0 call $gc_spread_index
+  i32.const 5 f64.const 0 local.get $key struct.new $gc_value struct.new $gc_entry
+  i32.const 1 call $gc_spread_index local.get $value struct.new $gc_entry
+  array.new_fixed $gc_props 2 struct.new $gc_object struct.new $gc_array
+  struct.new $gc_value)
+
 (func $gc_enumerate_props (param $props (ref null $gc_props)) (param $kind i32) (result (ref null $gc_array))
   (local $sorted (ref null $gc_props)) (local $out (ref null $gc_props))
   (local $entry (ref null $gc_entry)) (local $previous (ref null $gc_entry))
@@ -36,12 +50,8 @@
     local.get $out local.get $index
     local.get $index call $gc_spread_index
     local.get $sorted local.get $index array.get $gc_props local.set $entry
-    local.get $kind i32.eqz
-    if (result (ref null $gc_value))
-      i32.const 5 f64.const 0 local.get $entry struct.get $gc_entry 0 struct.new $gc_value
-    else
-      local.get $entry struct.get $gc_entry 1
-    end
+    local.get $kind local.get $entry struct.get $gc_entry 0
+    local.get $entry struct.get $gc_entry 1 call $gc_enumeration_item
     struct.new $gc_entry array.set $gc_props
     local.get $index i32.const 1 i32.add local.set $index br $copy
   end end
@@ -55,14 +65,15 @@
     local.get $index local.get $length i32.ge_u br_if $done
     local.get $index call $gc_spread_index local.set $key
     local.get $out local.get $index local.get $key
-    i32.const 5 f64.const 0
+    local.get $kind local.get $key
     local.get $kind i32.eqz
-    if (result (ref null $gc_key))
-      local.get $key
+    if (result (ref null $gc_value))
+      ref.null $gc_value
     else
-      local.get $text local.get $index array.get_u $gc_key array.new_fixed $gc_key 1
+      i32.const 5 f64.const 0 local.get $text local.get $index array.get_u $gc_key
+      array.new_fixed $gc_key 1 struct.new $gc_value
     end
-    struct.new $gc_value
+    call $gc_enumeration_item
     struct.new $gc_entry array.set $gc_props
     local.get $index i32.const 1 i32.add local.set $index br $next
   end end

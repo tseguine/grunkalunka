@@ -585,3 +585,21 @@ fn tail_iteration_tracks_only_the_reachable_suffix_and_its_writes() {
         assert!(facts.other && !facts.string, "{body}: {facts:?}");
     }
 }
+
+#[test]
+fn entry_pair_key_proofs_include_alias_writes_and_resizing() {
+    for body in [
+        "for(const [k] of Object.entries({x:a})){const observed=k;}return a;",
+        "const rows=Object.entries({x:a});for(const pair of rows){const observed=pair[0];}return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const rows=Object.entries({x:a});for(const pair of rows){const alias=pair;alias[0]=a;}for(const [k] of rows){const observed=k;}return a;",
+        "const rows=Object.entries({x:a});for(const pair of rows)pair.pop();for(const [k] of rows){const observed=k;}return a;",
+        "const rows=Object.entries({x:a});rows.length=2;for(const [k] of rows){const observed=k;}return a;",
+    ] {
+        let info = observe(body);
+        assert!(!info.string && info.other, "{body}: {info:?}");
+    }
+}

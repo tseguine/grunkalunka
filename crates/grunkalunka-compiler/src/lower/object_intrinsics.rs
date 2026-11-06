@@ -42,6 +42,7 @@ pub(super) fn enumeration(
     match method_name(call, semantic)? {
         "keys" => Some(ir::OwnEnumeration::Keys),
         "values" => Some(ir::OwnEnumeration::Values),
+        "entries" => Some(ir::OwnEnumeration::Entries),
         _ => None,
     }
 }
