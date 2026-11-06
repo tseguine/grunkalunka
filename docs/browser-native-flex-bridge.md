@@ -38,8 +38,8 @@ pixels permits an actual page scroll.
 
 Each phase starts from the original declarations, with only its named
 changes applied. The source records six named border rectangles and nine
-fixed viewport hit probes per phase: 240 rectangle slots and 360 hit slots
-across 40 phases. Rectangles are converted to document coordinates using the
+fixed viewport hit probes per phase: 252 rectangle slots and 378 hit slots
+across 42 phases. Rectangles are converted to document coordinates using the
 browser's actual scroll offsets. The boxless wrapper is omitted from the
 rectangle map; suppressed boxes remain explicit nulls.
 
@@ -57,6 +57,8 @@ rectangle map; suppressed boxes remain explicit nulls.
 | `justifyEnd` | Width 220, justify `safe flex-end` | 232×54 | (204,26) | 80 |
 | `justifyCenter` | Width 220, justify `safe center` | 232×54 | (189,26) | 80 |
 | `spaceBetween` | Width 230, justify `space-between` | 242×54 | (214,26) | 80 |
+| `justifyAround` | Width 250, justify `space-around` | 262×54 | (224,26) | 80 |
+| `justifyEvenly` | Width 230, justify `space-evenly` | 242×54 | (204,26) | 80 |
 | `alignEnd` | Width 220, height 60, align items `safe flex-end` | 232×72 | (174,68) | 98 |
 | `alignCenter` | Width 220, height 60, align items `safe center` | 232×72 | (174,47) | 98 |
 | `wrapAlign` | Wrap, justify `space-between`, align items `safe center` | 162×80 | (26,76) | 106 |
@@ -90,8 +92,13 @@ All center/end declarations in the table use the `safe` modifier. A phase
 wraps only where explicitly stated. At width 220 the row's 190px occupied
 main size leaves 30px: end alignment adds 30px to each item's x position,
 while center adds 15px. At width 230, `space-between` adds 20px to each
-existing 10px gap. With wrapping, distribution is calculated independently
-per line; the one-item second line in `wrapAlign` remains at main-start.
+existing 10px gap. The three-item around mode uses 60px of free width:
+10px outer half-gaps and 20px of extra spacing between each pair of items.
+The evenly mode uses 40px of free width, dividing it into four equal
+10px intervals. Both move the first item to x=36 but place the third at
+x=224 or x=204, respectively. With wrapping, distribution is calculated
+independently per line; the one-item second line in `wrapAlign` remains
+at main-start.
 
 The 60px definite height fills the single nowrap line in `alignEnd`, so
 the first, second and third item border y coordinates are 62, 46 and 68.
@@ -234,7 +241,7 @@ The native example paints distinct opaque item colors through `paint_scrolled`
 and reads actual canvas pixels. Overlap probes share the points that
 distinguish browser hit ordering; additional probes distinguish a child's
 paint before and after its parent's auto reset, wrapped and nowrap line sizes,
-and clipping at the host's bottom border. There are 23 native pixel assertions:
+and clipping at the host's bottom border. There are 25 native pixel assertions:
 
 | Phase | Native pixel | Visible item | Expected RGB |
 | --- | --- | --- | --- |
@@ -253,6 +260,8 @@ and clipping at the host's bottom border. There are 23 native pixel assertions:
 | `contentBetween` | (35,150) | `row-c` | (128,0,128) |
 | `contentAround` | (30,165) | `row-c` | (128,0,128) |
 | `contentEvenly` | (30,145) | `row-c` | (128,0,128) |
+| `justifyAround` | (230,30) | `row-c` | (128,0,128) |
+| `justifyEvenly` | (210,30) | `row-c` | (128,0,128) |
 | `contentSingle` | (110,52) | `row-inner` | (0,255,0) |
 | `contentNoWrap` | (110,52) | `row-b` | (0,0,255) |
 | `contentOverflow` | (30,80) | `row-c` | (128,0,128) |
@@ -269,7 +278,7 @@ comparison, a new receipt schema, or an additional dependency.
 
 ## Source validation and negative controls
 
-The comparator requires the complete 40-phase schema, exact rectangle and
+The comparator requires the complete 42-phase schema, exact rectangle and
 probe IDs, exact integer coordinates, the fixed viewport, and source-hashed
 Playwright provenance identifying the engine family and browser version.
 Missing samples, unknown targets, unexpected nulls, nonfinite/fractional
@@ -309,7 +318,7 @@ A third fresh capture changes only the following block's explicit
 `position:static` assignment in `safeOverflow` to `position:relative`, with
 no offsets. This changes its CSS painting category without changing any
 rectangle. Exactly one hit must change: `safeOverflow.hits.gap-wrap` switches
-from `row-b` to `row-after`. Every other phase, all 228 rectangle slots,
+from `row-b` to `row-after`. Every other phase, all 252 rectangle slots,
 and restoration remain unchanged. The positioned variant is a browser-only
 negative control; native input remains in the non-positioned profile and
 does not acquire general positioned precedence or `z-index` support.

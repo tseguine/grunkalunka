@@ -9,7 +9,7 @@ import { validateCapture } from "./compare.mjs";
 const ids = ["row-host", "row-a", "row-b", "row-inner", "row-c", "row-after"];
 const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "relative", "clipped", "scrolled", "justifyEnd", "justifyCenter", "spaceBetween",
-  "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
+  "justifyAround", "justifyEvenly", "alignEnd", "alignCenter", "wrapAlign", "wrapSingle", "safeOverflow", "overlapClipped",
   "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
   "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
   "selfAlignClipped", "selfAlignScrolled", "contentEnd", "contentCenter",
@@ -81,7 +81,7 @@ export function compareNativeFlexBridge(native, browser, sourceBytes) {
   function validateStates(owner, states) {
     const path = "$." + owner + ".states";
     if (!keys(states, phases)) {
-      error(path, "exactly the forty named flex phases required");
+      error(path, "exactly the forty-two named flex phases required");
       return;
     }
     for (const phase of phases) {
