@@ -1,4 +1,15 @@
-# Object binding declarations
+# Object bindings and assignments
+
+Object assignment patterns update existing initialized mutable managed-value
+identifier cells. Shorthand, renamed fields, static String/Number keys and
+identifier rest targets work over source-proven objects, dictionaries and arrays.
+The RHS runs once; the expression returns its original reference. Rest excludes
+selected keys and copies only enumerable own properties into a fresh object.
+Captured cells retain their identity. Prototype names keep the same guards as
+declarations, with unrestricted own keys on null-prototype dictionaries.
+Defaults, nested assignment patterns, runtime computed keys and member targets
+remain separate work. Fast compiler units and full `managed-bindings`
+differential cases cover the assignment slice.
 
 Local `const` and `let` declarations admit object binding patterns over
 source-proven managed objects and arrays. This supports shorthand fields, renamed fields,

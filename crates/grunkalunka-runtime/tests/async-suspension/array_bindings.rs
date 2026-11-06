@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn assignment_patterns_keep_rhs_and_captured_cells_across_await() {
+    compare_promises(
+        &[
+            "let x='';const read=()=>x;[x]=[(await a,'text')];await b;return read().length;",
+            "let x='';const read=()=>x;({name:x}={name:(await a,'text')});await b;return read().length;",
+            "let [x]=[];const source=[a];const result=([x]=(await b,source));await a;return result===source&&x===a?1:0;",
+            "let x='';const source={name:'text'};const result=({name:x}=(await b,source));await a;return result===source&&x==='text'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_rest_bindings_keep_snapshots_and_abrupt_defaults_across_await() {
     compare_promises(
         &[

@@ -4,6 +4,24 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn object_assignments_preserve_cells_static_keys_rest_and_rhs_identity() {
+    for body in [
+        "let x='',y='';({x,name:y}={x:'one',name:'two'});return x.length*10+y.length;",
+        "let [x,y,z]=[];({x,y,z}={x:a,y:b});return x===a&&y===b&&z===undefined?1:0;",
+        "let x='';const read=()=>x;({name:x}={name:'text'});return read().length;",
+        "let x='';const source={x:'text'};const result=({x}=source);return result===source&&x==='text'?1:0;",
+        "let [x]=[];({first:x,second:x}={first:a,second:b});return x===b?1:0;",
+        "let [x,y]=[];({[1]:x,[-0]:y}=[a,b]);return x===b&&y===a?1:0;",
+        "let x='';const d=Object.create(null);d.constructor='text';({constructor:x}=d);return x==='text'?1:0;",
+        "let [x]=[];let {...rest}={};const child={tag:b};const source={x:a,child};({x,...rest}=source);return x===a&&rest.x===undefined&&rest.child===child&&rest!==source?1:0;",
+        "let [x]=[];const source=[a,b];let {...rest}={};({0:x,...rest}=source);return x===a&&rest[1]===b&&rest.length===undefined?1:0;",
+        "const source=[a];return ({}=source)===source?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn numeric_binding_keys_select_and_exclude_the_same_property() {
     for body in [
         "const {1:x}={'1':a};return a;",
