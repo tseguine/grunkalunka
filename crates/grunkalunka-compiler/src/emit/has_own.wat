@@ -15,3 +15,11 @@
   (param $key (ref null $gc_key)) (result i32)
   local.get $key call $gc_length_key if i32.const 1 return end
   local.get $array struct.get $gc_array 1 local.get $key call $gc_has_own)
+
+;; Boxed Strings own length and exactly the canonical indices of their UTF-16
+;; code units. The negative sentinel from gc_key_index compares above any length.
+(func $gc_string_has_own (param $units (ref null $gc_key))
+  (param $key (ref null $gc_key)) (result i32)
+  local.get $key call $gc_length_key if i32.const 1 return end
+  local.get $key call $gc_key_index
+  local.get $units array.len i64.extend_i32_u i64.lt_u)

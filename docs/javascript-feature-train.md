@@ -102,7 +102,9 @@ because one tested entry has that type.
 A1 action metadata can distinguish a missing override from an explicit Undefined
 value using `Object.hasOwn` on a proven record, dictionary or array. The same
 presence check distinguishes sparse holes from dense Undefined entries in a
-rest list and recognizes the array's own non-enumerable length.
+rest list and recognizes the array's own non-enumerable length. String
+receivers expose their length and UTF-16 code-unit indices. Numeric literal
+keys use the same property name as member access.
 
 ### Deliberate remaining limits
 

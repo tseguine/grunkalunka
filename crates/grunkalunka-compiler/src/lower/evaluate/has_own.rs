@@ -63,7 +63,10 @@ impl Lowering<'_, '_> {
         }
         let Some(arg) = task.call.arguments.get(task.index) else {
             let input = task.input.ok_or_else(|| {
-                unsupported(task.node, "Object.hasOwn requires a proven object or array")
+                unsupported(
+                    task.node,
+                    "Object.hasOwn requires a proven object, array, String, Number or Boolean",
+                )
             })?;
             let key = task
                 .key
@@ -85,10 +88,13 @@ impl Lowering<'_, '_> {
             match self.receiver_type(arg, depth) {
                 Some(Type::ManagedObject) => Mode::Object,
                 Some(Type::ManagedArray) => Mode::Array,
+                _ if self.stored.string(arg.node_id()) => Mode::Managed,
+                _ if self.operand_boolean_shape(arg, depth) => Mode::Predicate,
+                _ if self.numeric_result_shape(arg, depth) => Mode::Number,
                 _ => {
                     return Err(unsupported(
                         arg,
-                        "Object.hasOwn requires a proven object or array",
+                        "Object.hasOwn requires a proven object, array, String, Number or Boolean",
                     ));
                 }
             }

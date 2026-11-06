@@ -952,3 +952,45 @@ fn string_helper_queries_keep_source_depth_off_the_native_stack() {
         }
     }
 }
+
+#[test]
+fn has_own_string_receivers_have_length_and_canonical_code_unit_positions() {
+    for body in [
+        "const s='abc';return Object.hasOwn(s,'length')&&Object.hasOwn(s,0)&&Object.hasOwn(s,-0)&&Object.hasOwn(s,'2')&&!Object.hasOwn(s,3)&&!Object.hasOwn(s,'charAt')?1:0;",
+        "const s='abc';return !Object.hasOwn(s,'-0')&&!Object.hasOwn(s,'01')&&!Object.hasOwn(s,'+1')&&!Object.hasOwn(s,0.5)&&!Object.hasOwn(s,4294967295)?1:0;",
+        r"const s='\u{1f600}\ud800';return Object.hasOwn(s,'2')&&Object.hasOwn(s,1)&&!Object.hasOwn(s,3)&&Object.hasOwn('', 'length')&&!Object.hasOwn('',0)?1:0;",
+        "let text='abc',key='2';const found=Object.hasOwn(text,key,(text='',key='missing'));return found&&text.length===0&&!Object.hasOwn(text,key)?1:0;",
+        "const row={label:' title '};const {label}=row;return Object.hasOwn(label.trim(),4)&&!Object.hasOwn(label.trim(),5)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let source = "function last(text){return Object.hasOwn(text,1);}export function run(a,b){return last('ab')&&!last('a')?1:0;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn has_own_string_receiver_proofs_reject_incompatible_aliases_and_annotations() {
+    for (source, ts) in [
+        (
+            "export function run(a,b){let s='abc';s=null;return Object.hasOwn(s,0)?1:0;}",
+            false,
+        ),
+        (
+            "export function run(a,b){const d={s:'abc'};const alias=d;alias.s=null;return Object.hasOwn(d.s,0)?1:0;}",
+            false,
+        ),
+        (
+            "export function run(a:number,b:number){return Object.hasOwn((a?{}:null) as string,0)?1:0;}",
+            true,
+        ),
+    ] {
+        let err = grunkalunka_compiler::compile(source, ts)
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(
+            err.contains("unsupported") && !err.contains("internal IR"),
+            "{source}: {err}"
+        );
+    }
+}
