@@ -117,3 +117,10 @@ Async tests retain the receiver and decoded result across awaits, and an A1
 source-import case classifies a search marker without passing a String through
 its scalar WIT service boundary. See the specification's
 [`codePointAt`](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.codepointat).
+
+## UTF-16 validation
+
+`isWellFormed()` returns whether every surrogate belongs to a valid UTF-16 pair.
+It accepts source-proven Strings, preserves all supplied argument effects and
+returns a Boolean through helpers, fields and suspension. Validation is an
+iterative guest scan; no host imports or Unicode normalization are introduced.

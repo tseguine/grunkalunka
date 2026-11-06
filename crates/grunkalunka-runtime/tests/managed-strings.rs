@@ -1071,3 +1071,29 @@ fn string_at_defaults_prove_present_text_and_keep_lazy_fallback_effects() {
         compare_sources(source, source);
     }
 }
+
+#[test]
+fn is_well_formed_validates_utf16_and_preserves_effects() {
+    for text in [
+        r"",
+        r"abc\0\uffff",
+        r"\ud800",
+        r"\udfff",
+        r"a\ud800b",
+        r"\ud800\udc00",
+        r"\udbff\udfff",
+        r"\udc00\ud800",
+        r"\ud800\ud800\udc00",
+        r"\ud800\udc00\udc00",
+    ] {
+        let s = format!("export function run(a,b){{return '{text}'.isWellFormed()?a:b;}}");
+        compare_sources(&s, &s);
+    }
+    for s in [
+        "export function run(a,b){let s='abc';let n=0;const ok=s['isWellFormed']((s='changed',n=1),n=n*10+2);return ok?n:-1;}",
+        "function valid(s){return s.isWellFormed();}export function run(a,b){const o={ok:valid('abc')};return o.ok===true?1:0;}",
+        "export function run(a,b){const o={isWellFormed:()=>a>0};return o.isWellFormed()?a:b;}",
+    ] {
+        compare_sources(s, &s.replace("run(a,b)", "run(a: number,b: number)"));
+    }
+}
