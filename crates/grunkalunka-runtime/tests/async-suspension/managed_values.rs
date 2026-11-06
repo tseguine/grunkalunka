@@ -637,3 +637,14 @@ fn array_reverse_observes_contents_after_awaits_and_preserves_return_aliases() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_shift_observes_current_contents_after_awaits_and_stops_on_rejection() {
+    compare_promises(
+        &[
+            "let xs=[a,b];const old=xs;const first=xs.shift((await a,xs=[]),(await b,old[0]=b));await a;return first===b&&old.length===1&&old[0]===b&&xs.length===0?1:0;",
+            "const xs=[a,b];let n=0;try{xs.shift((n=1,await Promise.reject(a)),n=2);}catch(e){return xs.length===2&&n===1&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

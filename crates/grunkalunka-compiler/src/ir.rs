@@ -581,6 +581,10 @@ pub(crate) enum Op {
         result: ValueId,
         array: ValueId,
     },
+    ManagedArrayShift {
+        result: ValueId,
+        array: ValueId,
+    },
     ManagedArrayPop {
         result: ValueId,
         array: ValueId,
@@ -1456,7 +1460,7 @@ impl Verifier<'_> {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::ManagedArray, visible, span)?;
             }
-            Op::ManagedArrayPop { result, array } => {
+            Op::ManagedArrayPop { result, array } | Op::ManagedArrayShift { result, array } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }

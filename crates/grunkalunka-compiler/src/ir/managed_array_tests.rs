@@ -786,3 +786,56 @@ fn array_reverse_requires_a_proven_array_and_invalidates_position_facts() {
     module.functions[0].body.operations[position].kind = Op::ManagedArrayReverse { result, array };
     verify_module(&module).unwrap();
 }
+
+#[test]
+fn array_shift_keeps_unknown_receivers_and_invalidated_positions_explicit() {
+    for body in [
+        "return a.shift();",
+        "const xs=a?[b]:null;return xs.shift()===b?1:0;",
+        "const xs=[b];return xs.shift?.()===b?1:0;",
+        "const xs=[b];return xs.shift(...[])===b?1:0;",
+        "const xs=[b];return xs.shift.call(xs)===b?1:0;",
+        "const xs=[b];xs.shift=()=>b;return xs.shift()===b?1:0;",
+        "const xs=['x',b];xs.shift();return xs[0].trim().length;",
+        "const xs=['x',b];const alias=xs;alias.shift();return xs[0].trim().length;",
+        "const xs=[()=>a,b];xs.shift();return xs[0]();",
+        "const xs=['x'];return xs.shift().trim().length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let err = crate::lower_source(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(
+                err.contains("unsupported") && !err.contains("internal IR"),
+                "{source}: {err}"
+            );
+        }
+    }
+    let mut module = crate::lower_source(
+        "export function run(a,b){return [a,b].shift()===a?1:0;}",
+        false,
+    )
+    .unwrap();
+    verify_module(&module).unwrap();
+    let (position, result, array) = module.functions[0]
+        .body
+        .operations
+        .iter()
+        .enumerate()
+        .find_map(|(i, o)| match o.kind {
+            Op::ManagedArrayShift { result, array } => Some((i, result, array)),
+            _ => None,
+        })
+        .unwrap();
+    module.functions[0].values[result.0] = Type::ManagedArray;
+    assert!(verify_module(&module).is_err());
+    module.functions[0].values[result.0] = Type::ManagedValue;
+    module.functions[0].body.operations[position].kind = Op::ManagedArrayShift {
+        result,
+        array: result,
+    };
+    assert!(verify_module(&module).is_err());
+    module.functions[0].body.operations[position].kind = Op::ManagedArrayShift { result, array };
+    verify_module(&module).unwrap();
+}

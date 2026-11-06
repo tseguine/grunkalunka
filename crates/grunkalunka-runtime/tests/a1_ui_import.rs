@@ -883,3 +883,18 @@ fn imported_handler_uses_a_reversed_action_history() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_consumes_the_first_queued_action() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const queue = [a > 0 ? 'expand' : 'collapse', 'reload', 'refresh'];
+            const handle = () => {
+                const action = queue.shift();
+                return choose(action === 'expand' ? 1 : 0, queue.length);
+            };
+            return +handle();
+        }"#,
+    );
+}

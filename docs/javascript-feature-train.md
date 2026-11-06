@@ -132,7 +132,7 @@ separate work. The constructor recognizes the unshadowed intrinsic
 one literal null argument through supported wrappers. Dynamic writes admit
 plain `=` assignment; compound assignment, updates and deletion remain separate.
 
-The new array mutation is `pop`. `push` is deferred because an array may already
+The array mutations include `pop`, `shift` and `reverse`. `push` is deferred because an array may already
 have the maximum valid length; its overflow requires a source RangeError path,
 not a private runtime trap. General Number bracket indexing remains separate
 because it also addresses named properties for non-index Numbers.
@@ -226,6 +226,8 @@ destructure each sliced record and trim its label, with copied-value proofs
 accounting for source and result aliases and shared-child writes. Array `reverse`
 reorders a history in place and returns that same array; a handler can combine
 `slice().reverse()` to search a separate history from newest to oldest.
+Array `shift` consumes the first queued action and moves the remaining sparse
+positions down before the handler passes the current queue length to the service.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain

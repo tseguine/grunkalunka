@@ -727,11 +727,14 @@ impl Lowering<'_, '_> {
             && let Some((operation, receiver)) = crate::lower::array_mutations::operation(call)
             && matches!(
                 (operation, mode),
-                (crate::lower::array_mutations::Operation::Pop, Mode::Managed)
-                    | (
-                        crate::lower::array_mutations::Operation::Reverse,
-                        Mode::Array
-                    )
+                (
+                    crate::lower::array_mutations::Operation::Pop
+                        | crate::lower::array_mutations::Operation::Shift,
+                    Mode::Managed
+                ) | (
+                    crate::lower::array_mutations::Operation::Reverse,
+                    Mode::Array
+                )
             )
             && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
         {
