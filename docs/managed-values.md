@@ -560,11 +560,15 @@ construction effects, so its result can be constant text; its complete body stil
 undergoes normal validation. Symbol identity and initialization checks preserve
 shadowing and reject TDZ reads. Erased annotations supply no runtime kind facts.
 
-The current increment does not define an ambient global namespace. Unknown global
-names, including unrepresented built-ins, remain explicit source rejections rather
-than being assumed absent. That is an implementation gap: JavaScript's special
-unresolvable-reference result and actual TDZ exception execution remain open in
-the `typeof` rejection-inventory requirement. BigInt/Symbol operands, dynamic
+In the current closed source environment, `typeof` on an unresolvable identifier
+reference returns `undefined` text without reading that absent binding. Parentheses
+and erased TypeScript wrappers preserve this reference behavior. A resolved local
+still requires initialization; `typeof (0, missingName)` still evaluates its value
+and rejects that missing read. Intrinsic/global names and common host namespaces
+keep their admission guards, even when their value operations are unimplemented;
+semantic lexical non-resolution alone does not prove that a built-in is absent.
+The exact original missing-name fixture now executes unchanged. General ambient
+global lookup and actual TDZ exception execution remain open. BigInt/Symbol operands, dynamic
 `Function` construction, Error/Promise carriers from other protocols, mixed
 function/primitive values, public String exports and managed async frames are not
 added here. Rejection tests establish those boundaries, not executed language

@@ -28,8 +28,6 @@ for (const [id, body, expected, diagnostic] of [
   ['instanceof', 'return [] instanceof Array ? 1 : 0;', 1, binary],
 ]) add(id, 'operators', body, expected, diagnostic);
 
-add('typeof-unresolved', 'operators', 'return typeof __grunkalunka_typeof_missing__ === "undefined" ? 1 : 0;', 1, reference);
-
 for (const [id, body, expected, diagnostic] of [
   ['string-coercion', 'return a + "2" === "42" ? 1 : 0;', 1, expression],
   ['bigint', 'return 1n === 1n ? a : b;', 4, expression],
