@@ -964,3 +964,15 @@ fn imported_handler_defaults_a_missing_action_marker() {
     }"#,
     );
 }
+
+#[test]
+fn imported_handler_validates_label_utf16() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    export function run(a,b) {
+        const label=a>0?'Find \u{1f50d}':'Broken \ud800';
+        const handle=()=>choose(label.isWellFormed()?1:0,2);
+        return +handle();
+    }"#,
+    );
+}

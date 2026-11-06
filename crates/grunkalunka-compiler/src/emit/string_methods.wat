@@ -253,3 +253,33 @@
     end
   end
   i32.const 3 local.get $point f64.convert_i32_u ref.null eq struct.new $gc_value)
+
+;; Find the next unpaired surrogate, or return length. Bounds precede every
+;; read. Valid pairs advance together; all other code units advance singly.
+(func $gc_string_invalid (param $text (ref null $gc_key)) (param $at i32) (result i32)
+  (local $length i32) (local $unit i32)
+  local.get $text array.len local.set $length
+  block $done
+    loop $scan
+      local.get $at local.get $length i32.ge_u br_if $done
+      local.get $text local.get $at array.get_u $gc_key local.set $unit
+      local.get $unit i32.const 0xd800 i32.sub i32.const 0x800 i32.lt_u
+      if
+        local.get $unit i32.const 0xdc00 i32.ge_u if local.get $at return end
+        local.get $at i32.const 1 i32.add local.get $length i32.ge_u
+        if local.get $at return end
+        local.get $text local.get $at i32.const 1 i32.add array.get_u $gc_key
+        i32.const 0xfc00 i32.and i32.const 0xdc00 i32.ne
+        if local.get $at return end
+        local.get $at i32.const 1 i32.add local.set $at
+      end
+      local.get $at i32.const 1 i32.add local.set $at
+      br $scan
+    end
+  end
+  local.get $length)
+
+(func $gc_string_is_well_formed (param $value (ref null $gc_value)) (result i32)
+  (local $text (ref null $gc_key))
+  local.get $value call $gc_string_key local.tee $text i32.const 0
+  call $gc_string_invalid local.get $text array.len i32.eq)

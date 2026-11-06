@@ -718,3 +718,14 @@ fn string_at_defaults_remain_lazy_across_suspension() {
         ],
     );
 }
+
+#[test]
+fn is_well_formed_keeps_receiver_and_boolean_across_awaits() {
+    compare_promises(
+        &[
+            r"let s='\ud800';const ok=s.isWellFormed((await a,s='abc'));await b;return ok?1:0;",
+            "let n=0;const ok='abc'.isWellFormed((await a,n=1),(await b,n=n*10+2));await a;return ok?n:-1;",
+        ],
+        &[(1.0, 2.0), (0.0, -0.0)],
+    );
+}

@@ -1321,3 +1321,36 @@ fn string_at_default_proofs_do_not_admit_unsupported_pattern_assignment() {
         "export function run(a,b){let c='';({c='?'}={c:'abc'.at(a)});return c.charCodeAt(0);}";
     assert!(crate::lower_source(source, false).is_err());
 }
+
+#[test]
+fn well_formed_validation_requires_text_and_boolean_result() {
+    let mut m = crate::lower_source(
+        "export function run(a,b){return 'abc'.isWellFormed()?a:b;}",
+        false,
+    )
+    .unwrap();
+    let op = m.functions[0]
+        .body
+        .operations
+        .iter()
+        .find(|o| matches!(o.kind, Op::ManagedStringIsWellFormed { .. }))
+        .unwrap();
+    let Op::ManagedStringIsWellFormed { result, input } = op.kind else {
+        unreachable!()
+    };
+    verify_module(&m).unwrap();
+    m.functions[0].values[result.0] = Type::Number;
+    assert!(verify_module(&m).is_err());
+    m.functions[0].values[result.0] = Type::Predicate;
+    m.functions[0].values[input.0] = Type::Number;
+    assert!(verify_module(&m).is_err());
+    for body in [
+        "const s=a?'abc':null;return s.isWellFormed()?1:0;",
+        "return 'abc'?.isWellFormed()?1:0;",
+        "return 'abc'.isWellFormed(...[])?1:0;",
+    ] {
+        assert!(
+            crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err()
+        );
+    }
+}
