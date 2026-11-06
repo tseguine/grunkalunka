@@ -104,7 +104,9 @@ value using `Object.hasOwn` on a proven record, dictionary or array. The same
 presence check distinguishes sparse holes from dense Undefined entries in a
 rest list and recognizes the array's own non-enumerable length. String
 receivers expose their length and UTF-16 code-unit indices. Numeric literal
-keys use the same property name as member access.
+keys use the same property name as member access. The `in` operator also
+tests presence in proven null-prototype dictionaries, evaluating its key before
+the receiver. The keyed A1 action handler can use that source syntax directly.
 
 ### Deliberate remaining limits
 

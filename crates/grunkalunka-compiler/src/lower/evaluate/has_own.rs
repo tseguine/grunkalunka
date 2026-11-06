@@ -1,4 +1,5 @@
-//! Save both operands before executing surplus arguments or testing presence.
+//! Own-property calls and dictionary membership share a presence check after
+//! evaluating their operands in the order required by the source operation.
 use super::*;
 
 pub(super) struct Task<'e, 'a> {
@@ -10,7 +11,71 @@ pub(super) struct Task<'e, 'a> {
     key: Option<ir::ManagedKey>,
 }
 
+fn presence_consumer<'e, 'a>(
+    node: &'e Expression<'a>,
+    mode: Mode,
+    work: &mut Vec<Work<'e, 'a>>,
+) -> Result<(), String> {
+    match mode {
+        Mode::Predicate => (),
+        Mode::General => work.push(Work::Pack(node)),
+        Mode::Managed => {
+            work.push(Work::Managed(managed::ManagedWork::Primitive(node)));
+            work.push(Work::Pack(node));
+        }
+        Mode::Discard => work.push(Work::Forget),
+        _ => return Err(unsupported(node, "property presence produces a Boolean")),
+    }
+    Ok(())
+}
+
 impl Lowering<'_, '_> {
+    pub(super) fn schedule_in<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        binary: &'e oxc_ast::ast::BinaryExpression<'a>,
+        depth: usize,
+        mode: Mode,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        presence_consumer(node, mode, work)?;
+        let literal = literal_property_name(&binary.left, self.semantic, depth + 1);
+        let key_mode = if literal.is_some() {
+            Mode::Discard
+        } else if self.stored.string(binary.left.node_id()) {
+            Mode::Managed
+        } else {
+            return Err(unsupported(
+                &binary.left,
+                "in requires a proven String or supported primitive key",
+            ));
+        };
+        if !self.stored.dictionary(binary.right.node_id()) {
+            return Err(unsupported(
+                &binary.right,
+                "in requires a proven null-prototype dictionary",
+            ));
+        }
+        // Stack the RHS first so the cursor saves the LHS key before RHS effects.
+        work.push(Work::In { node, literal });
+        work.push(Work::Eval(&binary.right, depth + 1, Mode::Object));
+        work.push(Work::Eval(&binary.left, depth + 1, key_mode));
+        Ok(())
+    }
+
+    pub(super) fn finish_property_presence(
+        &mut self,
+        node: &Expression<'_>,
+        output: &mut Region,
+        values: &mut Vec<Value>,
+        input: ValueId,
+        key: ir::ManagedKey,
+    ) {
+        let result = self.value(Type::Predicate);
+        Self::push(output, node, Op::ManagedHasOwn { result, input, key });
+        values.push(Value::Predicate(result));
+    }
+
     pub(super) fn schedule_has_own<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -19,16 +84,7 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        match mode {
-            Mode::Predicate => (),
-            Mode::General => work.push(Work::Pack(node)),
-            Mode::Managed => {
-                work.push(Work::Managed(managed::ManagedWork::Primitive(node)));
-                work.push(Work::Pack(node));
-            }
-            Mode::Discard => work.push(Work::Forget),
-            _ => return Err(unsupported(node, "Object.hasOwn returns a Boolean")),
-        }
+        presence_consumer(node, mode, work)?;
         if call.arguments.len() > 1000 {
             return Err(unsupported(
                 node,
@@ -71,13 +127,7 @@ impl Lowering<'_, '_> {
             let key = task
                 .key
                 .unwrap_or_else(|| ir::ManagedKey::Literal("undefined".encode_utf16().collect()));
-            let result = self.value(Type::Predicate);
-            Self::push(
-                regions.current(),
-                task.node,
-                Op::ManagedHasOwn { result, input, key },
-            );
-            values.push(Value::Predicate(result));
+            self.finish_property_presence(task.node, regions.current(), values, input, key);
             return Ok(());
         };
         let arg = arg

@@ -168,3 +168,31 @@ fn scalar_receiver_with_numeric_key_keeps_the_scalar_wasm_lane() {
         );
     }
 }
+
+#[test]
+fn dictionary_in_reuses_the_checked_guest_presence_operation() {
+    let source =
+        "export function run(a,b){const d=Object.create(null);const k='x';return k in d?a:b;}";
+    for ts in [false, true] {
+        let module = crate::lower_source(source, ts).unwrap();
+        verify_module(&module).unwrap();
+        assert!(any_operation(
+            &module.functions[0].body,
+            &mut |op| matches!(
+                op,
+                Op::ManagedHasOwn {
+                    key: ManagedKey::String(_),
+                    ..
+                }
+            )
+        ));
+    }
+    let typed = "export function run(a:number,b:number){const d={} as Record<string,number>;const k='toString';return k in d?a:b;}";
+    let err = crate::compile(typed, true)
+        .err()
+        .expect("annotation does not prove a null prototype");
+    assert!(
+        err.contains("unsupported") && !err.contains("internal IR"),
+        "{err}"
+    );
+}

@@ -351,6 +351,16 @@ argument effects still execute. Nullable or otherwise unproven receivers
 require additional handling. The semantic reference is
 [Object.hasOwn](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.hasown).
 
+## Dictionary membership
+
+For a proven null-prototype dictionary, `key in dictionary` checks presence
+even when the stored value is Undefined. The left operand is evaluated and
+saved before the right operand. A change to the key variable during receiver
+evaluation leaves the saved name intact. A failure in the left expression
+prevents receiver evaluation. The supported keys match the known Strings and
+static primitive names used by `Object.hasOwn`. A receiver that could inherit
+properties requires separate prototype-aware handling.
+
 ## Synchronous source arrays
 
 Array literals construct traced references on the same expression cursor as
