@@ -678,7 +678,14 @@ impl Fields {
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
+        let has_relative_selection = rules.iter().any(|(_, rule)| {
+            matches!(
+                rule,
+                Rule::Call(_, _, Some((_, string_methods::Method::At)), _)
+            )
+        });
         let track_elements = has_iterations
+            || has_relative_selection
             || !elements.rest_sources.is_empty()
             || !elements.entry_lists.is_empty()
             || !elements.key_lists.is_empty()
@@ -763,14 +770,29 @@ impl Fields {
                         }
                         if let Some((receiver, method)) = string_receiver {
                             let origins = get(receiver);
-                            if matches!(method, string_methods::Method::Slice)
-                                && !origins.is_empty()
+                            if !origins.is_empty()
                                 && origins
                                     .iter()
                                     .all(|origin| matches!(origin, Origin::Array(_)))
                             {
-                                additions.push((*id, BTreeSet::from([Origin::Array(*id)])));
-                                continue;
+                                if matches!(method, string_methods::Method::Slice) {
+                                    additions.push((*id, BTreeSet::from([Origin::Array(*id)])));
+                                    continue;
+                                }
+                                if matches!(method, string_methods::Method::At) {
+                                    let mut result = elements.select(
+                                        *receiver,
+                                        &values,
+                                        &fields,
+                                        &index_deletes,
+                                    );
+                                    // Keep all possible element origins and always
+                                    // allow a miss, even for a literal index. Only a
+                                    // binding default can replace this alternative.
+                                    result.insert(Origin::Undefined);
+                                    additions.push((*id, result));
+                                    continue;
+                                }
                             }
                             if !origins.is_empty()
                                 && origins.iter().all(|origin| *origin == Origin::String)
@@ -915,6 +937,7 @@ impl Fields {
             if !changed
                 && (has_patterns
                     || has_iterations
+                    || has_relative_selection
                     || !elements.rest_sources.is_empty()
                     || !indexed_copy_inputs.is_empty())
                 && !finalized_unresolved

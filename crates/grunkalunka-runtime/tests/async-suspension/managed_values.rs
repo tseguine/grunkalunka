@@ -150,6 +150,22 @@ fn array_at_preserves_snapshots_through_suspended_arguments_and_results() {
 }
 
 #[test]
+fn array_at_defaults_keep_element_aliases_and_lazy_defaults_across_awaits() {
+    compare_promises(
+        &[
+            "let n=0;const rows=[{label:' first '},{label:' second '}];const {item=(await b,n++,{label:' missing '})}={item:rows.at(await a)};await b;return item.label.trim().length*10+n;",
+            "let rows=[{label:' first '},{label:' second '}];const old=rows;const {item={label:' missing '}}={item:rows.at((await b,rows=[{label:' new '}],a))};await b;old[0].label=' changed ';await a;return item.label.trim().length;",
+        ],
+        &[
+            (0.0, 2.0),
+            (-1.0, 0.0),
+            (4.0, 3.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn string_concat_retains_left_snapshots_across_await() {
     compare_promises(
         &[

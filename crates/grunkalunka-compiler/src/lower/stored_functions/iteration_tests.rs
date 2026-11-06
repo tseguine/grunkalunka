@@ -800,10 +800,77 @@ fn string_at_defaults_replace_missing_units_without_laundering_other_origins() {
         "const box={c:'abc'.at(a)};const alias=box;alias.c=null;const {c='?'}=box;const observed=c;return a;",
         "const {c=b}={c:'abc'.at(a)};const observed=c;return a;",
         "const {c='?'}={c:'abc'.codePointAt(a)};const observed=c;return a;",
-        "const xs=['abc'];const {c='?'}={c:xs.at(a)};const observed=c;return a;",
         "const obj={at:x=>x};const {c='?'}={c:obj.at(a)};const observed=c;return a;",
         "let s='abc';const read=()=>{const {c='?'}={c:s.at(0)};const observed=c;return 0;};s=a;return read();",
     ] {
         assert!(!observe(body).string, "{body}");
+    }
+}
+
+#[test]
+fn array_at_defaults_preserve_elements_and_a_missing_alternative() {
+    for body in [
+        "const xs=['abc'];const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const [c='?']=[['abc'].at(a)];const observed=c;return a;",
+        "const xs=['abc'];const alias=xs;alias[0]='replacement';const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const xs=['abc'];const {c='?'}={c:xs.slice().at(a)};const observed=c;return a;",
+        "const xs=['abc'];const [...copy]=xs;const {c='?'}={c:copy.at(a)};const observed=c;return a;",
+        "const {c='?'}={c:[].at(a)};const observed=c;return a;",
+        "const {c='?'}={c:Object.keys({x:a}).at(a)};const observed=c;return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    for body in [
+        "const observed=['abc'].at(a);return a;",
+        "const observed=['abc'].at(0);return a;",
+        "const observed=[{label:'abc'}].at(-1);return a;",
+    ] {
+        assert_eq!(observe(body), MAYBE_UNDEFINED, "{body}");
+    }
+    for (body, ty) in [
+        (
+            "const {c={label:'?'}}={c:[{label:'abc'}].at(a)};const observed=c;return a;",
+            Type::ManagedObject,
+        ),
+        (
+            "const {c=[]}={c:[[a],[b]].at(a)};const observed=c;return a;",
+            Type::ManagedArray,
+        ),
+    ] {
+        assert_eq!(
+            observe(body),
+            Observation {
+                string: false,
+                container: Some(ty),
+                callable: false,
+                other: false,
+                undefined: false,
+            },
+            "{body}"
+        );
+    }
+    assert!(observe("const {c=()=>b}={c:[()=>a].at(a)};const observed=c;return a;").callable);
+    assert_eq!(
+        observe_source(
+            "function pick(xs,i){return xs.at(i);}function forward(xs,i){return pick(xs,i);}export function run(a,b){const rows=[{label:'abc'}];const read=()=>forward(rows,a);const {c={label:'?'}}={c:read()};const observed=c.label;return a;}"
+        ),
+        STRING
+    );
+}
+
+#[test]
+fn array_at_defaults_retain_mixed_alias_and_sparse_uncertainty() {
+    for body in [
+        "const xs=['abc',a];const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const xs=['abc'];const alias=xs;alias[0]=a;const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const xs=['abc'];const replace=(target)=>{target[0]=null;};replace(xs);const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const xs=['abc'];const {c='?'}={c:xs.at(a)};xs[0]=b;const observed=c;return a;",
+        "const xs=['abc'];xs.length=2;const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const xs=[,'abc'];const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+        "const xs=[{label:'abc'}];const copy=xs.slice();copy[0].label=a;const {c={label:'?'}}={c:xs.at(a)};const observed=c.label;return a;",
+        "const xs=a?['abc']:null;const {c='?'}={c:xs.at(a)};const observed=c;return a;",
+    ] {
+        let found = observe(body);
+        assert!(found.other && !found.string, "{body}: {found:?}");
     }
 }

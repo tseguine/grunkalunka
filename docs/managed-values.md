@@ -435,8 +435,8 @@ or dynamic length writes and optional access still reject. Element snapshots use
 the general carrier: returning `items[1]` directly through a Number export still
 requires a primitive-result proof/projection, and exporting an array requires a
 reference-aware boundary. Those existing gap fixtures remain rejected; construction
-and equality tests do not claim those gaps are closed. Synchronous array captures
-are supported; suspended managed async frames remain unsupported.
+and equality tests do not claim those gaps are closed. Array values can survive
+supported async suspension through the existing traced value lanes.
 
 ### Runtime element selection with `at`
 
@@ -452,6 +452,17 @@ effects run before the operation reads the array's current length and element.
 The selected value is an immutable boxed snapshot, preserving object/array/function
 identity and String/primitive values. It composes with supported helpers, loops,
 `Object.keys`, and async suspension, using the existing traced value lanes.
+
+Selection from a source-known array retains its possible element origins plus
+Undefined. A compatible binding default can therefore establish a String, object,
+or array receiver for later operations, including String methods on a selected
+record field. These facts flow through ordinary helpers, captures, and supported
+array copies. Defaults remain lazy and replace only Undefined. Every selection
+keeps the missing alternative, even with a literal index; this is not an
+in-bounds proof. Mixed element kinds, incompatible alias writes, holes and
+uncertain structural mutations remain conservative and can prevent a typed
+consumer after a default. Dynamic calls and boxed numeric projection do not gain
+new admission from these facts.
 
 This specializes the intrinsic only for known arrays: admitted source cannot
 replace their `at` property, mutate their prototypes or import a foreign array.
