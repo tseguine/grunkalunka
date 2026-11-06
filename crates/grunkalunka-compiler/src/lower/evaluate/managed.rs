@@ -64,6 +64,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         node: &'e Expression<'a>,
         ty: Type,
     },
+    NumberProjection(&'e Expression<'a>),
     SetReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -582,6 +583,17 @@ impl Lowering<'_, '_> {
         if self.schedule_property_delete(node, depth, mode, work)?
             || self.schedule_destructure(node, depth, mode, work)?
         {
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Number | Mode::General)
+            && self.stored.number(node.node_id())
+            && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
+        {
+            if matches!(mode, Mode::General) {
+                work.push(Work::Pack(node));
+            }
+            work.push(Work::Managed(ManagedWork::NumberProjection(node)));
+            work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
         if matches!(mode, Mode::Managed)
@@ -1389,6 +1401,16 @@ impl Lowering<'_, '_> {
                     Op::ManagedToClosure { result, input },
                 );
                 values.push(Value::Function(result));
+            }
+            ManagedWork::NumberProjection(node) => {
+                let input = values.pop().expect("boxed Number").id();
+                let result = self.value(Type::Number);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedToNumber { result, input },
+                );
+                values.push(Value::Number(result));
             }
             ManagedWork::ReferenceProjection { node, ty } => {
                 let input = values.pop().expect("boxed receiver").id();

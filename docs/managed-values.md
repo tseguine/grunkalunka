@@ -10,6 +10,26 @@ the existing async contract are preserved.
 [Property deletion](property-deletion.md) removes configurable own data fields,
 preserves sparse-array length and updates the source facts used by later reads.
 
+Source-proven Number fields and elements now project from boxed storage into
+ordinary arithmetic, comparisons and numeric returns. The same path supports
+destructured locals, assignment-pattern targets, intrinsic-array iteration and
+checked helper results. Each read snapshots the Number before later effects or
+awaits; signed zero, infinities and NaN retain their Number behavior.
+
+The finite source-origin analysis requires every alternative to be a Number.
+Entry inputs, Number expressions and checked source-call arguments/results supply
+facts; type annotations do not. Alias writes, deletes, missing fields, sparse
+holes and incompatible alternatives can prevent a proof. Uncertain values remain
+boxed and cannot use this projection. The verified `ManagedToNumber` IR operation
+also checks the runtime language tag before reading its f64 payload; it performs
+no coercion or user-code calls. General runtime coercion and public reference
+results remain separate work.
+
+The exact original numeric-field, array-element, destructuring declaration,
+destructuring assignment and `for-of` rejection sources now execute unchanged in
+the canonical corpus. Compiler admission/verifier tests and synchronous/async
+native-JavaScript, Node/Wasm and Wasmtime comparisons cover the source path.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.

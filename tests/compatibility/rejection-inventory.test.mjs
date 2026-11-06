@@ -1,5 +1,6 @@
 import { managedTypeof, promotedTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
+import { managedNumbers, managedNumberPromotions } from './managed-numbers.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
 import { managedObjects, promotedPropertyInGap } from './managed-objects.mjs';
@@ -45,6 +46,18 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
+
+test('boxed Number projection executes five unchanged sources with their original oracle', () => {
+  for (const [id, source, hash] of managedNumberPromotions) {
+    const sources = programSources(managedNumbers.find(row => row[0] === id));
+    assert.equal(sources.sourceJS, source);
+    assert.equal(sources.sourceTS, source);
+    assert.equal(sources.oracleSource, source);
+    assert.equal(createHash('sha256').update(source).digest('hex'), hash);
+    assert.ok(!rejected.some(row => row[0] === id));
+    assert.ok(!catalog.records.some(row => row.id === id));
+  }
+});
 
 test('module declaration adapters execute two exact former call rejections', () => {
   for (const [id, hash] of [
@@ -291,7 +304,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 813);
+  assert.equal(inventory.records.size, 808);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

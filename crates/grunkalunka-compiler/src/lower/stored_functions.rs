@@ -17,6 +17,7 @@ pub(super) enum Origin {
     Arrow(NodeId),
     Named(SymbolId),
     String,
+    Number,
     Null,
     Undefined,
     Other,
@@ -37,7 +38,7 @@ enum Rule {
         Option<(NodeId, string_methods::Method)>,
         Option<(NodeId, bool)>,
     ),
-    StringConcat(NodeId, NodeId),
+    Addition(NodeId, NodeId),
 }
 enum Definition {
     Value(SymbolId, NodeId),
@@ -167,6 +168,11 @@ impl Fields {
         self.values
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::String))
+    }
+    pub(super) fn number(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Number))
     }
     pub(super) fn container(&self, node: NodeId) -> Option<Type> {
         let values = self.values.get(&node)?;
@@ -450,6 +456,21 @@ impl Fields {
                     values.insert(id, BTreeSet::from([Origin::String]));
                     None
                 }
+                AstKind::NumericLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::UnaryExpression(u)
+                    if matches!(
+                        u.operator,
+                        UnaryOperator::UnaryPlus
+                            | UnaryOperator::UnaryNegation
+                            | UnaryOperator::BitwiseNot
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
                 AstKind::NullLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::Null]));
                     None
@@ -463,7 +484,25 @@ impl Fields {
                     None
                 }
                 AstKind::BinaryExpression(b) if b.operator == BinaryOperator::Addition => {
-                    Some(Rule::StringConcat(b.left.node_id(), b.right.node_id()))
+                    Some(Rule::Addition(b.left.node_id(), b.right.node_id()))
+                }
+                AstKind::BinaryExpression(b)
+                    if matches!(
+                        b.operator,
+                        BinaryOperator::Subtraction
+                            | BinaryOperator::Multiplication
+                            | BinaryOperator::Division
+                            | BinaryOperator::Remainder
+                            | BinaryOperator::BitwiseAnd
+                            | BinaryOperator::BitwiseOR
+                            | BinaryOperator::BitwiseXOR
+                            | BinaryOperator::ShiftLeft
+                            | BinaryOperator::ShiftRight
+                            | BinaryOperator::ShiftRightZeroFill
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
                 }
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
@@ -579,7 +618,8 @@ impl Fields {
                                     &parameter.pattern
                                     && let Some(symbol) = binding.symbol_id.get()
                                 {
-                                    bindings.insert(symbol, BTreeSet::from([Origin::Other]));
+                                    // Public entry inputs are Numbers in both source profiles.
+                                    bindings.insert(symbol, BTreeSet::from([Origin::Number]));
                                 }
                             }
                         }
@@ -613,10 +653,10 @@ impl Fields {
                     if let Some(symbol) = symbol(identifier, semantic) {
                         Some(Rule::Symbol(symbol))
                     } else {
-                        let origin = if identifier.name == "undefined" {
-                            Origin::Undefined
-                        } else {
-                            Origin::Other
+                        let origin = match identifier.name.as_str() {
+                            "undefined" => Origin::Undefined,
+                            "Infinity" | "NaN" => Origin::Number,
+                            _ => Origin::Other,
                         };
                         values.insert(id, BTreeSet::from([origin]));
                         None
@@ -958,7 +998,7 @@ impl Fields {
                         found
                     }
                     Rule::Symbol(symbol) => bindings.get(symbol).cloned().unwrap_or_default(),
-                    Rule::StringConcat(left, right) => {
+                    Rule::Addition(left, right) => {
                         let left = get(left);
                         let right = get(right);
                         if left.is_empty() || right.is_empty() {
@@ -969,6 +1009,12 @@ impl Fields {
                             .all(|origin| *origin == Origin::String)
                         {
                             BTreeSet::from([Origin::String])
+                        } else if left
+                            .iter()
+                            .chain(&right)
+                            .all(|origin| *origin == Origin::Number)
+                        {
+                            BTreeSet::from([Origin::Number])
                         } else {
                             BTreeSet::from([Origin::Other])
                         }

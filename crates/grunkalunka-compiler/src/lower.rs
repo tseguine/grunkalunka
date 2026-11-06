@@ -478,6 +478,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     // A positive classification keeps existing scalar comparison paths unchanged.
     // This scan emits nothing; the evaluator still validates every source operand.
     fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
+        if depth <= 128 && self.stored.number(expression.node_id()) {
+            return true;
+        }
         if self.managed_length_receiver(expression, depth).is_some() {
             return true;
         }

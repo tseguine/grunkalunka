@@ -746,6 +746,14 @@ impl Emitter<'_> {
                 self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedToNumber { result, input } => {
+                self.get(*input);
+                self.output
+                    .push_str("struct.get $gc_value 0\ni32.const 3\ni32.ne\nif unreachable end\n");
+                self.get(*input);
+                self.output.push_str("struct.get $gc_value 1\n");
+                self.set(*result);
+            }
             Op::ManagedToObject { result, input } | Op::ManagedToArray { result, input } => {
                 self.get(*input);
                 self.output

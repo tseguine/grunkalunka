@@ -75,6 +75,52 @@ fn module() -> Module {
 }
 
 #[test]
+fn number_projection_verifies_visible_managed_input_and_number_result() {
+    let source = "export function run(a,b){const o={x:a};return o.x+b;}";
+    for invalid in 0..4 {
+        let mut m = crate::lower_source(source, false).unwrap();
+        verify_module(&m).unwrap();
+        let f = &mut m.functions[0];
+        let (result, input) = f
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedToNumber { result, input } = &mut op.kind {
+                    Some((result, input))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        match invalid {
+            0 => *input = ValueId(usize::MAX),
+            1 => *input = *result,
+            2 => f.values[input.0] = Type::General,
+            _ => f.values[result.0] = Type::ManagedValue,
+        }
+        assert!(verify_module(&m).is_err(), "mutation {invalid}");
+    }
+}
+
+#[test]
+fn number_projection_checks_the_language_tag_before_reading_the_payload() {
+    let mut m = module();
+    let f = &mut m.functions[0];
+    let input = value(f, Type::ManagedValue, |result| Op::ManagedString {
+        result,
+        units: "not a Number".encode_utf16().collect(),
+    });
+    let result = value(f, Type::Number, |result| Op::ManagedToNumber {
+        result,
+        input,
+    });
+    f.body.exit = Exit::Return(result);
+    verify_module(&m).unwrap();
+    trap_wat(&crate::emit::emit(&m).unwrap(), "number-wrong-tag");
+}
+
+#[test]
 fn projected_object_keeps_its_original_identity() {
     let mut m = module();
     let f = &mut m.functions[0];
