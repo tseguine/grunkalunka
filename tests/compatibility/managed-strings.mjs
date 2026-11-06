@@ -15,6 +15,13 @@ managedStrings.push(['managed-string-helper', 'return a;', 'return a;', undefine
 // Exact former admission rejections, with explicit erased JS oracles.
 export const managedStringPromotions = [
   {
+    "id": "directive-template",
+    "extension": "js",
+    "sourceSha256": "c065b2637dfdcfaaedbc9e9e803bd26e38a99dad68bdcb8b37dc8775999e39ff",
+    "sourceJS": "export function run(a,b) { `hint`; return a; }",
+    "sourceTS": "export function run(a,b) { `hint`; return a; }"
+  },
+  {
     "id": "statement-string",
     "extension": "js",
     "sourceSha256": "3c4da174eb7511c8b413c8df118039c4125db879323da7feda1b3c3662026ceb",

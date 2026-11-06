@@ -290,7 +290,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 815);
+  assert.equal(inventory.records.size, 814);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -810,6 +810,7 @@ test('unary Math call-site type erasure preserves five exact TS sources and JS o
 
 test('String values promote exact originals with separate nonterminating-loop evidence',()=>{
  const pins={
+  "directive-template": "c065b2637dfdcfaaedbc9e9e803bd26e38a99dad68bdcb8b37dc8775999e39ff",
   "do-string-test": "ff9fb88568a52b4b82c871e234eab2e77d50d66b3be5d6fb1307e523bd34a6b6",
   "statement-string": "3c4da174eb7511c8b413c8df118039c4125db879323da7feda1b3c3662026ceb",
   "statement-asserted-string": "06c3609fda021daff6ebff5682c0472e401b8ecb003a07327c55e0bf0af58604",
