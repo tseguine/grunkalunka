@@ -12,7 +12,9 @@ of visible blocks, plus scroll extents.
 - Normal-flow vertical block stacking in insertion order, one document root.
 - A bounded `Display::FlexRow` formatting context places nonflexing items
   horizontally with optional greedy wrapping, explicit integer row/column
-  gaps and selected safe alignment on both axes. Item widths must be fixed or
+  gaps and selected safe alignment on both axes. Actual items may override the
+  row's cross-axis default through `Style::align_self`, with `None` restoring
+  the default. Item widths must be fixed or
   integral percentages. [The row contract](native-flex-rows.md) defines sizing,
   line collection, used versus natural line heights, boxless wrappers and
   unsupported cases.

@@ -80,7 +80,7 @@ pub enum FlexJustify {
 /// Cross-axis item placement in the selected row profile, without stretching.
 /// A nowrap row uses its used content height; wrapped rows use each line's
 /// natural height. Safe positions fall back to start for an overflowing item.
-/// Other display modes ignore this setting.
+/// Used by a row's `align_items` and an actual item's `align_self` override.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum FlexAlign {
     #[default]
@@ -239,6 +239,11 @@ pub struct Style {
     pub flex_wrap: FlexWrap,
     pub justify_content: FlexJustify,
     pub align_items: FlexAlign,
+    /// Override the generated parent row's cross-axis alignment for this item.
+    /// None defers to that row's `align_items` (the CSS `auto` behavior).
+    /// Ignored on the root, boxless nodes and ordinary non-item blocks; this
+    /// setting is not inherited by descendants.
+    pub align_self: Option<FlexAlign>,
     /// Integer CSS-pixel space between active `FlexRow` items. Ignored by
     /// other display modes; no leading or trailing gap is added.
     pub column_gap: u32,
@@ -604,7 +609,11 @@ impl Engine<'_> {
                 .margin
                 .height;
             let free = line_height.saturating_sub(outer_height);
-            self.alignment_offsets[item].y = match self.nodes[node].style.align_items {
+            let align = self.nodes[item]
+                .style
+                .align_self
+                .unwrap_or(self.nodes[node].style.align_items);
+            self.alignment_offsets[item].y = match align {
                 FlexAlign::Start => 0,
                 FlexAlign::SafeEnd => free,
                 FlexAlign::SafeCenter => {
