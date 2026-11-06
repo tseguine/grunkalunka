@@ -19,6 +19,7 @@ mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
 mod property_delete;
+pub(super) mod property_update;
 mod string_methods;
 mod string_template;
 mod tasks;
@@ -1538,6 +1539,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
                 Work::PropertyDelete(task) => {
                     self.resume_property_delete(task, regions, values, work)
+                }
+                Work::PropertyUpdate(task) => {
+                    self.resume_property_update(task, regions, values, work)
                 }
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {

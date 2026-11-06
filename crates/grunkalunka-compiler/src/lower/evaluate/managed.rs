@@ -122,7 +122,7 @@ fn member<'e, 'a>(
     }
 }
 
-fn number_consumer<'e, 'a>(
+pub(super) fn number_consumer<'e, 'a>(
     work: &mut Vec<Work<'e, 'a>>,
     node: &'e Expression<'a>,
     mode: Mode,
@@ -499,6 +499,13 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&l.right, depth + 1));
                             work.push(Shape::Expr(&l.left, depth + 1));
                         }
+                        Expression::AssignmentExpression(a)
+                            if property_update::compound(a.operator).is_some() =>
+                        {
+                            // Numeric compound writes return a Number even
+                            // when the target stores that result boxed.
+                            values.push(None);
+                        }
                         Expression::AssignmentExpression(a) => {
                             if a.left.as_assignment_target_pattern().is_some() {
                                 work.push(Shape::Expr(&a.right, depth + 1));
@@ -580,7 +587,8 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        if self.schedule_property_delete(node, depth, mode, work)?
+        if self.schedule_property_update(node, depth, mode, work)?
+            || self.schedule_property_delete(node, depth, mode, work)?
             || self.schedule_destructure(node, depth, mode, work)?
         {
             return Ok(true);

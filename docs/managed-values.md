@@ -30,6 +30,16 @@ destructuring assignment and `for-of` rejection sources now execute unchanged in
 the canonical corpus. Compiler admission/verifier tests and synchronous/async
 native-JavaScript, Node/Wasm and Wasmtime comparisons cover the source path.
 
+Known own Number data fields and static array elements also support prefix/postfix
+`++`/`--` and the eleven existing arithmetic/bitwise compound assignments. The
+receiver and old Number are saved before RHS effects or suspension. A successful
+write stores a newly boxed Number back into that original receiver; postfix
+returns the old snapshot, while prefix and compound assignment return the new
+Number. Rejection during RHS evaluation leaves the property unchanged. Ordinary
+read and write operations share the existing managed storage and numeric IR.
+Runtime keys, array length, missing or mixed-kind fields, coercion from other
+stored kinds, accessors and logical property assignments remain separate work.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.

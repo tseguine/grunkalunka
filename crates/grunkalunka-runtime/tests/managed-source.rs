@@ -5,6 +5,38 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn number_property_updates_preserve_old_new_values_and_receiver_snapshots() {
+    for body in [
+        "const o={n:a};return o.n++;",
+        "const o={n:a};return ++o.n;",
+        "const o={n:a};return o.n--;",
+        "const o={n:a};return --o.n;",
+        "const xs=[a,b];xs[0]++;return xs[0]+xs[1];",
+        "const o={n:a};const alias=o;const old=o.n++;return alias.n===old+1?1:0;",
+        "let n=0;const o={n:a};const get=()=>{n++;return o;};const old=get().n++;return n===1&&o.n===old+1?1:0;",
+        "let current={n:a};const original=current;const value=current.n+=(current={n:b},b);return original.n===value&&current.n===b?1:0;",
+        "const o={n:a};return o.n+=(o.n=b,a);",
+        "const o={n:a};const box={x:o.n++};return box.x+b;",
+        "const o={n:a};o.n+=undefined;return o.n;",
+        "const o={n:a};const increment=state=>state.n++;return increment(o);",
+        "const o={n:a};const increment=()=>++o.n;return increment();",
+        "const o={'-1':a};return o[-1]++;",
+    ] {
+        compare(body);
+    }
+    for operator in [
+        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ">>>=",
+    ] {
+        compare(&format!("const o={{n:a}};return o.n{operator}b;"));
+        compare(&format!("const o={{n:a}};o.n{operator}b;return o.n;"));
+    }
+    compare_typed(
+        "const o={n:a};return o.n+=b;",
+        "const o:any={n:a};return (o as {n:number}).n+=(b as number);",
+    );
+}
+
+#[test]
 fn typeof_unresolvable_names_preserves_scope_and_expression_effects() {
     for body in [
         "return typeof missingFeature==='undefined'?1:0;",

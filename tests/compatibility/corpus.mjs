@@ -34,6 +34,7 @@ import { typescriptErasurePrograms, typescriptErasureRejected } from './typescri
 import { commaSequences } from './comma-sequences.mjs';
 import { managedObjects } from './managed-objects.mjs';
 import { managedNumbers } from './managed-numbers.mjs';
+import { numericPropertyUpdates } from './numeric-property-updates.mjs';
 import { managedStrings } from './managed-strings.mjs';
 import { deletePrograms } from './delete.mjs';
 import { managedArrays } from './managed-arrays.mjs';
@@ -98,7 +99,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 103;
+export const corpusVersion = 104;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -148,6 +149,7 @@ programs.push(...typescriptErasurePrograms);
 programs.push(...commaSequences);
 programs.push(...managedObjects);
 programs.push(...managedNumbers);
+programs.push(...numericPropertyUpdates);
 programs.push(...managedStrings);
 programs.push(...deletePrograms);
 programs.push(...managedArrays);

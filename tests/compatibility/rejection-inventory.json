@@ -799,7 +799,7 @@
     {
       "id": "property-targets",
       "kind": "open-requirement",
-      "assessment": "Property assignment/update targets require object and strict property-write semantics.",
+      "assessment": "Own data properties support plain assignment and source-proven Number fields now support prefix/postfix updates and all eleven existing arithmetic/bitwise compound assignments with saved receivers, old-value snapshots and ordered RHS evaluation. Missing/mixed fields, runtime update keys, array length, accessors, broader coercion and strict primitive property-write errors remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation",
