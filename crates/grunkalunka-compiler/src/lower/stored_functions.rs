@@ -707,6 +707,59 @@ impl Fields {
                             definitions.push(Definition::Value(symbol, identifier.node_id()));
                         }
                     }
+                    if let oxc_ast::ast::AssignmentTarget::ObjectAssignmentTarget(pattern) = &a.left
+                    {
+                        let mut excluded = BTreeSet::new();
+                        for property in &pattern.properties {
+                            use oxc_ast::ast::AssignmentTargetProperty as Property;
+                            let (identifier, key) = match property {
+                                Property::AssignmentTargetPropertyIdentifier(p) => (
+                                    Some(&p.binding),
+                                    Some(p.binding.name.encode_utf16().collect()),
+                                ),
+                                Property::AssignmentTargetPropertyProperty(p) => (
+                                    p.binding
+                                        .as_assignment_target()
+                                        .and_then(|t| t.as_simple_assignment_target())
+                                        .and_then(|t| target_identifier(t, 0).ok().flatten()),
+                                    static_keys::property(&p.name, p.computed, 0),
+                                ),
+                            };
+                            if let Some(key) = key {
+                                excluded.insert(key.clone());
+                                if let Some(identifier) = identifier
+                                    && let Some(symbol) = symbol(identifier, semantic)
+                                {
+                                    pattern_rules.push((
+                                        identifier.node_id(),
+                                        Rule::Member(a.right.node_id(), key),
+                                    ));
+                                    definitions
+                                        .push(Definition::Value(symbol, identifier.node_id()));
+                                }
+                            }
+                        }
+                        if let Some(rest) = &pattern.rest
+                            && let Some(identifier) = rest
+                                .target
+                                .as_simple_assignment_target()
+                                .and_then(|t| target_identifier(t, 0).ok().flatten())
+                            && let Some(symbol) = symbol(identifier, semantic)
+                        {
+                            rest_sources.insert(
+                                rest.node_id(),
+                                member_origins::Rest {
+                                    receiver: a.right.node_id(),
+                                    excluded,
+                                },
+                            );
+                            pattern_rules.push((
+                                identifier.node_id(),
+                                Rule::Known(Origin::Object(rest.node_id())),
+                            ));
+                            definitions.push(Definition::Value(symbol, identifier.node_id()));
+                        }
+                    }
                     if let Some(name) = a
                         .left
                         .as_simple_assignment_target()
