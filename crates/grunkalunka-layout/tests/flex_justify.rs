@@ -121,6 +121,92 @@ fn each_main_axis_mode_uses_residual_space_after_existing_gaps() {
 }
 
 #[test]
+fn around_and_evenly_use_outer_gaps_and_keep_existing_item_sizes() {
+    let mut blocks = [
+        row(None, 110, FlexJustify::SpaceAround),
+        item(0, 10, 3),
+        item(0, 20, 5),
+        item(0, 10, 4),
+    ];
+    blocks[0].style.column_gap = 5;
+    // Used width is 50px, so free width is 60px over three items.
+    for (justify, positions) in [
+        (FlexJustify::SpaceAround, [10, 45, 90]),
+        (FlexJustify::SpaceEvenly, [15, 45, 85]),
+    ] {
+        blocks[0].style.justify_content = justify;
+        let frame = layout(&blocks, 110, 10).unwrap();
+        for (node, x) in (1..=3).zip(positions) {
+            assert_eq!(frame.boxes[node].unwrap().content.x, x, "{justify:?}");
+        }
+        assert_eq!(frame.boxes[0].unwrap().content, rect(0, 0, 110, 5));
+    }
+
+    blocks[0].style.width = Length::Px(111);
+    for justify in [FlexJustify::SpaceAround, FlexJustify::SpaceEvenly] {
+        blocks[0].style.justify_content = justify;
+        assert_eq!(
+            layout(&blocks, 111, 10),
+            Err(LayoutError::FractionalFlexJustify { node: 0 })
+        );
+    }
+
+    // Neither distribution may move an overflowing item away from start.
+    let wide_item = [
+        row(None, 10, FlexJustify::SpaceEvenly),
+        item(0, 11, 1),
+    ];
+    assert_eq!(
+        layout(&wide_item, 10, 2).unwrap().boxes[1].unwrap().content,
+        rect(0, 0, 11, 1)
+    );
+    let mut around = wide_item;
+    around[0].style.justify_content = FlexJustify::SpaceAround;
+    assert_eq!(layout(&around, 10, 2).unwrap().boxes[1].unwrap().content.x, 0);
+}
+
+#[test]
+fn distributed_justify_operates_independently_on_wrapped_lines_and_one_item() {
+    let mut blocks = [
+        row(None, 57, FlexJustify::SpaceAround),
+        item(0, 20, 5),
+        item(0, 20, 5),
+        item(0, 30, 5),
+        item(0, 10, 5),
+        item(0, 21, 5),
+    ];
+    blocks[0].style.flex_wrap = FlexWrap::Wrap;
+    blocks[0].style.column_gap = 5;
+    blocks[0].style.row_gap = 3;
+    // The first two lines use 45px each; the last has one 21px item.
+    for (justify, positions) in [
+        (FlexJustify::SpaceAround, [3, 34, 3, 44, 18]),
+        (FlexJustify::SpaceEvenly, [4, 33, 4, 43, 18]),
+    ] {
+        blocks[0].style.justify_content = justify;
+        let frame = layout(&blocks, 57, 30).unwrap();
+        for ((node, x), y) in (1..=5).zip(positions).zip([0, 0, 8, 8, 16]) {
+            assert_eq!(
+                (frame.boxes[node].unwrap().content.x, frame.boxes[node].unwrap().content.y),
+                (x, y),
+                "{justify:?}, item {node}"
+            );
+        }
+        assert_eq!(frame.boxes[0].unwrap().content.height, 21);
+    }
+    // For one item, around and evenly both center the item.
+    for justify in [FlexJustify::SpaceAround, FlexJustify::SpaceEvenly] {
+        let single = [row(None, 7, justify), item(0, 1, 1)];
+        assert_eq!(layout(&single, 7, 2).unwrap().boxes[1].unwrap().content.x, 3);
+        let fractional = [row(None, 8, justify), item(0, 1, 1)];
+        assert_eq!(
+            layout(&fractional, 8, 2),
+            Err(LayoutError::FractionalFlexJustify { node: 0 })
+        );
+    }
+}
+
+#[test]
 fn percentage_edges_and_constrained_border_boxes_keep_the_full_width_reference() {
     let mut blocks = [
         row(None, 200, FlexJustify::SafeEnd),

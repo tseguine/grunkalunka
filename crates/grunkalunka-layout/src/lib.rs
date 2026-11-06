@@ -75,6 +75,8 @@ pub enum FlexJustify {
     SafeEnd,
     SafeCenter,
     SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
 }
 
 /// Cross-axis item placement in the selected row profile, without stretching.
@@ -609,6 +611,25 @@ impl Engine<'_> {
                 (0, free / spaces)
             }
             FlexJustify::SpaceBetween => (0, 0),
+            FlexJustify::SpaceAround => {
+                let count = u32::try_from(items.len()).map_err(|_| LayoutError::Overflow)?;
+                let half_spaces = count.checked_mul(2).ok_or(LayoutError::Overflow)?;
+                if !free.is_multiple_of(half_spaces) {
+                    return Err(LayoutError::FractionalFlexJustify { node });
+                }
+                let leading = free / half_spaces;
+                let between = leading.checked_mul(2).ok_or(LayoutError::Overflow)?;
+                (leading, between)
+            }
+            FlexJustify::SpaceEvenly => {
+                let count = u32::try_from(items.len()).map_err(|_| LayoutError::Overflow)?;
+                let spaces = count.checked_add(1).ok_or(LayoutError::Overflow)?;
+                if !free.is_multiple_of(spaces) {
+                    return Err(LayoutError::FractionalFlexJustify { node });
+                }
+                let spacing = free / spaces;
+                (spacing, spacing)
+            }
         };
         for (index, &item) in items.iter().enumerate() {
             let index = u32::try_from(index).map_err(|_| LayoutError::Overflow)?;
