@@ -42,6 +42,7 @@ enum Rule {
 enum Definition {
     Value(SymbolId, NodeId),
     Iterated(SymbolId, NodeId),
+    ForIn(SymbolId),
 }
 struct FunctionFlow {
     parameters: Vec<SymbolId>,
@@ -220,6 +221,19 @@ impl Fields {
             .iter()
             .map(|(symbol, receiver)| Definition::Iterated(*symbol, *receiver))
             .collect::<Vec<_>>();
+        // Unlike for-of, for-in always binds a String key, independently of
+        // the receiver's property value types. Later assignments still widen it.
+        for node in semantic.nodes().iter() {
+            let AstKind::ForInStatement(source) = node.kind() else {
+                continue;
+            };
+            if let Some(BindingPattern::BindingIdentifier(binding)) =
+                iteration::lexical_iteration_pattern(&source.left)
+                && let Some(symbol) = binding.symbol_id.get()
+            {
+                definitions.push(Definition::ForIn(symbol));
+            }
+        }
         let mut rules = Vec::new();
         let mut pattern_rules = Vec::new();
         let patterned_iterations = semantic
@@ -234,7 +248,7 @@ impl Fields {
                     .then_some((pattern, source.right.node_id()))
             })
             .collect::<Vec<_>>();
-        let has_iterations = !iterations.is_empty() || !patterned_iterations.is_empty();
+        let has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
         for (pattern, receiver) in patterned_iterations {
             pattern_definitions(
                 pattern,
@@ -725,6 +739,7 @@ impl Fields {
                         *symbol,
                         elements.select(*receiver, &values, &fields, &index_deletes),
                     ),
+                    Definition::ForIn(symbol) => (*symbol, BTreeSet::from([Origin::String])),
                 })
                 .collect::<Vec<_>>();
             let mut additions = Vec::new();

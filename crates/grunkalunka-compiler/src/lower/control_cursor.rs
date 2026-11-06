@@ -6,8 +6,8 @@
 //! effect-free fact queries keep their existing, separate boundaries.
 use super::*;
 use oxc_ast::ast::{
-    BlockStatement, DoWhileStatement, ForOfStatement, ForStatement, IfStatement, TryStatement,
-    WhileStatement,
+    BlockStatement, DoWhileStatement, ForInStatement, ForOfStatement, ForStatement,
+    ForStatementLeft, IfStatement, TryStatement, WhileStatement,
 };
 
 mod array_bindings;
@@ -88,6 +88,49 @@ struct DeclarationSequence<'n, 'a> {
     depth: usize,
 }
 
+/// Both source forms use the same heap-owned cursor and typed loop body.
+#[derive(Clone, Copy)]
+enum IterationSource<'n, 'a> {
+    Of(&'n ForOfStatement<'a>),
+    In(&'n ForInStatement<'a>),
+}
+
+impl<'n, 'a> IterationSource<'n, 'a> {
+    fn left(self) -> &'n ForStatementLeft<'a> {
+        match self {
+            Self::Of(source) => &source.left,
+            Self::In(source) => &source.left,
+        }
+    }
+
+    fn right(self) -> &'n Expression<'a> {
+        match self {
+            Self::Of(source) => &source.right,
+            Self::In(source) => &source.right,
+        }
+    }
+
+    fn body(self) -> &'n Statement<'a> {
+        match self {
+            Self::Of(source) => &source.body,
+            Self::In(source) => &source.body,
+        }
+    }
+
+    fn is_in(self) -> bool {
+        matches!(self, Self::In(_))
+    }
+}
+
+impl GetSpan for IterationSource<'_, '_> {
+    fn span(&self) -> oxc_span::Span {
+        match *self {
+            Self::Of(source) => source.span(),
+            Self::In(source) => source.span(),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum ControlNode<'n, 'a> {
     If(&'n IfStatement<'a>),
@@ -95,6 +138,7 @@ pub(super) enum ControlNode<'n, 'a> {
     DoWhile(&'n DoWhileStatement<'a>),
     For(&'n ForStatement<'a>),
     ForOf(&'n ForOfStatement<'a>),
+    ForIn(&'n ForInStatement<'a>),
     Block(&'n BlockStatement<'a>),
     /// A lexical statement sequence is a traversal boundary, not a source node.
     Sequence(&'n [Statement<'a>]),
@@ -110,6 +154,7 @@ impl<'n, 'a> ControlNode<'n, 'a> {
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
             Statement::ForOfStatement(statement) => Some(Self::ForOf(statement)),
+            Statement::ForInStatement(statement) => Some(Self::ForIn(statement)),
             Statement::BlockStatement(statement) => Some(Self::Block(statement)),
             Statement::TryStatement(statement) => Some(if statement.finalizer.is_some() {
                 Self::TryFinally(statement)
@@ -150,13 +195,16 @@ struct ForFrame<'n, 'a> {
 /// The iterable and hidden index belong to the header; the source binding is
 /// initialized afresh in the body Region on every successful iteration.
 struct ForOfFrame<'n, 'a> {
-    source: &'n ForOfStatement<'a>,
+    source: IterationSource<'n, 'a>,
     output: Region,
     header: Region,
     condition: Region,
     depth: usize,
     outer: usize,
     old_loop: bool,
+    enumerated: Option<ValueId>,
+    presence: Option<ValueId>,
+    prefix: Option<Region>,
 }
 
 /// Both function-valued expressions and immediately invoked returned functions
@@ -449,7 +497,7 @@ enum Frame<'n, 'a> {
     ForPredicate(ForPredicateFrame<'n, 'a>),
     For(ForFrame<'n, 'a>),
     ForOfSource {
-        source: &'n ForOfStatement<'a>,
+        source: IterationSource<'n, 'a>,
         output: Region,
         depth: usize,
         outer: usize,
@@ -1042,6 +1090,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                         self.admit_source_statement(node, depth)?;
                                     }
                                     ControlNode::ForOf(node) => {
+                                        self.admit_source_statement(node, depth)?;
+                                    }
+                                    ControlNode::ForIn(node) => {
                                         self.admit_source_statement(node, depth)?;
                                     }
                                     ControlNode::Block(node) => {

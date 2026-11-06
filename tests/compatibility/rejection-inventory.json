@@ -894,7 +894,7 @@
     {
       "id": "for-in-of",
       "kind": "open-requirement",
-      "assessment": "Local const/let for-of bindings now admit identifiers and supported object/array patterns, including mixed nesting, identifier rest elements in arrays and lazy defaults on identifier leaves or nested patterns, over source-proven managed arrays. Pattern heads require each selected container kind to be proven and initialize every leaf before the body, with fresh captured const/let cells per iteration. The exact for-of fixture remains rejected because returning its boxed selected element requires numeric consumption in the numeric ABI. for-in, general iterables, for-await-of, var or assignment heads and unsupported pattern forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
+      "assessment": "Local const/let for-of bindings now admit identifiers and supported object/array patterns, including mixed nesting, identifier rest elements in arrays and lazy defaults on identifier leaves or nested patterns, over source-proven managed arrays. Pattern heads require each selected container kind to be proven and initialize every leaf before the body, with fresh captured const/let cells per iteration. The exact for-of fixture remains rejected because returning its boxed selected element requires numeric consumption in the numeric ABI. for-in over unknown or prototype-mutable receivers, general iterables, for-await-of, var or assignment heads and unsupported pattern forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements",
@@ -1536,13 +1536,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fc138156a8ad063ebebf5755c5652f41309bd03201111b679847af75fc2f0b6b",
       "group": "return-policy"
-    },
-    {
-      "id": "for-in",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a8a472951a967a352c4303be97c0ebf33b39fee11b1d3525d5eb3b0ddfd2d2f5",
-      "group": "for-in-of"
     },
     {
       "id": "for-of",

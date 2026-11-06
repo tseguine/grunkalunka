@@ -6,10 +6,10 @@ use oxc_ast::ast::{
 
 /// Planning does not admit the iterable, await mode or body. The source cursor
 /// checks those before scheduling any execution or publishing this binding.
-pub(super) fn for_of_pattern<'n, 'a>(
-    source: &'n ForOfStatement<'a>,
+pub(super) fn lexical_iteration_pattern<'n, 'a>(
+    left: &'n ForStatementLeft<'a>,
 ) -> Option<&'n BindingPattern<'a>> {
-    let ForStatementLeft::VariableDeclaration(declaration) = &source.left else {
+    let ForStatementLeft::VariableDeclaration(declaration) = left else {
         return None;
     };
     if declaration.declare
@@ -26,6 +26,12 @@ pub(super) fn for_of_pattern<'n, 'a>(
         return None;
     }
     Some(&local.id)
+}
+
+pub(super) fn for_of_pattern<'n, 'a>(
+    source: &'n ForOfStatement<'a>,
+) -> Option<&'n BindingPattern<'a>> {
+    lexical_iteration_pattern(&source.left)
 }
 
 pub(super) fn for_of_binding<'n, 'a>(

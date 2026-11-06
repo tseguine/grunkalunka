@@ -8,6 +8,38 @@ The loop works in ordinary source functions, helpers and supported async
 activations. The iterable expression is evaluated
 once; later reassignment of its source variable cannot redirect the loop.
 
+## Enumerating properties with `for...in`
+
+`for (const key in record)` and `for (let key in record)` now compile when
+the right-hand expression is a source-proven managed ordinary object,
+null-prototype dictionary, array or String. A Number receiver enumerates no
+keys. The head is an identifier declaration; `var`, assignment targets and
+destructuring heads remain separate language features. The loop binds the
+actual property name as a String, so ordinary String operations, helpers and
+captured lexical values compose with the body.
+
+The object expression evaluates once. Its own enumerable String keys are
+snapshotted in ECMAScript key order (array indices ascending, then remaining
+keys in insertion order). Each candidate is rechecked against the original
+receiver before its body runs: a key removed before visitation is skipped,
+and a key added after enumeration begins is not visited. Array holes and
+non-enumerable `length` are not visited; String positions use UTF-16
+indices rather than `for...of` code points. An empty object or numeric RHS
+executes no body iterations.
+
+This initially uses the existing own-key/has-own backend because admitted
+source objects cannot modify intrinsic prototypes, install accessors or
+proxies, or import externally constructed objects. General prototype-chain
+enumeration, dynamic `Symbol` keys, inherited enumerable properties and
+unknown/nullish RHS values remain outside this contract. The compiler never
+silently substitutes own enumeration for an arbitrary JavaScript object.
+
+The existing typed while-loop cursor owns iteration steps and per-iteration
+lexical cells, including `break`, `continue`, nested loops and supported
+suspension. The independent Node-Wasm/Wasmtime source-oracle tests cover
+ordering, deleted and newly added properties, mutable heads, String methods,
+captures and RHS snapshots.
+
 ## Iteration and control
 
 String loops use an identifier binding. Each step yields one Unicode code point
@@ -106,8 +138,10 @@ and carry their saved exclusions through suspension. Other object receivers
 require static keys. An array rest element can initialize an array or object pattern
 from the fresh tail before its loop body starts.
 
-This slice rejects `for await...of`, `var`, assignment targets,
-unproven iterable values, mixed Array/String receivers and labels. Synchronous source
+The `for...of` slice rejects `for await...of`, `var`, assignment
+targets, unproven iterable values, mixed Array/String receivers and labels.
+The `for...in` slice has its separate source-proven enumerable-domain contract
+above. Synchronous source
 try/catch/finally retain their existing admission boundary.
 
 The index slot and generated header regions do not count as source locals or
