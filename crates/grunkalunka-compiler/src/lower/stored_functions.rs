@@ -242,6 +242,7 @@ impl Fields {
         let mut rest_sources = BTreeMap::new();
         let mut elements = elements::Elements::default();
         let mut enumeration_inputs = Vec::new();
+        let mut slice_inputs = Vec::new();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -257,6 +258,14 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            if let AstKind::CallExpression(call) = node.kind()
+                && let Some((receiver, string_methods::Method::Slice)) = string_methods::call(call)
+            {
+                // Only proven Array.slice calls acquire this allocation origin.
+                // Dynamic endpoints may select any subset of indexed values.
+                elements.enumerated_values.entry(id).or_default();
+                slice_inputs.push((id, receiver.node_id()));
+            }
             if let AstKind::ArrayPattern(pattern) = node.kind()
                 && let Some(rest) = &pattern.rest
                 && let Ok(start) = u32::try_from(pattern.elements.len())
@@ -655,7 +664,8 @@ impl Fields {
             || !elements.rest_sources.is_empty()
             || !elements.entry_lists.is_empty()
             || !elements.key_lists.is_empty()
-            || !enumeration_inputs.is_empty();
+            || !enumeration_inputs.is_empty()
+            || !slice_inputs.is_empty();
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
@@ -767,6 +777,12 @@ impl Fields {
             let snapshots = enumeration_inputs
                 .iter()
                 .map(|&(site, receiver)| (site, members.enumerable_values(receiver)))
+                .chain(slice_inputs.iter().map(|&(site, receiver)| {
+                    (
+                        site,
+                        elements.select(receiver, &values, &fields, &index_deletes),
+                    )
+                }))
                 .collect::<Vec<_>>();
             let mut changed = false;
             for (site, origins) in snapshots {
@@ -847,7 +863,10 @@ impl Fields {
                 changed |= extend(&mut field_writes, key, found);
             }
             if !changed
-                && (has_patterns || has_iterations || !elements.rest_sources.is_empty())
+                && (has_patterns
+                    || has_iterations
+                    || !elements.rest_sources.is_empty()
+                    || !slice_inputs.is_empty())
                 && !finalized_unresolved
             {
                 finalized_unresolved = true;

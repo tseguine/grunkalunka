@@ -615,3 +615,14 @@ fn array_slice_saves_inputs_across_awaits_and_stops_on_rejection() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn array_slice_record_origins_compose_with_iteration_and_suspension() {
+    compare_promises(
+        &[
+            "const child={label:' x '};const xs=[child].slice(0);await a;child.label=' changed ';let n=0;for(const {label} of xs){await b;n+=label.trim().length;}return n;",
+            "const xs=[' x ',' y '].slice((await a,1));const [label='empty']=xs;await b;return label.trim().length;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
