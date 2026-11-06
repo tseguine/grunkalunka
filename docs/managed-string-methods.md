@@ -96,3 +96,20 @@ ordinary helper returns. It does not prove a present String for `.length`,
 concatenation or further String methods; downstream refinement is a separate
 slice. Existing Array `at` and ordinary same-name object methods keep their paths.
 An A1 source-import case selects a scalar action from a trailing label marker.
+
+## Code-point classification
+
+`codePointAt(position)` returns a boxed Number or Undefined at an absolute
+UTF-16 position. A valid leading/trailing surrogate pair yields its combined
+code point; a lone surrogate or a trailing surrogate selected by itself yields
+that code unit. Negative and out-of-range positions return Undefined. Positions
+use the same Number/undefined admission and truncation rules as `charCodeAt`.
+
+Results compose through fields, helpers, captures and equality. They are not
+String proofs, and the current boxed-value lane does not yet admit numeric
+unboxing or arithmetic (including unary `+result`); source checks reject that
+unsupported use rather than silently treating Undefined as a Number.
+Async tests retain the receiver and decoded result across awaits, and an A1
+source-import case classifies a search marker without passing a String through
+its scalar WIT service boundary. See the specification's
+[`codePointAt`](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.codepointat).

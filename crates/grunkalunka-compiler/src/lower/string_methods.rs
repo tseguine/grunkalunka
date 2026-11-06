@@ -8,6 +8,7 @@ pub(super) enum Method {
     CharAt,
     At,
     CharCodeAt,
+    CodePointAt,
     StartsWith,
     Includes,
     EndsWith,
@@ -29,7 +30,7 @@ impl Method {
     }
 
     pub(super) fn returns_string(self) -> bool {
-        self.result() == Type::ManagedValue && !matches!(self, Self::At)
+        self.result() == Type::ManagedValue && !matches!(self, Self::At | Self::CodePointAt)
     }
 
     pub(super) fn result(self) -> Type {
@@ -37,6 +38,7 @@ impl Method {
             Self::Slice
             | Self::Substring
             | Self::At
+            | Self::CodePointAt
             | Self::CharAt
             | Self::Trim
             | Self::TrimStart
@@ -55,7 +57,7 @@ impl Method {
             | Self::EndsWith
             | Self::IndexOf
             | Self::LastIndexOf => 2,
-            Self::At | Self::CharAt | Self::CharCodeAt => 1,
+            Self::At | Self::CharAt | Self::CharCodeAt | Self::CodePointAt => 1,
             Self::Trim | Self::TrimStart | Self::TrimEnd => 0,
         }
     }
@@ -99,6 +101,7 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
         "substring" => Method::Substring,
         "at" => Method::At,
         "charAt" => Method::CharAt,
+        "codePointAt" => Method::CodePointAt,
         "charCodeAt" => Method::CharCodeAt,
         "startsWith" => Method::StartsWith,
         "includes" => Method::Includes,

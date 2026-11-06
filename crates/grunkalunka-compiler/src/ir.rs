@@ -659,6 +659,12 @@ pub(crate) enum Op {
         input: ValueId,
         index: ValueId,
     },
+    // Boxed Number or Undefined, with surrogate-pair decoding.
+    ManagedStringCodePointAt {
+        result: ValueId,
+        input: ValueId,
+        index: ValueId,
+    },
     ManagedStringCharCodeAt {
         result: ValueId,
         input: ValueId,
@@ -1653,6 +1659,11 @@ impl Verifier<'_> {
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringCodePointAt {
                 result,
                 input,
                 index,

@@ -1078,6 +1078,7 @@ fn string_character_operations_keep_text_index_and_result_types() {
     for (expression, expected) in [
         ("'abc'.charAt(a).length", Type::ManagedValue),
         ("'abc'.at(a)===undefined?1:0", Type::ManagedValue),
+        ("'abc'.codePointAt(a)===undefined?1:0", Type::ManagedValue),
         ("'abc'.charCodeAt(a)", Type::Number),
     ] {
         let mut module = crate::lower_source(
@@ -1094,6 +1095,7 @@ fn string_character_operations_keep_text_index_and_result_types() {
                 matches!(
                     op.kind,
                     Op::ManagedStringCharAt { .. }
+                        | Op::ManagedStringCodePointAt { .. }
                         | Op::ManagedStringAt { .. }
                         | Op::ManagedStringCharCodeAt { .. }
                 )
@@ -1101,6 +1103,11 @@ fn string_character_operations_keep_text_index_and_result_types() {
             .unwrap();
         let (result, input, index) = match operation.kind {
             Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringCodePointAt {
                 result,
                 input,
                 index,
@@ -1283,6 +1290,25 @@ fn string_at_does_not_prove_a_present_string_or_coerce_arguments() {
         "const s=a?'abc':null;return s.at(0)===undefined?1:0;",
         "return 'abc'.at(...[0])===undefined?1:0;",
         "return 'abc'?.at(0)===undefined?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(crate::lower_source(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn code_point_at_keeps_boxed_results_and_requires_proven_inputs() {
+    for body in [
+        "const c='abc'.codePointAt(a);return +c;",
+        "return 'abc'.codePointAt(a).length;",
+        "return 'abc'.codePointAt(a).trim().length;",
+        "return 'abc'.codePointAt('1')===undefined?1:0;",
+        "return 'abc'.codePointAt(null)===undefined?1:0;",
+        "return 'abc'.codePointAt(true)===undefined?1:0;",
+        "const s=a?'abc':null;return s.codePointAt(0)===undefined?1:0;",
+        "return 'abc'.codePointAt(...[0])===undefined?1:0;",
+        "return 'abc'?.codePointAt(0)===undefined?1:0;",
+        "const f='abc'.codePointAt;return f(0);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         assert!(crate::lower_source(&source, false).is_err(), "{source}");

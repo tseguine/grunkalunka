@@ -226,3 +226,30 @@
   if (result (ref null $gc_value))
     local.get $value local.get $index call $gc_string_char_at
   else i32.const 0 f64.const 0 ref.null eq struct.new $gc_value end)
+
+;; Numeric code point beginning at an absolute UTF-16 position. A trailing
+;; surrogate selected by itself and an unpaired surrogate retain their unit.
+(func $gc_string_code_point_at (param $value (ref null $gc_value)) (param $index f64)
+  (result (ref null $gc_value))
+  (local $text (ref null $gc_key)) (local $at i32) (local $point i32) (local $next i32)
+  local.get $value call $gc_string_key local.set $text
+  local.get $index call $gc_string_integer local.set $index
+  local.get $index f64.const 0 f64.ge
+  local.get $index local.get $text array.len f64.convert_i32_u f64.lt i32.and i32.eqz
+  if i32.const 0 f64.const 0 ref.null eq struct.new $gc_value return end
+  local.get $index i32.trunc_f64_u local.set $at
+  local.get $text local.get $at array.get_u $gc_key local.set $point
+  local.get $point i32.const 0xfc00 i32.and i32.const 0xd800 i32.eq
+  if
+    local.get $at i32.const 1 i32.add local.tee $at local.get $text array.len i32.lt_u
+    if
+      local.get $text local.get $at array.get_u $gc_key local.set $next
+      local.get $next i32.const 0xfc00 i32.and i32.const 0xdc00 i32.eq
+      if
+        local.get $point i32.const 0xd800 i32.sub i32.const 10 i32.shl
+        local.get $next i32.const 0xdc00 i32.sub i32.add
+        i32.const 0x10000 i32.add local.set $point
+      end
+    end
+  end
+  i32.const 3 local.get $point f64.convert_i32_u ref.null eq struct.new $gc_value)
