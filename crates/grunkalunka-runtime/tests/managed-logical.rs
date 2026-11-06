@@ -183,3 +183,30 @@ fn nullish_defaults_keep_selected_container_aliases_and_helper_captures() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn logical_defaults_compose_nullable_strings_and_short_circuit_effects() {
+    for source in [
+        "export function run(a,b){const text=[' ready ',null,'',undefined].at(a)||' missing ';return text.trim().length;}",
+        "function choose(x,y){return x||y;}export function run(a,b){const text=choose(a?null:' ready ',' missing ');return text.trim().length;}",
+        "export function run(a,b){let n=0;const text=(n++,a?null:'')||(n+=10,' fallback ');return text.trim().length*100+n;}",
+        "export function run(a,b){let n=0;const text=((a?{}:null)&&(n++,' kept '))??' fallback ';return text.trim().length*10+n;}",
+        "export function run(a,b){let n=0;const text=(null&&(n++,a))??' fallback ';return text.trim().length+n;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn logical_selection_retains_reference_identity_and_compatible_receivers() {
+    for source in [
+        "export function run(a,b){let n=0;const original={label:' old '};const row=original||(n++,{label:' ignored '});original.label=' changed ';return row.label.trim().length+n;}",
+        "export function run(a,b){let n=0;const original={label:' left '};const row=(n++,original)&&(n+=10,{label:' right '});return row.label.trim().length*10+n;}",
+        "export function run(a,b){const source={label:' first '};const row=[]&&source;const read=()=>row.label.trim().length;source.label=' changed ';return read();}",
+        "export function run(a,b){const row=Object.create(null);row.constructor=' own ';const selected=row||a;return selected.constructor===' own '?1:0;}",
+        "export function run(a,b){const values=[a,b]||a;return values.length;}",
+        "function marker(x){return x;}export function run(a,b){const row=marker&&{label:' present '};return row.label.trim().length;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}

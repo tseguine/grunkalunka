@@ -1048,3 +1048,19 @@ fn imported_handler_coalesces_an_optional_action_record() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_selects_an_action_with_logical_defaults() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        function select(value) {
+            const candidate=value>0?{}:null;
+            return (candidate&&{label:' Expand '})||{label:' Collapse '};
+        }
+        export function run(a,b) {
+            const action=select(a);
+            const handle=()=>choose(action.label.trim()==='Expand'?1:0,2);
+            return +handle();
+        }"#,
+    );
+}

@@ -496,6 +496,16 @@ The analysis retains every unknown or other non-nullish alternative and all
 alias writes. It does not infer that a selected element exists, narrow an unknown
 Number/Boolean into a String, or detach a selected child from later field writes.
 
+Logical `||` and `&&` use the same result-origin query. Fresh ordinary objects,
+null-prototype dictionaries, arrays and represented functions are definitely
+truthy; explicit Null and Undefined are definitely falsy. A nullable String can
+therefore use a String `||` fallback, and a known reference can select another
+receiver with `&&` without retaining the discarded operand's origin. Strings may
+be empty and other primitive or unknown origins retain both possible selections.
+The result keeps selected object identities and alias writes. This refines the
+expression result, not the types of bindings inside its right-hand branch: a
+nullable receiver read there still needs an existing positive receiver proof.
+
 Logical results work in data properties, local bindings and ordinary helpers,
 including mixed primitive/reference helpers and discarded expressions. Static
 Number-only arguments retain f64. A Boolean/nullish argument to a helper that also

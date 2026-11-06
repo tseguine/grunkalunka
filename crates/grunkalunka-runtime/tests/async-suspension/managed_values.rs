@@ -182,6 +182,17 @@ fn nullish_defaults_keep_selected_receivers_and_lazy_awaits() {
 }
 
 #[test]
+fn logical_defaults_keep_selected_receivers_and_lazy_awaits() {
+    compare_promises(
+        &[
+            "let n=0;const receiver=a?{}:null;const item=(receiver&&(await b,n++,{label:' enabled '}))??{label:' disabled '};await a;return item.label.trim().length*10+n;",
+            "let n=0;const text=(a?'':' ready ')||(await b,n++,' fallback ');await a;return text.trim().length*10+n;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_concat_retains_left_snapshots_across_await() {
     compare_promises(
         &[

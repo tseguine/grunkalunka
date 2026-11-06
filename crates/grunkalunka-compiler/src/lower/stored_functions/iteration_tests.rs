@@ -953,3 +953,58 @@ fn nullish_result_origins_preserve_unknown_values_and_alias_writes() {
         assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }
+
+#[test]
+fn logical_result_origins_use_only_definite_nullish_and_reference_truthiness() {
+    for body in [
+        "const observed=(a?null:'text')||'fallback';return a;",
+        "const observed=['text',null,undefined].at(a)||'fallback';return a;",
+        "const row={label:'text'}||a;const observed=row.label;return a;",
+        "const observed=[]&&'text';return a;",
+        "const observed=(()=>a)&&'text';return a;",
+        "const observed=(null&&a)??'fallback';return a;",
+        "const observed=(undefined&&a)??'fallback';return a;",
+        "const observed=((a?{}:null)&&'text')??'fallback';return a;",
+        "const source=Object.create(null);source.label='text';const row=source||a;const observed=row.label??'fallback';return a;",
+    ] {
+        assert_eq!(observe(body), STRING, "{body}");
+    }
+    assert_eq!(
+        observe_source(
+            "function choose(left,right){return left||right;}export function run(a,b){const source=a?null:{label:'text'};const read=()=>choose(source,{label:'fallback'});const observed=read().label;return a;}"
+        ),
+        STRING,
+    );
+    assert!(observe("const observed=(()=>a)||b;return a;").callable);
+    assert_eq!(
+        observe("const observed=Object.create(null)||a;return a;").container,
+        Some(Type::ManagedObject),
+    );
+    assert_eq!(
+        observe("const observed=(a?{}:null)&&'text';return a;"),
+        MAYBE_NULL,
+    );
+    assert_eq!(
+        observe("const observed=(a?{}:undefined)&&'text';return a;"),
+        MAYBE_UNDEFINED,
+    );
+}
+
+#[test]
+fn logical_result_origins_keep_strings_other_values_and_mutations_conservative() {
+    for body in [
+        "const observed='text'||a;return a;",
+        "const observed='text'&&a;return a;",
+        "const observed=a||'fallback';return a;",
+        "const observed=a&&'text';return a;",
+        "const observed=(a?null:b)||'fallback';return a;",
+        "const source={label:null};const mutate=()=>{source.label=a;};mutate();const observed=source.label||'fallback';return a;",
+        "const source={label:'text'};const row=source||{label:'fallback'};source.label=b;const observed=row.label;return a;",
+        "const source={label:'text'};const row=[]&&source;source.label=b;const observed=row.label;return a;",
+        "const pending=()=>pending();const observed=pending()||'fallback';return a;",
+        "const pending=()=>pending();const observed=pending()&&'text';return a;",
+        "const pending=()=>pending();const observed=undefined||pending();return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+    }
+}
