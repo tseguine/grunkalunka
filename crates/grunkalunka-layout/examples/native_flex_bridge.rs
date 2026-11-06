@@ -27,7 +27,7 @@ const PROBES: [(&str, u32, u32); 9] = [
     ("gap", 95, 30),
     ("outside", 250, 50),
 ];
-const PHASES: [&str; 38] = [
+const PHASES: [&str; 40] = [
     "nowrap",
     "wrap",
     "wide",
@@ -60,6 +60,8 @@ const PHASES: [&str; 38] = [
     "contentEnd",
     "contentCenter",
     "contentBetween",
+    "contentAround",
+    "contentEvenly",
     "contentSingle",
     "contentNoWrap",
     "contentOverflow",
@@ -183,6 +185,8 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
             | "contentEnd"
             | "contentCenter"
             | "contentBetween"
+            | "contentAround"
+            | "contentEvenly"
             | "contentSingle"
             | "contentOverflow"
             | "contentClipped"
@@ -301,6 +305,15 @@ fn phase_source(phase: &str) -> ([Block; 8], u32) {
             blocks[1].style.width = Length::Px(100);
             blocks[1].style.height = Length::Px(140);
             blocks[1].style.align_content = FlexAlignContent::SpaceBetween;
+        }
+        "contentAround" | "contentEvenly" => {
+            blocks[1].style.width = Length::Px(100);
+            blocks[1].style.height = Length::Px(if phase == "contentAround" { 160 } else { 140 });
+            blocks[1].style.align_content = if phase == "contentAround" {
+                FlexAlignContent::SpaceAround
+            } else {
+                FlexAlignContent::SpaceEvenly
+            };
         }
         "contentSingle" | "contentNoWrap" => {
             blocks[1].style.width = Length::Px(220);
@@ -531,6 +544,26 @@ fn expected_boxes(phase: &str) -> [Option<Rect>; 6] {
                 rect(31, 80, 56, 36),
                 rect(34, 83, 25, 8),
                 rect(26, 148, 42, 18),
+                rect(0, 178, 180, 12),
+            ]
+        }
+        "contentAround" => {
+            expected = [
+                rect(20, 20, 112, 172),
+                rect(26, 36, 64, 24),
+                rect(31, 90, 56, 36),
+                rect(34, 93, 25, 8),
+                rect(26, 158, 42, 18),
+                rect(0, 198, 180, 12),
+            ]
+        }
+        "contentEvenly" => {
+            expected = [
+                rect(20, 20, 112, 152),
+                rect(26, 36, 64, 24),
+                rect(31, 80, 56, 36),
+                rect(34, 83, 25, 8),
+                rect(26, 138, 42, 18),
                 rect(0, 178, 180, 12),
             ]
         }
@@ -833,6 +866,19 @@ fn expected_hits(phase: &str) -> [Option<&'static str>; 9] {
                 None,
             ]
         }
+        "contentAround" | "contentEvenly" => {
+            expected = [
+                Some("row-host"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                None,
+                Some("row-host"),
+                Some("row-host"),
+                None,
+            ]
+        }
         "contentSingle" | "contentNoWrap" => {
             expected = [
                 Some("row-host"),
@@ -919,6 +965,8 @@ fn assert_native_pixels(frame: &Frame, blocks: &[Block; 8], phase: &str, scroll_
         "contentEnd" => &[(30, 80, RED)],
         "contentCenter" => &[(30, 80, Rgb::WHITE)],
         "contentBetween" => &[(35, 150, PURPLE)],
+        "contentAround" => &[(30, 165, PURPLE)],
+        "contentEvenly" => &[(30, 145, PURPLE)],
         "contentSingle" => &[(110, 52, GREEN)],
         "contentNoWrap" => &[(110, 52, BLUE)],
         "contentOverflow" => &[(30, 80, PURPLE)],

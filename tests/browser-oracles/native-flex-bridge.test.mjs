@@ -17,7 +17,7 @@ const phases = ["nowrap", "wrap", "wide", "columnGap", "rowGap", "hidden",
   "nestedOverlap", "nestedOverflow", "relativeAlign", "clippedAlign", "scrolledAlign",
   "selfAlignMixed", "selfAlignAuto", "selfAlignWrap", "selfAlignOverflow",
   "selfAlignClipped", "selfAlignScrolled", "contentEnd", "contentCenter",
-  "contentBetween", "contentSingle", "contentNoWrap", "contentOverflow",
+  "contentBetween", "contentAround", "contentEvenly", "contentSingle", "contentNoWrap", "contentOverflow",
   "contentClipped", "contentScrolled", "restored"];
 const probes = ["a", "b", "nowrap", "wrap", "gap-wrap", "after", "host-border", "gap", "outside"];
 const computedFields = ["display", "boxSizing", "width", "height", "flexDirection",
@@ -87,6 +87,10 @@ function states() {
       [108, 47, 25, 8], [26, 92, 42, 18], [0, 138, 180, 12]],
     contentBetween: [[20, 20, 112, 152], [26, 26, 64, 24], [31, 80, 56, 36],
       [34, 83, 25, 8], [26, 148, 42, 18], [0, 178, 180, 12]],
+    contentAround: [[20, 20, 112, 172], [26, 36, 64, 24], [31, 90, 56, 36],
+      [34, 93, 25, 8], [26, 158, 42, 18], [0, 198, 180, 12]],
+    contentEvenly: [[20, 20, 112, 152], [26, 36, 64, 24], [31, 80, 56, 36],
+      [34, 83, 25, 8], [26, 138, 42, 18], [0, 178, 180, 12]],
     contentSingle: [[20, 20, 232, 72], [26, 53, 64, 24], [105, 46, 56, 36],
       [108, 49, 25, 8], [174, 56, 42, 18], [0, 98, 180, 12]],
     contentNoWrap: [[20, 20, 232, 72], [26, 44, 64, 24], [105, 37, 56, 36],
@@ -129,6 +133,8 @@ function states() {
     contentEnd: ["row-host", "row-host", "row-host", "row-a", "row-b", null, "row-host", "row-host", null],
     contentCenter: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", null],
     contentBetween: ["row-a", "row-host", null, "row-host", "row-host", null, "row-host", "row-host", null],
+    contentAround: ["row-host", "row-host", null, "row-host", "row-host", null, "row-host", "row-host", null],
+    contentEvenly: ["row-host", "row-host", null, "row-host", "row-host", null, "row-host", "row-host", null],
     contentSingle: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
     contentNoWrap: ["row-host", "row-host", "row-host", "row-host", "row-b", null, "row-host", "row-host", "row-host"],
     contentOverflow: ["row-host", "row-inner", "row-host", "row-c", "row-b", null, "row-host", "row-host", null],
@@ -192,8 +198,8 @@ test("complete fixed-row, alignment and overlap receipts agree for each identifi
     assert.equal(report.sourceSha256, sha(fixture));
     assert.deepEqual([report.invalid, report.incompatible, report.differences], [[], [], []]);
     assert.deepEqual(Object.keys(report.native.states), phases);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 228);
-    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 342);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.boxes)).length, 240);
+    assert.equal(Object.values(report.native.states).flatMap(state => Object.keys(state.hits)).length, 360);
   }
 });
 
@@ -303,6 +309,34 @@ test("an ignored auto reset reports both moved subtree boxes without unrelated d
   assert.deepEqual(report.differences, [
     { kind: "geometry", path: "$.states.selfAlignAuto.boxes.row-b.y", left: 46, right: 37 },
     { kind: "geometry", path: "$.states.selfAlignAuto.boxes.row-inner.y", left: 49, right: 40 }
+  ]);
+});
+
+
+test("space-evenly source change distinguishes all four boxes and its exposed first-item hit", () => {
+  const originalRule = '  host.style.alignContent = "space-evenly";\n  states.contentEvenly = sample();';
+  const changedRule = '  host.style.alignContent = "flex-start";\n  states.contentEvenly = sample();';
+  const source = fixture.toString("utf8");
+  assert.equal(source.split(originalRule).length, 2, "one evenly-spaced source declaration");
+  const changed = Buffer.from(source.replace(originalRule, changedRule));
+  const pair = receipts();
+  const shifted = { "row-a": 10, "row-b": 20, "row-inner": 20, "row-c": 30 };
+  for (const [id, distance] of Object.entries(shifted)) {
+    pair.browser.states.contentEvenly.boxes[id].y -= distance;
+  }
+  pair.browser.states.contentEvenly.hits.a = "row-a";
+  assert.equal(compareNativeFlexBridge(pair.native, pair.browser, changed).status, "incompatible");
+  pair.browser.provenance.fixtureSha256 = sha(changed);
+  const report = compareNativeFlexBridge(pair.native, pair.browser, changed);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.invalid, []);
+  assert.deepEqual(report.incompatible, []);
+  assert.deepEqual(report.differences, [
+    { kind: "geometry", path: "$.states.contentEvenly.boxes.row-a.y", left: 36, right: 26 },
+    { kind: "geometry", path: "$.states.contentEvenly.boxes.row-b.y", left: 80, right: 60 },
+    { kind: "geometry", path: "$.states.contentEvenly.boxes.row-inner.y", left: 83, right: 63 },
+    { kind: "geometry", path: "$.states.contentEvenly.boxes.row-c.y", left: 138, right: 108 },
+    { kind: "hit", path: "$.states.contentEvenly.hits.a", left: "row-host", right: "row-a" }
   ]);
 });
 
