@@ -488,6 +488,11 @@ impl Emitter<'_> {
                 input,
                 index,
             }
+            | Op::ManagedStringAt {
+                result,
+                input,
+                index,
+            }
             | Op::ManagedStringCharCodeAt {
                 result,
                 input,
@@ -498,6 +503,8 @@ impl Emitter<'_> {
                 self.output.push_str(
                     if matches!(operation.kind, Op::ManagedStringCharAt { .. }) {
                         "call $gc_string_char_at\n"
+                    } else if matches!(operation.kind, Op::ManagedStringAt { .. }) {
+                        "call $gc_string_at\n"
                     } else {
                         "call $gc_string_char_code_at\n"
                     },

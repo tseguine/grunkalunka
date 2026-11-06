@@ -669,3 +669,16 @@ fn to_reversed_saves_receiver_and_observes_later_argument_effects() {
         &[(1.0, 2.0), (0.0, 0.0)],
     );
 }
+
+#[test]
+fn string_at_saves_receiver_index_and_missing_results_across_awaits() {
+    compare_promises(
+        &[
+            "let s='abc';const c=s.at((await a,s='xyz',-1),(await b));await a;return c==='c'&&s==='xyz'?1:0;",
+            "const c='abc'.at((await a,Infinity));await b;return c===undefined?1:0;",
+            "let n=0;const c='abc'.at(void(await a,n=1),(await b,n=n*10+2));await a;return c==='a'?n:-1;",
+            "let n=0;try{'abc'.at(await Promise.reject(b),n=1);}catch(e){return n;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

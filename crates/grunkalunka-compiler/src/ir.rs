@@ -648,6 +648,12 @@ pub(crate) enum Op {
         input: ValueId,
         index: ValueId,
     },
+    // Relative UTF-16 selection, returning String or Undefined.
+    ManagedStringAt {
+        result: ValueId,
+        input: ValueId,
+        index: ValueId,
+    },
     ManagedStringCharAt {
         result: ValueId,
         input: ValueId,
@@ -1647,6 +1653,11 @@ impl Verifier<'_> {
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringAt {
                 result,
                 input,
                 index,

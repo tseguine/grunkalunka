@@ -570,7 +570,7 @@ impl Fields {
                         .filter_map(|argument| argument.as_expression().map(GetNodeId::node_id))
                         .collect(),
                     string_methods::call(call)
-                        .filter(|(_, method)| method.result() == Type::ManagedValue)
+                        .filter(|(_, method)| method.returns_string())
                         .map(|(receiver, method)| {
                             (
                                 receiver.node_id(),

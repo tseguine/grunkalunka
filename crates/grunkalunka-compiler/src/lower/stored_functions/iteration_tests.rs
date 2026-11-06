@@ -763,3 +763,16 @@ fn to_reversed_keeps_unrepresented_calls_and_kinds_rejected() {
         }
     }
 }
+
+#[test]
+fn relative_string_selection_does_not_prove_a_string() {
+    for source in [
+        "export function run(a,b){const observed='abc'.at(a);return 0;}",
+        "function last(s){return s.at(-1);}export function run(a,b){const observed=last('');return 0;}",
+    ] {
+        assert!(!observe_source(source).string);
+    }
+    assert!(
+        observe_source("export function run(a,b){const observed='abc'.charAt(a);return 0;}").string
+    );
+}

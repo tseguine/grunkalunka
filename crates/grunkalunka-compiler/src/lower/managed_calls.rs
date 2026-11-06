@@ -163,6 +163,11 @@ fn kinds(
                     if receiver.iter().all(supported) {
                         fallback.clear();
                     }
+                    if matches!(method, string_methods::Method::At) {
+                        // The boxed result may also be Undefined; it is never a
+                        // positive String proof for downstream operations.
+                        fallback.insert(Kind::GeneralPrimitive);
+                    }
                     for kind in receiver.iter().filter(|kind| supported(kind)) {
                         fallback.insert(
                             if *kind == Kind::Array

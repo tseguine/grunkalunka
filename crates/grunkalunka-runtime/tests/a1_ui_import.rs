@@ -924,3 +924,16 @@ fn imported_handler_reads_a_reversed_history_snapshot() {
     }"#,
     );
 }
+
+#[test]
+fn imported_handler_selects_a_trailing_action_marker() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+    function trailing(label) { return label.at(-1); }
+    export function run(a,b) {
+        const label = a > 0 ? 'Expand+' : 'Collapse-';
+        const handle = () => choose(trailing(label) === '+' ? 1 : 0, 2);
+        return +handle();
+    }"#,
+    );
+}

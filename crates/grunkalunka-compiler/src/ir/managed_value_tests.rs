@@ -1077,6 +1077,7 @@ fn string_indices_require_managed_operands_and_number_position_and_result() {
 fn string_character_operations_keep_text_index_and_result_types() {
     for (expression, expected) in [
         ("'abc'.charAt(a).length", Type::ManagedValue),
+        ("'abc'.at(a)===undefined?1:0", Type::ManagedValue),
         ("'abc'.charCodeAt(a)", Type::Number),
     ] {
         let mut module = crate::lower_source(
@@ -1092,12 +1093,19 @@ fn string_character_operations_keep_text_index_and_result_types() {
             .find(|op| {
                 matches!(
                     op.kind,
-                    Op::ManagedStringCharAt { .. } | Op::ManagedStringCharCodeAt { .. }
+                    Op::ManagedStringCharAt { .. }
+                        | Op::ManagedStringAt { .. }
+                        | Op::ManagedStringCharCodeAt { .. }
                 )
             })
             .unwrap();
         let (result, input, index) = match operation.kind {
             Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringAt {
                 result,
                 input,
                 index,
@@ -1260,5 +1268,23 @@ fn string_spread_and_collection_helpers_share_one_index_formatter() {
         assert_eq!(wat.matches("(func $gc_spread_index ").count(), 1);
         assert_eq!(wat.matches("(func $gc_string_to_array ").count(), 1);
         wat::parse_str(&wat).unwrap();
+    }
+}
+
+#[test]
+fn string_at_does_not_prove_a_present_string_or_coerce_arguments() {
+    for body in [
+        "return 'abc'.at(a).length;",
+        "return 'abc'.at(a).trim().length;",
+        "const c='abc'.at(a);return (c+'!').length;",
+        "return 'abc'.at('1')===undefined?1:0;",
+        "return 'abc'.at(null)===undefined?1:0;",
+        "return 'abc'.at(true)===undefined?1:0;",
+        "const s=a?'abc':null;return s.at(0)===undefined?1:0;",
+        "return 'abc'.at(...[0])===undefined?1:0;",
+        "return 'abc'?.at(0)===undefined?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(crate::lower_source(&source, false).is_err(), "{source}");
     }
 }

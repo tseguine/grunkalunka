@@ -81,3 +81,18 @@ checks saved receivers, ignored argument effects and results across awaits.
 Compiler IR tests reject invalid operand/result types and forward references.
 Execution receipts belong to the PRs; test presence is not a claim that a hosted
 platform gate has run.
+
+## Relative code-unit selection
+
+`at(index)` selects one UTF-16 code unit, counting negative integer positions
+from the end. Omitted/undefined and NaN positions select zero; fractions truncate
+toward zero. Out-of-range positions, including infinities and empty receivers,
+return Undefined. Surrogate pairs are deliberately not combined. Arguments use
+the existing Number-or-source-proven-undefined admission and preserve receiver,
+index and surplus-argument effects across suspension.
+
+The boxed String-or-Undefined result supports equality, fields, captures and
+ordinary helper returns. It does not prove a present String for `.length`,
+concatenation or further String methods; downstream refinement is a separate
+slice. Existing Array `at` and ordinary same-name object methods keep their paths.
+An A1 source-import case selects a scalar action from a trailing label marker.
