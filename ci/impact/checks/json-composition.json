@@ -4,6 +4,60 @@
   "args": [
     "scripts/check-json-composition.mjs"
   ],
+  "pr": {
+    "reason": "Prepare the optimized Wasm guest and both native examples under the compilation budget before running the complete unchanged JSON composition oracle under the test budget.",
+    "commands": [
+      {
+        "command": "cargo",
+        "args": [
+          "build",
+          "--locked",
+          "--offline",
+          "-j",
+          "2",
+          "-p",
+          "grunkalunka-json-guest",
+          "--target",
+          "wasm32-unknown-unknown",
+          "--release"
+        ]
+      },
+      {
+        "command": "cargo",
+        "args": [
+          "build",
+          "--locked",
+          "--offline",
+          "-j",
+          "2",
+          "-p",
+          "grunkalunka-runtime",
+          "--example",
+          "json_guest_check"
+        ]
+      },
+      {
+        "command": "cargo",
+        "args": [
+          "build",
+          "--offline",
+          "--locked",
+          "-j",
+          "2",
+          "-p",
+          "grunkalunka-wasm-link",
+          "--example",
+          "json_composition"
+        ]
+      },
+      {
+        "command": "node",
+        "args": [
+          "scripts/check-json-composition.mjs"
+        ]
+      }
+    ]
+  },
   "dependsOn": [
     "test:json-integration"
   ],
