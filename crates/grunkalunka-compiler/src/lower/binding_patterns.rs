@@ -231,11 +231,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         }
                         BindingPattern::ArrayPattern(array) => {
                             if let Some(rest) = &array.rest
-                                && !matches!(rest.argument, BindingPattern::BindingIdentifier(_))
+                                && !matches!(
+                                    rest.argument,
+                                    BindingPattern::BindingIdentifier(_)
+                                        | BindingPattern::ArrayPattern(_)
+                                )
                             {
                                 return Err(unsupported(
                                     rest.as_ref(),
-                                    "array rest bindings require an identifier target",
+                                    "array rest bindings require an identifier or array pattern target",
                                 ));
                             }
                             if proven != Some(Type::ManagedArray) {

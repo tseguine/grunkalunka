@@ -93,7 +93,8 @@ A known Undefined nested selection may use a proven fallback; nullable,
 mixed-kind and unresolved alternatives retain their conservative rejection.
 A null-prototype dictionary head can select fields through proven String keys
 and carry their saved exclusions through suspension. Other object receivers
-require static keys. Array rest with pattern targets remains a separate slice.
+require static keys. An array rest element can initialize another array pattern
+from the fresh tail before its loop body starts.
 
 This slice rejects `for await...of`, `var`, assignment targets,
 Strings, unproven iterable values and labels. Synchronous source

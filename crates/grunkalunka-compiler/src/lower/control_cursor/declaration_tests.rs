@@ -81,7 +81,6 @@ fn array_rest_bindings_compose_with_defaults_captures_and_iteration() {
 #[test]
 fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
     for body in [
-        "const [...[value]]=[a];return a;",
         "const [...{length}]=[a];return a;",
         "const [...rest]=a;return a;",
         "const [...rest]='text';return a;",
@@ -988,6 +987,38 @@ fn computed_binding_keys_require_dictionary_and_string_proofs() {
                     "{source}: {error}"
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn array_rest_pattern_targets_keep_independent_iteration_and_depth_limits() {
+    for body in [
+        "const [...[value]]=[a];return a;",
+        "const [,...[first,...[last='fallback']]]=[a,'first'];return first.length+last.length;",
+        "for(const [,...[{title}]] of [[a,{title:' ok '}]])return title.trim().length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let (result, _) = on_small_stack(&source, false, typed);
+            assert!(result.is_ok(), "{source}: {result:?}");
+        }
+    }
+    for depth in [128, 129] {
+        let source = format!(
+            "export function run(a,b){{const {}x{}=[a];return a;}}",
+            "[...".repeat(depth),
+            "]".repeat(depth)
+        );
+        let (result, _) = on_small_stack(&source, false, false);
+        if depth == 128 {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("binding pattern nesting exceeds 128"),
+                "{error}"
+            );
         }
     }
 }

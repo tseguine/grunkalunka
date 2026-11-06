@@ -2,7 +2,7 @@
 
 Local `const` and `let` declarations admit array binding patterns over
 source-proven managed arrays. Identifier leaves and nested object/array patterns
-with optional lazy defaults, elisions, empty patterns and identifier rest elements
+with optional lazy defaults, elisions, empty patterns and rest elements targeting identifiers or array patterns
 work in blocks, helpers, async activations and traditional `for` initializers. Objects can also
 contain nested array patterns through the same binding cursor.
 
@@ -59,7 +59,7 @@ not execute user hooks in this surface, so a check at the next bound index also
 observes exhaustion within a run of holes.
 This is not general iterable destructuring.
 
-An identifier rest element consumes the remaining positions after all preceding
+An array rest element consumes the remaining positions after all preceding
 bindings and defaults finish. It creates a fresh dense array: each hole becomes
 an own entry containing Undefined, and named source properties are omitted.
 References to objects, arrays and functions retain their identity, while the
@@ -73,6 +73,12 @@ regrows the source. Trailing elisions count toward the consumed positions.
 Repeated evaluations, including loop heads, allocate distinct rest arrays.
 The rest binding is initialized after collection; an earlier abrupt default
 prevents both collection and its binding initialization.
+
+A rest target may itself be an array pattern. In `const [header, ...[first,
+second]] = source`, the outer pattern collects the entire tail before the
+inner pattern takes its first step. An inner default may change the original
+array or suspend without changing the copied slots. Each nested container
+counts toward the same depth limit and consumes its own iterator.
 
 Every leaf uses the managed value carrier, including selected Numbers. Existing
 equality, truthiness, storage and managed consumers apply; arithmetic does not
@@ -113,7 +119,7 @@ It adds no runtime import or public ABI.
 
 ## Admission limits
 
-Rest elements with a pattern target, destructuring assignment and
+Object-pattern rest targets, destructuring assignment and
 parameter patterns remain separate work. Strings, ordinary objects with numeric
 fields, unknown parameters and nullable array alternatives do not satisfy the
 array proof. The intrinsic-iterator boundary also excludes user-defined

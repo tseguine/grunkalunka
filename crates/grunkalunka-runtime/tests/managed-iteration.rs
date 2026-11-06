@@ -382,7 +382,6 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(const [value] of [[a]]){}return value;",
         "for(const {value} of [{value:a}])value=b;return a;",
         "for(var {value} of [{value:a}]){}return a;",
-        "for(const [...[tail]] of [[a]]){}return a;",
         "for(const [...rest] of [[a],null]){}return a;",
         "for(const [...rest] of [[a]])rest=[];return a;",
         "for(const [head=rest,...rest] of [[]]){}return a;",
@@ -449,5 +448,16 @@ fn tail_iteration_rejects_holes_incompatible_writes_and_opaque_sources() {
         for typed in [false, true] {
             assert_rejected(&source, typed);
         }
+    }
+}
+
+#[test]
+fn array_rest_pattern_loop_heads_allocate_fresh_captured_leaves() {
+    for body in [
+        "for(const [...[tail]] of [[a]]){}return a;",
+        "let first=()=>0,last=()=>0,n=0;for(let [,...[label]] of [[a,' first '],[b,' last ']]){const read=()=>label.trim().length;if(n===0)first=read;last=read;n++;}return first()*10+last();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
     }
 }

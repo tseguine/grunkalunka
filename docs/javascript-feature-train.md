@@ -210,7 +210,11 @@ include writes through aliases to the source, the copy and shared child objects.
 A dictionary pattern can select a runtime String key and exclude its saved
 value from rest even if another key suspends or reassigns the source variable.
 
-Array rest with pattern targets, parameter and assignment patterns,
+An array rest target can destructure the completed tail with another array
+pattern, including elisions, defaults and nested containers. Mutating the
+original array from an inner default leaves the captured tail slots independent.
+
+Object-pattern rest targets, parameter and assignment patterns,
 general property-key conversion, primitive RHS coercion and general iterators remain
 follow-on work.
 `for-in`, `for await...of` and `var` or assignment loop heads are also outside this
