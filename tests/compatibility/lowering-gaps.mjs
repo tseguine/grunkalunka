@@ -26,7 +26,6 @@ for (const [id, body, expected, diagnostic] of [
   ['loose-equality-coercion', 'return a == "4" ? 1 : 0;', 1, expression],
   ['nullish', 'return (a === 4 ? null : a) ?? b;', 2, expression],
   ['delete', 'return delete a.x ? 1 : 0;', 1, unary],
-  ['property-in', 'return "x" in {x:a} ? 1 : 0;', 1, binary],
   ['instanceof', 'return [] instanceof Array ? 1 : 0;', 1, binary],
 ]) add(id, 'operators', body, expected, diagnostic);
 

@@ -1,7 +1,7 @@
 import { managedTypeof, promotedTypeof } from './managed-typeof.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
-import { managedObjects } from './managed-objects.mjs';
+import { managedObjects, promotedPropertyInGap } from './managed-objects.mjs';
 import { numericBitNot } from './numeric-bit-not.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
@@ -289,7 +289,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 817);
+  assert.equal(inventory.records.size, 816);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -305,6 +305,22 @@ test('managed objects execute both exact original discard rejection sources', ()
     assert.equal(source.oracleSource, source.sourceJS);
     assert.ok(!rejected.some(row => row[0] === origin));
   }
+});
+
+test('static property membership preserves its original gap source and Number golden', () => {
+  const program = managedObjects.find(row => row[0] === 'gap-property-in');
+  const source = programSources(program);
+  assert.equal(source.sourceJS, promotedPropertyInGap.sourceJS);
+  assert.equal(source.sourceTS, source.sourceJS);
+  assert.equal(source.oracleSource, source.sourceJS);
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), promotedPropertyInGap.sourceSha256);
+  assert.equal(promotedPropertyInGap.sourceSha256, '7ed37657a852b28a30a9aab0afc073a099b5e536cbeea62d397d951e2204f7aa');
+  assert.deepEqual([promotedPropertyInGap.args, promotedPropertyInGap.entry, promotedPropertyInGap.expected], [[4, 2], 'run', 1]);
+  assert.equal(program[3], promotedPropertyInGap.expected);
+  assert.ok(!rejected.some(row => row[0] === promotedPropertyInGap.id));
+  assert.ok(!catalog.records.some(row => row.id === promotedPropertyInGap.id));
+  const run = Function('"use strict";' + source.oracleSource.replace('export function', 'function') + ';return run;')();
+  assert.equal(run(...promotedPropertyInGap.args), promotedPropertyInGap.expected);
 });
 
 test('local arrows execute the two exact original curated capture/call sources', () => {

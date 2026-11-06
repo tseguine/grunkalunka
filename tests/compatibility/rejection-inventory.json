@@ -1097,13 +1097,6 @@
       "group": "delete"
     },
     {
-      "id": "gap-property-in",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7ed37657a852b28a30a9aab0afc073a099b5e536cbeea62d397d951e2204f7aa",
-      "group": "in-operator"
-    },
-    {
       "id": "gap-instanceof",
       "extension": "js",
       "sourceMode": "module-strict",

@@ -15,3 +15,14 @@ managedObjects.push(['managed-object-discard-original', 'return ({x:a},a);', 're
 const discarded = 'export function run(a,b) { ({}); return a; }';
 managedObjects.push(['managed-object-statement-original', '({}); return a;', '({}); return a;',
   undefined, undefined, {sourceJS: discarded, sourceTS: discarded}]);
+
+// Static own-property membership was admitted by the property-presence path.
+// Keep the former gap source and its independent reference observation exact.
+const membership = 'export function run(a,b) { return "x" in {x:a} ? 1 : 0; }';
+export const promotedPropertyInGap = {
+  id: 'gap-property-in', sourceJS: membership, sourceTS: membership, oracleSource: membership,
+  args: [4, 2], entry: 'run', expected: 1,
+  sourceSha256: '7ed37657a852b28a30a9aab0afc073a099b5e536cbeea62d397d951e2204f7aa',
+};
+managedObjects.push(['gap-property-in', '', '', 1, undefined,
+  {sourceJS: membership, sourceTS: membership, oracleSource: membership}]);
