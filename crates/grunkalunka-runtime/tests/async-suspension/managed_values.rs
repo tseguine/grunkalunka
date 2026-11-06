@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn property_deletes_preserve_references_and_effects_across_suspension() {
+    compare_promises(
+        &[
+            "const record={x:a};const saved=record;await b;delete record.x;await a;return saved.x===undefined&&!Object.hasOwn(saved,'x')?1:0;",
+            "const xs=[a,b];delete (await a,xs)[0];await b;return xs.length===2&&xs[0]===undefined&&xs[1]===b?1:0;",
+            "const record={x:a};const remove=()=>delete record.x;await a;const removed=remove();await b;return removed&&record.x===undefined?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_indices_save_operands_and_numeric_results_across_awaits() {
     compare_promises(
         &[

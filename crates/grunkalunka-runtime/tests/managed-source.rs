@@ -5,6 +5,35 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn delete_own_properties_preserves_presence_aliases_and_insertion_order() {
+    for body in [
+        "const o={x:a,y:b};const alias=o;const removed=delete alias.x;return removed&&o.x===undefined&&!Object.hasOwn(o,'x')&&o.y===b?1:0;",
+        "const o={a:1,b:2,c:3};delete o.b;o.b=4;const keys=Object.keys(o);return keys.length===3&&keys[0]==='a'&&keys[1]==='c'&&keys[2]==='b'?1:0;",
+        "const o={};return delete o.missing&&delete o.constructor&&('constructor' in o)?1:0;",
+        "const o=Object.create(null);o.__proto__=a;o.constructor=b;delete o.__proto__;return o.__proto__===undefined&&o.constructor===b?1:0;",
+        "const xs=[a,b];xs.named=a;delete xs[0];delete xs.named;return xs.length===2&&!Object.hasOwn(xs,0)&&xs[0]===undefined&&xs[1]===b&&xs.named===undefined?1:0;",
+        "const xs=[a,,b];delete xs[2];const copy=[...xs];return xs.length===3&&copy.length===3&&copy[2]===undefined&&Object.hasOwn(copy,2)?1:0;",
+        "const o={x:'text'};delete o.x;const {x='fallback'}=o;return x.length;",
+        "const o={a:1,b:2,c:3};let count=0;for(const key in o){count++;delete o.b;}return count;",
+        "let n=0;const o={x:a};const receiver=()=>{n++;return o;};return delete receiver().x?n*10+(o.x===undefined?1:0):-1;",
+        "const xs=[a,b];delete xs[-0];return !Object.hasOwn(xs,'0')&&xs.length===2?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn delete_large_literal_key_uses_the_bounded_text_constructor() {
+    let source = format!(
+        "export function run(a,b){{const o={{}};return delete o['{}']?1:0;}}",
+        "k".repeat(10_001)
+    );
+    // Exercise literal construction beyond array.new_fixed's V8 limit with a
+    // bounded semantic-oracle budget; the production per-call quota is unchanged.
+    common::compare_sources_with_fuel(&source, &source, Some(1_000_000));
+}
+
+#[test]
 fn dictionary_static_keys_have_no_inherited_properties() {
     for body in [
         "const d=Object.create(null);return d.constructor===undefined&&d.__proto__===undefined&&d.toString===undefined&&Object.keys(d).length===0?a:b;",
