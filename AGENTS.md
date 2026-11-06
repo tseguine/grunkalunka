@@ -228,7 +228,10 @@ budgets separate. Limit exhaustion must produce a controlled diagnostic rather
 than a process crash. Stress admitted boundaries and just-past-limit rejections
 on the Windows and Linux CI hosts. Do not conceal native-stack problems by
 raising thread stacks, weakening acceptance, or serializing the entire suite.
-Record cross-phase findings in [stack-depth hygiene #281](https://github.com/tseguine/grunkalunka/issues/281).
+Record a concrete cross-phase defect in a bounded issue with an observable
+completion criterion. [Stack-depth hygiene #281](https://github.com/tseguine/grunkalunka/issues/281)
+is a retired historical audit, not an open catch-all tracker; its closure does
+not waive the limits or verification requirements above.
 
 ## Formatting before commits
 

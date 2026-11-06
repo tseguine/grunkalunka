@@ -10,21 +10,22 @@ features for A1 and broader programs after completion of the source-lowering
 architecture migration. Its ordered slices and stacked-PR workflow are the
 current compiler queue; the dated milestone receipts below retain their scope.
 
-## Current status (2026-11-01)
+## Current status (2026-11-06)
 
-**L3/L4/L5 remain in progress, with a much broader synchronous WasmGC source slice.**
-The shared IR now executes source ordinary objects, sparse arrays, lossless UTF-16
-Strings, static own-data-property reads/writes, identity and truthiness, and
-traced reference/managed-value transport through named helpers and selected
-closures, captures, callbacks and factories. Function values can inhabit
-managed containers, and statically proven fields can be called with checked
-signatures. The [accepted GC direction](adr/0019-wasmgc-runtime.md) does **not**
-imply prototype-aware/dynamic property semantics, general coercion, Symbol/BigInt,
-public reference exports, catchable general synchronous exceptions or traced
-managed references in suspended async frames. Existing numeric/primitive profiles
-remain independently supported. See [managed values](managed-values.md).
+**The language milestones L3/L4/L5 remain in progress.** The planned
+[source-lowering architecture migration](lowering-refactor-validation-2026-11-03.md)
+through its separately numbered L3/L4/L5 refactoring stages is complete.
+The shared IR executes objects, sparse arrays, lossless UTF-16 Strings,
+checked helpers/closures/captures, nested bindings/rest, collection/String
+operations and scoped dynamic dictionary/property operations. Traced managed
+references survive supported suspension and related child activations.
+[Local synchronous catches and finalizers](synchronous-errors.md) also execute.
+General runtime calls/coercion/prototypes, cross-call synchronous errors,
+Symbol/BigInt, managed Promise payloads and public reference exports remain
+boundaries. Existing numeric/primitive profiles keep their contracts. See the
+[feature train](javascript-feature-train.md) and [managed values](managed-values.md).
 
-**A1 update (2026-11-04): Planned, with a connected live application.** Authorized
+**A1: in development, with a connected live application.** Authorized
 Markdown/WIT, native input, an actual source-compiled scalar WIT service call,
 Rust-owned action state and readable bitmap reflow/repaint now run together.
 [Owned sessions and replay](a1-session-replay.md) carry the view through repeated
@@ -37,25 +38,26 @@ budget and native control targeting even when the title is partly clipped. The
 selected note can be reloaded after external edits without replacing the session
 or its budget. A fixed catalog of up to eight launch-selected paths adds explicit
 note switching; failed switches and reloads preserve the previous selected
-identity, document and frame.
-The typed view/resource contract and broader application-facing
-Rust/JS parity remain acceptance gates. Each action still uses a fresh guest Store.
-See
-[A1 integration](a1-note-preview.md) and [steering #52](https://github.com/tseguine/grunkalunka/issues/52).
+identity, document and frame. Revisited notes restore their own reading state;
+reconnect recovers the settled view without replaying an uncertain action.
+The bounded pilot, integration and recovery objectives are completed. Each
+action still uses a scalar service interface and fresh guest Store. The public
+typed view/resource proposal in [#483](https://github.com/tseguine/grunkalunka/issues/483)
+was retired as unselected. A broader acceptance target needs a concrete selected
+scope; that retired proposal is not an active gate. See [A1 integration](a1-note-preview.md).
 
-**Near-term convergence steering (advisory, not reassignment):** [#334](https://github.com/tseguine/grunkalunka/issues/334)
-tracks two bounded managed-result and stored-function `for-let` fixtures using
-the iteration-cell renewal from [#374](https://github.com/tseguine/grunkalunka/pull/374);
-the original numeric mismatch is corrected. [#355](https://github.com/tseguine/grunkalunka/issues/355)
-tracks runtime semantic operations and catchable source errors; [#356](https://github.com/tseguine/grunkalunka/issues/356)
-tracks GC-traced suspended references and identity ownership. Source/IR/JSON/layout
-stack-depth hardening continues under [#281](https://github.com/tseguine/grunkalunka/issues/281).
-See the [engine steering gates](javascript-engine-steering.md); these do not
-replace the current independently owned workstreams.
+**Resolved steering:** [#334](https://github.com/tseguine/grunkalunka/issues/334)'s
+two managed-result/stored-function `for-let` fixtures are implemented in #573.
+[#356](https://github.com/tseguine/grunkalunka/issues/356)'s traced-suspension
+proof is complete. #355's runtime own-key proof is implemented; its indefinite
+remainder, #300's broad value umbrella and #281's open-ended stack audit were
+retired. Their closure does not claim complete JavaScript or waive stack/test
+requirements. See [current engine steering](javascript-engine-steering.md) for
+the distinction between completed proofs and unselected future work.
 
-The [canonical corpus](../tests/compatibility/corpus.mjs) declares **version 96**
-at the inspected revision. Source program counts, rejection inventories, executed
-engine comparisons and old experiment receipts below are revision-specific,
+The [canonical corpus](../tests/compatibility/corpus.mjs) and completed reports
+provide current fixture counts. Rejection inventories, executed engine
+comparisons and old experiment receipts below are revision-specific,
 **not** a percentage of ECMAScript compatibility. [CLI diagnostics](observability.md)
 are opt-in.
 
@@ -64,6 +66,13 @@ are opt-in.
 Use small coherent commits, meaningful tests, proportional review and clear
 limitations. Each experiment should resolve a concrete engineering uncertainty
 before broader implementation depends on its result.
+
+Current admission is described by the feature contracts linked above. The
+following incremental receipts retain their original scope; later increments
+can supersede an earlier limitation without changing that historical evidence.
+
+<details>
+<summary>Earlier compiler/runtime increments and their original boundaries</summary>
 
 The initial L1/L2/C1/R1 horizon has been demonstrated; its measurements below are
 historical evidence, not the current work queue. The compiler/runtime stream now
@@ -194,6 +203,8 @@ also addresses the coordination finding
 in [steering #37](https://github.com/tseguine/grunkalunka/issues/37) without
 changing those streams' scope or the maintainer's priorities.
 
+</details>
+
 ## Lowering track
 
 | Milestone | Status | Demonstration / completion evidence |
@@ -201,9 +212,9 @@ changing those streams' scope or the maintainer's priorities.
 | L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Compiler contract](compiler.md). |
 | L1 — local values and decisions | Done | Numeric `const` locals and comparison-controlled ternaries; the L1 run had 31 JS/TS pairs, 76,508 engine comparisons and 64 rejected inputs. Bindings become available after their initializer. |
 | L2 — mutable control flow | Demonstrated | Numeric mutation, lexical blocks, `if`/`else`, early returns, numeric truthiness and `while`/`for`/`do...while`; the initial L2 run had 72 JS/TS pairs, 177,696 comparisons and 100 rejections. NaN/±0 conditions, nested loops, per-entry initialization and selected branches agree with JS. A separate runtime test observes OutOfFuel and successful instance reuse. Numeric compound assignments, prefix/postfix updates and parenthesized write statements are now admitted. Unlabelled break/continue now target the nearest while/for/do loop; switch, labels and other control forms remain explicit compatibility gaps. |
-| L3 — functions and modules | In progress | Named helpers and admitted local/runtime closures support captured cells, aliases, callbacks, factories, returned values and canonical module-level function identities. [Managed helpers and synchronous closures](managed-values.md) carry objects, arrays, Strings and mixed values through checked call signatures; known own-field calls execute. The two [#334 for-let fixtures](https://github.com/tseguine/grunkalunka/issues/334) use the existing per-iteration cell renewal for managed results and stored function identity. Nested declarations, general dynamic calls and complete module graphs/initialization remain. |
-| L4 — JS value semantics | In progress | The [shared-IR WasmGC slice](managed-values.md) executes four primitive kinds plus lossless Strings, ordinary objects, sparse arrays, static own-data properties, reference identity, truthiness/typeof, and managed values in synchronous helpers/captures/closures. Some source function-valued fields are callable only with complete static signature proofs. [Runtime-dependent property/call semantics and catchable errors #355](https://github.com/tseguine/grunkalunka/issues/355), prototype lookup, general coercion, Symbol/BigInt, public reference ownership and [managed suspended frames #356](https://github.com/tseguine/grunkalunka/issues/356) remain open. The separate [JSON heap experiment](heap-literals.md) has a different transport. |
-| L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. Immediate primitive async closures materialize stable Promise identities from compact completions; stored rejection, homogeneous forwarding and async-return adoption are supported. Conditional/comma/logical async returns now select primitive or represented Promise leaves before adoption, preserving lexical evaluation errors and selected reaction jobs. Equality can compare selected Promise/primitive operands before adoption without adding jobs or handling rejections. Const and let mixed locals, aliases and captured cells retain the raw kind until equality, logical tests, explicit await or async return consumes it. Simple and logical assignments preserve raw snapshots and selected RHS effects. General synchronous exceptions, recursive initialization, broader mixed-value storage/private interfaces, exported mixed pending/scalar input domains and general Promise/thenable values remain. Homogeneous pending inputs retain handles through known/runtime calls, callbacks, captures and synchronous forwarding. Represented Promise/General mixtures now pass through private parameters and typed argument frames, including callbacks, factories, captures and async consumption. Ordinary synchronous private returns now preserve the same raw carrier through concise/block bodies, implicit undefined, callbacks and forwarding; returning alone adds no adoption or handling. Detached primitive child rejections and later handling now use guest FIFO notifications, Node native checkpoint reporting and a consuming Wasmtime API; this does not complete arbitrary Promise objects or HTML event-loop policy. Async try/catch/finally now preserves pending completions through suspended cleanup, supports abrupt finalizer overrides, and defers return adoption until cleanup ends. No blanket compatibility claim from these slices. |
+| L3 — functions and modules | In progress | Named helpers and admitted runtime closures support captures, aliases, callbacks, factories, returned values and canonical module-level identities. [Managed calls](managed-values.md) transport objects, arrays, Strings and mixed values through checked signatures; known own-field calls execute. [#573](https://github.com/tseguine/grunkalunka/pull/573) completes the two #334 loop-capture fixtures. Nested declarations, unrestricted dynamic calls/receivers and complete module graphs/live bindings remain. |
+| L4 — JS value semantics | In progress | The [shared-IR WasmGC path](managed-values.md) supplies primitives, lossless Strings, objects, sparse arrays, identity/truthiness/typeof, managed helpers/captures, collection operations and scoped dynamic dictionary keys/property membership. [Nested binding patterns](object-binding-patterns.md), rest/spread and String processing compose with that path. General prototype/accessor/coercion behaviour, Symbol/BigInt and public reference ownership remain. The separate [JSON heap experiment](heap-literals.md) has a different transport. |
+| L5 — exceptions, closures and async | In progress | [Async](async.md) preserves represented Promise identities, adoption, rejection notifications, ordered reactions, catches/finalizers and traced managed storage across related suspended activations. [Synchronous source errors](synchronous-errors.md) admit same-function primitive catches and cleanup. Cross-call/uncaught synchronous errors, broader reason values, managed Promise settlements/await operands, general thenables and public reference results remain outside the contract. |
 | T1 — tsrs integration | Research gate | Pin source; perform one real type query associated with an expression; compare tsrs-only against Oxc+tsrs representations. Type information must not erase observable JS behavior. |
 
 L1/L2 retain an explicitly numeric ABI during the experiment. They expand a
@@ -220,8 +231,8 @@ be represented internally without changing the public two-number/result-number A
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | D1 — capability-backed Markdown inspection | Demonstrated | Closed [issue #27](https://github.com/tseguine/grunkalunka/issues/27): the real [Markdown guest and WIT component](document-outline-component.md) consume only host-authorized in-memory documents, return typed owned outline lists and original ranges matching the native library, and distinguish policy errors from malformed data and traps. [Multi-document grant isolation](document-outline-authority.md) checks denial without backing reads, alias revocation, owner collisions and forged guest borrow indices. Final [PR #40](https://github.com/tseguine/grunkalunka/pull/40) passed complete [Linux/Windows/macOS CI](https://github.com/tseguine/grunkalunka/actions/runs/40505705440). No filesystem/vault authority, persistence, source-language imports or finished application is claimed. |
 | P1 — portability and costs | In progress | [Evidence ledger and remaining gaps](p1-evidence.md): correctness-checked build/compile, WIT/component, Node/V8 and Wasmtime replay, Markdown workloads, source/binary provenance and same-process comparisons. [#76](https://github.com/tseguine/grunkalunka/pull/76) provides same-byte GCD replay; [#83](https://github.com/tseguine/grunkalunka/pull/83) executes the identical x64-produced bytes on native Linux ARM64 in Node/V8 and Wasmtime. [#84](https://github.com/tseguine/grunkalunka/pull/84) builds and tests the Markdown/WIT pipeline on native Linux ARM64, without claiming cross-host guest byte identity. [#77](https://github.com/tseguine/grunkalunka/pull/77) measures bounded repeated real compiler API calls, not isolated lower/IR/emit phases. Whole-process memory observations, scalar call controls and standalone Oxc phase timings remain separately characterized. **Broader ARM64 application portability, production-stage attribution, comparable multi-host measurements, guest-attributed memory and full application costs remain open.** |
-| A1 — first useful framework app | Planned (connected live application; typed view gate open) | [A1 sessions](a1-session-replay.md) join granted/denied WIT Markdown, repeated native input, actual source-compiled scalar WIT calls, retained host state and readable native repaint. The [live application](a1-live-application.md) presents native pixels with pointer, wheel and keyboard input, including the full scrollable outline; its [detached bundle](a1-live-package.md) runs outside the checkout. The [remaining gate](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities) includes the typed view/resource boundary and application-facing Rust/JS parity; native OS windows, broader typography and persistent guest globals remain open. |
-| B1 — reusable browser pieces | In progress (headless experiment) | Independent Rust [block layout and semantic projection](block-layout.md), [RGB background/border painting and caller-supplied bitmap ink](block-paint.md), [native hit testing/scrolling](headless-hit-test.md), and selected [real browser geometry/input comparisons](browser-native-block-bridge.md) exist. They do **not** provide HTML/CSS parsing/cascade, text measurement or glyph rendering, DOM event dispatch, a window manager, or a complete browser/application. Reusable libraries remain independent of any final shell. |
+| A1 — first useful framework app | In development (connected live prototype) | [A1 sessions](a1-session-replay.md) join granted/denied WIT Markdown, repeated native input, actual compiled scalar WIT calls, retained host state and readable repaint. The [live application](a1-live-application.md) adds scrolling, note switching, per-note reading state, reload and reconnect; its [detached bundle](a1-live-package.md) runs outside the checkout. Bounded pilot/integration/recovery units are complete. The public typed-view proposal was retired as unselected; the next broader acceptance target needs concrete scope. Broader typography, native OS windows and persistent guest globals remain future capabilities. |
+| B1 — reusable browser pieces | In progress (native layout/paint/input) | Independent Rust [block/fixed-row layout](block-layout.md), wrapping/gaps/selected alignment, semantic projection, [RGB paint and bitmap ink](block-paint.md), [hit testing/scrolling](headless-hit-test.md), and independent [browser geometry/input comparisons](browser-native-flex-bridge.md) exist. General HTML/CSS parsing/cascade, font shaping, DOM event dispatch and a complete browser remain outside this bounded resolved-style engine. Reusable libraries remain independent of any final shell. |
 | M1 — alternative markup + converters | Research gate | Evaluate KDL/SDLang as application authoring syntaxes for XHTML-equivalent documents. Support includes round-trip converters: preserve namespaces, attributes, ordered mixed text/elements, significant whitespace and comments. Reject unsupported constructs without data loss. Exact source formatting/trivia preservation is a separate fidelity contract. |
 
 ### Later authoring option: XAML

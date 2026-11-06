@@ -7,38 +7,41 @@ stacked PRs. The research questions and dated implementation snapshots below
 provide context for that queue.
 
 The maintained JS/TS compiler uses Oxc semantics and a verified structured IR.
-Its independent numeric, primitive, bounded async and synchronous WasmGC
+Its independent numeric, primitive, bounded async and managed-value
 profiles are executable in the supported subset, not a full JavaScript engine.
 The async path supports selected Promise identities, suspension, adoption,
-rejections and finally; general synchronous exceptions, managed suspension and
-general Promise/thenable behavior remain open. The current
-[engine steering review](javascript-engine-steering.md) names the next
-cross-stream integration proofs.
+rejections and finally, with engine-traced managed storage across related
+suspended activations. Local synchronous primitive catches/finalizers also
+execute. Cross-call synchronous errors, managed Promise payloads and general
+Promise/thenable behavior remain open. The current
+[engine steering review](javascript-engine-steering.md) distinguishes completed
+proofs, retired proposals and remaining source contracts.
 
 Implementation choices should earn their place through small experiments.
 This is a sequence of questions and exit criteria, not a promise that any
 prototype becomes the permanent architecture. The
 [external testing plan](testing.md) tracks adopted reference suites and evidence.
 
-## Current implementation snapshot (2026-11-01)
+## Current implementation snapshot (2026-11-06)
 
-The synchronous [WasmGC source path](managed-values.md) supports fresh object
-and sparse-array literals, Strings, static own-data-property operations,
-aliases/identity and truthiness, managed parameters/results, traced captured
-cells, stored function values, callbacks/factories and statically checked
-known-field calls. Those improvements supersede the older source-object-only
-snapshot. Known Number operations remain directly f64. Dynamic keys, prototype
-lookup, coercion, general runtime calls, Symbol/BigInt, public reference exports
-and suspended GC references are **not** established. [ADR 0019](adr/0019-wasmgc-runtime.md)
-records the **accepted** WasmGC direction without selecting a final value layout.
-[Semantic operations steering #355](https://github.com/tseguine/grunkalunka/issues/355)
-and [async managed lifetime #356](https://github.com/tseguine/grunkalunka/issues/356)
-record the two next architectural seams. [#374](https://github.com/tseguine/grunkalunka/pull/374)
-corrected the original numeric `for-let` closure bug. The two managed-result and
-stored-function fixtures in [#334](https://github.com/tseguine/grunkalunka/issues/334)
-now use the existing per-iteration cell renewal.
+The [WasmGC source path](managed-values.md) supports objects, sparse arrays,
+Strings, identity/truthiness, checked helper/closure calls and traced captures.
+Nested binding patterns, rest/spread copies, collection/String operations,
+scoped dynamic dictionary keys and intrinsic property membership extend practical
+application authoring. Related async activations retain actual managed references
+in engine-traced storage. Known Number operations remain directly f64.
+General prototype/accessor/coercion behaviour, arbitrary runtime calls,
+Symbol/BigInt, managed Promise payloads and public reference exports remain
+outside the contract. [ADR 0019](adr/0019-wasmgc-runtime.md) records the accepted
+initial rooting design without selecting a final public value layout.
+[#356](https://github.com/tseguine/grunkalunka/issues/356)'s bounded suspension
+proof is complete. [#355](https://github.com/tseguine/grunkalunka/issues/355)'s
+runtime own-key proof is implemented and its indefinite remainder retired.
+[#573](https://github.com/tseguine/grunkalunka/pull/573) completes
+[#334](https://github.com/tseguine/grunkalunka/issues/334)'s two managed-result
+and stored-function `for-let` fixtures after #374's numeric correction.
 
-The A1 application update of 2026-11-04 connects authorized Markdown inspection,
+The A1 application connects authorized Markdown inspection,
 native input, source-to-WIT service calls and readable native repaint.
 [Owned sessions](a1-session-replay.md) retain host view state across repeated
 inputs, with [detached interaction packaging](a1-session-package.md).
@@ -49,12 +52,21 @@ pointer input's ordering, grants and attempt budget.
 A fixed launch catalog of up to eight notes supports explicit selection through
 the same worker. Selection commits identity with the document and native frame;
 reload incorporates external edits at the committed path. Failed selection or
-reload retains the last good note and frame.
-[A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
-still requires the typed view/resource interface and application-facing Rust/JS
-parity; a general DOM implementation is not a prerequisite. Native-stack-sensitive compiler and JSON
-paths have received iterative refactors; [#281](https://github.com/tseguine/grunkalunka/issues/281)
-tracks remaining cases. CLI diagnostics are [opt-in](observability.md).
+reload retains the last good note and frame. Revisited notes restore their own
+reading state, and reconnect synchronizes the retained session without replaying
+an uncertain action. The bounded pilot/integration and recovery objectives in
+[#52](https://github.com/tseguine/grunkalunka/issues/52),
+[#54](https://github.com/tseguine/grunkalunka/issues/54) and
+[#549](https://github.com/tseguine/grunkalunka/issues/549) are completed.
+The public typed view proposal in [#483](https://github.com/tseguine/grunkalunka/issues/483)
+was retired as unselected; a future broader acceptance target needs a concrete
+scope. The application still uses a scalar service interface and fresh guest
+Store per action.
+
+The planned [source-lowering migration](lowering-refactor-validation-2026-11-03.md)
+is merged. [#281](https://github.com/tseguine/grunkalunka/issues/281) is a retired
+open-ended tracker; native-stack limits and focused regressions remain active
+engineering requirements. CLI diagnostics are [opt-in](observability.md).
 
 The lower sections preserve historical experimental receipts and may describe
 older limitations already superseded by later PRs. For current source support,
@@ -81,9 +93,10 @@ explores Rust/JS/TS parity for WIT service APIs, WASI-based application services
 provider/shim extensibility, window/view/surface separation, worker/async/opt-in
 parallel execution, explicit trust/process placement and reduced cross-boundary
 marshalling. These are proposed principles, **not** adopted public APIs or
-new implementation assignments. The near-term [A1 acceptance gate](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
-uses a now-executed opt-in scalar source-compiled WIT call as a **prerequisite**,
-not a finished interactive application or general-purpose module interface.
+new implementation assignments. The [A1 application](a1-note-preview.md) already
+uses the opt-in scalar source-compiled WIT call in its live input/state/repaint
+loop. Its older acceptance proposals retain historical context without selecting
+a public typed interface or general-purpose module contract.
 
 Type annotations cannot by themselves justify changing observable JavaScript
 behavior. A narrow lowering experiment may reject features it cannot implement;

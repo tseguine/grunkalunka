@@ -290,6 +290,8 @@ reported in the PRs.
 This slice establishes a live browser input/pixel surface for the existing A1
 application. It does not implement a native OS window manager, persistent guest
 globals, a general DOM, broader Unicode typography or the typed view/resource
-contract tracked in [#483](https://github.com/tseguine/grunkalunka/issues/483).
-Those limits remain separate from the working source-to-service-to-native-frame
-path and do not change the A1 acceptance status.
+contract proposed in [#483](https://github.com/tseguine/grunkalunka/issues/483).
+That proposal was retired as unselected; it is not an active implementation
+gate. These future capabilities remain separate from the working
+source-to-service-to-native-frame path. The broader A1 milestone remains in
+development, with the next acceptance target to be scoped explicitly.

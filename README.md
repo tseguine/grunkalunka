@@ -164,9 +164,11 @@ Package it with `--live` for a [detached live application](docs/a1-live-package.
 that runs without the checkout or runtime recompilation.
 
 The experimental service still uses a scalar interface and each action has a
-fresh guest Store. A typed view/resource contract, broader Unicode typography,
-native OS window integration and general module imports remain open; this does not
-declare full A1 acceptance or a public UI API.
+fresh guest Store. A public typed view/resource contract, broader Unicode
+typography, native OS window integration and general module imports remain
+future capabilities. The [typed-interface proposal](https://github.com/tseguine/grunkalunka/issues/483)
+was retired without selecting a design; the broader A1 milestone remains in
+development with its next acceptance scope to be defined explicitly.
 
 ## Workspace
 
