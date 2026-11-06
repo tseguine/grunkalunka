@@ -421,7 +421,13 @@ impl Fields {
             let numeric_property = match node.kind() {
                 AstKind::UpdateExpression(update) => Some(&update.argument),
                 AstKind::AssignmentExpression(assignment)
-                    if evaluate::property_update::compound(assignment.operator).is_some() =>
+                    if evaluate::property_update::compound(assignment.operator).is_some()
+                        || matches!(
+                            assignment.operator,
+                            AssignmentOperator::LogicalAnd
+                                | AssignmentOperator::LogicalOr
+                                | AssignmentOperator::LogicalNullish
+                        ) =>
                 {
                     assignment.left.as_simple_assignment_target()
                 }
@@ -785,6 +791,17 @@ impl Fields {
                     {
                         definitions.push(Definition::Value(target, a.right.node_id()));
                         Some(Rule::Symbol(target))
+                    } else if let Some(target) = a.left.as_simple_assignment_target() {
+                        Some(Rule::Logical(
+                            match a.operator {
+                                AssignmentOperator::LogicalAnd => LogicalOperator::And,
+                                AssignmentOperator::LogicalOr => LogicalOperator::Or,
+                                AssignmentOperator::LogicalNullish => LogicalOperator::Coalesce,
+                                _ => unreachable!("checked logical assignment"),
+                            },
+                            target.node_id(),
+                            a.right.node_id(),
+                        ))
                     } else {
                         values.insert(id, BTreeSet::from([Origin::Other]));
                         None
