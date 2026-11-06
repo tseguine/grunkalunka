@@ -91,9 +91,11 @@ The rest result has a proven Array receiver, so its length, existing array
 operations, `Object.keys` and generic iteration are available. `Object.keys`
 uses the positive container proof even though the binding stays boxed; unknown
 or nullable alternatives retain their existing completion-profile boundary.
-The rest result's element origins remain
-opaque: copying known source values does not yet prove String or container kinds
-for selections from the result. Equality, truthiness, storage and reference
+A `for...of` over a rest array can prove String or container kinds when all
+possible values in the copied suffix have that kind. Skipped positions and
+named properties do not contribute. Holes in the suffix, structural mutation,
+unknown source arrays and cyclic copies keep the iteration conservative. A
+direct indexed read of the rest array still has a generic managed value. Equality, truthiness, storage and reference
 identity remain available through the managed carrier.
 
 Mutable leaves use the existing lexical slots and captured cells. Traditional

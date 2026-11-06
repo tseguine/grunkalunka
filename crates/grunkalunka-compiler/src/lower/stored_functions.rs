@@ -100,7 +100,7 @@ fn pattern_definitions(
             BindingPattern::ArrayPattern(array) => {
                 if let Some(rest) = &array.rest {
                     // Rest constructs a fresh array allocation. Its copied
-                    // element origins remain opaque, so it gets no field map.
+                    // positions stay opaque; iteration tracks the source tail separately.
                     pending.push((&rest.argument, Rule::Known(Origin::Array(rest.node_id()))));
                 }
                 for (index, element) in array.elements.iter().enumerate().rev() {
@@ -231,6 +231,7 @@ impl Fields {
         // Explicit properties after it may still establish their own origins.
         let mut open_fields = BTreeSet::new();
         let mut rest_sources = BTreeMap::new();
+        let mut elements = elements::Elements::default();
         let mut writes = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -246,6 +247,12 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            if let AstKind::ArrayPattern(pattern) = node.kind()
+                && let Some(rest) = &pattern.rest
+                && let Ok(start) = u32::try_from(pattern.elements.len())
+            {
+                elements.add_rest(rest.node_id(), id, start);
+            }
             if let AstKind::ObjectPattern(pattern) = node.kind()
                 && let Some(rest) = &pattern.rest
                 && let Some(excluded) = pattern
@@ -593,7 +600,6 @@ impl Fields {
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
         let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
-        let mut elements = elements::Elements::default();
         let mut finalized_unresolved = false;
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();

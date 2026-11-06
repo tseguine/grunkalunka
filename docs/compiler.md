@@ -53,7 +53,7 @@ Array rest consumes the remaining positions into a fresh dense array after
 earlier defaults finish. Holes become own Undefined entries, references retain
 identity and element slots are independent of the source. Rest preserves the
 saved receiver and persistent exhaustion state. Its result is a proven Array;
-the copied element origins remain conservative.
+iterating the copy can use proven suffix element kinds; indexed reads stay generic.
 
 Every receiver needs a positive source proof of its object or array kind.
 Unknown, nullable and incompatible alternatives remain conservative, including

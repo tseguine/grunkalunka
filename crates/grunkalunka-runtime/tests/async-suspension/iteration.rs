@@ -140,3 +140,13 @@ fn destructuring_for_of_keeps_fresh_cells_and_abrupt_head_completion() {
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn iterated_rest_records_retain_their_labels_across_await() {
+    compare_promises(
+        &[
+            "const rows=[a,{label:' one '},{label:' two '}];const [,...tail]=rows;await a;let n=0;for(const {label} of tail){await b;n+=label.trim().length;}return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

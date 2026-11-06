@@ -69,6 +69,11 @@ an earlier apparent proof cannot discard a later unknown alternative. Arrays
 created by runtime operations such as `Object.keys` remain iterable without
 proving the kind of their elements.
 
+For an array-rest result, iteration proofs follow the source positions at or
+after the rest offset. A heterogeneous header or an elided hole before that
+offset does not contribute. Chained tails combine offsets; a cyclic chain
+retains an unknown alternative.
+
 Analysis first reaches a fixed point, then marks unresolved value rules as
 unknown and propagates those facts again. This prevents an unresolved cycle
 from disappearing beside a known alternative. Proven records and nested arrays

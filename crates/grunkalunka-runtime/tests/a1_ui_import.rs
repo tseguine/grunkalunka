@@ -615,7 +615,10 @@ fn imported_handler_uses_an_independent_rest_list_with_shared_heading_values() {
             const [title,...headings] = source;
             source[1] = {label:' replacement '};
             const retained = headings.at(0) === heading;
-            const count = Object.keys(headings).length;
+            let count = 0;
+            for (const {label} of headings) {
+                if (label.trim().length > 0) count++;
+            }
             return choose(a > 0 && retained && title.label.trim().length > 0 ? 1 : 0, count);
         }"#,
     );

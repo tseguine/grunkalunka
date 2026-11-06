@@ -3,11 +3,18 @@ use super::{Alternatives, BTreeMap, BTreeSet, Key, NodeId, Origin, extend, mutat
 
 #[derive(Default)]
 pub(super) struct Elements {
-    writes: BTreeMap<NodeId, Alternatives>,
+    // Rest allocation -> (source pattern, number of consumed positions).
+    rest_sources: BTreeMap<NodeId, (NodeId, u32)>,
+    writes: BTreeMap<(NodeId, u32), Alternatives>,
+    wildcard_writes: BTreeMap<NodeId, Alternatives>,
     maybe_holes: BTreeSet<NodeId>,
 }
 
 impl Elements {
+    pub(super) fn add_rest(&mut self, array: NodeId, receiver: NodeId, start: u32) {
+        self.rest_sources.insert(array, (receiver, start));
+    }
+
     pub(super) fn write(
         &mut self,
         array: NodeId,
@@ -20,11 +27,11 @@ impl Elements {
             // later writes expose again, so every length write is conservative.
             return self.maybe_holes.insert(array);
         }
-        if !mutations::array_index(key) {
+        let Some(index) = mutations::array_index(key) else {
             // Named properties are not selected by Array iteration.
             return false;
-        }
-        let mut changed = extend(&mut self.writes, array, values);
+        };
+        let mut changed = extend(&mut self.writes, (array, index), values);
         if !fields.get(&array).is_some_and(|own| own.contains_key(key)) {
             // The flow-insensitive plan cannot prove contiguous extension or
             // that another mutation has not shortened the receiver meanwhile.
@@ -37,7 +44,7 @@ impl Elements {
         // The key could be length or a new index, even while its RHS remains
         // unresolved. Record that structural possibility independently of values.
         let changed = self.maybe_holes.insert(array);
-        extend(&mut self.writes, array, values) || changed
+        extend(&mut self.wildcard_writes, array, values) || changed
     }
 
     pub(super) fn select(
@@ -47,27 +54,67 @@ impl Elements {
         fields: &BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>>,
         index_deletes: &BTreeSet<NodeId>,
     ) -> Alternatives {
+        enum Step {
+            Read(Origin, u32),
+            Finish(NodeId),
+        }
+
+        let origins = |id: NodeId| values.get(&id).into_iter().flatten().copied();
+        let mut roots = origins(receiver).map(|origin| Step::Read(origin, 0));
+        let mut work = Vec::new();
+        let mut active = BTreeSet::new();
+        let mut min_start = BTreeMap::new();
         let mut found = Alternatives::new();
-        for origin in values.get(&receiver).into_iter().flatten() {
-            let Origin::Array(array) = origin else {
-                found.insert(Origin::Other);
-                continue;
+        while let Some(step) = work.pop().or_else(|| roots.next()) {
+            let (array, start) = match step {
+                Step::Read(Origin::Array(array), start) => (array, start),
+                Step::Read(_, _) => {
+                    found.insert(Origin::Other);
+                    continue;
+                }
+                Step::Finish(array) => {
+                    active.remove(&array);
+                    continue;
+                }
             };
-            if let Some(own) = fields.get(array) {
+            if self.maybe_holes.contains(&array) || index_deletes.contains(&array) {
+                found.insert(Origin::Other);
+            }
+            found.extend(self.wildcard_writes.get(&array).into_iter().flatten());
+            for (_, written) in self.writes.range((array, start)..=(array, u32::MAX)) {
+                found.extend(written);
+            }
+            if let Some(&(source, skipped)) = self.rest_sources.get(&array) {
+                if active.contains(&array) {
+                    found.insert(Origin::Other);
+                    continue;
+                }
+                // A previous traversal starting earlier already covers all of
+                // this suffix. Revisit only when a path exposes more positions.
+                if min_start
+                    .get(&array)
+                    .is_some_and(|&earlier| earlier <= start)
+                {
+                    continue;
+                }
+                min_start.insert(array, start);
+                active.insert(array);
+                work.push(Step::Finish(array));
+                let next = start.saturating_add(skipped);
+                work.extend(origins(source).map(|origin| Step::Read(origin, next)));
+                continue;
+            }
+            if let Some(own) = fields.get(&array) {
                 for (key, value) in own {
-                    if mutations::array_index(key) {
+                    if mutations::array_index(key).is_some_and(|index| index >= start) {
                         if let Some(value) = value {
-                            found.extend(values.get(value).into_iter().flatten());
+                            found.extend(origins(*value));
                         } else {
                             found.insert(Origin::Other);
                         }
                     }
                 }
             } else {
-                found.insert(Origin::Other);
-            }
-            found.extend(self.writes.get(array).into_iter().flatten());
-            if self.maybe_holes.contains(array) || index_deletes.contains(array) {
                 found.insert(Origin::Other);
             }
         }
