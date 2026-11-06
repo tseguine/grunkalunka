@@ -22,6 +22,7 @@ parser or a cascade.
 | `Style::justify_content` | `FlexJustify::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` use each line's remaining content width. |
 | `Style::align_items` | `FlexAlign::Start` by default; `SafeEnd` and `SafeCenter` align each item's outer margin box within its line without stretching. |
 | `Style::align_self` | `None` uses the generated parent row's `align_items`; `Some(FlexAlign)` overrides it for this actual item without inheritance or stretching. |
+| `Style::align_content` | `FlexAlignContent::Start` by default; `SafeEnd`, `SafeCenter` and `SpaceBetween` place natural lines within a wrapped row's used content height. No effect on nowrap rows. |
 | `Style::flex_wrap` | `FlexWrap::NoWrap` by default; `Wrap` greedily collects lines against the row's content width. |
 | `Style::row_gap` | Nonnegative integer pixels between actual lines. Default zero; unused for a single line. |
 | Row auto height | Natural height starts from the tallest normal-flow item margin box per line plus intervening row gaps; the existing intrinsic-height minimum and explicit height bounds then apply. |
@@ -127,8 +128,8 @@ rules with explicit safe overflow handling. The alignment height depends on
 | `FlexWrap::NoWrap` | The row's final used content height, including explicit sizing, min/max bounds and the caller's intrinsic-height minimum. |
 | `FlexWrap::Wrap` | Each line's maximum normal-flow outer item height, even when there is only one actual line or the row's own used height is larger or smaller. |
 
-Wrapped lines stay packed at the content start with the declared row gaps.
-There is no line stretching or distribution of extra container height.
+Wrapped lines retain their natural heights and declared row gaps. Their
+positions follow `align_content`, whose default keeps start packing.
 For either mode, `FlexAlign::SafeEnd` places the available vertical space before
 each item, while `SafeCenter` places half before it. `Start` preserves the
 original top placement. All modes preserve item dimensions and row flow sizes.
@@ -168,6 +169,42 @@ effective mode can require fractional-center rejection: an explicit `Start` or
 item retains that requirement for its selected center mode; a display-none
 subtree has no item obligation. Cross-axis auto margins, stretch and baseline
 alignment remain outside this resolved profile.
+
+## Cross-axis line packing
+
+`Style::align_content` follows selected [flex-line packing](https://www.w3.org/TR/css-flexbox-1/#align-content-property)
+rules with [explicit safe overflow alignment](https://www.w3.org/TR/css-align-3/#overflow-values).
+It applies to `FlexWrap::Wrap`, including a row that collected only one actual
+line. `NoWrap`, ordinary blocks and boxless wrappers ignore it. The property is
+not inherited. This caller-resolved profile defaults to start packing; it does
+not implement CSS's initial `stretch` value.
+
+The available space is the finished row's content height minus its natural
+line heights and actual intervening `row_gap` values. Explicit height,
+min/max constraints and the caller's intrinsic-height minimum affect that used
+height. Relative offsets, item alignment and visual overflow do not change the
+natural line measurements or the following block's flow position.
+
+| Mode | Selected behavior |
+| --- | --- |
+| `FlexAlignContent::Start` | Retain start packing and declared row gaps. |
+| `FlexAlignContent::SafeEnd` | Put nonnegative remaining space before the first line. |
+| `FlexAlignContent::SafeCenter` | Put half the nonnegative remaining space before the first line. |
+| `FlexAlignContent::SpaceBetween` | Add an equal share to each between-line gap; a single line stays at the start. |
+
+All selected modes use start packing when the natural line group overflows.
+`LayoutError::FractionalFlexAlignContent { node }` reports a positive center
+offset or between-line share that is not an integer. Safe fallback occurs
+before this check. Zero-height lines count in the distribution; an empty row
+has no line-placement obligation. A single line ignores `row_gap`.
+
+Packing changes neither line sizes nor item sizes. Each item's `align_items`
+or `align_self` offset still uses its unchanged natural line height. The
+implementation stores line-end indices during the existing iterative layout,
+adds each line's shift to its items' offsets after sizing, and uses the existing
+single final projection for descendants, paint, hit testing and text anchors.
+There is no subtree relayout. Used height does not become a new definite
+percentage-height reference merely because line packing reads it.
 
 ## Boxless and hidden nodes
 
@@ -235,8 +272,8 @@ margins on row items. Ordinary block auto margins and auto margins on a row
 container in a block context keep their existing behavior. Boxless wrappers and
 display-none subtrees have no row-item sizing obligations.
 
-Flexible growth/shrinkage, stretching, baseline alignment, line distribution,
-other main-axis distributions, reverse directions,
+Flexible growth/shrinkage, stretching, baseline alignment, other line and
+main-axis distributions, reverse directions,
 item reordering and percentage gaps are outside this profile. The public enum names the
 specific resolved row profile instead of implying that arbitrary `display:flex`
 declarations are supported. Container row settings are ignored by other display
@@ -265,6 +302,11 @@ semantic reflow, vertical scrolled clipping and projected-coordinate limits.
 fractional admission, safe overflow, wrapped versus nowrap placement, boxless and
 nested-row defaults, ordinary descendants, semantic anchors, paint/scrolled hits
 and the same native-stack/node/depth/coordinate bounds.
+`tests/flex_align_content.rs` checks whole-line placement with all box edges,
+existing gaps and item overrides; single-line wrap versus nowrap, safe overflow,
+fractional and zero-height distributions, height bounds and percentages,
+nested/boxless order, hidden reflow, text anchors, scrolled paint and padding
+clips, and admitted/just-past node/depth limits on a 2 MiB native stack.
 `tests/flex_paint_order.rs` asserts literal pixels and topmost targets for an
 item overflowing onto a following block, nested scope atomicity, ordinary
 subtrees, boxless and hidden nodes, transparent and untargetable boxes, inherited
