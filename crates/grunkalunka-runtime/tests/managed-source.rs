@@ -5,6 +5,25 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn mixed_property_logical_assignments_keep_values_and_saved_receivers() {
+    for body in [
+        "const o={};return o.n||=b;",
+        "const o={x:null};return (o.x??='ok')==='ok'?1:0;",
+        "const o={};return (o.x??=a)===a?1:0;",
+        "const xs=[false];return (xs[0]&&='skip')===false?1:0;",
+        "const o={x:''};if(o.x||='ok')return a;return b;",
+        "const o=Object.create(null);return (o.__proto__??='ok')==='ok'?1:0;",
+        "let current={x:null};const old=current;const value=current.x??=(current={x:false},'new');return old.x===value&&current.x===false?1:0;",
+        "const other={n:a};const o={x:null};const value=o.x||=other;return o.x===other&&value===other?1:0;",
+        "const o={x:'old'};let n=0;const value=o.x||=(n++,'new');o.x='later';return value==='old'&&n===0?1:0;",
+        "const xs=[];xs[2]??='new';return xs.length===3&&xs[0]===undefined&&xs[2]==='new'?1:0;",
+        "const o={x:null};const read=()=>o.x;o.x??='new';return read()==='new'?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn boxed_local_logical_assignments_preserve_kinds_identity_and_effects() {
     for body in [
         "let [x]=[null];return (x??='ok')==='ok'?1:0;",

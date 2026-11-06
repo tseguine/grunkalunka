@@ -39,6 +39,7 @@ import { numericPropertyLogical } from './numeric-property-logical.mjs';
 import { numericLocalUpdates } from './numeric-local-updates.mjs';
 import { numericLocalLogical } from './numeric-local-logical.mjs';
 import { managedLocalLogical } from './managed-local-logical.mjs';
+import { managedPropertyLogical } from './managed-property-logical.mjs';
 import { managedStrings } from './managed-strings.mjs';
 import { deletePrograms } from './delete.mjs';
 import { managedArrays } from './managed-arrays.mjs';
@@ -103,7 +104,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 108;
+export const corpusVersion = 109;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -158,6 +159,7 @@ programs.push(...numericPropertyLogical);
 programs.push(...numericLocalUpdates);
 programs.push(...numericLocalLogical);
 programs.push(...managedLocalLogical);
+programs.push(...managedPropertyLogical);
 programs.push(...managedStrings);
 programs.push(...deletePrograms);
 programs.push(...managedArrays);

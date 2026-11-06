@@ -53,6 +53,15 @@ remain entirely inside the selected branch. Skipped assignments return the old
 snapshot without evaluating the RHS. A proven Number is never nullish, so `??=`
 always retains the old property while still validating the complete source RHS.
 
+Static logical property assignments also preserve represented mixed values in
+managed, predicate and discarded positions. They test the old boxed value by its
+runtime tag, retain String contents and reference identity, and store only after
+the selected RHS succeeds. Missing ordinary data fields and sparse-array elements
+read as Undefined, so `record.label ??= 'default'` can create a field and an indexed
+fallback can grow an array without filling preceding holes. Receiver rebinding
+during RHS effects or suspension does not redirect the saved reference. Runtime
+keys, prototype names, accessors and array-length writes retain their guards.
+
 Mutable local cells populated by destructuring and iteration use the same proven
 Number update path. Prefix/postfix updates and arithmetic/bitwise compound
 assignments load and validate the old boxed Number before evaluating the right
