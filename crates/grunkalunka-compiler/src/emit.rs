@@ -429,6 +429,11 @@ impl Emitter<'_> {
                 self.output.push_str("struct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedStringToArray { result, input } => {
+                self.get(*input);
+                self.output.push_str("call $gc_string_to_array\n");
+                self.set(*result);
+            }
             Op::ManagedStringLength { result, input } => {
                 self.get(*input);
                 self.output.push_str(
@@ -1633,20 +1638,36 @@ fn emit_verified(
     }
     if managed {
         output.push_str(include_str!("emit/managed.wat"));
-        output.push_str(managed_spread::runtime(module));
-        output.push_str(object_rest::runtime(module));
-        output.push_str(has_own::runtime(module));
-        property_membership::emit_runtime(module, &mut output);
-        output.push_str(own_keys::runtime(module));
-        output.push_str(array_at::runtime(module));
-        output.push_str(array_pop::runtime(module));
-        output.push_str(array_rest::runtime(module));
-        output.push_str(string_concat::runtime(module));
-        output.push_str(string_methods::runtime(module));
-        output.push_str(string_methods::iteration_runtime(module));
+        emit_managed_helpers(module, &mut output);
     }
     output.push_str(")\n");
     Ok(output)
+}
+
+fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
+    // Emit the decimal index formatter immediately before its first consumer.
+    let mut emitted_index = false;
+    let mut indexed = |output: &mut String, runtime: &str| {
+        if !runtime.is_empty() {
+            if !emitted_index {
+                output.push_str(include_str!("emit/managed_index.wat"));
+                emitted_index = true;
+            }
+            output.push_str(runtime);
+        }
+    };
+    indexed(output, managed_spread::runtime(module));
+    output.push_str(object_rest::runtime(module));
+    output.push_str(has_own::runtime(module));
+    property_membership::emit_runtime(module, output);
+    indexed(output, own_keys::runtime(module));
+    indexed(output, array_at::runtime(module));
+    indexed(output, array_pop::runtime(module));
+    indexed(output, array_rest::runtime(module));
+    output.push_str(string_concat::runtime(module));
+    output.push_str(string_methods::runtime(module));
+    output.push_str(string_methods::iteration_runtime(module));
+    indexed(output, string_methods::spread_runtime(module));
 }
 
 pub(crate) fn module_has_managed(module: &ir::Module) -> bool {

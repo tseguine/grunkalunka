@@ -1586,17 +1586,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         } else {
             output.push_str(include_str!("managed.wat"));
         }
-        output.push_str(super::managed_spread::runtime(module));
-        output.push_str(super::object_rest::runtime(module));
-        output.push_str(super::has_own::runtime(module));
-        super::property_membership::emit_runtime(module, &mut output);
-        output.push_str(super::own_keys::runtime(module));
-        output.push_str(super::array_at::runtime(module));
-        output.push_str(super::array_pop::runtime(module));
-        output.push_str(super::array_rest::runtime(module));
-        output.push_str(super::string_concat::runtime(module));
-        output.push_str(super::string_methods::runtime(module));
-        output.push_str(super::string_methods::iteration_runtime(module));
+        super::emit_managed_helpers(module, &mut output);
         if error_kinds {
             output.push_str(super::own_keys::FALLIBLE);
         }

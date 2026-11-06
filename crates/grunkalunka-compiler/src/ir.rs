@@ -585,6 +585,10 @@ pub(crate) enum Op {
         units: Vec<u16>,
     },
     // Known-String specialization; the checked projection traps on malformed IR.
+    ManagedStringToArray {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedStringLength {
         result: ValueId,
         input: ValueId,
@@ -1391,6 +1395,10 @@ impl Verifier<'_> {
             Op::ManagedArrayPop { result, array } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringToArray { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
             }
             Op::ManagedArrayRest { result, array, .. } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;

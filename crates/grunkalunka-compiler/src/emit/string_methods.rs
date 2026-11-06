@@ -24,10 +24,25 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
 pub(super) fn iteration_runtime(module: &ir::Module) -> &'static str {
     if module.functions.iter().any(|f| {
         ir::any_operation(&f.body, &mut |op| {
-            matches!(op, ir::Op::ManagedStringIterValue { .. })
+            matches!(
+                op,
+                ir::Op::ManagedStringIterValue { .. } | ir::Op::ManagedStringToArray { .. }
+            )
         })
     }) {
         include_str!("string_iterator.wat")
+    } else {
+        ""
+    }
+}
+
+pub(super) fn spread_runtime(module: &ir::Module) -> &'static str {
+    if module.functions.iter().any(|f| {
+        ir::any_operation(&f.body, &mut |op| {
+            matches!(op, ir::Op::ManagedStringToArray { .. })
+        })
+    }) {
+        include_str!("string_spread.wat")
     } else {
         ""
     }

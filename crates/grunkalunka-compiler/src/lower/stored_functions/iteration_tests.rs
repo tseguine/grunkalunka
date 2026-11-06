@@ -666,3 +666,15 @@ fn copy_spread_preserves_indexed_origins_without_aliasing_writes() {
         assert!(fact.other && !fact.string, "{body}: {fact:?}");
     }
 }
+
+#[test]
+fn string_spread_index_proofs_distinguish_defaults_and_possible_misses() {
+    assert_eq!(
+        observe("const [s='x']=[...'abc'];const observed=s;return a;"),
+        STRING
+    );
+    let miss = observe("const xs=[...''];const observed=xs[0];return a;");
+    assert!(miss.undefined && !miss.string && !miss.other, "{miss:?}");
+    let write = observe("const xs=[...'x'];xs[0]=a;const [s='x']=xs;const observed=s;return a;");
+    assert!(write.other && !write.string, "{write:?}");
+}

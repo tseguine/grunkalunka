@@ -96,6 +96,11 @@ impl Members<'_, '_> {
         let mut found = Alternatives::new();
         while let Some(step) = work.pop().or_else(|| initial.next()) {
             let (origin, shifted) = match step {
+                Step::Read(Origin::String, Some(_)) => {
+                    // An indexed projection through an iterator copy may miss.
+                    found.extend([Origin::String, Origin::Undefined]);
+                    continue;
+                }
                 Step::Read(origin, shifted) => (origin, shifted),
                 Step::FinishRest(object, shifted) => {
                     active.remove(&object);

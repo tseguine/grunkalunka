@@ -215,6 +215,8 @@ drive an identifier loop. An A1 handler can count characters in a display
 label, treating a supplementary character as a single iteration and preserving
 lone surrogate code units. A1 can snapshot its action list with `[...actions]`
 and iterate the fresh array while retaining the identities of its records.
+Spreading a String into a fresh array gives an A1 handler positional access
+to the code points of a label, including a final supplementary character.
 
 Every object or array receiver, including an empty nested pattern, needs a
 positive source proof of its required kind. String/container facts remain

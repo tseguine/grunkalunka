@@ -200,7 +200,11 @@ fn assignment_member<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
-    pub(super) fn receiver_type(&self, node: &Expression<'_>, depth: usize) -> Option<Type> {
+    pub(in crate::lower) fn receiver_type(
+        &self,
+        node: &Expression<'_>,
+        depth: usize,
+    ) -> Option<Type> {
         match self.managed_source_type(node, depth) {
             Some(Type::ManagedValue) => self.stored.container(node.node_id()),
             ty => ty,
@@ -856,14 +860,16 @@ impl Lowering<'_, '_> {
             }
             if let Expression::ArrayExpression(literal) = node {
                 if let Some(source) = iteration::single_spread(literal) {
-                    if self.receiver_type(source, depth + 1) != Some(Type::ManagedArray) {
-                        return Err(unsupported(
-                            source,
-                            "array copy spread requires a source-proven Array",
-                        ));
-                    }
+                    let mode =
+                        self.intrinsic_iterable_mode(source, depth + 1)
+                            .ok_or_else(|| {
+                                unsupported(
+                                    source,
+                                    "array copy spread requires a source-proven Array or String",
+                                )
+                            })?;
                     work.push(Work::Managed(ManagedWork::SpreadCopy(node)));
-                    work.push(Work::Eval(source, depth + 1, Mode::Array));
+                    work.push(Work::Eval(source, depth + 1, mode));
                     return Ok(true);
                 }
                 let length = u32::try_from(literal.elements.len())
@@ -1170,17 +1176,18 @@ impl Lowering<'_, '_> {
                 );
             }
             ManagedWork::SpreadCopy(node) => {
-                let array = values.pop().expect("spread array").id();
+                let input = values.pop().expect("spread iterable").id();
                 let result = self.value(Type::ManagedArray);
-                Self::push(
-                    regions.current(),
-                    node,
+                let op = if self.values[input.0] == Type::ManagedArray {
                     Op::ManagedArrayRest {
                         result,
-                        array,
+                        array: input,
                         start: 0,
-                    },
-                );
+                    }
+                } else {
+                    Op::ManagedStringToArray { result, input }
+                };
+                Self::push(regions.current(), node, op);
                 values.push(Value::Array(result));
             }
             ManagedWork::Array(task) => self.complete_array(task, regions, values, work)?,

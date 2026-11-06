@@ -568,3 +568,14 @@ fn copy_spread_observes_the_resumed_source_and_retains_fresh_slots() {
         &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn string_copy_spread_keeps_code_point_slots_through_awaits() {
+    compare_promises(
+        &[
+            r"let text='A\u{1f600}';const chars=[...(await b,text)];await a;text='new';return chars.length===2&&chars[1]==='\u{1f600}'?1:0;",
+            r"let n=0;try{const chars=[...(await Promise.reject(a),n=1,'x')];n=2;}catch(e){return n===0&&e===a?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}

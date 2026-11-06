@@ -45,3 +45,19 @@ pub(super) fn single_spread<'n, 'a>(
     };
     Some(&spread.argument)
 }
+
+impl Lowering<'_, '_> {
+    pub(super) fn intrinsic_iterable_mode(
+        &self,
+        source: &Expression<'_>,
+        depth: usize,
+    ) -> Option<evaluate::Mode> {
+        if self.stored.string(source.node_id()) {
+            Some(evaluate::Mode::Managed)
+        } else if self.receiver_type(source, depth) == Some(Type::ManagedArray) {
+            Some(evaluate::Mode::Array)
+        } else {
+            None
+        }
+    }
+}
