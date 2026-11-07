@@ -1,5 +1,6 @@
 // Logical writes preserve selected mixed values in boxed lexical cells.
 export const managedLocalLogical = [
+  ['managed-local-logical-former-guard', "let x='';x||='fallback';return a;"],
   ['managed-local-logical-nullish', "let [x]=[null];return (x??='ok')==='ok'?1:0;"],
   ['managed-local-logical-or', "let {x}={x:''};return (x||=a)===a?1:0;"],
   ['managed-local-logical-and-skip', "let [x]=[false];return (x&&='skip')===false?1:0;"],

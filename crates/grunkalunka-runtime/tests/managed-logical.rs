@@ -4,6 +4,7 @@ mod common;
 #[test]
 fn logical_values_return_the_selected_operand() {
     for source in [
+        "export function run(a,b){let x='';x||='fallback';return a;}",
         "export function run(a,b){const x='';const y=x||'fallback';return y==='fallback'?a:b;}",
         "export function run(a,b){const x='left';const y=x||'fallback';return y===x?a:b;}",
         "export function run(a,b){const x='';const y=x&&'right';return y===x?a:b;}",
@@ -84,7 +85,6 @@ fn unselected_managed_branches_still_require_supported_source() {
     for source in [
         "export function run(a,b){const x={}||missing();return a;}",
         "export function run(a,b){const x={}||{[a]:b};return a;}",
-        "export function run(a,b){let x='';x||='fallback';return a;}",
         "export function run(a,b){const x={}??{};return x;}",
         "export async function run(a,b){const x='v'||'fallback';await a;return a;}",
     ] {
