@@ -2,6 +2,31 @@
 mod common;
 
 #[test]
+fn boolean_logical_cells_keep_selection_snapshots_and_captures() {
+    for body in [
+        "let [flag]=[true];const value=flag&&=false;return value==false&&flag==false?1:0;",
+        "let {flag}={flag:false};return +(flag||=true);",
+        "let [flag]=[false];let n=0;const value=flag??=(n++,true);return value==false&&flag==false&&n===0?1:0;",
+        "let [flag]=[a<b];let n=0;const old=flag;const value=flag&&=(n++,false);return value==false&&flag==false&&n==+old?1:0;",
+        "let [flag]=[false];const read=()=>flag;flag||=true;return read()==true?1:0;",
+        "let [flag]=[false];const set=()=>flag||=true;const value=set();return value==true&&flag==true?1:0;",
+        "let [flag]=[true];const value=flag&&=(flag=false,true);return value==true&&flag==true?1:0;",
+        "let count=0;for(let flag of [true,false]){flag||=true;count+=+flag;}return count;",
+        "let [flag]=[true];let count=0;while(flag){count++;flag&&=false;}return count+ +flag;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){let [flag]=[a<b];flag||=true;return +flag;}";
+    let ts = "export function run(a:number,b:number){let [flag]:number=[a<b];flag||=(true as number);return +(flag as string);}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn boolean_fields_project_as_booleans_before_scalar_coercion() {
     for body in [
         "const o={flag:a<b};return +o.flag;",

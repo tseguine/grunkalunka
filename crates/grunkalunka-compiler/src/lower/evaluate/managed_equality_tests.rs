@@ -1,4 +1,34 @@
 #[test]
+fn boolean_logical_writes_preserve_only_boolean_cells_and_results() {
+    for (body, admitted) in [
+        ("let [flag]=[true];flag&&=false;return +flag;", true),
+        ("let {flag}={flag:false};return +(flag||=true);", true),
+        (
+            "let [flag]=[false];flag??=true;return flag==false?1:0;",
+            true,
+        ),
+        ("let [flag]=[true];flag&&=a;return flag==true?1:0;", false),
+        ("let [flag]=[true];flag++;return flag==true?1:0;", false),
+        ("let [flag]=[true];flag-=1;return flag==true?1:0;", false),
+        (
+            "let [flag]=[a?true:b];flag||=false;return flag==true?1:0;",
+            false,
+        ),
+        ("const [flag]=[false];flag||=true;return +flag;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    assert!(crate::compile("export function run(a,b){let [flag]=[true];flag&&=(a as unknown as boolean);return flag==true?1:0;}",true).is_err());
+}
+
+#[test]
 fn boolean_projection_and_await_require_positive_boolean_origins() {
     for (body, admitted) in [
         ("const o={flag:true};return +o.flag;", true),
