@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn string_relational_values_keep_snapshots_rejections_and_await_order() {
+    compare_promises(
+        &[
+            "return (await 'a')<(await 'b')?1:0;",
+            "return (await 'a')<=(await 'a')?1:0;",
+            "return (await 'b')>(await 'a')?1:0;",
+            "return (await 'a')>=(await 'a')?1:0;",
+            "let text='a';const value=text<(await b,text='z','b');return value&&text==='z'?1:0;",
+            "const o={s:'b'};const read=()=>o.s;const value=read()>(o.s='',await b,'a');return value&&o.s===''?1:0;",
+            "let n=0;try{const value=(n++,'a')<(await Promise.reject(b),'b');return value?9:8;}catch(e){return e===b&&n===1?1:0;}",
+            "const flags=[(await(await 'a'))<'b'];await b;return flags[0]==true?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn boolean_logical_cells_keep_origins_through_selected_awaits() {
     compare_promises(
         &[

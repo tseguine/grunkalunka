@@ -1,6 +1,46 @@
 use super::*;
 
 #[test]
+fn string_comparison_checks_visible_managed_operands_and_predicate_result() {
+    for invalid in 0..7 {
+        let mut module =
+            crate::lower_source("export function run(a,b){return 'a'<'b'?1:0;}", false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (result, left, right) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedStringCompare {
+                    result,
+                    left,
+                    right,
+                    ..
+                } = &mut op.kind
+                {
+                    Some((result, left, right))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        match invalid {
+            0 => *left = ValueId(usize::MAX),
+            1 => *right = ValueId(usize::MAX),
+            2 => *left = *result,
+            3 => *right = *result,
+            4 => function.values[result.0] = Type::Number,
+            5 => function.values[left.0] = Type::Number,
+            _ => function.values[right.0] = Type::General,
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+    let numeric = crate::compile("export function run(a,b){return a<b?1:0;}", false).unwrap();
+    assert!(!numeric.wat.contains("$gc_string_compare"));
+}
+
+#[test]
 fn property_delete_checks_receiver_key_result_and_nonconfigurable_length() {
     for invalid in 0..5 {
         let mut module = crate::lower_source(

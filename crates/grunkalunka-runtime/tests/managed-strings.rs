@@ -2,6 +2,58 @@
 mod common;
 
 #[test]
+fn string_relational_operators_use_utf16_units_and_equal_prefix_lengths() {
+    for (left, right) in [
+        ("''", "''"),
+        ("''", "'a'"),
+        ("'a'", "''"),
+        ("'ab'", "'abc'"),
+        ("'abc'", "'ab'"),
+        ("'a'", "('a'+'')"),
+        ("'2'", "'10'"),
+        ("'Z'", "'a'"),
+        (r"'\0a'", r"'\0b'"),
+        (r"'\ud800'", r"'\udfff'"),
+        (r"'\u{10000}'", r"'\ue000'"),
+        (r"'\uffff'", r"'\u0001'"),
+        (r"'\u00e9'", r"'e\u0301'"),
+    ] {
+        let source = format!(
+            "export function run(a,b){{const x={left};const y={right};return (x<y?1:0)+(x<=y?2:0)+(x>y?4:0)+(x>=y?8:0);}}"
+        );
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn string_relational_operands_keep_source_order_snapshots_and_captures() {
+    for operator in ["<", "<=", ">", ">="] {
+        let source = format!(
+            "export function run(a,b){{let text='a';let n=0;const value=(n=n+1,text){operator}(n=n*10+2,text='z','b');return (value?100:0)+n+text.length;}}"
+        );
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const o={s:a?'a':'z'};const read=()=>o.s;return read()<'m'?1:0;",
+        "let n=0;for(const s of ['a','b','z']){if(s<'m')n++;}return n;",
+        "const o={s:'a'};const value=o.s<(o.s='z','b');return value&&o.s==='z'?1:0;",
+        "const xs=['b'];const value=xs[0]>(xs[0]='','a');return value&&xs[0]===''?1:0;",
+        "const less=(x,y)=>x<y;return less('a','b')?1:0;",
+        "const flags=['a'<'b','z'>='z'];return flags[0]==true&&flags[1]==true?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={s:'a'};return o.s<'b'?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={s:'a'};return (o as boolean).s<('b' as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn discarded_template_executes_the_exact_former_rejection_source() {
     let source = "export function run(a,b) { `hint`; return a; }";
     common::compare_sources(source, source);

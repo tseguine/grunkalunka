@@ -49,6 +49,15 @@ The saved left operand remains independent of RHS mutations or suspension.
 Mixed-kind comparisons and uncertain String origins still require separate
 coercion work and retain their current guards.
 
+Source-proven String pairs also support `<`, `<=`, `>` and `>=`. Ordering compares
+unsigned UTF-16 code units until the first difference, then the lengths when one
+String is a prefix of the other. It does not parse numeric-looking text, normalize
+Unicode or combine surrogate pairs. Both source operands evaluate left to right;
+the saved left String survives RHS mutation, throws, suspension and collection.
+The specialized IR verifies visible managed operands and a predicate result, and
+the backend checks both runtime String tags. Mixed/uncertain kinds and annotation-only
+String claims remain guarded; existing primitive relational behavior is unchanged.
+
 Known object and array reference pairs also support `==` and `!=` by identity,
 including aliases, nested data fields and null-prototype dictionaries. An object
 and an array are unequal even if their contents match. Neither operand invokes

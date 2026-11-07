@@ -2,6 +2,29 @@ use grunkalunka_runtime::NumericInstance;
 use wasmtime::{Collector, Config, Engine, Instance, Module, Store};
 
 #[test]
+fn string_comparison_rejects_nonstring_runtime_tags() {
+    let kernel = include_str!("../../grunkalunka-compiler/src/emit/managed.wat");
+    let compare = include_str!("../../grunkalunka-compiler/src/emit/string_compare.wat");
+    let wasm = wat::parse_str(format!(
+        r#"(module
+      (func (export "run") (param f64 f64) (result f64)
+        local.get 0 i32.trunc_sat_f64_u f64.const 0
+        i32.const 97 array.new_fixed $gc_key 1 struct.new $gc_value
+        local.get 1 i32.trunc_sat_f64_u f64.const 0
+        i32.const 97 array.new_fixed $gc_key 1 struct.new $gc_value
+        call $gc_string_compare f64.convert_i32_s)
+      {kernel}{compare})"#
+    ))
+    .unwrap();
+    let mut instance = NumericInstance::new(&wasm).unwrap();
+    assert_eq!(instance.run(5.0, 5.0).unwrap(), 0.0);
+    for tag in [0.0, 1.0, 2.0, 3.0, 4.0, 6.0] {
+        assert!(instance.run(tag, 5.0).is_err());
+        assert!(instance.run(5.0, tag).is_err());
+    }
+}
+
+#[test]
 fn sparse_array_edges_holes_and_identity_survive_copying_collection() {
     let kernel = include_str!("../../grunkalunka-compiler/src/emit/managed.wat");
     let wasm = wat::parse_str(format!(

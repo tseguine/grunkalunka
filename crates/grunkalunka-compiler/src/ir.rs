@@ -635,6 +635,13 @@ pub(crate) enum Op {
         left: ValueId,
         right: ValueId,
     },
+    // Known-String specialization: unsigned UTF-16 lexicographic ordering.
+    ManagedStringCompare {
+        result: ValueId,
+        operator: Relational,
+        left: ValueId,
+        right: ValueId,
+    },
     ManagedStringRange {
         result: ValueId,
         input: ValueId,
@@ -1835,6 +1842,12 @@ impl Verifier<'_> {
                 result,
                 left,
                 right,
+            }
+            | Op::ManagedStringCompare {
+                result,
+                left,
+                right,
+                ..
             } => {
                 self.value(*left, Type::ManagedValue, visible, span)?;
                 self.value(*right, Type::ManagedValue, visible, span)?;
