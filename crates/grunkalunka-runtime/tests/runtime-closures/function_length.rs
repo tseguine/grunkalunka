@@ -40,6 +40,7 @@ fn compare_length_source(source: &str) {
 fn function_length_reads_declared_parameters_without_calling_the_body() {
     compare_lengths(&[
         "return (()=>1).length;",
+        "const f=(x=0)=>x;return f.length;",
         "return (x=>x).length;",
         "return ((x,y)=>x+y).length;",
         "return ((x,y,z)=>x+y+z).length;",
@@ -127,7 +128,7 @@ fn function_length_keeps_erasure_width_and_receiver_guards() {
         "const f=x=>x;delete f.length;return f.length;",
         "let f=a?()=>a:x=>x;return f.length;",
         "const f=(...x)=>0;return f.length;",
-        "const f=(x=0)=>x;return f.length;",
+        "const f=(x=a)=>x;return f.length;",
         "const f=()=>missing;return f.length;",
         "return Promise.resolve(a).length;",
     ] {
