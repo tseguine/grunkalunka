@@ -2,6 +2,30 @@
 mod common;
 
 #[test]
+fn function_loose_equality_keeps_aliases_allocations_and_operand_order() {
+    for body in [
+        "const f=x=>x;const alias=f;return f==alias&&f!=(x=>x)?1:0;",
+        "const make=()=>x=>x;const first=make();const second=make();return first!=second&&first==first?1:0;",
+        "const make=n=>()=>n;const first=make(a);const second=make(a);return first!=second&&first()==a?1:0;",
+        "const f=x=>x;const g=()=>a;return f!=g&&f!={}&&f!=[]?1:0;",
+        "const o={f:x=>x};const xs=[o.f];return o.f==xs[0]?1:0;",
+        "const f=x=>x;const value=a?f:{};return (value==f)==!!a?1:0;",
+        "let f=()=>a;const old=f;const same=f==(f=()=>b,old);return same&&f!=old?1:0;",
+        "let n=0;const f=()=>a;const same=(n=1,f)==(n=n*10+2,f);return same&&n===12?1:0;",
+        "const f=()=>a;const id=x=>x;return id(f)==f?1:0;",
+    ] {
+        compare(body);
+    }
+    let js = "function id(x){return x;}export function run(a,b){const alias=id;return alias==id&&id!=(x=>x)?1:0;}";
+    let ts = "function id(x:number):number{return x;}export function run(a:number,b:number){const alias:number=id;return (alias as boolean)==id&&id!=((x:number)=>x)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn source_function_properties_preserve_binding_identity() {
     let source = "export function run(a,b){const f=()=>a;const o={f};return o.f===f?a:b;}";
     common::compare_sources(source, source);

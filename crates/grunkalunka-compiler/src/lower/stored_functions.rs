@@ -188,6 +188,21 @@ impl Fields {
     pub(super) fn number_update(&self, node: NodeId) -> bool {
         self.number_updates.contains(&node)
     }
+    pub(super) fn reference(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::Object(_)
+                            | Origin::NullObject(_)
+                            | Origin::Array(_)
+                            | Origin::Arrow(_)
+                            | Origin::Named(_)
+                    )
+                })
+        })
+    }
     pub(super) fn container(&self, node: NodeId) -> Option<Type> {
         let values = self.values.get(&node)?;
         let ty = match values.first()? {
@@ -241,6 +256,9 @@ impl Fields {
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
                 || matches!(node.kind(), AstKind::LogicalExpression(_))
+                // Function-only loose comparisons also need reference proofs,
+                // even when no literal heap container occurs in the module.
+                || matches!(node.kind(), AstKind::BinaryExpression(binary) if matches!(binary.operator, BinaryOperator::Equality | BinaryOperator::Inequality))
         }) {
             return Self::default();
         }

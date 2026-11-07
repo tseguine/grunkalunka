@@ -54,7 +54,15 @@ including aliases, nested data fields and null-prototype dictionaries. An object
 and an array are unequal even if their contents match. Neither operand invokes
 primitive conversion. Left snapshots survive RHS rebinding and suspension.
 Mixed primitive/reference alternatives and annotation-only claims remain guarded;
-this increment does not add function-reference or general coercing comparisons.
+general coercing comparisons remain separate work.
+
+Supported synchronous function references also participate in `==` and `!=`
+identity comparisons. Loose comparisons now trigger the same allocation-identity
+analysis as strict comparisons, preserving aliases, module declarations and fresh
+closures returned from factories. Positive reference unions may contain functions,
+objects or arrays; cross-kind references are unequal. Comparison never invokes
+the function. Saved function values survive RHS rebinding and suspension. Async
+function storage, primitive/reference coercion and uncertain origins remain guarded.
 
 Source-proven Number pairs in boxed storage also support `==` and `!=` without
 coercion. NaN compares unequal to itself, signed zero compares equal to zero,
