@@ -28,7 +28,7 @@ enum Rule {
     Iterated(NodeId),
     Known(Origin),
     Copy(Vec<NodeId>),
-    AwaitNumber(NodeId),
+    AwaitPrimitive(NodeId),
     Logical(LogicalOperator, NodeId, NodeId),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
@@ -502,7 +502,7 @@ impl Fields {
                     None
                 }
                 AstKind::AwaitExpression(awaited) => {
-                    Some(Rule::AwaitNumber(awaited.argument.node_id()))
+                    Some(Rule::AwaitPrimitive(awaited.argument.node_id()))
                 }
                 AstKind::UpdateExpression(_) => {
                     values.insert(id, BTreeSet::from([Origin::Number]));
@@ -1036,14 +1036,14 @@ impl Fields {
                     }
                     Rule::Known(origin) => BTreeSet::from([*origin]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
-                    Rule::AwaitNumber(input) => get(input)
+                    Rule::AwaitPrimitive(input) => get(input)
                         .into_iter()
                         .map(|origin| {
-                            // A Number has no thenable assimilation. Other
-                            // origins cannot prove a numeric fulfillment; in
-                            // particular, an object must not retain its identity.
-                            if origin == Origin::Number {
-                                Origin::Number
+                            // Numbers and Strings have no thenable assimilation.
+                            // Do not retain reference identity or infer a value
+                            // kind from unknown Promise/thenable fulfillments.
+                            if matches!(origin, Origin::Number | Origin::String) {
+                                origin
                             } else {
                                 Origin::Other
                             }

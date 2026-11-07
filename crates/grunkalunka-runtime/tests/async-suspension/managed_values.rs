@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn awaited_strings_keep_contents_snapshots_and_native_microtask_order() {
+    compare_promises(
+        &[
+            "const text=await 'abc';return text.length;",
+            "return (await (await 'abc')).length;",
+            "let text='x';const value=text+=await 'y';return value==='xy'&&text===value?1:0;",
+            "const o={s:'x'};const value=o.s+=await 'y';return value==='xy'&&o.s===value?1:0;",
+            "let text='old';const value=await (text='new',text);text='later';return value==='new'&&text==='later'?1:0;",
+            "let n=0;const text=await (n++,'abc');return text.length+n;",
+            "if(await '')return -1;if(await 'x')return a;return b;",
+            "const o={s:await 'abc'};const {s}=o;await 'unused';return s.length;",
+            "try{const text=await (await Promise.reject(b),'abc');return text.length;}catch(e){return e;}",
+            "let text='x';try{text+=await (await Promise.reject(b),'y');}catch(e){return text==='x'&&e===b?1:0;}return -1;",
+            r"const text=await '\ud800\udfff\0';return text==='\ud800\udfff\0'?text.length:0;",
+            "const text=await (a?'first':'second');return text.length;",
+            "const get=()=> 'abc';return (await get()).length;",
+            "await 'one';await 'two';await 'three';return a;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+    let js =
+        "export async function run(a,b){const o={s:await 'x'};o.s+=await 'y';return o.s.length;}";
+    let ts = "export async function run(a:number,b:number){const o:number={s:await ('x' as boolean)};(o as boolean).s+=await ('y' as never);return o.s.length;}";
+    assert_eq!(
+        compile_async(js, false).unwrap().wasm,
+        compile_async(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn string_property_compounds_keep_references_across_await_and_rejection() {
     compare_promises(
         &[
