@@ -2,6 +2,34 @@
 mod common;
 
 #[test]
+fn loose_null_checks_cover_managed_tags_and_keep_operand_snapshots() {
+    for body in [
+        "const o={x:null};return o.x==null?1:0;",
+        "const o={};return undefined==o.x?1:0;",
+        "const o={x:a?'text':null};return (o.x!=null)==!!a?1:0;",
+        "let count=0;for(const value of [null,undefined,false,0,NaN,'','x',{},[],()=>a]){if(value==null)count++;if(undefined!=value)count+=10;}return count;",
+        "const d=Object.create(null);const k='x';d[k]=a?null:'v';return (d[k]==null)==!!a?1:0;",
+        "const o={x:null};let n=0;const value=(n=1,o.x)==void(n=n*10+2,o.x='changed');return value&&n===12&&o.x==='changed'?1:0;",
+        "const o={x:null};let n=0;const value=void(n=1,o.x='changed')===(n=n*10+2,undefined);return value&&n===12?1:0;",
+        "const o={x:null};let n=0;const value=void(n=1,o.x='changed')==(n=n*10+2,o.x);return !value&&n===12?1:0;",
+        "const o={x:'text'};const sentinel=a?null:undefined;return sentinel!=o.x?1:0;",
+        "const undefined=a;const o={x:null};return o.x==undefined?1:0;",
+        "const left={};const right=[];return left==null||undefined==right?0:1;",
+        "const o={x:null};return {flag:o.x==null}.flag===true?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={x:a?'text':null};return o.x!=null?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={x:a?'text':null};return (o as boolean).x!=(null as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn logical_values_return_the_selected_operand() {
     for source in [
         "export function run(a,b){let x='';x||='fallback';return a;}",

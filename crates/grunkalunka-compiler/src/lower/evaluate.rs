@@ -16,6 +16,8 @@ mod local_logical;
 mod local_update;
 mod managed;
 #[cfg(test)]
+mod managed_equality_tests;
+#[cfg(test)]
 mod number_projection_tests;
 pub(super) use managed::member_key as managed_member_key;
 mod own_keys;

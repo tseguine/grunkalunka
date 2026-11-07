@@ -32,6 +32,17 @@ await: objects and functions may participate in thenable assimilation, and
 unknown or mixed operands do not prove numeric fulfillment. Type assertions
 cannot turn such an operand into a Number proof.
 
+Managed values now support loose `==` and `!=` comparisons when either operand
+is positively known to be Null or Undefined. That side may also be a union of
+those two origins. The result tests the other operand's runtime nullish tag:
+both Null and Undefined compare equal; every represented non-nullish value is
+unequal, including empty Strings, false, zero and object/array/function references.
+Both operands still evaluate left to right, with the left value saved before
+RHS effects, throws or suspension. This covers `record.field == null` and
+`record.field != undefined` without invoking managed coercion. Name spelling
+and type annotations supply no nullish proof. Other managed loose comparisons
+retain their current guards.
+
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
 suspension through the existing private numeric await protocol. That internal

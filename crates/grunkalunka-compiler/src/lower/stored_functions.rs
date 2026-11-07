@@ -177,6 +177,14 @@ impl Fields {
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Number))
     }
+    pub(super) fn nullish(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values
+                    .iter()
+                    .all(|origin| matches!(origin, Origin::Null | Origin::Undefined))
+        })
+    }
     pub(super) fn number_update(&self, node: NodeId) -> bool {
         self.number_updates.contains(&node)
     }
