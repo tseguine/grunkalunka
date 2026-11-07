@@ -53,6 +53,7 @@ import { booleanLogicalOrigins } from './boolean-logical-origins.mjs';
 import { dictionaryLogical } from './dictionary-logical.mjs';
 import { dictionaryPrimitives } from './dictionary-primitives.mjs';
 import { returningSwitch } from './returning-switch.mjs';
+import { optionalParameterPrograms } from './optional-parameters.mjs';
 import { stringLocalAddition } from './string-local-addition.mjs';
 import { stringPropertyAddition } from './string-property-addition.mjs';
 import { managedStrings } from './managed-strings.mjs';
@@ -119,7 +120,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 131;
+export const corpusVersion = 132;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -188,6 +189,7 @@ programs.push(...booleanLogicalOrigins);
 programs.push(...dictionaryLogical);
 programs.push(...dictionaryPrimitives);
 programs.push(...returningSwitch);
+programs.push(...optionalParameterPrograms);
 programs.push(...stringLocalAddition);
 programs.push(...stringPropertyAddition);
 programs.push(...managedStrings);
@@ -446,7 +448,6 @@ export const rejected = [
   ['unary-not', 'export function run(a,b) { return !a; }'],
   ['empty-return', 'export function run(a,b) { return; }'],
   ['this-param', 'export function run(this:void,a:number,b:number):number { return a; }', 'ts'],
-  ['optional-param', 'export function run(a?:number,b?:number):number { return a; }', 'ts'],
   ['declare', 'export declare function run(a:number,b:number):number;', 'ts'],
   ['over-limit', 'export function run(a,b) { return a; }' + ' '.repeat(16384)],
   ['depth-limit', `export function run(a,b) { return ${'('.repeat(140)}a${')'.repeat(140)}; }`],

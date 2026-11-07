@@ -8,6 +8,8 @@ mod ir;
 #[path = "ir/iterative_drop.rs"]
 mod ir_iterative_drop;
 mod lower;
+#[cfg(test)]
+mod optional_parameter_tests;
 mod prototype_keys;
 #[cfg(test)]
 mod source_cursor_tests;
@@ -449,8 +451,7 @@ fn lower_source_profile_with_identities(
         let mut bindings = Vec::new();
         let mut slots = Vec::new();
         for parameter in &function.params.items {
-            if parameter.optional
-                || parameter.initializer.is_some()
+            if parameter.initializer.is_some()
                 || !parameter.decorators.is_empty()
                 || parameter.accessibility.is_some()
                 || parameter.readonly

@@ -45,7 +45,6 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
     }
     for parameter in &function.params.items {
         if !matches!(parameter.pattern, BindingPattern::BindingIdentifier(_))
-            || parameter.optional
             || parameter.initializer.is_some()
             || !parameter.decorators.is_empty()
             || parameter.accessibility.is_some()

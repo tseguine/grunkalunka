@@ -644,7 +644,7 @@
     {
       "id": "parameters",
       "kind": "open-requirement",
-      "assessment": "Defaults, rest, destructuring, optional and this parameters require parameter binding/erasure beyond the PoC shape.",
+      "assessment": "TypeScript optional parameter markers erase for supported entry functions, helpers and arrows without changing formal count, function length or argument evaluation. Missing-argument calls retain their profile guards. Defaults, rest, destructuring and this parameters remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
@@ -3232,13 +3232,6 @@
       "group": "uninitialized-bindings"
     },
     {
-      "id": "annotation-optional-parameter",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2650c0bceb1b308cb60c9f550bef4ee99bc818a697692f0abc523636e2fcdae2",
-      "group": "parameters"
-    },
-    {
       "id": "annotation-default-parameter",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -4177,13 +4170,6 @@
       "group": "parameters"
     },
     {
-      "id": "optional-param",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "eaa562ed332c5c1c9322f7d9816b98d22a104f395a48a89a5ceeb0905dc1469c",
-      "group": "parameters"
-    },
-    {
       "id": "declare",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -4657,13 +4643,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "dddd6e406234cae3647829550500ad30f0d4167426437db37446e2caaf59b20d",
-      "group": "parameters"
-    },
-    {
-      "id": "direct-call-helper-optional",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2576772908a210ddeac9da4fc407220a6605b6c58178cc149b7a8e0a77ed6ff5",
       "group": "parameters"
     },
     {
@@ -6617,13 +6596,6 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "d14277f1b58b697825337cfce0a3e0b86b2e1e3499536442fa768503869bfea6",
-      "group": "parameters"
-    },
-    {
-      "id": "generic-declaration-reject-optional",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2e416cdf03bbe8b193da433edf296984af39e4ac3e4b2b166ea410b9c6cc7403",
       "group": "parameters"
     },
     {

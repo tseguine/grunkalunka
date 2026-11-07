@@ -587,3 +587,59 @@ fn switch_fallthrough_keeps_selection_order_and_abrupt_completions() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn optional_ts_parameters_preserve_javascript_call_behavior() {
+    for (js, ts) in [
+        (
+            "export function run(a,b){return a;}",
+            "export function run(a?:unknown,b?:unknown):unknown{return a;}",
+        ),
+        (
+            "function add(x,y){return x+y;}export function run(a,b){return add(a,b);}",
+            "function add(x?:string,y?:unknown):unknown{return x+y;}export function run(a?:number,b?:number){return add(a,b);}",
+        ),
+        (
+            "export function run(a,b){const f=(x,y)=>x+y;return f(a,b);}",
+            "export function run(a?:number,b?:number){const f=(x?:string,y?:unknown):unknown=>x+y;return f(a,b);}",
+        ),
+        (
+            "export function run(a,b){let n=a;const f=(x)=>{n+=x;return n;};return f(b)+f(a);}",
+            "export function run(a?:number,b?:number){let n=a;const f=(x?:number)=>{n+=x;return n;};return f(b)+f(a);}",
+        ),
+        (
+            "export function run(a,b){const f=(x,y)=>x+y;return f.length+f(a,b);}",
+            "export function run(a?:number,b?:number){const f=(x?:unknown,y?:unknown)=>x+y;return f.length+f(a,b);}",
+        ),
+        (
+            "export function run(a,b){const o={f:(x)=>x+a};return o.f(b);}",
+            "export function run(a?:number,b?:number){const o={f:(x?:unknown)=>x+a};return o.f(b);}",
+        ),
+        (
+            "export function run(a,b){const apply=(f,x)=>f(x);const id=(x)=>x+a;return apply(id,b);}",
+            "export function run(a?:number,b?:number){const apply=(f?:unknown,x?:unknown)=>f(x);const id=(x?:unknown)=>x+a;return apply(id,b);}",
+        ),
+    ] {
+        common::compare_sources(js, ts);
+    }
+}
+
+#[test]
+fn optional_parameters_execute_exact_former_typed_rejection_sources() {
+    common::compare_sources(
+        "export function run(a,b) { return a; }",
+        "export function run(a?:number,b?:number):number { return a; }",
+    );
+    common::compare_sources(
+        "export function run(a,b) { return a; }",
+        "export function run(a?:unknown,b?:unknown):unknown { return a; }",
+    );
+    common::compare_sources(
+        "function helper(x) { return x; } export function run(a,b) { return helper(a); }",
+        "function helper(x?:number) { return x; } export function run(a,b) { return helper(a); }",
+    );
+    common::compare_sources(
+        "export function run(a,b) { return a; }",
+        "export function run<T>(a?:T,b?:T):T { return a; }",
+    );
+}
