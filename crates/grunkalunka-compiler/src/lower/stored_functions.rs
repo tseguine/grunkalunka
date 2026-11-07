@@ -1442,7 +1442,7 @@ impl Fields {
                                 origins.len() == 1 && origins.contains(&Origin::Number)
                             })
                         });
-                    // String-only += and logical writes preserve their lane.
+                    // Same-kind String/Boolean writes preserve their lane.
                     // Numeric updates or an incompatible RHS still widen it.
                     let preserves_string = bindings.get(&symbol).is_some_and(|origins| {
                         origins.len() == 1 && origins.contains(&Origin::String)
@@ -1454,6 +1454,16 @@ impl Fields {
                                 origins.len() == 1 && origins.contains(&Origin::String)
                             })
                         });
+                    let preserves_boolean = bindings.get(&symbol).is_some_and(|origins| {
+                        origins.len() == 1 && origins.contains(&Origin::Boolean)
+                    }) && numeric_targets
+                        .iter()
+                        .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                        .all(|(_, result, _)| {
+                            values.get(result).is_some_and(|origins| {
+                                origins.len() == 1 && origins.contains(&Origin::Boolean)
+                            })
+                        });
                     if binding_is_number && targets_are_number {
                         number_updates.extend(
                             numeric_targets
@@ -1461,7 +1471,7 @@ impl Fields {
                                 .filter(|(_, _, target_symbol)| *target_symbol == symbol)
                                 .map(|(target, _, _)| *target),
                         );
-                    } else if !preserves_string {
+                    } else if !preserves_string && !preserves_boolean {
                         changed |= extend(&mut bindings, symbol, BTreeSet::from([Origin::Other]));
                     }
                 }

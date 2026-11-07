@@ -89,6 +89,15 @@ Boxed Boolean operands project before their await, so RHS effects cannot change 
 saved value. Pure primitive awaits retain their existing lowering path. Unknown,
 mixed and reference/thenable origins remain guarded; there is no new async ABI.
 
+Boolean-only local `&&=`, `||=` and `??=` writes now retain Boolean origins when
+the initial cell alternatives and every tracked update result are all Boolean.
+This keeps later scalar coercions, loose comparisons and checked helper/capture
+flows available after logical writes, including destructured and iteration cells.
+Runtime selection, saved old values and successful-RHS stores still use the existing
+logical-write path; no Boolean truth value is predicted. Numeric updates, mixed
+assignments and uncertain alternatives still widen the source facts and prevent
+a Boolean-only proof.
+
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
 suspension through the existing private numeric await protocol. That internal
