@@ -48,7 +48,7 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 
-test('returning switch promotes the unchanged dispatch gap and keeps fallthrough open',()=>{
+test('returning switch promotes the unchanged dispatch gap and keeps remaining switch requirements open',()=>{
   const sources=programSources(returningSwitch.find(row=>row[0]===promotedSwitchGap.id));
   assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'),promotedSwitchGap.sourceSha256);
   assert.equal(sources.sourceJS,sources.sourceTS);

@@ -1,5 +1,5 @@
 #[test]
-fn returning_switches_accept_scalar_dispatch_and_reject_fallthrough() {
+fn returning_switches_accept_scalar_dispatch_and_preserve_guards() {
     for (body, admitted) in [
         ("switch(a){case 4:return b;default:return a;}", true),
         ("switch(a){default:return b;case 4:return a;}", true),
@@ -12,8 +12,8 @@ fn returning_switches_accept_scalar_dispatch_and_reject_fallthrough() {
             true,
         ),
         ("switch(a){case 4:return b;}", false),
-        ("switch(a){case 4:;default:return a;}", false),
-        ("switch(a){case 4:if(b)return b;default:return a;}", false),
+        ("switch(a){case 4:;default:return a;}", true),
+        ("switch(a){case 4:if(b)return b;default:return a;}", true),
         ("switch({}){case null:return b;default:return a;}", true),
         ("switch(a){case {}:return b;default:return a;}", true),
         (
@@ -82,13 +82,13 @@ fn switch_case_chains_and_nested_dispatch_keep_native_stack_and_source_budgets()
         .unwrap();
 }
 #[test]
-fn nonexhaustive_switch_preserves_normal_completion_and_terminal_case_guards() {
+fn nonexhaustive_switch_preserves_normal_completion_and_return_guards() {
     for (body, admitted) in [
         ("switch(a){case 0:return b;}return a;", true),
         ("switch((a=b,a)){}return a;", true),
         ("switch(a){case 0:return b;}", false),
         ("switch(a){case 0:a=b;}return a;", true),
-        ("switch(a){case 0:;case 1:return b;}return a;", false),
+        ("switch(a){case 0:;case 1:return b;}return a;", true),
         (
             "const f=x=>{switch(x){case 0:return b;}return x;};return f(a);",
             true,
@@ -106,7 +106,7 @@ fn nonexhaustive_switch_preserves_normal_completion_and_terminal_case_guards() {
     }
 }
 #[test]
-fn final_switch_arms_can_complete_normally_without_enabling_fallthrough() {
+fn final_switch_arms_can_complete_normally() {
     for (body, admitted) in [
         ("switch(a){case 0:a=b;}return a;", true),
         ("switch(a){case 0:return b;default:a=b;}return a;", true),
@@ -114,7 +114,7 @@ fn final_switch_arms_can_complete_normally_without_enabling_fallthrough() {
         ("switch(a){case 0:;}return a;", true),
         ("switch(a){default:;}return a;", true),
         ("switch(a){case 0:if(b)return b;}return a;", true),
-        ("switch(a){case 0:a=b;case 1:return a;}return b;", false),
+        ("switch(a){case 0:a=b;case 1:return a;}return b;", true),
         ("switch(a){default:a=b;case 0:return a;}return b;", false),
         ("while(a){switch(b){case 0:continue;}}return b;", false),
         ("while(a){switch(b){default:break;}}return b;", true),
@@ -198,7 +198,7 @@ fn mixed_switch_values_need_positive_source_proofs() {
 }
 
 #[test]
-fn switch_breaks_are_normal_exits_without_case_fallthrough() {
+fn switch_breaks_are_normal_exits_with_conditional_fallthrough() {
     for (body, admitted) in [
         ("switch(a){case 0:a=b;break;default:a++;}return a;", true),
         (
@@ -207,7 +207,7 @@ fn switch_breaks_are_normal_exits_without_case_fallthrough() {
         ),
         (
             "switch(a){case 0:if(b)break;default:return b;}return a;",
-            false,
+            true,
         ),
         ("switch(a){case 0:break;default:break;}", false),
         (
@@ -271,4 +271,35 @@ fn switch_break_targets_keep_small_stack_and_case_limits() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+fn fallthrough_switches_prove_returns_without_publishing_cross_case_bindings() {
+    for (body, admitted) in [
+        ("switch(a){case 0:case 1:return a;default:return b;}", true),
+        ("switch(a){default:a=b;case 1:return a;}", true),
+        (
+            "const f=x=>{switch(x){case 0:;default:return b;}};return f(a);",
+            true,
+        ),
+        (
+            "switch(a){case 0:let x=b;case 1:return x;default:return a;}",
+            false,
+        ),
+        ("switch(a){case 0:return b;a++;default:return a;}", false),
+        (
+            "while(a){switch(b){case 0:continue;default:break;}}return b;",
+            false,
+        ),
+        ("switch(a){case 0:;case 1:;}", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
 }

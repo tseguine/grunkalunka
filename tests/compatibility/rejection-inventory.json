@@ -876,7 +876,7 @@
     {
       "id": "switch",
       "kind": "open-requirement",
-      "assessment": "Mixed represented primitive/String/reference switch dispatch executes with terminal non-final arms, optional defaults, normal unmatched completion and ordinary final-arm completion. Switch-local break exits to the suffix. Fallthrough between arms, outer-loop continue and unproven discriminants remain open.",
+      "assessment": "Mixed represented primitive/String/reference switch dispatch executes grouped cases and source-order fallthrough, optional defaults in any position, unmatched normal completion and switch-local break. Outer-loop continue, shared-case lexical bindings and unproven discriminants remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-switch-statement",

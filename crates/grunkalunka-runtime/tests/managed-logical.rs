@@ -562,3 +562,28 @@ fn switch_break_executes_the_exact_former_rejection_source() {
     let source = "export function run(a,b) { switch(a) { default: break; } return b; }";
     common::compare_sources(source, source);
 }
+
+#[test]
+fn switch_fallthrough_keeps_selection_order_and_abrupt_completions() {
+    for body in [
+        "let n=0;switch(a){case 0:n+=1;case 1:n+=10;default:n+=100;}return n;",
+        "let n=0;switch(a){case 0:case 1:n=b;break;default:n=a;}return n;",
+        "let n=0;switch(a){default:n+=100;case 0:n+=1;case 1:n+=10;}return n;",
+        "let n=0;switch(a){case 0:n+=1;default:n+=100;case 1:n+=10;}return n;",
+        "let n=0;switch(a){case(n=1,0):n+=10;default:n+=100;case(n=n*10+2,1):n+=1000;}return n;",
+        "let n=0;switch(a){case(n++,0):n++;case(n=99,1):n+=10;}return n;",
+        "let n=0;switch(a){case 0:if(b)break;n++;case 1:n+=10;}return n;",
+        "let n=0;switch(a){case 0:if(b)return b;n++;default:n+=10;}return n;",
+        "switch(a){case 0:;default:return b;}",
+        "const f=x=>{switch(x){case 0:;default:return b;}};return f(a);",
+        "let n=0;for(let i=0;i<3;i++){switch(i){case 0:n++;case 1:n+=10;break;default:n+=100;}n+=1000;}return n;",
+        "let n=0;switch(a){case 0:try{n++;}finally{n+=10;}case 1:n+=100;break;default:n=2;}return n;",
+        "let n=0;switch(a){case 0:switch(b){case 0:n++;default:n+=10;}case 1:n+=100;}return n;",
+        "let n=0;switch(a){default:case 0:n++;case 1:;}return n;",
+        "const x={};let n=0;switch(a?x:null){case x:n++;case null:n+=10;}return n;",
+        "switch(a){case 0:{const x=b;return x;}default:{const x=a;return x;}}",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}

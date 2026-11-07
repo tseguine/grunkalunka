@@ -14,6 +14,7 @@ pub(in crate::lower::control_cursor) struct SwitchFrame<'n, 'a> {
 }
 
 struct Arm {
+    index: usize,
     test: Region,
     condition: ValueId,
     body: Region,
@@ -23,6 +24,24 @@ struct Arm {
 impl<'s, 'ast> Lowering<'s, 'ast> {
     fn switch_operand(&self, expression: &Expression<'_>) -> bool {
         self.stored.represented(expression.node_id())
+    }
+
+    fn switch_index(
+        &mut self,
+        source: &SwitchStatement<'_>,
+        index: usize,
+        output: &mut Region,
+    ) -> ValueId {
+        let result = self.value(Type::Number);
+        Self::push(
+            output,
+            source,
+            Op::Constant {
+                result,
+                value: index as f64,
+            },
+        );
+        result
     }
 
     pub(super) fn begin_switch<'n>(
@@ -162,15 +181,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         completion: Completion,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        let final_arm = state.index + 1 == state.source.cases.len();
-        if completion.continues || (!final_arm && completion.normal) {
+        if completion.continues {
             return Err(unsupported(
                 &state.source.cases[state.index],
-                "non-final switch arms must return, throw or break on every path; fallthrough and outer-loop continue are not yet admitted",
+                "outer-loop continue through switch is not yet admitted",
             ));
         }
         self.bindings.truncate(state.visible);
         state.arms.push(Arm {
+            index: state.index,
             test,
             condition,
             body,
@@ -187,30 +206,125 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mut completion: Completion,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if let Some(default) = state.default
-            && (completion.continues
-                || (default + 1 != state.source.cases.len() && completion.normal))
-        {
+        if completion.continues {
             return Err(unsupported(
-                &state.source.cases[default],
-                "non-final switch arms must return, throw or break on every path; fallthrough and outer-loop continue are not yet admitted",
+                state.source,
+                "outer-loop continue through switch is not yet admitted",
             ));
         }
         self.bindings.truncate(state.visible);
-        // Fold the pending chain iteratively; no source-depth native recursion.
+        let count = state.source.cases.len();
+        let selected = SlotId(self.slots.len());
+        self.slots.push(Slot {
+            ty: Type::Number,
+            owner: state.output.id,
+            mutable: true,
+            parameter: false,
+            span: state.source.span(),
+        });
+        let missing = self.switch_index(state.source, count, &mut state.output);
+        Self::push(
+            &mut state.output,
+            state.source,
+            Op::Initialize {
+                slot: selected,
+                value: missing,
+            },
+        );
+        let mut bodies: Vec<Option<(Region, Completion)>> = (0..count).map(|_| None).collect();
+        // Selection and execution are distinct. Case tests stop at the first
+        // match; the selected index then enters bodies in original source order.
+        let mut selection = self.region(state.source);
+        if let Some(default) = state.default {
+            bodies[default] = Some((alternate, completion));
+            let index = self.switch_index(state.source, default, &mut selection);
+            Self::push(
+                &mut selection,
+                state.source,
+                Op::Store {
+                    slot: selected,
+                    value: index,
+                },
+            );
+        }
         while let Some(mut arm) = state.arms.pop() {
-            completion = completion.union(arm.completion);
+            let mut chosen = self.region(state.source);
+            let index = self.switch_index(state.source, arm.index, &mut chosen);
+            Self::push(
+                &mut chosen,
+                state.source,
+                Op::Store {
+                    slot: selected,
+                    value: index,
+                },
+            );
+            bodies[arm.index] = Some((arm.body, arm.completion));
             Self::push(
                 &mut arm.test,
                 state.source,
                 Op::If {
                     result: None,
                     condition: arm.condition,
-                    consequent: arm.body,
-                    alternate,
+                    consequent: chosen,
+                    alternate: selection,
                 },
             );
-            alternate = arm.test;
+            selection = arm.test;
+        }
+        Self::push(&mut state.output, state.source, Op::Block(selection));
+        // Each possible entry inherits the completion of its remaining suffix.
+        let mut suffix = Completion::NORMAL;
+        let mut entries: Option<Completion> = None;
+        for (_, child) in bodies.iter().rev().flatten() {
+            suffix = child.then(suffix);
+            entries = Some(entries.map_or(suffix, |all| all.union(suffix)));
+        }
+        completion = entries.unwrap_or(Completion::NORMAL);
+        if state.default.is_none() {
+            completion = completion.union(Completion::NORMAL);
+        }
+        alternate = self.region(state.source);
+        for (index, body) in bodies.into_iter().enumerate() {
+            let (body, _) = body.expect("every switch body compiled once");
+            if index + 1 == count && state.default.is_some() {
+                // An exhaustive dispatch always reaches this final body unless
+                // an earlier body completed abruptly. Preserve that structural
+                // return proof in IR without relying on value correlations.
+                Self::push(&mut alternate, state.source, Op::Block(body));
+            } else {
+                let position = self.value(Type::Number);
+                Self::push(
+                    &mut alternate,
+                    state.source,
+                    Op::Load {
+                        result: position,
+                        slot: selected,
+                    },
+                );
+                let index = self.switch_index(state.source, index, &mut alternate);
+                let condition = self.value(Type::Predicate);
+                Self::push(
+                    &mut alternate,
+                    state.source,
+                    Op::Compare {
+                        result: condition,
+                        operator: Compare::LessEqual,
+                        left: position,
+                        right: index,
+                    },
+                );
+                let miss = self.region(state.source);
+                Self::push(
+                    &mut alternate,
+                    state.source,
+                    Op::If {
+                        result: None,
+                        condition,
+                        consequent: body,
+                        alternate: miss,
+                    },
+                );
+            }
         }
         self.in_loop_body = state.old_loop;
         {

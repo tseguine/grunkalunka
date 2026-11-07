@@ -1301,3 +1301,18 @@ fn switch_breaks_preserve_awaited_cleanup_and_suffix() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn switch_fallthrough_preserves_suspension_selection_and_cleanup_order() {
+    compare_promises(
+        &[
+            "let n=0;switch(a){case 0:n=await b;case 1:n+=await a;default:n+=10;}return n;",
+            "let n=0;switch(a){case(await b,0):n++;default:n+=10;case(await b,1):n+=100;}return n;",
+            "let n=0;switch(a){case 0:await b;n++;case(await Promise.reject(b),1):n+=10;}return n;",
+            "let n=0;switch(a){case 0:try{await b;n++;}finally{n+=await b;}case 1:n+=10;}return n;",
+            "let n=0;switch(a){case 0:await Promise.reject(b);case 1:n++;}return n;",
+            "const o={x:a};switch(a){case 0:await b;o.x=b;default:await a;o.x=+o.x+1;}return +o.x;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}
