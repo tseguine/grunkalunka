@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn nonexhaustive_switch_preserves_await_order_rejection_and_suffix() {
+    compare_promises(
+        &[
+            "switch(await a){case await b:return a;}return await b;",
+            "switch(await 'x'){case(await b,'y'):return a;}return b;",
+            "switch(a){case(a=b,await b):return a;}return await a;",
+            "try{switch(a){case(await Promise.reject(b),b):return 99;}return a;}catch(e){return e;}",
+            "switch(a){case a:return await b;case(await Promise.reject(b),b):return 99;}return a;",
+            "let n=0;switch((await b,n++,a)){}return n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn returning_switch_dispatch_keeps_awaited_tests_and_saved_discriminants() {
     compare_promises(
         &[

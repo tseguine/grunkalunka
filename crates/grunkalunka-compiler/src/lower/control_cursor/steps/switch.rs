@@ -8,7 +8,7 @@ pub(in crate::lower::control_cursor) struct SwitchFrame<'n, 'a> {
     visible: usize,
     discriminant: ValueId,
     index: usize,
-    default: usize,
+    default: Option<usize>,
     arms: Vec<Arm>,
 }
 
@@ -31,12 +31,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         depth: usize,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if !source.cases.iter().any(|case| case.test.is_none()) {
-            return Err(unsupported(
-                source,
-                "switch dispatch requires a default arm",
-            ));
-        }
         if !self.switch_scalar(&source.discriminant) {
             return Err(unsupported(
                 source,
@@ -70,11 +64,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             visible: self.bindings.len(),
             discriminant,
             index: 0,
-            default: source
-                .cases
-                .iter()
-                .position(|case| case.test.is_none())
-                .expect("checked default"),
+            default: source.cases.iter().position(|case| case.test.is_none()),
             arms: Vec::new(),
         });
         self.next_switch_case(state, cursor)
@@ -86,7 +76,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         // A default in the middle is selected only after every case test misses.
-        if state.index == state.default {
+        if Some(state.index) == state.default {
             state.index += 1;
         }
         if let Some(case) = state.source.cases.get(state.index) {
@@ -105,8 +95,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 depth: 0,
                 mode: evaluate::Mode::Managed,
             });
-        } else {
-            let case = &state.source.cases[state.default];
+        } else if let Some(default) = state.default {
+            let case = &state.source.cases[default];
             let output = self.region(case);
             let depth = state.depth + 1;
             cursor.pending.push(Frame::SwitchDefault(state));
@@ -116,6 +106,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 depth,
                 charge: source_control::SourceCharge::Charged,
             });
+        } else {
+            // An unmatched non-exhaustive switch resumes its enclosing sequence.
+            // The discriminant and every missed test have already run once.
+            let miss = self.region(state.source);
+            self.finish_switch(*state, miss, Completion::NORMAL, cursor)?;
         }
         Ok(())
     }
@@ -187,9 +182,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mut completion: Completion,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if !completion.returns_or_throws() {
+        if let Some(default) = state.default
+            && !completion.returns_or_throws()
+        {
             return Err(unsupported(
-                &state.source.cases[state.default],
+                &state.source.cases[default],
                 "switch arms must return or throw on every path; fallthrough and switch breaks are not yet admitted",
             ));
         }
