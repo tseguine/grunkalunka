@@ -56,6 +56,13 @@ primitive conversion. Left snapshots survive RHS rebinding and suspension.
 Mixed primitive/reference alternatives and annotation-only claims remain guarded;
 this increment does not add function-reference or general coercing comparisons.
 
+Source-proven Number pairs in boxed storage also support `==` and `!=` without
+coercion. NaN compares unequal to itself, signed zero compares equal to zero,
+and infinities retain ordinary Number equality. Fields, elements, destructured
+cells and checked helper inputs use the same operation and save the left Number
+before RHS effects or suspension. Mixed kinds, deleted or uncertain field origins,
+and type assertions cannot supply the required Number-pair proof.
+
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
 suspension through the existing private numeric await protocol. That internal
