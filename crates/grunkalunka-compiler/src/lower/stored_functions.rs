@@ -40,6 +40,7 @@ enum Rule {
         Option<(NodeId, bool)>,
     ),
     Addition(NodeId, NodeId),
+    PropertyAddition(NodeId, NodeId),
 }
 enum Definition {
     Value(SymbolId, NodeId),
@@ -509,17 +510,17 @@ impl Fields {
                 }
                 AstKind::AssignmentExpression(assignment)
                     if assignment.operator == AssignmentOperator::Addition
-                        && assignment
-                            .left
-                            .as_simple_assignment_target()
-                            .and_then(|target| target_identifier(target, 0).ok().flatten())
-                            .is_some() =>
+                        && assignment.left.as_simple_assignment_target().is_some() =>
                 {
                     let target = assignment
                         .left
                         .as_simple_assignment_target()
-                        .expect("checked identifier assignment target");
-                    Some(Rule::Addition(target.node_id(), assignment.right.node_id()))
+                        .expect("checked simple assignment target");
+                    Some(if target_identifier(target, 0).ok().flatten().is_some() {
+                        Rule::Addition(target.node_id(), assignment.right.node_id())
+                    } else {
+                        Rule::PropertyAddition(target.node_id(), assignment.right.node_id())
+                    })
                 }
                 AstKind::AssignmentExpression(assignment)
                     if evaluate::property_update::compound(assignment.operator).is_some() =>
@@ -1091,10 +1092,19 @@ impl Fields {
                         found
                     }
                     Rule::Symbol(symbol) => bindings.get(symbol).cloned().unwrap_or_default(),
-                    Rule::Addition(left, right) => {
+                    Rule::Addition(left, right) | Rule::PropertyAddition(left, right) => {
                         let left = get(left);
                         let right = get(right);
-                        if left.is_empty() || right.is_empty() {
+                        if matches!(rule, Rule::PropertyAddition(_, _))
+                            && !left.is_empty()
+                            && left.iter().all(|origin| *origin == Origin::Number)
+                        {
+                            // Preserve the numeric property path: its RHS is
+                            // independently checked for admitted primitive
+                            // ToNumber conversion (e.g. += undefined). This is
+                            // not a proof that a mixed/string RHS is numeric.
+                            BTreeSet::from([Origin::Number])
+                        } else if left.is_empty() || right.is_empty() {
                             Alternatives::new()
                         } else if left
                             .iter()

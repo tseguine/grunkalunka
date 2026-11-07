@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn string_property_compounds_keep_references_across_await_and_rejection() {
+    compare_promises(
+        &[
+            "let o={s:'old'};const alias=o;const value=o.s+=(await b,o={s:'other'},'new');return value==='oldnew'&&alias.s===value&&o.s==='other'?1:0;",
+            "const xs=['old'];const value=xs[0]+=(await a,xs[0]='changed','new');return value==='oldnew'&&xs[0]===value?1:0;",
+            "const o={s:'x'};const value=(await a,o).s+=(await b,'y');return value==='xy'&&o.s===value?1:0;",
+            "const o={s:'old'};try{o.s+=(await Promise.reject(b),'new');}catch(e){return o.s==='old'&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_local_compounds_keep_snapshots_and_commit_after_await_success() {
     compare_promises(
         &[
