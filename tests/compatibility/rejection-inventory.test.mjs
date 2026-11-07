@@ -940,3 +940,10 @@ test('bare primitive return retains its exact original sources and numeric bound
   assert.ok(!valueRejected.some(row=>row.id==='empty-return'));
   assert.ok(rejected.some(row=>row[0]==='empty-return'));
 });
+
+test('implicit primitive return promotes the exact original sources',()=>{
+  const program=valuePrograms.find(row=>row.id==='implicit-return');
+  assert.equal(program.sourceJS,'export function run(a,b) {if(a) return null;}\n');
+  assert.equal(program.sourceTS,'export function run(a:number,b:number):unknown {if(a) return null;}\n');
+  assert.ok(!valueRejected.some(row=>row.id==='implicit-return'));
+});

@@ -2412,5 +2412,15 @@ primitive-result exports can use this directly, including early returns,
 lexical blocks, loops and finalizer overrides. A local binding named `undefined`
 does not change the result. Private helpers with compatible inferred signatures
 use the same operation; explicit numeric conversion still controls coercion.
-Number-only exports continue to reject bare returns. This does not admit implicit
-fallthrough from a synchronous exported function or skip validation of unreachable source.
+Number-only exports continue to reject bare returns. Unreachable source is still validated.
+
+## Normal completion of primitive-result exports
+
+A synchronous primitive-result `run` export that reaches its closing brace now
+returns canonical Undefined, including an empty body or an unselected conditional
+return. Existing completion tracking appends the result only on normal paths;
+early returns, loop exits, caught throws and finalizer overrides keep their own
+control flow and effects. A shadowed `undefined` binding does not change this
+result. Number-only exports and private helper signature inference retain their
+existing completion checks, and unsupported source is still validated even after
+a return.

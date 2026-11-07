@@ -27,7 +27,7 @@ fn bare_return_support_keeps_numeric_and_source_validation_guards() {
         assert!(crate::compile(source, false).is_err(), "{source}");
     }
     for source in [
-        "export function run(a,b) {if(a)return;}",
+        "export function run(a,b) {if(a)return;else Math.random();}",
         "export function run(a,b) {return;Math.random();}",
         "export function run(a,b) {if(a)Math.random();return;}",
     ] {
