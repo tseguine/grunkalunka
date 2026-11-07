@@ -2,6 +2,32 @@
 mod common;
 
 #[test]
+fn boxed_boolean_loose_equality_keeps_tags_and_saved_values() {
+    for body in [
+        "const o={flag:false??a};return o.flag==false?1:0;",
+        "const o={flag:true};return o.flag==true&&o.flag!=false?1:0;",
+        "const xs=[a<b,false];return xs[0]!=xs[1]?1:0;",
+        "const o={flag:!a};return o.flag==!!b?1:0;",
+        "const o={flag:a==b};return o.flag==(a==b)?1:0;",
+        "const o={x:a};const flags={removed:delete o.x,present:'x' in o};return flags.removed==true&&flags.present==false?1:0;",
+        "const o={flag:true};const value=o.flag==(o.flag=false,true);return value&&o.flag==false?1:0;",
+        "let [flag]=[true];const same=flag==(flag=false,true);return same&&flag==false?1:0;",
+        "let n=0;for(const flag of [true,false,true]){if(flag==true)n++;}return n;",
+        "const same=(x,y)=>x.flag==y.flag;return same({flag:a<b},{flag:a<b})?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={flag:a<b};return o.flag==true?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={flag:a<b};return (o as string).flag==(true as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn boxed_number_loose_equality_keeps_number_semantics_and_snapshots() {
     for body in [
         "const o={n:a};return o.n==b?1:0;",

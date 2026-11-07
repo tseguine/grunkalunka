@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn boolean_loose_equality_saves_operands_through_rhs_awaits() {
+    compare_promises(
+        &[
+            "const o={flag:true};const same=o.flag==(await b,o.flag=false,true);return same&&o.flag==false?1:0;",
+            "const xs=[a<b];return xs[0]!=(await a,false)?1:0;",
+            "const o={flag:true};try{const same=o.flag==(await Promise.reject(b),true);return +same;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn function_loose_equality_keeps_captured_identity_through_awaits() {
     compare_promises(
         &[
