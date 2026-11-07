@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn function_loose_equality_keeps_captured_identity_through_awaits() {
+    compare_promises(
+        &[
+            "let f=()=>a;const old=f;const same=f==(await b,f=()=>b,old);return same&&f!=old?1:0;",
+            "const make=()=>()=>a;const f=make();await b;return f!=make()&&f==f?1:0;",
+            "const f=()=>a;const o={f};return o.f==(await b,f)?1:0;",
+            "const f=()=>a;try{const same=f==(await Promise.reject(b),f);return +same;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn boxed_number_loose_equality_keeps_snapshots_through_rhs_awaits() {
     compare_promises(
         &[
