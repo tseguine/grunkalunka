@@ -270,3 +270,38 @@ fn managed_loose_equality_requires_nullish_or_string_pair_proofs() {
         .is_err()
     );
 }
+#[test]
+fn string_relational_operators_require_positive_string_pairs() {
+    for operator in ["<", "<=", ">", ">="] {
+        for (prefix, left, right, admitted) in [
+            ("", "'a'", "'b'", true),
+            ("const o={s:'a'};", "o.s", "'b'", true),
+            ("const [s]=['a'];", "s", "'b'", true),
+            ("const f=x=>x;", "f('a')", "'b'", true),
+            ("", "a", "'b'", false),
+            ("", "'a'", "null", false),
+            ("const o={s:a?'a':b};", "o.s", "'b'", false),
+            ("const o={s:'a'};delete o.s;", "o.s", "'b'", false),
+            ("const o={s:'a'};o.s=b;", "o.s", "'b'", false),
+            ("const f=()=>{if(a)return 'a';};", "f()", "'b'", false),
+        ] {
+            let source =
+                format!("export function run(a,b){{{prefix}return {left}{operator}{right}?1:0;}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+                if let Err(error) = result {
+                    assert!(!error.contains("internal IR"), "{error}");
+                }
+            }
+        }
+        let source = format!(
+            "export function run(a,b){{return (a as unknown as string){operator}'b'?1:0;}}"
+        );
+        assert!(crate::compile(&source, true).is_err());
+        let source = format!(
+            "export async function run(a,b){{return (await 'a'){operator}(await 'b')?1:0;}}"
+        );
+        assert!(crate::compile_async(&source, false).is_ok());
+    }
+}

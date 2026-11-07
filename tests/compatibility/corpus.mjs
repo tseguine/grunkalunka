@@ -42,6 +42,7 @@ import { managedLocalLogical } from './managed-local-logical.mjs';
 import { managedPropertyLogical } from './managed-property-logical.mjs';
 import { managedNullishEquality } from './managed-nullish-equality.mjs';
 import { stringLooseEquality } from './string-loose-equality.mjs';
+import { stringRelational } from './string-relational.mjs';
 import { referenceLooseEquality } from './reference-loose-equality.mjs';
 import { numberLooseEquality } from './number-loose-equality.mjs';
 import { functionLooseEquality } from './function-loose-equality.mjs';
@@ -115,7 +116,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 121;
+export const corpusVersion = 122;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -173,6 +174,7 @@ programs.push(...managedLocalLogical);
 programs.push(...managedPropertyLogical);
 programs.push(...managedNullishEquality);
 programs.push(...stringLooseEquality);
+programs.push(...stringRelational);
 programs.push(...referenceLooseEquality);
 programs.push(...numberLooseEquality);
 programs.push(...functionLooseEquality);

@@ -47,6 +47,17 @@ pub(super) enum ManagedWork<'e, 'a> {
     },
     BoxReference(&'e Expression<'a>),
     Primitive(&'e Expression<'a>),
+    StringCompareRight {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        depth: usize,
+        operator: Relational,
+    },
+    StringCompare {
+        node: &'e Expression<'a>,
+        left: ValueId,
+        operator: Relational,
+    },
     EqualRight {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -890,6 +901,27 @@ impl Lowering<'_, '_> {
         }
         if matches!(mode, Mode::Predicate)
             && let Expression::BinaryExpression(binary) = node
+            && self.stored.string(binary.left.node_id())
+            && self.stored.string(binary.right.node_id())
+            && let Some(operator) = match binary.operator {
+                BinaryOperator::LessThan => Some(Relational::Less),
+                BinaryOperator::LessEqualThan => Some(Relational::LessEqual),
+                BinaryOperator::GreaterThan => Some(Relational::Greater),
+                BinaryOperator::GreaterEqualThan => Some(Relational::GreaterEqual),
+                _ => None,
+            }
+        {
+            work.push(Work::Managed(ManagedWork::StringCompareRight {
+                node,
+                right: &binary.right,
+                depth: depth + 1,
+                operator,
+            }));
+            work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Predicate)
+            && let Expression::BinaryExpression(binary) = node
             && matches!(
                 binary.operator,
                 BinaryOperator::Equality
@@ -1569,6 +1601,39 @@ impl Lowering<'_, '_> {
                 };
                 Self::push(regions.current(), node, kind);
                 values.push(Value::Managed(result));
+            }
+            ManagedWork::StringCompareRight {
+                node,
+                right,
+                depth,
+                operator,
+            } => {
+                let left = values.pop().expect("String comparison left").id();
+                work.push(Work::Managed(ManagedWork::StringCompare {
+                    node,
+                    left,
+                    operator,
+                }));
+                work.push(Work::Eval(right, depth, Mode::Managed));
+            }
+            ManagedWork::StringCompare {
+                node,
+                left,
+                operator,
+            } => {
+                let right = values.pop().expect("String comparison right").id();
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedStringCompare {
+                        result,
+                        operator,
+                        left,
+                        right,
+                    },
+                );
+                values.push(Value::Predicate(result));
             }
             ManagedWork::EqualRight {
                 node,

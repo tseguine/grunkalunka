@@ -464,6 +464,24 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_string_concat\n");
                 self.set(*result);
             }
+            Op::ManagedStringCompare {
+                result,
+                operator,
+                left,
+                right,
+            } => {
+                self.get(*left);
+                self.get(*right);
+                self.output
+                    .push_str("call $gc_string_compare\ni32.const 0\n");
+                self.output.push_str(match operator {
+                    ir::Relational::Less => "i32.lt_s\n",
+                    ir::Relational::LessEqual => "i32.le_s\n",
+                    ir::Relational::Greater => "i32.gt_s\n",
+                    ir::Relational::GreaterEqual => "i32.ge_s\n",
+                });
+                self.set(*result);
+            }
             Op::ManagedStringRange {
                 result,
                 input,
@@ -1752,6 +1770,13 @@ fn emit_verified(
 }
 
 fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, Op::ManagedStringCompare { .. })
+        })
+    }) {
+        output.push_str(include_str!("emit/string_compare.wat"));
+    }
     // Emit the decimal index formatter immediately before its first consumer.
     let mut emitted_index = false;
     let mut indexed = |output: &mut String, runtime: &str| {
