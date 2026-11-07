@@ -2,6 +2,26 @@
 mod common;
 
 #[test]
+fn final_switch_arms_resume_suffix_without_testing_another_case() {
+    for body in [
+        "switch(a){case 0:a=b;}return a;",
+        "switch(a){case 0:return b;default:a=b;}return a;",
+        "switch(a){default:return b;case 0:a=b;}return a;",
+        "let n=0;switch(a){case(n++,0):return n;case(n=n*10+2,1):n+=100;}return n;",
+        "switch(a){case 0:;}return a;",
+        "switch(a){default:;}return b;",
+        "switch(a){case 0:if(b)return b;}return a;",
+        "const x=a;switch(b){case 0:{const x=b;}}return x;",
+        "let n=0;for(let i=0;i<2;i++){switch(a){case 0:return b;default:n++;}}return n;",
+        "let n=0;try{switch(a){case 0:return b;default:n++;}}finally{n+=10;}return n;",
+        "try{switch(a){case 0:if(b)throw b;}return a;}catch(e){return e+1;}",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn nonexhaustive_switch_runs_suffix_only_after_every_case_misses() {
     for body in [
         "switch(a){case 0:return b;}return a;",

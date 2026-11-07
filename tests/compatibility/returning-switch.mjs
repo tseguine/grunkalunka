@@ -18,5 +18,9 @@ export const returningSwitch = [
     ['returning-switch-empty-effects', 'let n=0;switch((n++,a)){}return n+a;'],
     ['returning-switch-miss-effects', 'let n=0;switch(a){case(n++,0):return n;case(n=n*10+2,1):return n;}return n+100;'],
     ['returning-switch-miss-helper', 'const f=x=>{switch(x){case 0:return b;}return x;};return f(a);'],
+    ['switch-final-normal-case', 'switch(a){case 0:a=b;}return a;'],
+    ['switch-final-normal-default', 'switch(a){case 0:return b;default:a=b;}return a;'],
+    ['switch-final-case-after-default', 'switch(a){default:return b;case 0:a=b;}return a;'],
+    ['switch-final-empty-case', 'switch(a){case 0:;}return a;'],
   ].map(([id, body]) => [id, body, body]),
 ];

@@ -87,13 +87,37 @@ fn nonexhaustive_switch_preserves_normal_completion_and_terminal_case_guards() {
         ("switch(a){case 0:return b;}return a;", true),
         ("switch((a=b,a)){}return a;", true),
         ("switch(a){case 0:return b;}", false),
-        ("switch(a){case 0:a=b;}return a;", false),
+        ("switch(a){case 0:a=b;}return a;", true),
         ("switch(a){case 0:;case 1:return b;}return a;", false),
         (
             "const f=x=>{switch(x){case 0:return b;}return x;};return f(a);",
             true,
         ),
         ("switch(a){case 0:{const x=b;return x;}}return x;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}
+#[test]
+fn final_switch_arms_can_complete_normally_without_enabling_fallthrough() {
+    for (body, admitted) in [
+        ("switch(a){case 0:a=b;}return a;", true),
+        ("switch(a){case 0:return b;default:a=b;}return a;", true),
+        ("switch(a){default:return b;case 0:a=b;}return a;", true),
+        ("switch(a){case 0:;}return a;", true),
+        ("switch(a){default:;}return a;", true),
+        ("switch(a){case 0:if(b)return b;}return a;", true),
+        ("switch(a){case 0:a=b;case 1:return a;}return b;", false),
+        ("switch(a){default:a=b;case 0:return a;}return b;", false),
+        ("while(a){switch(b){case 0:continue;}}return b;", false),
+        ("while(a){switch(b){default:break;}}return b;", false),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
