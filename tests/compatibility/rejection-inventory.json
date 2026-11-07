@@ -876,7 +876,7 @@
     {
       "id": "switch",
       "kind": "open-requirement",
-      "assessment": "Switch requires case selection, fallthrough and break completion.",
+      "assessment": "Scalar/String switch dispatch with a default and return/throw-only arms executes. Fallthrough, switch-local break, absent defaults and broader discriminants remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-switch-statement",
@@ -1102,13 +1102,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "31c6f32864488366c8b7b5bb2b6061ad647e2c5930bfe6d34e558edb7239959a",
       "group": "bigint-values"
-    },
-    {
-      "id": "gap-switch",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ced717662fb6f26e1bd4f553db7716c7dc42697c174e5df51bbf25b5426ab604",
-      "group": "switch"
     },
     {
       "id": "gap-label",

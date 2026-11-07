@@ -52,6 +52,7 @@ import { boxedPrimitives } from './boxed-primitives.mjs';
 import { booleanLogicalOrigins } from './boolean-logical-origins.mjs';
 import { dictionaryLogical } from './dictionary-logical.mjs';
 import { dictionaryPrimitives } from './dictionary-primitives.mjs';
+import { returningSwitch } from './returning-switch.mjs';
 import { stringLocalAddition } from './string-local-addition.mjs';
 import { stringPropertyAddition } from './string-property-addition.mjs';
 import { managedStrings } from './managed-strings.mjs';
@@ -118,7 +119,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 124;
+export const corpusVersion = 125;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -186,6 +187,7 @@ programs.push(...boxedPrimitives);
 programs.push(...booleanLogicalOrigins);
 programs.push(...dictionaryLogical);
 programs.push(...dictionaryPrimitives);
+programs.push(...returningSwitch);
 programs.push(...stringLocalAddition);
 programs.push(...stringPropertyAddition);
 programs.push(...managedStrings);

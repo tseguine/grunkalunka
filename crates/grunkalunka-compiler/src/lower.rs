@@ -812,6 +812,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 "statement is outside the numeric experiment",
             )),
             Statement::IfStatement(_)
+            | Statement::SwitchStatement(_)
             | Statement::WhileStatement(_)
             | Statement::DoWhileStatement(_)
             | Statement::ForStatement(_)
