@@ -1339,3 +1339,12 @@ fn optional_ts_parameters_preserve_async_artifacts_and_reactions() {
         );
     }
 }
+
+#[test]
+fn omitted_synchronous_helper_parameters_compose_with_await() {
+    compare_async_sources(&[
+        "function f(x){return x===undefined?1:0;}export async function run(a,b){await a;return f()+await b;}".to_owned(),
+        "function f(x,y){return y??x;}export async function run(a,b){return await f(await a);}".to_owned(),
+        "function choose(x,y){return y??x;}export async function run(a,b){const selected=choose({v:a});await b;return +selected.v;}".to_owned(),
+    ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
+}

@@ -464,3 +464,20 @@ fn value_profile_keeps_scope_and_reports_remaining_gaps() {
         assert_value(&instance.run(-0.0, 0.0).unwrap(), &Value::Number(-0.0));
     }
 }
+
+#[test]
+fn omitted_named_helper_parameters_keep_undefined_result_tags() {
+    compare_primitive_sources(
+        [
+            "function identity(x) { return x; } export function run(a,b) { return identity(); }",
+            "function identity(x) { return x; } export function run(a,b) { return identity.call(a); }",
+            "function f(x){return x;}export function run(a,b){return f();}",
+            "function f(x){return x;}export function run(a,b){if(a)return f();return f(b);}",
+            "function f(x,y){return y;}export function run(a,b){return f(a);}",
+            "function f(x){x=3;return x;}export function run(a,b){return f();}",
+        ]
+        .into_iter()
+        .map(|source| (source.to_owned(), source.to_owned()))
+        .collect(),
+    );
+}

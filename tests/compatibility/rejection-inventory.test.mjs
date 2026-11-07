@@ -919,3 +919,14 @@ test('optional parameters preserve all exact original typed sources and hashes',
     assert.ok(!catalog.records.some(row=>row.id===promotion.id));
   }
 });
+
+test('omitted identity results retain the numeric export boundary with original hashes',()=>{
+  for(const [id,hash] of [
+    ['direct-call-missing','c0df3411b897836d1c1c48d95d0d83421d0f466aa2d65a66bcc9137c71bba984'],
+    ['direct-call-property','fbbe7840f3fc0a1e6e35dc53ad5a019a2f957222177bf9d026d206057bef5049'],
+  ]) {
+    const source=rejected.find(row=>row[0]===id)[1];
+    assert.equal(createHash('sha256').update(source).digest('hex'),hash);
+    assert.equal(rejectionClassification(validate(catalog),id).group,'return-policy');
+  }
+});

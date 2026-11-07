@@ -73,11 +73,12 @@ const top='exactly one exported function is admitted';
 const rejected=[];
 function reject(id,source,diagnostic,extension='js') { rejected.push([`direct-call-${id}`,source,extension,diagnostic]); }
 function bad(id,helpers,body,diagnostic,extension='js') { reject(id,`${helpers} export function run(a,b) { ${body} }`,diagnostic,extension); }
-bad('missing',identity,'return identity();','call is missing declared arguments');
+// Omission is supported; this exact source returns Undefined through a Number-only export.
+bad('missing',identity,'return identity();','managed value requires an identity or managed storage position');
 bad('spread', identity, 'return identity(...a);', 'spread call arguments');
 bad('optional', identity, 'return identity?.(a);', expression);
 // The receiver supplies thisArg; identity still has no forwarded input.
-bad('property', identity, 'return identity.call(a);', 'call is missing declared arguments');
+bad('property', identity, 'return identity.call(a);', 'managed value requires an identity or managed storage position');
 // Exact former rejections now execute through module declaration adapters.
 add('wrapped-callee', identity, 'return (identity)(a);', identity, 'return (identity)(a);');
 full('generic-call',"function identity(x) { return x; } export function run(a,b) { return identity(a); }","function identity(x) { return x; } export function run(a,b) { return identity<number>(a); }");

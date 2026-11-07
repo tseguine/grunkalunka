@@ -119,8 +119,10 @@ fn named_module_helpers_keep_numeric_interfaces_and_source_limits() {
             assert!(compile_value(&source, false).is_err());
         }
     }
-    for source in [
+    compare_helpers(&[
         "function helper(x){return null;}export function run(a,b){return helper();}",
+    ]);
+    for source in [
         "function helper(x){return null;}export function run(a,b){return helper(...a);}",
         "function helper(x){return null;}export function run(a,b){return helper?.(a);}",
         "function helper(x){return null;}export function run(a,b){return helper(null);}",

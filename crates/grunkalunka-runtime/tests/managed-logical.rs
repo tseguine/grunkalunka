@@ -643,3 +643,26 @@ fn optional_parameters_execute_exact_former_typed_rejection_sources() {
         "export function run<T>(a?:T,b?:T):T { return a; }",
     );
 }
+
+#[test]
+fn omitted_named_helper_arguments_preserve_undefined_and_effects() {
+    for source in [
+        "function flag(x){return x===undefined?1:0;}export function run(a,b){return flag();}",
+        "function flag(x){return typeof x==='undefined'?1:0;}export function run(a,b){return flag();}",
+        "function add(x,y){return x+ +y;}export function run(a,b){return add(a);}",
+        "function choose(x,y){return y??x;}export function run(a,b){return choose(a);}",
+        "function flag(x){return x===undefined?1:0;}export function run(a,b){return flag()*100+flag(a)*10+flag(NaN);}",
+        "function f(x){x=3;return x;}export function run(a,b){return +f();}",
+        "function f(x){if(x===undefined)return 7;return f();}export function run(a,b){return f(a);}",
+        "function f(x,y){return y===undefined?x:0;}export function run(a,b){let n=0;const x=f((n++,a));return x+n;}",
+        "function flag(x){return x===undefined?1:0;}export function run(a,b){let n=0;const value=flag.call((n++,a));return value*10+n;}",
+        "function flag(x){return x===undefined?1:0;}export function run(a,b){return flag.call();}",
+        "function f(x){const g=()=>x===undefined?1:0;return g();}export function run(a,b){return f();}",
+        "function choose(x,y){return y??x;}export function run(a,b){const text=choose('x');return text==='x'?a:b;}",
+        "function choose(x,y){return y??x;}export function run(a,b){const value=choose({v:a});return +value.v;}",
+        "function flag(x){return x===undefined?1:0;}export function run(a,b){const alias=flag;return flag()*100+alias(a);}",
+        "function flag(x,y){return typeof y==='undefined'?1:0;}export function run(a,b){return flag.length*100+flag(a);}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}

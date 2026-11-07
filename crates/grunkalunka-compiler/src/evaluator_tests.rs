@@ -292,7 +292,7 @@ const CASES: &[(&str, &str, bool, bool)] = &[
         false,
     ),
     (
-        "missing-arity-before-child",
+        "omitted-argument-checks-child",
         "function f(x,y,z) { return x; } export function run(a,b) { return f(a ** b,a); }",
         false,
         false,
@@ -386,8 +386,8 @@ fn evaluator_control_characterization() {
                     "surplus-argument-child" => {
                         "unsupported at bytes 64..70: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
                     }
-                    "missing-arity-before-child" => {
-                        "unsupported at bytes 66..77: call is missing declared arguments"
+                    "omitted-argument-checks-child" => {
+                        "unsupported at bytes 68..74: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
                     }
                     "argument-before-spread" => {
                         "unsupported at bytes 68..74: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
