@@ -413,7 +413,7 @@
     {
       "id": "delete",
       "kind": "open-requirement",
-      "assessment": "delete requires property/reference semantics and Boolean results.",
+      "assessment": "Literal-key delete now removes configurable own data properties from source-proven objects, dictionaries and arrays, returning a Boolean and preserving array length, aliases and insertion order. Field proofs include possible Undefined after deletion. Primitive receivers, dynamic keys, non-reference operands, optional chains, general descriptors and catchable non-configurable deletion remain separate boundaries. The exact curated numeric-receiver source still rejects at that boundary.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-delete-operator",

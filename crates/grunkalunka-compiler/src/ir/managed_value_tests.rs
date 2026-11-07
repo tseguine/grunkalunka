@@ -1,6 +1,39 @@
 use super::*;
 
 #[test]
+fn property_delete_checks_receiver_key_result_and_nonconfigurable_length() {
+    for invalid in 0..5 {
+        let mut module = crate::lower_source(
+            "export function run(a,b){const xs=[a];return delete xs[0]?1:0;}",
+            false,
+        )
+        .unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (input, key, result) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedDeleteOwn { input, key, result } = &mut op.kind {
+                    Some((input, key, result))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        match invalid {
+            0 => *input = ValueId(usize::MAX),
+            1 => *key = ManagedKey::Literal("length".encode_utf16().collect()),
+            2 => *key = ManagedKey::String(*input),
+            3 => function.values[result.0] = Type::Number,
+            _ => *input = *result,
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+}
+
+#[test]
 fn dictionary_dynamic_write_checks_every_operand_before_emission() {
     let source = "export function run(a,b){const d=Object.create(null);const key='x';d[key]=a;return d.x===a?1:0;}";
     for invalid in 0..4 {

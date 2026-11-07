@@ -579,7 +579,9 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        if self.schedule_destructure(node, depth, mode, work)? {
+        if self.schedule_property_delete(node, depth, mode, work)?
+            || self.schedule_destructure(node, depth, mode, work)?
+        {
             return Ok(true);
         }
         if matches!(mode, Mode::Managed)

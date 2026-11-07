@@ -348,6 +348,15 @@ impl Emitter<'_> {
                     });
                 self.set(*result);
             }
+            Op::ManagedDeleteOwn { result, input, key } => {
+                self.get(*input);
+                if self.function.values[input.0] == Type::ManagedArray {
+                    self.output.push_str("struct.get $gc_array 1\n");
+                }
+                self.property_key(key);
+                self.output.push_str("call $gc_delete\n");
+                self.set(*result);
+            }
             Op::ManagedHasOwn { result, input, key } => {
                 let ty = self.function.values[input.0];
                 if matches!(ty, Type::Number | Type::Predicate) {
@@ -1749,6 +1758,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     indexed(output, managed_spread::runtime(module));
     output.push_str(object_rest::runtime(module));
     output.push_str(has_own::runtime(module));
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, Op::ManagedDeleteOwn { .. })
+        })
+    }) {
+        output.push_str(include_str!("emit/property_delete.wat"));
+    }
     property_membership::emit_runtime(module, output);
     indexed(output, own_keys::runtime(module));
     indexed(output, array_at::runtime(module));
@@ -1989,7 +2005,8 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
     ir::visit_operations(&function.body, &mut |op| {
         needed |= match op {
             Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
-            Op::ManagedHasOwn { input, key: ir::ManagedKey::Literal(units), .. } => {
+            Op::ManagedHasOwn { input, key: ir::ManagedKey::Literal(units), .. }
+            | Op::ManagedDeleteOwn { input, key: ir::ManagedKey::Literal(units), .. } => {
                 function.values[input.0].is_managed() && units.len() > MAX_FIXED_TEXT_UNITS
             }
             Op::ManagedObjectRest { excluded, .. } => {

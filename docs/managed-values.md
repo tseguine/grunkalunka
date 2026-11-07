@@ -7,6 +7,9 @@ This is an increment toward [#300](https://github.com/tseguine/grunkalunka/issue
 not complete source object/array support. Exported Number/primitive signatures and
 the existing async contract are preserved.
 
+[Property deletion](property-deletion.md) removes configurable own data fields,
+preserves sparse-array length and updates the source facts used by later reads.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.
