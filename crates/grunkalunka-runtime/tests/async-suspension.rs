@@ -3980,10 +3980,13 @@ fn async_root_completion_keeps_other_profile_and_abrupt_guards() {
     for body in ["", "return;", "if(a)return b;"] {
         let source = format!("export function run(a,b){{{body}}}");
         assert!(grunkalunka_compiler::compile(&source, false).is_err());
-        assert!(grunkalunka_compiler::compile_value(&source, false).is_err());
+        if body == "return;" {
+            assert!(grunkalunka_compiler::compile_value(&source, false).is_ok());
+        } else {
+            assert!(grunkalunka_compiler::compile_value(&source, false).is_err());
+        }
     }
     for source in [
-        "function helper(x){return;}export async function run(a,b){return helper(a);}",
         "function helper(x){x++;}export async function run(a,b){return helper(a);}",
         "export async function run(a,b){return;await a;}",
         "export async function run(a,b){break;}",

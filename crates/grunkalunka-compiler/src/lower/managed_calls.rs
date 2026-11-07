@@ -90,6 +90,93 @@ pub(super) fn has_omitted_arrow_arguments(semantic: &Semantic<'_>) -> bool {
     })
 }
 
+// Bare returns only need global source facts when a call can reach them.
+// An unused declaration must not perturb an unrelated async calling convention.
+pub(super) fn has_called_bare_returns(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
+    // Async entry/private-helper interfaces already retain General completions.
+    // Bare-return-only facts are needed for synchronous private result boxing;
+    // they must not widen the separate Promise-origin analysis of an async root.
+    if semantic.nodes().iter().any(|node| {
+        let AstKind::Function(function) = node.kind() else {
+            return false;
+        };
+        function.r#async
+            && function.id.as_ref().and_then(|name| name.symbol_id.get()) == Some(entry)
+    }) {
+        return false;
+    }
+    let bare = stored_functions::bare_return_bodies(semantic);
+    if bare.is_empty() {
+        return false;
+    }
+    let mut definitions = Vec::new();
+    let mut calls = Vec::new();
+    let mut names = Vec::new();
+    for node in semantic.nodes().iter() {
+        match node.kind() {
+            AstKind::Function(function) if bare.contains(&function.node_id.get()) => {
+                if let Some(symbol) = function.id.as_ref().and_then(|name| name.symbol_id.get()) {
+                    names.push(symbol);
+                }
+            }
+            AstKind::VariableDeclarator(v) => {
+                if let BindingPattern::BindingIdentifier(identifier) = &v.id
+                    && let Some(symbol) = identifier.symbol_id.get()
+                {
+                    definitions.push((symbol, v.init.as_ref()));
+                }
+            }
+            AstKind::AssignmentExpression(a) => {
+                if let Some(identifier) = a
+                    .left
+                    .as_simple_assignment_target()
+                    .and_then(|target| target_identifier(target, 0).ok().flatten())
+                    && let Some(symbol) = symbol(identifier, semantic)
+                {
+                    definitions.push((symbol, Some(&a.right)));
+                }
+            }
+            AstKind::CallExpression(call) => calls.push(call),
+            _ => (),
+        }
+    }
+    let stored = stored_functions::Fields::default();
+    let inputs = input_flow::collect(semantic, &definitions, &calls, &stored);
+    definitions.extend(
+        inputs
+            .actuals
+            .iter()
+            .map(|(symbol, actual)| (*symbol, Some(*actual))),
+    );
+    let origins = callbacks::ReturnOrigins {
+        semantic,
+        stored: &stored,
+        targets: &inputs.targets,
+        arrows: &inputs.arrows,
+    };
+    let definitions = definitions
+        .iter()
+        .filter_map(|(s, e)| e.map(|e| (*s, e)))
+        .collect::<Vec<_>>();
+    let named = callbacks::named_targets(&origins, names.into_iter(), &definitions, &calls);
+    calls.into_iter().any(|call| {
+        let (sources, mut bodies) =
+            origins.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
+        for source in sources {
+            if named
+                .get(&source)
+                .is_some_and(|targets| !targets.is_empty())
+            {
+                return true;
+            }
+            if let Some(known) = inputs.targets.get(&source) {
+                bodies.extend(known);
+            }
+        }
+        bodies.iter().any(|body| bare.contains(body))
+    })
+}
+
 fn managed_value_kinds() -> Kinds {
     [
         Kind::Primitive,
@@ -439,6 +526,9 @@ fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) ->
 }
 
 fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
+    if !stored_functions::bare_return_bodies(semantic).is_empty() {
+        return true;
+    }
     semantic.nodes().iter().any(|node| {
         let origin = match node.kind() {
             AstKind::CallExpression(call)
@@ -683,7 +773,7 @@ pub(crate) fn infer(
                     .argument
                     .as_ref()
                     .map(|v| kinds(v, semantic, functions, &bindings, &returns, None, stored))
-                    .unwrap_or_else(|| [Kind::Primitive].into());
+                    .unwrap_or_else(|| [Kind::GeneralPrimitive].into());
                 let before = returns[index].len();
                 returns[index].extend(next);
                 changed |= before != returns[index].len();

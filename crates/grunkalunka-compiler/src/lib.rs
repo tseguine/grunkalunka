@@ -1,5 +1,7 @@
 //! JS/TS parsing, verified typed region lowering and structured Wasm emission.
 //! The admitted numeric contract is documented in docs/compiler.md.
+#[cfg(test)]
+mod bare_return_tests;
 mod emit;
 #[cfg(test)]
 mod evaluator_tests;

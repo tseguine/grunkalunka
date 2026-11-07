@@ -2403,3 +2403,14 @@ unchecked definitions and asynchronous closures still require their own checks.
 The public numeric interface still requires a proven numeric return; use the existing primitive-result profile for Undefined
 results. This does not add parameter defaults, rest, destructuring or arguments
 objects. Declared/supplied parameter budgets and source-depth limits are unchanged.
+
+## Bare returns in represented result profiles
+
+A bare `return;` produces canonical Undefined when the checked function result
+uses General, managed primitive or raw async value storage. Synchronous
+primitive-result exports can use this directly, including early returns,
+lexical blocks, loops and finalizer overrides. A local binding named `undefined`
+does not change the result. Private helpers with compatible inferred signatures
+use the same operation; explicit numeric conversion still controls coercion.
+Number-only exports continue to reject bare returns. This does not admit implicit
+fallthrough from a synchronous exported function or skip validation of unreachable source.

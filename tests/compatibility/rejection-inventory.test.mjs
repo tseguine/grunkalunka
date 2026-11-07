@@ -932,3 +932,11 @@ test('omitted identity results retain the numeric export boundary with original 
     assert.equal(rejectionClassification(validate(catalog),id).group,'return-policy');
   }
 });
+
+test('bare primitive return retains its exact original sources and numeric boundary',()=>{
+  const program=valuePrograms.find(row=>row.id==='empty-return');
+  assert.equal(program.sourceJS,'export function run(a,b) {return;}\n');
+  assert.equal(program.sourceTS,'export function run(a:number,b:number):unknown {return;}\n');
+  assert.ok(!valueRejected.some(row=>row.id==='empty-return'));
+  assert.ok(rejected.some(row=>row[0]==='empty-return'));
+});

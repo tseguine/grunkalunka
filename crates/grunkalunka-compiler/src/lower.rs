@@ -802,8 +802,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 if matches!(
                     self.return_type,
                     Type::General | Type::AsyncValue | Type::ManagedValue
-                ) && (self.active_block_calls != 0 || self.allow_await)
-                {
+                ) {
                     self.return_undefined(statement.as_ref(), region);
                     Ok(Completion::RETURN)
                 } else {
