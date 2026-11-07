@@ -1,5 +1,12 @@
 //! Managed source values use the ordinary expression cursor and traced IR lanes.
 use super::*;
+
+#[derive(Clone, Copy)]
+pub(super) enum EqualityKind {
+    Exact,
+    LeftNullish,
+    RightNullish,
+}
 mod arrays;
 mod objects;
 
@@ -45,11 +52,13 @@ pub(super) enum ManagedWork<'e, 'a> {
         right: &'e Expression<'a>,
         depth: usize,
         negated: bool,
+        kind: EqualityKind,
     },
     Equal {
         node: &'e Expression<'a>,
         left: ValueId,
         negated: bool,
+        kind: EqualityKind,
     },
     Literal(objects::ObjectWork<'e, 'a>),
     Read {
@@ -64,6 +73,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         node: &'e Expression<'a>,
         ty: Type,
     },
+    NumberProjection(&'e Expression<'a>),
     SetReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -76,7 +86,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         key: Vec<u16>,
     },
     Typeof(&'e Expression<'a>),
-    FunctionTypeof(&'e Expression<'a>),
+    ConstantTypeof(&'e Expression<'a>, &'static str),
     Truthy(&'e Expression<'a>),
     Store {
         node: &'e Expression<'a>,
@@ -121,7 +131,7 @@ fn member<'e, 'a>(
     }
 }
 
-fn number_consumer<'e, 'a>(
+pub(super) fn number_consumer<'e, 'a>(
     work: &mut Vec<Work<'e, 'a>>,
     node: &'e Expression<'a>,
     mode: Mode,
@@ -369,6 +379,9 @@ impl Lowering<'_, '_> {
                         Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
                             values.push(Some(Type::ManagedValue))
                         }
+                        Expression::AwaitExpression(_) if self.stored.string(node.node_id()) => {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::BinaryExpression(b)
                             if b.operator == BinaryOperator::Addition
                                 && self.stored.string(node.node_id()) =>
@@ -498,6 +511,19 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&l.right, depth + 1));
                             work.push(Shape::Expr(&l.left, depth + 1));
                         }
+                        Expression::AssignmentExpression(a)
+                            if a.operator == AssignmentOperator::Addition
+                                && self.stored.string(a.node_id()) =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
+                        Expression::AssignmentExpression(a)
+                            if property_update::compound(a.operator).is_some() =>
+                        {
+                            // Numeric compound writes return a Number even
+                            // when the target stores that result boxed.
+                            values.push(None);
+                        }
                         Expression::AssignmentExpression(a) => {
                             if a.left.as_assignment_target_pattern().is_some() {
                                 work.push(Shape::Expr(&a.right, depth + 1));
@@ -579,7 +605,48 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        if self.schedule_destructure(node, depth, mode, work)? {
+        if matches!(mode, Mode::Managed)
+            && matches!(node, Expression::AwaitExpression(_))
+            && self.stored.boolean(node.node_id())
+        {
+            // Keep the existing General await protocol and Boolean language
+            // tag, then box its completed result for managed storage.
+            work.push(Work::Managed(ManagedWork::Primitive(node)));
+            work.push(Work::Eval(node, depth, Mode::General));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::General)
+            && self.stored.boolean(node.node_id())
+            && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
+        {
+            // Truthiness is exact Boolean projection only with this positive
+            // kind proof. Pack the predicate as Boolean, never as Number.
+            work.push(Work::Pack(node));
+            work.push(Work::Managed(ManagedWork::Truthy(node)));
+            work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
+        if self.schedule_string_await(node, depth, mode, work)?
+            || self.schedule_string_addition(node, depth, mode, regions, work)?
+            || self.schedule_local_logical(node, depth, mode, regions, work)?
+            || self.schedule_local_update(node, depth, mode, regions, values, work)?
+            || self.schedule_dictionary_logical(node, depth, mode, work)?
+            || self.schedule_property_logical(node, depth, mode, work)?
+            || self.schedule_property_update(node, depth, mode, work)?
+            || self.schedule_property_delete(node, depth, mode, work)?
+            || self.schedule_destructure(node, depth, mode, work)?
+        {
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Number | Mode::General)
+            && self.stored.number(node.node_id())
+            && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
+        {
+            if matches!(mode, Mode::General) {
+                work.push(Work::Pack(node));
+            }
+            work.push(Work::Managed(ManagedWork::NumberProjection(node)));
+            work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
         if matches!(mode, Mode::Managed)
@@ -833,20 +900,40 @@ impl Lowering<'_, '_> {
             && (self.managed_source_type(&binary.left, depth + 1).is_some()
                 || self.managed_source_type(&binary.right, depth + 1).is_some())
         {
-            if !matches!(
+            let kind = if matches!(
                 binary.operator,
                 BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
-            ) {
+            ) || (self.stored.string(binary.left.node_id())
+                && self.stored.string(binary.right.node_id()))
+                || (self.stored.number(binary.left.node_id())
+                    && self.stored.number(binary.right.node_id()))
+                || (self.stored.boolean(binary.left.node_id())
+                    && self.stored.boolean(binary.right.node_id()))
+                || (self.stored.reference(binary.left.node_id())
+                    && self.stored.reference(binary.right.node_id()))
+            {
+                // Same-kind Number/String/Boolean pairs and language-object reference
+                // pairs need no primitive coercion for abstract equality.
+                EqualityKind::Exact
+            } else if self.stored.nullish(binary.left.node_id()) {
+                EqualityKind::LeftNullish
+            } else if self.stored.nullish(binary.right.node_id()) {
+                EqualityKind::RightNullish
+            } else {
                 return Err(unsupported(
                     node,
                     "expression is outside the numeric experiment: managed comparisons require strict equality",
                 ));
-            }
+            };
             work.push(Work::Managed(ManagedWork::EqualRight {
                 node,
                 right: &binary.right,
                 depth: depth + 1,
-                negated: binary.operator == BinaryOperator::StrictInequality,
+                negated: matches!(
+                    binary.operator,
+                    BinaryOperator::Inequality | BinaryOperator::StrictInequality
+                ),
+                kind,
             }));
             work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
             return Ok(true);
@@ -1075,6 +1162,15 @@ impl Lowering<'_, '_> {
             if let Expression::UnaryExpression(u) = node
                 && u.operator == UnaryOperator::Typeof
             {
+                if typeof_name::unresolvable(&u.argument, self.semantic, depth + 1) {
+                    // Only a reference to an absent name skips GetValue. A
+                    // sequence, member access or resolved TDZ binding does not.
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(
+                        node,
+                        "undefined",
+                    )));
+                    return Ok(true);
+                }
                 let named = closures::unwrapped_at(&u.argument, depth + 1)
                     .and_then(|(argument, _)| match argument {
                         Expression::Identifier(i) => i.reference_id.get(),
@@ -1087,9 +1183,9 @@ impl Lowering<'_, '_> {
                 if named {
                     // A hoisted module declaration has no read/construction effects.
                     // Its complete source body is still validated independently.
-                    work.push(Work::Managed(ManagedWork::FunctionTypeof(node)));
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(node, "function")));
                 } else if self.function_arity(&u.argument, depth + 1).is_some() {
-                    work.push(Work::Managed(ManagedWork::FunctionTypeof(node)));
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(node, "function")));
                     work.push(Work::Eval(&u.argument, depth + 1, Mode::Discard));
                 } else {
                     work.push(Work::Managed(ManagedWork::Typeof(node)));
@@ -1347,14 +1443,14 @@ impl Lowering<'_, '_> {
                 );
                 values.push(Value::Number(result));
             }
-            ManagedWork::FunctionTypeof(node) => {
+            ManagedWork::ConstantTypeof(node, name) => {
                 let result = self.value(Type::ManagedValue);
                 Self::push(
                     regions.current(),
                     node,
                     Op::ManagedString {
                         result,
-                        units: "function".encode_utf16().collect(),
+                        units: name.encode_utf16().collect(),
                     },
                 );
                 values.push(Value::Managed(result));
@@ -1387,6 +1483,16 @@ impl Lowering<'_, '_> {
                     Op::ManagedToClosure { result, input },
                 );
                 values.push(Value::Function(result));
+            }
+            ManagedWork::NumberProjection(node) => {
+                let input = values.pop().expect("boxed Number").id();
+                let result = self.value(Type::Number);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedToNumber { result, input },
+                );
+                values.push(Value::Number(result));
             }
             ManagedWork::ReferenceProjection { node, ty } => {
                 let input = values.pop().expect("boxed receiver").id();
@@ -1469,12 +1575,14 @@ impl Lowering<'_, '_> {
                 right,
                 depth,
                 negated,
+                kind,
             } => {
                 let left = values.pop().expect("managed equality left").id();
                 work.push(Work::Managed(ManagedWork::Equal {
                     node,
                     left,
                     negated,
+                    kind,
                 }));
                 work.push(Work::Eval(right, depth, Mode::Managed));
             }
@@ -1482,16 +1590,30 @@ impl Lowering<'_, '_> {
                 node,
                 left,
                 negated,
+                kind,
             } => {
                 let right = values.pop().expect("managed equality right").id();
                 let result = self.value(Type::Predicate);
                 Self::push(
                     regions.current(),
                     node,
-                    Op::ManagedEqual {
-                        result,
-                        left,
-                        right,
+                    match kind {
+                        EqualityKind::Exact => Op::ManagedEqual {
+                            result,
+                            left,
+                            right,
+                        },
+                        // Abstract equality with a positively nullish operand is
+                        // exactly a nullish test of the other value. Both operands
+                        // still evaluate left-to-right, even when one is `void`.
+                        EqualityKind::LeftNullish => Op::ManagedIsNullish {
+                            result,
+                            input: right,
+                        },
+                        EqualityKind::RightNullish => Op::ManagedIsNullish {
+                            result,
+                            input: left,
+                        },
                     },
                 );
                 let result = if negated {

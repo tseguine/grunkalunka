@@ -2,8 +2,137 @@
 mod common;
 
 #[test]
+fn boolean_fields_project_as_booleans_before_scalar_coercion() {
+    for body in [
+        "const o={flag:a<b};return +o.flag;",
+        "const xs=[true,false];return +xs[0]*10+ +xs[1];",
+        "const o={flag:false};return 1/-o.flag;",
+        "const o={flag:true};const value=(+o.flag)+(o.flag=false,+o.flag);return value;",
+        "const o={flag:a<b};const take=value=>+value;return take(o.flag);",
+        "const o={flag:true};return (o.flag?1:0)+ +(o.flag==true);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={flag:a<b};return +o.flag;}";
+    let ts = "export function run(a:number,b:number){const o:string={flag:a<b};return +((o as boolean).flag as number);}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn boxed_boolean_loose_equality_keeps_tags_and_saved_values() {
+    for body in [
+        "const o={flag:false??a};return o.flag==false?1:0;",
+        "const o={flag:true};return o.flag==true&&o.flag!=false?1:0;",
+        "const xs=[a<b,false];return xs[0]!=xs[1]?1:0;",
+        "const o={flag:!a};return o.flag==!!b?1:0;",
+        "const o={flag:a==b};return o.flag==(a==b)?1:0;",
+        "const o={x:a};const flags={removed:delete o.x,present:'x' in o};return flags.removed==true&&flags.present==false?1:0;",
+        "const o={flag:true};const value=o.flag==(o.flag=false,true);return value&&o.flag==false?1:0;",
+        "let [flag]=[true];const same=flag==(flag=false,true);return same&&flag==false?1:0;",
+        "let n=0;for(const flag of [true,false,true]){if(flag==true)n++;}return n;",
+        "const same=(x,y)=>x.flag==y.flag;return same({flag:a<b},{flag:a<b})?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={flag:a<b};return o.flag==true?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={flag:a<b};return (o as string).flag==(true as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn boxed_number_loose_equality_keeps_number_semantics_and_snapshots() {
+    for body in [
+        "const o={n:a};return o.n==b?1:0;",
+        "const xs=[a,b];return xs[0]!=xs[1]?1:0;",
+        "const o={n:NaN};return o.n!=o.n&&!(o.n==o.n)?1:0;",
+        "const o={n:-0};return o.n==0&&0==o.n&&!(o.n!=0)?1:0;",
+        "const o={n:Infinity};const xs=[-Infinity];return o.n==Infinity&&xs[0]!=o.n?1:0;",
+        "const o={n:a};const value=o.n==(o.n=b,a);return value==(a==a)?1:0;",
+        "let [x]=[a];const same=x==(x=b,a);return same==(a==a)?1:0;",
+        "const same=(x,y)=>x.n==y.n;const first={n:a};const second={n:b};return same(first,second)?1:0;",
+        "let n=0;const o={n:a};const value=(n=1,o.n)==(n=n*10+2,a);return n===12&&value==(a==a)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={n:a};return o.n!=b?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:string={n:a};return (o as boolean).n!=(b as string)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn reference_loose_equality_preserves_identity_and_saved_operands() {
+    for body in [
+        "const make=()=>({});const first=make();const second=make();return first!=second&&first==first?1:0;",
+        "const o={};const alias=o;return o==alias&&o!={}?1:0;",
+        "const xs=[];const alias=xs;return xs==alias&&xs!=[]?1:0;",
+        "return {}!=[]&&[]!={}?1:0;",
+        "const d=Object.create(null);const alias=d;return d==alias&&d!={}?1:0;",
+        "const o={x:{}};return o.x==o.x&&o.x!={}?1:0;",
+        "let o={};const old=o;const value=o==(o={},old);return value&&o!=old?1:0;",
+        "const o={x:{}};const old=o.x;const value=o.x==(o.x={},old);return value&&o.x!=old?1:0;",
+        "let n=0;const o={};const value=(n=1,o)==(n=n*10+2,o);return value&&n===12?1:0;",
+        "const xs=[{},{}];let n=0;for(const value of xs){if(value==value)n++;if(value!=xs[0])n+=10;}return n;",
+        "const o={};const same=(x,y)=>x==y;return same(o,o)&&!same(o,{})?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const xs=[];const alias=xs;return xs==alias?1:0;}";
+    let ts = "export function run(a:number,b:number){const xs:number=[];const alias:boolean=xs;return (xs as string)==(alias as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn loose_null_checks_cover_managed_tags_and_keep_operand_snapshots() {
+    for body in [
+        "const o={x:null};return o.x==null?1:0;",
+        "const o={};return undefined==o.x?1:0;",
+        "const o={x:a?'text':null};return (o.x!=null)==!!a?1:0;",
+        "let count=0;for(const value of [null,undefined,false,0,NaN,'','x',{},[],()=>a]){if(value==null)count++;if(undefined!=value)count+=10;}return count;",
+        "const d=Object.create(null);const k='x';d[k]=a?null:'v';return (d[k]==null)==!!a?1:0;",
+        "const o={x:null};let n=0;const value=(n=1,o.x)==void(n=n*10+2,o.x='changed');return value&&n===12&&o.x==='changed'?1:0;",
+        "const o={x:null};let n=0;const value=void(n=1,o.x='changed')===(n=n*10+2,undefined);return value&&n===12?1:0;",
+        "const o={x:null};let n=0;const value=void(n=1,o.x='changed')==(n=n*10+2,o.x);return !value&&n===12?1:0;",
+        "const o={x:'text'};const sentinel=a?null:undefined;return sentinel!=o.x?1:0;",
+        "const undefined=a;const o={x:null};return o.x==undefined?1:0;",
+        "const left={};const right=[];return left==null||undefined==right?0:1;",
+        "const o={x:null};return {flag:o.x==null}.flag===true?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={x:a?'text':null};return o.x!=null?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={x:a?'text':null};return (o as boolean).x!=(null as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn logical_values_return_the_selected_operand() {
     for source in [
+        "export function run(a,b){let x='';x||='fallback';return a;}",
         "export function run(a,b){const x='';const y=x||'fallback';return y==='fallback'?a:b;}",
         "export function run(a,b){const x='left';const y=x||'fallback';return y===x?a:b;}",
         "export function run(a,b){const x='';const y=x&&'right';return y===x?a:b;}",
@@ -84,7 +213,6 @@ fn unselected_managed_branches_still_require_supported_source() {
     for source in [
         "export function run(a,b){const x={}||missing();return a;}",
         "export function run(a,b){const x={}||{[a]:b};return a;}",
-        "export function run(a,b){let x='';x||='fallback';return a;}",
         "export function run(a,b){const x={}??{};return x;}",
         "export async function run(a,b){const x='v'||'fallback';await a;return a;}",
     ] {

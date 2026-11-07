@@ -2,9 +2,35 @@
 use super::*;
 
 pub(super) enum Mutation {
+    KeyDelete { receiver: NodeId, key: Key },
+    AnyKeyDelete(NodeId),
     IndexDelete(NodeId),
     Reorder(NodeId),
     AnyKeyWrite { receiver: NodeId, value: NodeId },
+}
+
+pub(super) fn delete(unary: &oxc_ast::ast::UnaryExpression<'_>) -> Option<Mutation> {
+    if unary.operator != UnaryOperator::Delete {
+        return None;
+    }
+    let (receiver, key) = match closures::unwrapped(&unary.argument, 0)? {
+        Expression::StaticMemberExpression(member) => (
+            &member.object,
+            Some(member.property.name.encode_utf16().collect()),
+        ),
+        Expression::ComputedMemberExpression(member) => (
+            &member.object,
+            closures::unwrapped(&member.expression, 0).and_then(static_keys::literal),
+        ),
+        _ => return None,
+    };
+    Some(match key {
+        Some(key) => Mutation::KeyDelete {
+            receiver: receiver.node_id(),
+            key,
+        },
+        None => Mutation::AnyKeyDelete(receiver.node_id()),
+    })
 }
 
 pub(super) fn call(call: &CallExpression<'_>) -> Option<Mutation> {

@@ -17,6 +17,8 @@ pub(super) enum Origin {
     Arrow(NodeId),
     Named(SymbolId),
     String,
+    Number,
+    Boolean,
     Null,
     Undefined,
     Other,
@@ -27,6 +29,7 @@ enum Rule {
     Iterated(NodeId),
     Known(Origin),
     Copy(Vec<NodeId>),
+    AwaitPrimitive(NodeId),
     Logical(LogicalOperator, NodeId, NodeId),
     Default(NodeId, NodeId),
     Symbol(SymbolId),
@@ -37,7 +40,8 @@ enum Rule {
         Option<(NodeId, string_methods::Method)>,
         Option<(NodeId, bool)>,
     ),
-    StringConcat(NodeId, NodeId),
+    Addition(NodeId, NodeId),
+    PropertyAddition(NodeId, NodeId),
 }
 enum Definition {
     Value(SymbolId, NodeId),
@@ -52,6 +56,7 @@ struct FunctionFlow {
 #[derive(Default)]
 pub(crate) struct Fields {
     values: BTreeMap<NodeId, Alternatives>,
+    number_updates: BTreeSet<NodeId>,
 }
 fn symbol(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
     id.reference_id
@@ -168,6 +173,42 @@ impl Fields {
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::String))
     }
+    pub(super) fn number(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Number))
+    }
+    pub(super) fn nullish(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values
+                    .iter()
+                    .all(|origin| matches!(origin, Origin::Null | Origin::Undefined))
+        })
+    }
+    pub(super) fn boolean(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Boolean))
+    }
+    pub(super) fn number_update(&self, node: NodeId) -> bool {
+        self.number_updates.contains(&node)
+    }
+    pub(super) fn reference(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::Object(_)
+                            | Origin::NullObject(_)
+                            | Origin::Array(_)
+                            | Origin::Arrow(_)
+                            | Origin::Named(_)
+                    )
+                })
+        })
+    }
     pub(super) fn container(&self, node: NodeId) -> Option<Type> {
         let values = self.values.get(&node)?;
         let ty = match values.first()? {
@@ -221,6 +262,9 @@ impl Fields {
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
                 || matches!(node.kind(), AstKind::LogicalExpression(_))
+                // Function-only loose comparisons also need reference proofs,
+                // even when no literal heap container occurs in the module.
+                || matches!(node.kind(), AstKind::BinaryExpression(binary) if matches!(binary.operator, BinaryOperator::Equality | BinaryOperator::Inequality))
         }) {
             return Self::default();
         }
@@ -323,6 +367,7 @@ impl Fields {
         let mut enumeration_inputs = Vec::new();
         let mut indexed_copy_inputs = Vec::new();
         let mut writes = Vec::new();
+        let mut numeric_targets = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
         let parameters = |parameters: &oxc_ast::ast::FormalParameters<'_>| {
@@ -337,6 +382,11 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            if let AstKind::UnaryExpression(unary) = node.kind()
+                && let Some(mutation) = mutations::delete(unary)
+            {
+                mutations.push(mutation);
+            }
             if let AstKind::CallExpression(call) = node.kind()
                 && let Some(receiver) = string_methods::call(call)
                     .filter(|(_, method)| matches!(method, string_methods::Method::Slice))
@@ -384,13 +434,7 @@ impl Fields {
                     target_identifier(&update.argument, 0).ok().flatten()
                 }
                 AstKind::AssignmentExpression(assignment)
-                    if !matches!(
-                        assignment.operator,
-                        AssignmentOperator::Assign
-                            | AssignmentOperator::LogicalAnd
-                            | AssignmentOperator::LogicalOr
-                            | AssignmentOperator::LogicalNullish
-                    ) =>
+                    if assignment.operator != AssignmentOperator::Assign =>
                 {
                     assignment
                         .left
@@ -399,11 +443,51 @@ impl Fields {
                 }
                 _ => None,
             };
-            if let Some(target) = numeric_target.and_then(|name| symbol(name, semantic)) {
-                // A numeric update or compound write can replace an initially
-                // Undefined General cell. Keep its non-Undefined alternative,
-                // including through captured and erased TypeScript targets.
-                bindings.entry(target).or_default().insert(Origin::Other);
+            if let Some(target) = numeric_target
+                && let Some(symbol) = symbol(target, semantic)
+            {
+                // Admission needs the alternatives in the cell before numeric
+                // updates. The expression's own rule separately proves the new
+                // result kind, including String alternatives for += and the
+                // selected RHS alternatives of logical assignments.
+                numeric_targets.push((target.node_id(), id, symbol));
+            }
+            let numeric_property = match node.kind() {
+                AstKind::UpdateExpression(update) => Some(&update.argument),
+                AstKind::AssignmentExpression(assignment)
+                    if evaluate::property_update::compound(assignment.operator).is_some()
+                        || matches!(
+                            assignment.operator,
+                            AssignmentOperator::LogicalAnd
+                                | AssignmentOperator::LogicalOr
+                                | AssignmentOperator::LogicalNullish
+                        ) =>
+                {
+                    assignment.left.as_simple_assignment_target()
+                }
+                _ => None,
+            };
+            if let Some(target) = numeric_property {
+                match target {
+                    SimpleAssignmentTarget::StaticMemberExpression(member) => writes.push((
+                        member.object.node_id(),
+                        member.property.name.encode_utf16().collect(),
+                        id,
+                    )),
+                    SimpleAssignmentTarget::ComputedMemberExpression(member) => {
+                        if let Some(key) = closures::unwrapped(&member.expression, 0)
+                            .and_then(static_keys::literal)
+                        {
+                            writes.push((member.object.node_id(), key, id));
+                        } else {
+                            mutations.push(mutations::Mutation::AnyKeyWrite {
+                                receiver: member.object.node_id(),
+                                value: id,
+                            });
+                        }
+                    }
+                    _ => (),
+                }
             }
             let rule = match node.kind() {
                 AstKind::CallExpression(call)
@@ -445,6 +529,78 @@ impl Fields {
                     values.insert(id, BTreeSet::from([Origin::String]));
                     None
                 }
+                AstKind::NumericLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::BooleanLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Boolean]));
+                    None
+                }
+                AstKind::UnaryExpression(unary)
+                    if matches!(
+                        unary.operator,
+                        UnaryOperator::LogicalNot | UnaryOperator::Delete
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Boolean]));
+                    None
+                }
+                AstKind::BinaryExpression(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Equality
+                            | BinaryOperator::Inequality
+                            | BinaryOperator::StrictEquality
+                            | BinaryOperator::StrictInequality
+                            | BinaryOperator::LessThan
+                            | BinaryOperator::LessEqualThan
+                            | BinaryOperator::GreaterThan
+                            | BinaryOperator::GreaterEqualThan
+                            | BinaryOperator::In
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Boolean]));
+                    None
+                }
+                AstKind::AwaitExpression(awaited) => {
+                    Some(Rule::AwaitPrimitive(awaited.argument.node_id()))
+                }
+                AstKind::UpdateExpression(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::Addition
+                        && assignment.left.as_simple_assignment_target().is_some() =>
+                {
+                    let target = assignment
+                        .left
+                        .as_simple_assignment_target()
+                        .expect("checked simple assignment target");
+                    Some(if target_identifier(target, 0).ok().flatten().is_some() {
+                        Rule::Addition(target.node_id(), assignment.right.node_id())
+                    } else {
+                        Rule::PropertyAddition(target.node_id(), assignment.right.node_id())
+                    })
+                }
+                AstKind::AssignmentExpression(assignment)
+                    if evaluate::property_update::compound(assignment.operator).is_some() =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::UnaryExpression(u)
+                    if matches!(
+                        u.operator,
+                        UnaryOperator::UnaryPlus
+                            | UnaryOperator::UnaryNegation
+                            | UnaryOperator::BitwiseNot
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
                 AstKind::NullLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::Null]));
                     None
@@ -458,7 +614,25 @@ impl Fields {
                     None
                 }
                 AstKind::BinaryExpression(b) if b.operator == BinaryOperator::Addition => {
-                    Some(Rule::StringConcat(b.left.node_id(), b.right.node_id()))
+                    Some(Rule::Addition(b.left.node_id(), b.right.node_id()))
+                }
+                AstKind::BinaryExpression(b)
+                    if matches!(
+                        b.operator,
+                        BinaryOperator::Subtraction
+                            | BinaryOperator::Multiplication
+                            | BinaryOperator::Division
+                            | BinaryOperator::Remainder
+                            | BinaryOperator::BitwiseAnd
+                            | BinaryOperator::BitwiseOR
+                            | BinaryOperator::BitwiseXOR
+                            | BinaryOperator::ShiftLeft
+                            | BinaryOperator::ShiftRight
+                            | BinaryOperator::ShiftRightZeroFill
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
                 }
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
@@ -574,7 +748,8 @@ impl Fields {
                                     &parameter.pattern
                                     && let Some(symbol) = binding.symbol_id.get()
                                 {
-                                    bindings.insert(symbol, BTreeSet::from([Origin::Other]));
+                                    // Public entry inputs are Numbers in both source profiles.
+                                    bindings.insert(symbol, BTreeSet::from([Origin::Number]));
                                 }
                             }
                         }
@@ -608,10 +783,10 @@ impl Fields {
                     if let Some(symbol) = symbol(identifier, semantic) {
                         Some(Rule::Symbol(symbol))
                     } else {
-                        let origin = if identifier.name == "undefined" {
-                            Origin::Undefined
-                        } else {
-                            Origin::Other
+                        let origin = match identifier.name.as_str() {
+                            "undefined" => Origin::Undefined,
+                            "Infinity" | "NaN" => Origin::Number,
+                            _ => Origin::Other,
                         };
                         values.insert(id, BTreeSet::from([origin]));
                         None
@@ -683,6 +858,17 @@ impl Fields {
                     {
                         definitions.push(Definition::Value(target, a.right.node_id()));
                         Some(Rule::Symbol(target))
+                    } else if let Some(target) = a.left.as_simple_assignment_target() {
+                        Some(Rule::Logical(
+                            match a.operator {
+                                AssignmentOperator::LogicalAnd => LogicalOperator::And,
+                                AssignmentOperator::LogicalOr => LogicalOperator::Or,
+                                AssignmentOperator::LogicalNullish => LogicalOperator::Coalesce,
+                                _ => unreachable!("checked logical assignment"),
+                            },
+                            target.node_id(),
+                            a.right.node_id(),
+                        ))
                     } else {
                         values.insert(id, BTreeSet::from([Origin::Other]));
                         None
@@ -878,6 +1064,8 @@ impl Fields {
             || !enumeration_inputs.is_empty()
             || !indexed_copy_inputs.is_empty();
         let mut finalized_unresolved = false;
+        let mut numeric_writes_classified = false;
+        let mut number_updates = BTreeSet::new();
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
             let members = member_origins::Members {
@@ -910,6 +1098,19 @@ impl Fields {
                     }
                     Rule::Known(origin) => BTreeSet::from([*origin]),
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
+                    Rule::AwaitPrimitive(input) => get(input)
+                        .into_iter()
+                        .map(|origin| {
+                            // Known primitive kinds have no thenable assimilation.
+                            // Do not retain reference identity or infer a value
+                            // kind from unknown Promise/thenable fulfillments.
+                            if matches!(origin, Origin::Number | Origin::String | Origin::Boolean) {
+                                origin
+                            } else {
+                                Origin::Other
+                            }
+                        })
+                        .collect(),
                     Rule::Logical(operator, left, right) => {
                         let mut found = Alternatives::new();
                         let mut selects_right = false;
@@ -953,10 +1154,19 @@ impl Fields {
                         found
                     }
                     Rule::Symbol(symbol) => bindings.get(symbol).cloned().unwrap_or_default(),
-                    Rule::StringConcat(left, right) => {
+                    Rule::Addition(left, right) | Rule::PropertyAddition(left, right) => {
                         let left = get(left);
                         let right = get(right);
-                        if left.is_empty() || right.is_empty() {
+                        if matches!(rule, Rule::PropertyAddition(_, _))
+                            && !left.is_empty()
+                            && left.iter().all(|origin| *origin == Origin::Number)
+                        {
+                            // Preserve the numeric property path: its RHS is
+                            // independently checked for admitted primitive
+                            // ToNumber conversion (e.g. += undefined). This is
+                            // not a proof that a mixed/string RHS is numeric.
+                            BTreeSet::from([Origin::Number])
+                        } else if left.is_empty() || right.is_empty() {
                             Alternatives::new()
                         } else if left
                             .iter()
@@ -964,6 +1174,12 @@ impl Fields {
                             .all(|origin| *origin == Origin::String)
                         {
                             BTreeSet::from([Origin::String])
+                        } else if left
+                            .iter()
+                            .chain(&right)
+                            .all(|origin| *origin == Origin::Number)
+                        {
+                            BTreeSet::from([Origin::Number])
                         } else {
                             BTreeSet::from([Origin::Other])
                         }
@@ -1107,6 +1323,25 @@ impl Fields {
             let mut wildcard_additions = Vec::new();
             for mutation in &mutations {
                 match mutation {
+                    mutations::Mutation::KeyDelete { receiver, key } => {
+                        for origin in get(receiver) {
+                            if let Origin::Object(object)
+                            | Origin::NullObject(object)
+                            | Origin::Array(object) = origin
+                            {
+                                let undefined = BTreeSet::from([Origin::Undefined]);
+                                write_additions.push(((object, key.clone()), undefined.clone()));
+                                if matches!(origin, Origin::Array(_))
+                                    && mutations::array_index(key).is_some()
+                                {
+                                    deleted.push(object);
+                                    if track_elements {
+                                        changed |= elements.write(object, key, undefined, &fields);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     mutations::Mutation::Reorder(receiver) => {
                         for origin in get(receiver) {
                             if let Origin::Array(array) = origin {
@@ -1118,6 +1353,23 @@ impl Fields {
                         for origin in get(receiver) {
                             if let Origin::Array(array) = origin {
                                 deleted.push(array);
+                            }
+                        }
+                    }
+                    mutations::Mutation::AnyKeyDelete(receiver) => {
+                        for origin in get(receiver) {
+                            if let Origin::Object(object)
+                            | Origin::NullObject(object)
+                            | Origin::Array(object) = origin
+                            {
+                                let undefined = BTreeSet::from([Origin::Undefined]);
+                                wildcard_additions.push((object, undefined.clone()));
+                                if matches!(origin, Origin::Array(_)) {
+                                    deleted.push(object);
+                                    if track_elements {
+                                        changed |= elements.wildcard(object, undefined);
+                                    }
+                                }
                             }
                         }
                     }
@@ -1172,11 +1424,56 @@ impl Fields {
                     }
                 }
             }
+            if !changed && !numeric_writes_classified {
+                numeric_writes_classified = true;
+                let symbols = numeric_targets
+                    .iter()
+                    .map(|(_, _, symbol)| *symbol)
+                    .collect::<BTreeSet<_>>();
+                for symbol in symbols {
+                    let binding_is_number = bindings.get(&symbol).is_some_and(|origins| {
+                        origins.len() == 1 && origins.contains(&Origin::Number)
+                    });
+                    let targets_are_number = numeric_targets
+                        .iter()
+                        .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                        .all(|(_, result, _)| {
+                            values.get(result).is_some_and(|origins| {
+                                origins.len() == 1 && origins.contains(&Origin::Number)
+                            })
+                        });
+                    // String-only += and logical writes preserve their lane.
+                    // Numeric updates or an incompatible RHS still widen it.
+                    let preserves_string = bindings.get(&symbol).is_some_and(|origins| {
+                        origins.len() == 1 && origins.contains(&Origin::String)
+                    }) && numeric_targets
+                        .iter()
+                        .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                        .all(|(_, result, _)| {
+                            values.get(result).is_some_and(|origins| {
+                                origins.len() == 1 && origins.contains(&Origin::String)
+                            })
+                        });
+                    if binding_is_number && targets_are_number {
+                        number_updates.extend(
+                            numeric_targets
+                                .iter()
+                                .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                                .map(|(target, _, _)| *target),
+                        );
+                    } else if !preserves_string {
+                        changed |= extend(&mut bindings, symbol, BTreeSet::from([Origin::Other]));
+                    }
+                }
+            }
             if !changed {
                 break;
             }
         }
-        Self { values }
+        Self {
+            values,
+            number_updates,
+        }
     }
 }
 

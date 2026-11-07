@@ -729,6 +729,12 @@ pub(crate) enum Op {
         input: ValueId,
         key: ManagedKey,
     },
+    // Only configurable own data properties; array length is excluded.
+    ManagedDeleteOwn {
+        result: ValueId,
+        input: ValueId,
+        key: ManagedKey,
+    },
     // Checked non-null input specialization; source unknowns use the fallible form.
     ManagedEnumerateOwn {
         kind: OwnEnumeration,
@@ -780,6 +786,11 @@ pub(crate) enum Op {
         value: ValueId,
     },
     ManagedPrimitive {
+        result: ValueId,
+        input: ValueId,
+    },
+    // Source-proven Number projection; this does not perform ToNumber.
+    ManagedToNumber {
         result: ValueId,
         input: ValueId,
     },
@@ -1586,6 +1597,26 @@ impl Verifier<'_> {
                 self.value(*key, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
+            Op::ManagedDeleteOwn { result, input, key } => {
+                let ty = self
+                    .function
+                    .values
+                    .get(input.0)
+                    .copied()
+                    .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
+                    .ok_or_else(|| invalid(span, "delete requires an object or array receiver"))?;
+                self.value(*input, ty, visible, span)?;
+                self.managed_key(key, visible, span)?;
+                if ty == Type::ManagedArray
+                    && !matches!(key, ManagedKey::Literal(key) if key.as_slice() != [108,101,110,103,116,104])
+                {
+                    return Err(invalid(
+                        span,
+                        "array delete must exclude non-configurable length",
+                    ));
+                }
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
             Op::ManagedHasOwn { result, input, key } => {
                 let ty = self
                     .function
@@ -1795,6 +1826,10 @@ impl Verifier<'_> {
             Op::ManagedPrimitive { result, input } => {
                 self.value(*input, Type::General, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedToNumber { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
             }
             Op::ManagedEqual {
                 result,

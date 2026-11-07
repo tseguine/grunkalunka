@@ -7,6 +7,175 @@ This is an increment toward [#300](https://github.com/tseguine/grunkalunka/issue
 not complete source object/array support. Exported Number/primitive signatures and
 the existing async contract are preserved.
 
+[Property deletion](property-deletion.md) removes configurable own data fields,
+preserves sparse-array length and updates the source facts used by later reads.
+
+Source-proven Number fields and elements now project from boxed storage into
+ordinary arithmetic, comparisons and numeric returns. The same path supports
+destructured locals, assignment-pattern targets, intrinsic-array iteration and
+checked helper results. Each read snapshots the Number before later effects or
+awaits; signed zero, infinities and NaN retain their Number behavior.
+
+The finite source-origin analysis requires every alternative to be a Number.
+Entry inputs, Number expressions and checked source-call arguments/results supply
+facts; type annotations do not. Alias writes, deletes, missing fields, sparse
+holes and incompatible alternatives can prevent a proof. Uncertain values remain
+boxed and cannot use this projection. The verified `ManagedToNumber` IR operation
+also checks the runtime language tag before reading its f64 payload; it performs
+no coercion or user-code calls. General runtime coercion and public reference
+results remain separate work.
+
+Awaiting a source-proven Number preserves its Number origin, including nested
+awaits and boxed storage or assignment RHS values. The existing suspension path
+still executes normally. This proof does not copy reference origins through
+await: objects and functions may participate in thenable assimilation, and
+unknown or mixed operands do not prove numeric fulfillment. Type assertions
+cannot turn such an operand into a Number proof.
+
+Managed values now support loose `==` and `!=` comparisons when either operand
+is positively known to be Null or Undefined. That side may also be a union of
+those two origins. The result tests the other operand's runtime nullish tag:
+both Null and Undefined compare equal; every represented non-nullish value is
+unequal, including empty Strings, false, zero and object/array/function references.
+Both operands still evaluate left to right, with the left value saved before
+RHS effects, throws or suspension. This covers `record.field == null` and
+`record.field != undefined` without invoking managed coercion. Name spelling
+and type annotations supply no nullish proof.
+
+Two source-proven Strings also support `==` and `!=`. Abstract equality between
+Strings uses the same exact UTF-16 content comparison as strict equality,
+including NUL, surrogate units and distinct allocations with equal contents.
+The saved left operand remains independent of RHS mutations or suspension.
+Mixed-kind comparisons and uncertain String origins still require separate
+coercion work and retain their current guards.
+
+Known object and array reference pairs also support `==` and `!=` by identity,
+including aliases, nested data fields and null-prototype dictionaries. An object
+and an array are unequal even if their contents match. Neither operand invokes
+primitive conversion. Left snapshots survive RHS rebinding and suspension.
+Mixed primitive/reference alternatives and annotation-only claims remain guarded;
+general coercing comparisons remain separate work.
+
+Supported synchronous function references also participate in `==` and `!=`
+identity comparisons. Loose comparisons now trigger the same allocation-identity
+analysis as strict comparisons, preserving aliases, module declarations and fresh
+closures returned from factories. Positive reference unions may contain functions,
+objects or arrays; cross-kind references are unequal. Comparison never invokes
+the function. Saved function values survive RHS rebinding and suspension. Async
+function storage, primitive/reference coercion and uncertain origins remain guarded.
+
+Source-proven Number pairs in boxed storage also support `==` and `!=` without
+coercion. NaN compares unequal to itself, signed zero compares equal to zero,
+and infinities retain ordinary Number equality. Fields, elements, destructured
+cells and checked helper inputs use the same operation and save the left Number
+before RHS effects or suspension. Mixed kinds, deleted or uncertain field origins,
+and type assertions cannot supply the required Number-pair proof.
+
+Source-proven Boolean pairs in boxed fields, elements and cells now support `==`
+and `!=` without Number conversion. Boolean literals, comparisons, `in`, `delete`
+and logical negation supply positive Boolean origins; aliases and checked helper
+flows retain those facts. Left values remain snapshots across RHS writes and
+suspension. Mixed Boolean/Number or other uncertain alternatives remain guarded,
+and annotations cannot supply a Boolean proof. Boolean truthiness stays conservative
+in the origin analysis; it does not predict which branch executes.
+
+Proven Boolean values in managed storage can also enter the existing scalar
+primitive path. Lowering reads the saved Boolean, projects its predicate and packs
+it with the Boolean tag; explicit numeric coercion then uses the existing primitive
+conversion. This enables scalar consumers such as `+record.enabled` while preserving
+Boolean identity and negative-zero behavior. Await preserves positive Boolean
+origins, and managed await results box the existing General-protocol completion.
+Boxed Boolean operands project before their await, so RHS effects cannot change a
+saved value. Pure primitive awaits retain their existing lowering path. Unknown,
+mixed and reference/thenable origins remain guarded; there is no new async ABI.
+
+Awaiting a source-proven String also preserves its String origin and contents.
+The operand evaluates once, then its traced value stays live across one real
+suspension through the existing private numeric await protocol. That internal
+fulfilled token's result is unused; the expression returns the saved String.
+Strings are primitive and cannot be thenables, so no source code can replace
+their fulfillment value. Nested awaits, String concatenation, local and property
+`+=`, predicates, destructuring and discarded awaits compose with this path.
+Operand throws still bypass the String suspension, and every executed String
+await consumes the normal await/job budgets. String-valued Promises, async String
+return interfaces and reference/unknown thenable results remain separate work.
+
+Mutable source-proven String locals now support `+=` with a source-proven String
+RHS. The old String is saved before RHS effects or suspension, concatenated with
+the completed RHS, then stored and returned. Captures observe the new String;
+RHS rejection performs no store. UTF-16 units use the existing concatenation
+operation unchanged. Destructured and iteration cells follow the same path.
+Static own String data fields and array elements also support `+=`. Their
+receiver and old String are saved before the RHS; receiver rebinding does not
+redirect the final store. The same operation covers nested receivers. Successful
+completion stores once, and a throw or rejection leaves the saved reference
+untouched by the compound store.
+Type assertions, mixed coercion, const local targets, runtime keys, missing fields,
+array length and accessors do not acquire String support from this increment.
+Dictionary fields retain an absent alternative in the source analysis; an earlier
+plain write alone does not prove that such a field contains only Strings.
+
+The exact original numeric-field, array-element, destructuring declaration,
+destructuring assignment and `for-of` rejection sources now execute unchanged in
+the canonical corpus. Compiler admission/verifier tests and synchronous/async
+native-JavaScript, Node/Wasm and Wasmtime comparisons cover the source path.
+
+Known own Number data fields and static array elements also support prefix/postfix
+`++`/`--` and the eleven existing arithmetic/bitwise compound assignments. The
+receiver and old Number are saved before RHS effects or suspension. A successful
+write stores a newly boxed Number back into that original receiver; postfix
+returns the old snapshot, while prefix and compound assignment return the new
+Number. Rejection during RHS evaluation leaves the property unchanged. Ordinary
+read and write operations share the existing managed storage and numeric IR.
+Runtime keys, array length, missing or mixed-kind fields, coercion from other
+stored kinds and accessors remain separate work.
+
+Source-proven own Number properties also support `&&=`, `||=` and `??=`. The
+receiver and old Number are saved before selection, and the RHS plus boxed store
+remain entirely inside the selected branch. Skipped assignments return the old
+snapshot without evaluating the RHS. A proven Number is never nullish, so `??=`
+always retains the old property while still validating the complete source RHS.
+
+Static logical property assignments also preserve represented mixed values in
+managed, predicate and discarded positions. They test the old boxed value by its
+runtime tag, retain String contents and reference identity, and store only after
+the selected RHS succeeds. Missing ordinary data fields and sparse-array elements
+read as Undefined, so `record.label ??= 'default'` can create a field and an indexed
+fallback can grow an array without filling preceding holes. Receiver rebinding
+during RHS effects or suspension does not redirect the saved reference. Runtime
+keys, prototype names, accessors and array-length writes retain their guards.
+
+Null-prototype dictionaries also admit `&&=`, `||=` and `??=` through a
+source-proven runtime String key. The receiver finishes before key evaluation,
+the saved key is read before testing the old value, and the RHS runs only when
+selected. Rebinding the receiver or key during callbacks or suspension cannot
+redirect the store. Failed key evaluation or a rejected selected RHS performs no
+write. Dynamic logical writes conservatively invalidate property-kind proofs
+through aliases, just like other dynamic writes. General key coercion, ordinary
+object prototype lookup and runtime array keys remain separate work.
+
+Mutable local cells populated by destructuring and iteration use the same proven
+Number update path. Prefix/postfix updates and arithmetic/bitwise compound
+assignments load and validate the old boxed Number before evaluating the right
+side, then store a newly boxed Number only after successful completion. Captures
+observe the updated cell. Missing, String or mixed-origin local values remain
+guarded rather than turning the private projection into general coercion.
+
+The same proven boxed Number cells support `&&=`, `||=` and `??=`. Logical
+assignment snapshots and tests the old Number once, evaluates and stores the RHS
+only on the selected branch, and returns the exact old or new Number. Because a
+proven Number is never nullish, `??=` retains the old cell and skips every RHS
+effect. RHS values that could change the cell's kind remain guarded.
+
+Boxed local cells also admit logical assignments with represented mixed values
+in managed, predicate and discarded positions. The old value is saved once and
+tested by its runtime truthiness or nullish tag; only the selected RHS executes
+and stores. Strings, primitive kinds and reference identities remain intact,
+including captures and suspension. This supports a nullish fallback such as
+`let [x]=[null]; x ??= fallback` without asserting that the cell is numeric.
+Numeric consumers still require the existing Number proof. Const/TDZ checks
+and validation of the complete RHS apply even when its branch will be skipped.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.
@@ -323,7 +492,8 @@ without normalization. Results compose with `.length`, equality, truthiness,
 local/property storage, admitted helper signatures and captures.
 
 This slice requires positive String facts for both operands. Mixed-kind `+`
-needs separate JavaScript coercion work, and compound `+=` remains unadmitted.
+needs separate JavaScript coercion work. String-only `+=` over mutable locals and
+static own data references uses the same concatenation operation as described above.
 The private helper is included only when the module needs it. It checks the sum
 in an unsigned 64-bit lane before allocating the Wasm32 array; overflow and
 engine allocation exhaustion are resource failures, not catchable source
@@ -537,11 +707,15 @@ construction effects, so its result can be constant text; its complete body stil
 undergoes normal validation. Symbol identity and initialization checks preserve
 shadowing and reject TDZ reads. Erased annotations supply no runtime kind facts.
 
-The current increment does not define an ambient global namespace. Unknown global
-names, including unrepresented built-ins, remain explicit source rejections rather
-than being assumed absent. That is an implementation gap: JavaScript's special
-unresolvable-reference result and actual TDZ exception execution remain open in
-the `typeof` rejection-inventory requirement. BigInt/Symbol operands, dynamic
+In the current closed source environment, `typeof` on an unresolvable identifier
+reference returns `undefined` text without reading that absent binding. Parentheses
+and erased TypeScript wrappers preserve this reference behavior. A resolved local
+still requires initialization; `typeof (0, missingName)` still evaluates its value
+and rejects that missing read. Intrinsic/global names and common host namespaces
+keep their admission guards, even when their value operations are unimplemented;
+semantic lexical non-resolution alone does not prove that a built-in is absent.
+The exact original missing-name fixture now executes unchanged. General ambient
+global lookup and actual TDZ exception execution remain open. BigInt/Symbol operands, dynamic
 `Function` construction, Error/Promise carriers from other protocols, mixed
 function/primitive values, public String exports and managed async frames are not
 added here. Rejection tests establish those boundaries, not executed language

@@ -1,6 +1,327 @@
 use super::*;
 
 #[test]
+fn awaited_boolean_origins_compose_with_storage_and_scalar_consumers() {
+    compare_promises(
+        &[
+            "const o={flag:await true};return o.flag==true?1:0;",
+            "const xs=[await false,await true];return +xs[0]*10+ +xs[1];",
+            "const o={flag:await(await(a<b))};return +o.flag;",
+            "const o={flag:a<b};return +(await o.flag);",
+            "const o={flag:true};const value=(await o.flag)==(o.flag=false,true);return value&&o.flag==false?1:0;",
+            "const o={flag:true};try{o.flag=await (await Promise.reject(b),false);}catch(e){return o.flag==true&&e===b?1:0;}return -1;",
+            "const o={flag:a<b};if(await o.flag)return a;return b;",
+            "const o={flag:true};await o.flag;return +o.flag;",
+            "return await true;",
+            "return await false;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn boolean_loose_equality_saves_operands_through_rhs_awaits() {
+    compare_promises(
+        &[
+            "const o={flag:true};const same=o.flag==(await b,o.flag=false,true);return same&&o.flag==false?1:0;",
+            "const xs=[a<b];return xs[0]!=(await a,false)?1:0;",
+            "const o={flag:true};try{const same=o.flag==(await Promise.reject(b),true);return +same;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn function_loose_equality_keeps_captured_identity_through_awaits() {
+    compare_promises(
+        &[
+            "let f=()=>a;const old=f;const same=f==(await b,f=()=>b,old);return same&&f!=old?1:0;",
+            "const make=()=>()=>a;const f=make();await b;return f!=make()&&f==f?1:0;",
+            "const f=()=>a;const o={f};return o.f==(await b,f)?1:0;",
+            "const f=()=>a;try{const same=f==(await Promise.reject(b),f);return +same;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn boxed_number_loose_equality_keeps_snapshots_through_rhs_awaits() {
+    compare_promises(
+        &[
+            "const o={n:a};const value=o.n==(await b,o.n=b,a);return value==(a==a)?1:0;",
+            "const xs=[a,b];return xs[0]!=(await a,xs[0]=b,b)?1:0;",
+            "const o={n:await a};return o.n==(await b,a)?1:0;",
+            "const o={n:a};try{const value=o.n==(await Promise.reject(b),a);return +value;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn reference_loose_equality_keeps_identity_across_rhs_suspension() {
+    compare_promises(
+        &[
+            "let o={};const old=o;const value=o==(await a,o={},old);return value&&o!=old?1:0;",
+            "const xs=[{}];const old=xs[0];const value=xs[0]==(await b,xs[0]={},old);return value&&xs[0]!=old?1:0;",
+            "const o={};try{const value=o==(await Promise.reject(b),{});return +value;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn string_loose_equality_saves_operands_through_await_and_rejection() {
+    compare_promises(
+        &[
+            "const o={s:'old'};const value=o.s==(await a,o.s='new','old');return value&&o.s==='new'?1:0;",
+            "const left=await 'x';return left!=(await b,'y')?1:0;",
+            "const o={s:'old'};try{const value=o.s==(await Promise.reject(b),'old');return +value;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn loose_null_checks_keep_left_snapshots_and_rhs_reactions() {
+    compare_promises(
+        &[
+            "const o={x:a?null:'text'};return o.x==(await b,null)?(a?1:0):(a?0:1);",
+            "const o={x:null};const value=o.x==(await a,o.x='changed',null);return value&&o.x==='changed'?1:0;",
+            "const o={x:null};const value=(await a,void(o.x='changed'))!=o.x;return value?1:0;",
+            "const o={x:'text'};try{const value=o.x==(await Promise.reject(b),null);return +value;}catch(e){return e;}",
+            "const d=Object.create(null);const key=await 'x';d[key]=null;return d[key]!=null?0:1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn awaited_strings_keep_contents_snapshots_and_native_microtask_order() {
+    compare_promises(
+        &[
+            "const text=await 'abc';return text.length;",
+            "return (await (await 'abc')).length;",
+            "let text='x';const value=text+=await 'y';return value==='xy'&&text===value?1:0;",
+            "const o={s:'x'};const value=o.s+=await 'y';return value==='xy'&&o.s===value?1:0;",
+            "let text='old';const value=await (text='new',text);text='later';return value==='new'&&text==='later'?1:0;",
+            "let n=0;const text=await (n++,'abc');return text.length+n;",
+            "if(await '')return -1;if(await 'x')return a;return b;",
+            "const o={s:await 'abc'};const {s}=o;await 'unused';return s.length;",
+            "try{const text=await (await Promise.reject(b),'abc');return text.length;}catch(e){return e;}",
+            "let text='x';try{text+=await (await Promise.reject(b),'y');}catch(e){return text==='x'&&e===b?1:0;}return -1;",
+            r"const text=await '\ud800\udfff\0';return text==='\ud800\udfff\0'?text.length:0;",
+            "const text=await (a?'first':'second');return text.length;",
+            "const get=()=> 'abc';return (await get()).length;",
+            "await 'one';await 'two';await 'three';return a;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+    let js =
+        "export async function run(a,b){const o={s:await 'x'};o.s+=await 'y';return o.s.length;}";
+    let ts = "export async function run(a:number,b:number){const o:number={s:await ('x' as boolean)};(o as boolean).s+=await ('y' as never);return o.s.length;}";
+    assert_eq!(
+        compile_async(js, false).unwrap().wasm,
+        compile_async(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_property_compounds_keep_references_across_await_and_rejection() {
+    compare_promises(
+        &[
+            "let o={s:'old'};const alias=o;const value=o.s+=(await b,o={s:'other'},'new');return value==='oldnew'&&alias.s===value&&o.s==='other'?1:0;",
+            "const xs=['old'];const value=xs[0]+=(await a,xs[0]='changed','new');return value==='oldnew'&&xs[0]===value?1:0;",
+            "const o={s:'x'};const value=(await a,o).s+=(await b,'y');return value==='xy'&&o.s===value?1:0;",
+            "const o={s:'old'};try{o.s+=(await Promise.reject(b),'new');}catch(e){return o.s==='old'&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn string_local_compounds_keep_snapshots_and_commit_after_await_success() {
+    compare_promises(
+        &[
+            "let text='old';const value=text+=(await b,text='changed','new');return value==='oldnew'&&text===value?1:0;",
+            "let [text]=['x'];text+=(await a,'y');return text==='xy'?1:0;",
+            "let text='old';try{text+=(await Promise.reject(b),'new');}catch(e){return text==='old'&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn runtime_dictionary_logical_writes_keep_snapshots_across_awaits() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);const k='x';const value=d[k]??=(await b,'new');return d.x===value?1:0;",
+            "const d=Object.create(null);const k='x';d[k]='old';d[k]||=(await Promise.reject(b),'new');return d.x==='old'?1:0;",
+            "const d=Object.create(null);const k='x';try{d[k]??=(await Promise.reject(b),'new');}catch(e){return d.x===undefined&&e===b?1:0;}return -1;",
+            "let d=Object.create(null);const old=d;let k='x';const value=d[(await b,d=Object.create(null),k)]??=(await a,k='y','new');return old.x===value&&old.y===undefined&&d.x===undefined?1:0;",
+            "const d=Object.create(null);let n=0;try{d[(await Promise.reject(b),'x')]??=(n++,a);}catch(e){return n===0&&d.x===undefined&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn mixed_property_logical_assignments_preserve_selection_across_awaits() {
+    compare_promises(
+        &[
+            "const o={x:null};const value=o.x??=(await b,'new');return value==='new'&&o.x===value?1:0;",
+            "const o={x:'old'};o.x||=(await Promise.reject(b),'new');return o.x==='old'?1:0;",
+            "const xs=[false];xs[0]&&=(await Promise.reject(b),'new');return xs[0]===false?1:0;",
+            "const o={x:null};try{o.x??=(await Promise.reject(b),'new');}catch(e){return o.x===null&&e===b?1:0;}return -1;",
+            "let current={x:null};const old=current;const value=current.x??=(await b,current={x:false},'new');return old.x===value&&current.x===false?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn mixed_boxed_local_logical_assignments_select_suspension_and_store() {
+    compare_promises(
+        &[
+            "let [x]=[null];const value=x??=(await b,'new');return value==='new'&&x===value?1:0;",
+            "let [x]=['old'];x||=(await Promise.reject(b),'new');return x==='old'?1:0;",
+            "let [x]=[false];x&&=(await Promise.reject(b),'new');return x===false?1:0;",
+            "let [x]=[null];try{x??=(await Promise.reject(b),'new');}catch(e){return x===null&&e===b?1:0;}return -1;",
+            "const other={n:a};let [x]=[null];const value=x??=(await b,other);return x===other&&value===other?1:0;",
+            "let [x]=[null];const read=()=>x;const value=x??=(x=false,await b,'new');return read()===value?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn awaited_number_origins_compose_with_boxed_storage_and_writes() {
+    compare_promises(
+        &[
+            "const o={x:await a};return o.x+b;",
+            "let [x]=[a];return x+=await b;",
+            "let [x]=[a];const result=x&&=await b;return +result;",
+            "const o={x:a};const result=o.x||=await b;return +result;",
+            "const o={x:await (await a)};return o.x+b;",
+            "let n=0;const o={x:await (n++,a)};return o.x+n;",
+            "let [x]=[a];const result=x+=await (x=b,b);return result+x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn number_property_writes_save_old_values_and_commit_only_after_await_success() {
+    compare_promises(
+        &[
+            "let current={n:a};const old=current;const value=current.n+=(await b,current={n:b},b);return old.n===value&&current.n===b?1:0;",
+            "const o={n:a};try{o.n+=await Promise.reject(b);}catch(e){await a;return o.n===a&&e===b?1:0;}return -1;",
+            "const o={n:a};await b;return o.n++;",
+            "const o={n:a};await b;return o.n+=b;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn number_property_logical_writes_select_awaits_and_commit_on_success() {
+    compare_promises(
+        &[
+            "const o={n:a};const value=o.n&&=(await b,b);return +value;",
+            "const values=[a];const value=values[0]||=(await b,b);return +value;",
+            "const o={n:a};const value=o.n??=(await Promise.reject(b),b);return +value;",
+            "const o={n:a};try{o.n||=(await Promise.reject(b),b);}catch(e){return e;}return +o.n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn boxed_number_local_writes_save_old_values_and_commit_after_await_success() {
+    compare_promises(
+        &[
+            "let [x]=[a];const value=x+=(await b,x=b,b);return x===value?value:NaN;",
+            "let {x}={x:a};try{x-=await Promise.reject(b);}catch(e){await a;return x===a&&e===b?1:0;}return -1;",
+            "let [x]=[a];await b;return x++;",
+            "let {x}={x:a};const value=x-=await b;return x===value?value:NaN;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn boxed_number_local_logical_writes_select_awaits_and_commit_on_success() {
+    compare_promises(
+        &[
+            "let [x]=[a];const value=x&&=(await b,b);return +value;",
+            "let {x}={x:a};const value=x||=(await b,b);return +value;",
+            "let [x]=[a];const value=x??=(await Promise.reject(b),b);return +value;",
+            "let {x}={x:a};try{x||=(await Promise.reject(b),b);}catch(e){return e;}return +x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn typeof_unresolvable_names_keep_text_and_control_flow_across_awaits() {
+    compare_promises(
+        &[
+            "const kind=typeof missingFeature;await a;return kind==='undefined'?b:a;",
+            "await a;let n=0;const kind=()=>typeof missingFeature;return kind()==='undefined'?(n++,n):-1;",
+            "const kind=typeof missingFeature;try{await Promise.reject(b);}catch(e){return kind==='undefined'&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn boxed_numbers_keep_snapshots_and_numeric_results_across_awaits() {
+    compare_promises(
+        &[
+            "const o={x:a};return o.x+(await b,o.x=b);",
+            "const {x}={x:a};await b;return x+b;",
+            "const o={x:a};const get=t=>t.x;await b;return get(o)+b;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn primitive_and_value_delete_keep_await_order_and_rejections() {
+    compare_promises(
+        &[
+            "let n=0;const removed=delete (n++,a)[(await b,n++,'x')];await a;return removed?n:-1;",
+            "const o={x:a};const removed=delete (await b,o.x);await a;return removed&&o.x===a?1:0;",
+            "const o={x:a};try{delete (await Promise.reject(b),o.x);}catch(e){await a;return o.x===a&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn runtime_delete_keys_keep_saved_objects_across_waits_and_rejections() {
+    compare_promises(
+        &[
+            "let current={x:a};const original=current;delete current[(await a,current={x:b},'x')];await b;return original.x===undefined&&current.x===b?1:0;",
+            "const o={x:a};let n=0;const removed=delete o[(n++,await a,'x')];await b;return removed&&n===1&&o.x===undefined?1:0;",
+            "const o={x:a};try{delete o[(await Promise.reject(b),'x')];}catch(e){await a;return o.x===a&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn property_deletes_preserve_references_and_effects_across_suspension() {
+    compare_promises(
+        &[
+            "const record={x:a};const saved=record;await b;delete record.x;await a;return saved.x===undefined&&!Object.hasOwn(saved,'x')?1:0;",
+            "const xs=[a,b];delete (await a,xs)[0];await b;return xs.length===2&&xs[0]===undefined&&xs[1]===b?1:0;",
+            "const record={x:a};const remove=()=>delete record.x;await a;const removed=remove();await b;return removed&&record.x===undefined?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_indices_save_operands_and_numeric_results_across_awaits() {
     compare_promises(
         &[

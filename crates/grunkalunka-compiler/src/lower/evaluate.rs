@@ -10,15 +10,28 @@ mod array_search;
 mod array_slice;
 mod destructure;
 mod dictionary;
+mod dictionary_logical;
 mod has_own;
+mod local_logical;
+mod local_update;
 mod managed;
+#[cfg(test)]
+mod managed_equality_tests;
+#[cfg(test)]
+mod number_projection_tests;
 pub(super) use managed::member_key as managed_member_key;
 mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
+mod property_delete;
+mod property_logical;
+pub(super) mod property_update;
+mod string_addition;
+mod string_await;
 mod string_methods;
 mod string_template;
 mod tasks;
+mod typeof_name;
 mod values;
 use tasks::Work;
 pub(super) use values::Mode;
@@ -1532,6 +1545,24 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     self.resume_array_mutation(task, regions, values, work)?
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
+                Work::DictionaryLogical(task) => {
+                    self.resume_dictionary_logical(task, regions, values, work)
+                }
+                Work::PropertyDelete(task) => {
+                    self.resume_property_delete(task, regions, values, work)
+                }
+                Work::PropertyUpdate(task) => {
+                    self.resume_property_update(task, regions, values, work)
+                }
+                Work::PropertyLogical(task) => {
+                    self.resume_property_logical(task, regions, values, work)
+                }
+                Work::LocalLogical(task) => self.resume_local_logical(task, regions, values),
+                Work::LocalUpdate(task) => self.resume_local_update(task, regions, values),
+                Work::StringAddition(task) => {
+                    self.resume_string_addition(task, regions, values, work)
+                }
+                Work::StringAwait(node) => self.resume_string_await(node, regions, values),
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?

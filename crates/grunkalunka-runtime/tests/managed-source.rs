@@ -5,6 +5,303 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn loose_null_equality_executes_the_exact_former_object_rejection() {
+    compare("const o={};return o==null?a:b;");
+}
+
+#[test]
+fn runtime_dictionary_logical_writes_save_keys_receivers_and_values() {
+    for body in [
+        "const d=Object.create(null);const key='x';d[key]??=a;return a;",
+        "const d=Object.create(null);const k='x';return (d[k]??=a)===a?1:0;",
+        "const d=Object.create(null);const k='x';d[k]||='ok';return d[k]==='ok'?1:0;",
+        "const d=Object.create(null);const k='x';d[k]=false;let n=0;const value=d[k]&&=(n++,'new');return value===false&&n===0?1:0;",
+        "let d=Object.create(null);const old=d;let k='x';const value=d[(d=Object.create(null),k)]??=(k='y','new');return old.x===value&&old.y===undefined&&d.x===undefined?1:0;",
+        "const d=Object.create(null);let n=0;const key=()=>{n++;return 'x';};d.x='old';const value=d[key()]||=(n+=10,'new');d.x='later';return value==='old'&&n===1?1:0;",
+        "const d=Object.create(null);const k='__proto__';const other={n:a};const value=d[k]??=other;return d[k]===other&&value===other?1:0;",
+        "const d=Object.create(null);const k='x';if(d[k]??=a)return b;return a;",
+        "const d=Object.create(null);const k='x';d.x=null;const value=d[(d.x='old',k)]??='new';return value==='old'&&d.x==='old'?1:0;",
+        "const d=Object.create(null);const k='x';d.x=true;const value=d[k]&&='new';return value==='new'&&d.x===value?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn mixed_property_logical_assignments_keep_values_and_saved_receivers() {
+    for body in [
+        "const o={};return o.n||=b;",
+        "const o={x:null};return (o.x??='ok')==='ok'?1:0;",
+        "const o={};return (o.x??=a)===a?1:0;",
+        "const xs=[false];return (xs[0]&&='skip')===false?1:0;",
+        "const o={x:''};if(o.x||='ok')return a;return b;",
+        "const o=Object.create(null);return (o.__proto__??='ok')==='ok'?1:0;",
+        "let current={x:null};const old=current;const value=current.x??=(current={x:false},'new');return old.x===value&&current.x===false?1:0;",
+        "const other={n:a};const o={x:null};const value=o.x||=other;return o.x===other&&value===other?1:0;",
+        "const o={x:'old'};let n=0;const value=o.x||=(n++,'new');o.x='later';return value==='old'&&n===0?1:0;",
+        "const xs=[];xs[2]??='new';return xs.length===3&&xs[0]===undefined&&xs[2]==='new'?1:0;",
+        "const o={x:null};const read=()=>o.x;o.x??='new';return read()==='new'?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn boxed_local_logical_assignments_preserve_kinds_identity_and_effects() {
+    for body in [
+        "let [x]=[null];return (x??='ok')==='ok'?1:0;",
+        "let {x}={x:''};return (x||=a)===a?1:0;",
+        "let [x]=[false];return (x&&='skip')===false?1:0;",
+        "const other={n:a};let [x]=[null];return (x??=other)===other?1:0;",
+        "let [x]=[undefined];if(x??=a)return b;return a;",
+        "let [x]=[a?null:''];let calls=0;const value=x??=(calls++,b);return calls===(a?1:0)&&value===x?1:0;",
+        "let [x]=[null];const read=()=>x;const value=x??=(x=false,'new');return read()===value?1:0;",
+        "let [x]=['old'];let n=0;const value=x||=(n++,'new');x='later';return value==='old'&&n===0?1:0;",
+        "let [x]=[null];let n=0;x??=(n++,a);return n;",
+        "const other=[a];let [x]=[null];const value=x||=other;return value===other&&x===other?1:0;",
+        "for(let [x] of [[null]]){const value=x??='ok';return value==='ok'?1:0;}return -1;",
+        "const other={n:a};for(let x of [null]){const read=()=>x;x||=other;return read()===other?1:0;}return -1;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn number_property_updates_preserve_old_new_values_and_receiver_snapshots() {
+    for body in [
+        "const o={n:a};return o.n++;",
+        "const o={n:a};return ++o.n;",
+        "const o={n:a};return o.n--;",
+        "const o={n:a};return --o.n;",
+        "const xs=[a,b];xs[0]++;return xs[0]+xs[1];",
+        "const o={n:a};const alias=o;const old=o.n++;return alias.n===old+1?1:0;",
+        "let n=0;const o={n:a};const get=()=>{n++;return o;};const old=get().n++;return n===1&&o.n===old+1?1:0;",
+        "let current={n:a};const original=current;const value=current.n+=(current={n:b},b);return original.n===value&&current.n===b?1:0;",
+        "const o={n:a};return o.n+=(o.n=b,a);",
+        "const o={n:a};const box={x:o.n++};return box.x+b;",
+        "const o={n:a};o.n+=undefined;return o.n;",
+        "const o={n:a};const increment=state=>state.n++;return increment(o);",
+        "const o={n:a};const increment=()=>++o.n;return increment();",
+        "const o={'-1':a};return o[-1]++;",
+    ] {
+        compare(body);
+    }
+    for operator in [
+        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ">>>=",
+    ] {
+        compare(&format!("const o={{n:a}};return o.n{operator}b;"));
+        compare(&format!("const o={{n:a}};o.n{operator}b;return o.n;"));
+    }
+    compare_typed(
+        "const o={n:a};return o.n+=b;",
+        "const o:any={n:a};return (o as {n:number}).n+=(b as number);",
+    );
+}
+
+#[test]
+fn number_property_logical_assignments_save_receivers_and_short_circuit() {
+    for body in [
+        "let current={n:a};const original=current;const value=current.n&&=(current={n:b},b);return original.n===value?value:NaN;",
+        "const values=[a];const value=values[0]||=b;return values[0]===value?value:NaN;",
+        "const o={n:a};let calls=0;const value=o.n??=(calls++,b);return calls===0&&value===a&&o.n===a?1:0;",
+        "const o={n:a};const read=()=>o.n;const value=o.n||=b;return read()===value?value:NaN;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn boxed_number_local_updates_preserve_old_new_values_and_cells() {
+    for body in [
+        "let [x]=[a];return x++;",
+        "let {x}={x:a};return ++x;",
+        "let [x]=[a];return x--;",
+        "let {x}={x:a};return --x;",
+        "let [x]=[a];const old=x++;return old*100+x;",
+        "let {x}={x:a};const read=()=>x;const old=x++;return read()===old+1?1:0;",
+        "let [x]=[a];const value=x+=(x=b,b);return value===x?value:NaN;",
+        "let {x}={x:a};const add=()=>x+=b;add();return x;",
+    ] {
+        compare(body);
+    }
+    for operator in [
+        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ">>>=",
+    ] {
+        compare(&format!(
+            "let {{x}}={{x:a}};const value=x{operator}b;return x===value?value:NaN;"
+        ));
+    }
+    compare_typed(
+        "let [x]=[a];return x+=b;",
+        "let [x]:any=[a];return (x as number)+=(b as number);",
+    );
+}
+
+#[test]
+fn boxed_number_local_logical_assignments_preserve_selection_and_cells() {
+    for body in [
+        "let [x]=[a];const value=x&&=(x=b,b);return value===x?value:NaN;",
+        "let {x}={x:a};const value=x||=(x=b,b);return value===x?value:NaN;",
+        "let [x]=[a];let calls=0;const value=x??=(calls++,b);return calls===0&&value===a&&x===a?1:0;",
+        "let {x}={x:a};const read=()=>x;const value=x||=b;return read()===value?value:NaN;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn typeof_unresolvable_names_preserves_scope_and_expression_effects() {
+    for body in [
+        "return typeof missingFeature==='undefined'?1:0;",
+        "const kind=typeof ((missingFeature));return kind.length;",
+        "let n=0;const kind=typeof missingFeature;return kind==='undefined'?(n++,a):b;",
+        "let undefined=a;return typeof missingFeature==='undefined'&&typeof undefined==='number'?1:0;",
+        "{const missingFeature=a;if(typeof missingFeature!=='number')return -1;}return typeof missingFeature==='undefined'?1:0;",
+        "for(let missingFeature=0;missingFeature<1;missingFeature++){}return typeof missingFeature==='undefined'?1:0;",
+        "const kind=()=>typeof missingFeature;return kind()==='undefined'?a:b;",
+        r"return typeof \u006dissingFeature==='undefined'?1:0;",
+        "typeof missingFeature;return a;",
+    ] {
+        compare(body);
+    }
+    let original = "export function run(a,b) { return typeof __grunkalunka_typeof_missing__ === \"undefined\" ? 1 : 0; }";
+    common::compare_sources(original, original);
+    compare_typed(
+        "return typeof missingFeature==='undefined'?1:0;",
+        "return typeof (missingFeature as number)==='undefined'?1:0;",
+    );
+}
+
+#[test]
+fn boxed_number_fields_and_patterns_compose_with_arithmetic_and_calls() {
+    for body in [
+        "return ({x:a}).x+b;",
+        "const o={x:a};return o.x;",
+        "const xs=[a,b];return xs[1];",
+        "const {x}={x:a};return x+b;",
+        "const [x,y]=[a,b];return x*y;",
+        "let x=a;[x]=[b];return x;",
+        "const {x=b}={x:a};return x+b;",
+        "const {x=b}={};return x+b;",
+        "const o={x:a};const alias=o;alias.x=b;return o.x+b;",
+        "const get=()=>a+b;const o={x:get()};return o.x+b;",
+        "const o={x:a};const get=t=>t.x+b;return get(o);",
+        "const o={x:a};return o.x+(o.x=b);",
+        "const o={x:a};const n=o.x;o.x=b;return n;",
+        "const o={x:a};return o.x<b?o.x:b;",
+        "const o={x:a};return o.x===b?1:0;",
+        "const o={x:-0};return o.x;",
+        "const o={x:NaN};return o.x;",
+        "const o={x:Infinity};return o.x;",
+        "const o={x:{value:a}};return o.x.value+b;",
+        "let total=0;for(const x of [a,b])total+=x;return total;",
+        "let total=0;for(const {x} of [{x:a},{x:b}])total+=x;return total;",
+    ] {
+        compare(body);
+    }
+    common::compare_sources(
+        "function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",
+        "function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",
+    );
+    compare_typed(
+        "const o={x:a};const x=o.x;return x+b;",
+        "const o:boolean={x:a};const x:string=o.x as unknown as string;return x+b;",
+    );
+}
+
+#[test]
+fn boxed_numbers_execute_the_unchanged_original_rejection_sources() {
+    for source in [
+        "export function run(a,b) { return ({x:a}).x + b; }",
+        "export function run(a,b) { const items = [a,b]; return items[1]; }",
+        "export function run(a,b) { const {x}={x:a}; return x+b; }",
+        "export function run(a,b) { let x=a; [x]=[b]; return x; }",
+        "export function run(a,b) { for(const i of [a]) { return i; } return b; }",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn primitive_property_deletion_preserves_receiver_and_key_effects() {
+    for body in [
+        "return delete a.x?1:0;",
+        "return delete (a<b).length?1:0;",
+        "let n=0;const number=()=>{n=n*10+1;return a;};const key=()=>{n=n*10+2;return 'x';};return delete number()[key()]?n:-1;",
+        "let n=0;return delete (n++,a)[(n++,b)]?n:-1;",
+        "return delete a[null]&&delete a[undefined]&&delete a[false]?1:0;",
+        "const flag=a<b;return delete flag.x?1:0;",
+    ] {
+        compare(body);
+    }
+    let original = "export function run(a,b) { return delete a.x ? 1 : 0; }";
+    common::compare_sources(original, original);
+}
+
+#[test]
+fn nonreference_delete_evaluates_values_without_deleting_selected_properties() {
+    for body in [
+        "const o={x:a};return delete (0,o.x)&&o.x===a?1:0;",
+        "const o={x:a,y:b};return delete (a?o.x:o.y)&&Object.hasOwn(o,'x')&&Object.hasOwn(o,'y')?1:0;",
+        "let n=0;const make=()=>{n++;return {x:a};};return delete make()?n:-1;",
+        "return delete (a=b)?a:0;",
+        "const o={x:a};return delete (o.x=b)&&o.x===b?1:0;",
+        "let n=0;return delete [n++,n++]?n:-1;",
+        "let n=0;return delete {x:n++,y:n++}?n:-1;",
+        "let n=0;return delete void(n++)?n:-1;",
+        "const o={x:a};return delete delete o.x&&o.x===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn runtime_delete_keys_keep_receiver_snapshots_and_source_order() {
+    for body in [
+        "const d=Object.create(null);const key='x';delete d[key];return a;",
+        "const o={x:a,y:b};const key=a?'x':'y';return delete o[key]&&!Object.hasOwn(o,key)&&Object.keys(o).length===1?1:0;",
+        "let current={x:a};const original=current;const key=()=>{current={x:b};return 'x';};const removed=delete current[key()];return removed&&original.x===undefined&&current.x===b?1:0;",
+        "let key='old',n=0;const o={old:a,next:b};const receiver=()=>{n++;key='next';return o;};delete receiver()[key];return n===1&&o.old===a&&o.next===undefined?1:0;",
+        "const o={x:a};let n=0;delete o[(n=n*10+1,'missing')];delete o[(n=n*10+2,'x')];return n*10+(o.x===undefined?1:0);",
+        "const d=Object.create(null);d.__proto__=a;const key='__proto__';return delete d[key]&&d.__proto__===undefined?1:0;",
+        "const o={};const key='constructor';return delete o[key]&&('constructor' in o)?1:0;",
+        "const o={x:'text'};const alias=o;const key='x';delete alias[key];const {x='fallback'}=o;return x.length;",
+        "const o={x:a,y:b};const remove=(target,key)=>delete target[key];return remove(o,'x')&&o.x===undefined&&o.y===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn delete_own_properties_preserves_presence_aliases_and_insertion_order() {
+    for body in [
+        "const o={x:a,y:b};const alias=o;const removed=delete alias.x;return removed&&o.x===undefined&&!Object.hasOwn(o,'x')&&o.y===b?1:0;",
+        "const o={a:1,b:2,c:3};delete o.b;o.b=4;const keys=Object.keys(o);return keys.length===3&&keys[0]==='a'&&keys[1]==='c'&&keys[2]==='b'?1:0;",
+        "const o={};return delete o.missing&&delete o.constructor&&('constructor' in o)?1:0;",
+        "const o=Object.create(null);o.__proto__=a;o.constructor=b;delete o.__proto__;return o.__proto__===undefined&&o.constructor===b?1:0;",
+        "const xs=[a,b];xs.named=a;delete xs[0];delete xs.named;return xs.length===2&&!Object.hasOwn(xs,0)&&xs[0]===undefined&&xs[1]===b&&xs.named===undefined?1:0;",
+        "const xs=[a,,b];delete xs[2];const copy=[...xs];return xs.length===3&&copy.length===3&&copy[2]===undefined&&Object.hasOwn(copy,2)?1:0;",
+        "const o={x:'text'};delete o.x;const {x='fallback'}=o;return x.length;",
+        "const o={a:1,b:2,c:3};let count=0;for(const key in o){count++;delete o.b;}return count;",
+        "let n=0;const o={x:a};const receiver=()=>{n++;return o;};return delete receiver().x?n*10+(o.x===undefined?1:0):-1;",
+        "const xs=[a,b];delete xs[-0];return !Object.hasOwn(xs,'0')&&xs.length===2?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn delete_large_literal_key_uses_the_bounded_text_constructor() {
+    let source = format!(
+        "export function run(a,b){{const o={{}};return delete o['{}']?1:0;}}",
+        "k".repeat(10_001)
+    );
+    // Exercise literal construction beyond array.new_fixed's V8 limit with a
+    // bounded semantic-oracle budget; the production per-call quota is unchanged.
+    common::compare_sources_with_fuel(&source, &source, Some(1_000_000));
+}
+
+#[test]
 fn dictionary_static_keys_have_no_inherited_properties() {
     for body in [
         "const d=Object.create(null);return d.constructor===undefined&&d.__proto__===undefined&&d.toString===undefined&&Object.keys(d).length===0?a:b;",
@@ -193,9 +490,7 @@ fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
         "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
         "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",
         "const d=Object.create(null);const key='x';d[key]+=a;return a;",
-        "const d=Object.create(null);const key='x';d[key]??=a;return a;",
         "const d=Object.create(null);const key='x';d[key]++;return a;",
-        "const d=Object.create(null);const key='x';delete d[key];return a;",
         "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
         "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
         "const d=Object.create(null);const key='x';d.x=()=>a;const alias=d;alias[key]=b;return d.x();",
@@ -444,7 +739,14 @@ fn source_managed_observations_preserve_primitive_export_kinds() {
         )
         .unwrap();
         let mut nullish = ValueInstance::new(&nullish.wasm).unwrap();
+        let number =
+            compile_value("export function run(a,b){const o={x:a};return o.x;}", ts).unwrap();
+        let mut number = ValueInstance::new(&number.wasm).unwrap();
         for a in [0.0_f64, -0.0, 1.0, -7.0, f64::NAN, f64::INFINITY] {
+            let Value::Number(actual) = number.run(a, 7.0).unwrap() else {
+                panic!("projected Number changed its primitive export kind");
+            };
+            assert!(actual.to_bits() == a.to_bits() || (actual.is_nan() && a.is_nan()));
             assert!(matches!(equality.run(a,a).unwrap(),Value::Boolean(v) if v==!a.is_nan()));
             let v = nullish.run(a, 7.0).unwrap();
             assert!(if a != 0.0 && !a.is_nan() {
@@ -530,11 +832,9 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "const p=Promise.resolve(a);const o={x:p};return o.x===a?a:b;",
         "const o={x:1n};return a;",
         "const o=true?{}:{get x(){return a;}};return a;",
-        "const o={x:a};return o.x;",
         "const o={};return o;",
         "let o={};o=a;return a;",
         "const o={};o={};return a;",
-        "const o={};return o==null?a:b;",
         "const o={};Object.setPrototypeOf(o,{});return a;",
     ] {
         for ts in [false, true] {
@@ -543,9 +843,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
                 "{body}"
             );
         }
-    }
-    for ts in [false, true] {
-        assert!(compile("function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",ts).is_err());
     }
 }
 

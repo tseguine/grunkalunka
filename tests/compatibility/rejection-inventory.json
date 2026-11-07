@@ -308,7 +308,7 @@
     {
       "id": "object-values",
       "kind": "open-requirement",
-      "assessment": "Object values, properties and object coercion require runtime value support.",
+      "assessment": "Source data objects, static properties, identity and Number-only field projection are implemented. The exact numeric-property gap executes unchanged. The remaining mapped sources require general object coercion, intrinsic/global properties or public reference results.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-object-initializer",
@@ -327,7 +327,7 @@
     {
       "id": "array-values",
       "kind": "open-requirement",
-      "assessment": "Local arrays, static own properties, identity and length are supported through WasmGC. The mapped cases still require a proved primitive element-result projection or an exported reference representation.",
+      "assessment": "Local arrays, static own properties, identity, length and source-proven Number element projection are implemented through WasmGC. The exact numeric-element gap executes unchanged. General element coercion and public reference results remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-array-initializer",
@@ -391,7 +391,7 @@
     {
       "id": "typeof",
       "kind": "open-requirement",
-      "assessment": "typeof is implemented for represented values and known functions. Unknown global namespace resolution and actual TDZ exception execution remain open; source rejection guards do not prove those semantics.",
+      "assessment": "typeof is implemented for represented values, known functions and unresolvable identifier references in the closed source environment. The exact original missing-name source executes unchanged. Known global/intrinsic names retain their guards instead of being assumed absent; resolved TDZ references and value-producing operands retain GetValue validation. General ambient global namespace resolution and actual TDZ exception execution remain open; rejection guards do not prove those semantics.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-typeof-operator",
@@ -413,7 +413,7 @@
     {
       "id": "delete",
       "kind": "open-requirement",
-      "assessment": "delete requires property/reference semantics and Boolean results.",
+      "assessment": "Literal-key delete now removes configurable own data properties from source-proven objects, dictionaries and arrays, returning a Boolean and preserving array length, aliases and insertion order. Field proofs include possible Undefined after deletion. Runtime source-proven String keys also work on objects and dictionaries, preserving receiver/key snapshots and invalidating possibly deleted fields through aliases. Proven Number/Boolean receivers delete successfully after ordered receiver/key evaluation; non-reference operands evaluate their value effects and return true. The exact curated numeric-receiver source now executes unchanged. Runtime array keys, nullish/String reference receivers, optional chains, general descriptors and catchable non-configurable deletion remain separate boundaries; deletion of the pristine Math namespace stays guarded.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-delete-operator",
@@ -714,7 +714,7 @@
     {
       "id": "destructuring",
       "kind": "open-requirement",
-      "assessment": "Local const/let object and array binding declarations now admit mixed nesting, empty patterns and lazy defaults on identifier leaves or whole nested patterns over source-proven containers. Ordered nested reads preserve each selected receiver; every array pattern owns independent live-length/exhaustion state, including when a descendant default changes an ancestor array. Identifier rest elements in arrays collect fresh dense tails with shared reference values and independent slots, preserving live defaults and persistent exhaustion. Rest results have proven Array receivers but opaque element origins. The same supported patterns also work in const/let heads of intrinsic-array for-of loops, with a positive container proof for every selected receiver. The exact gap-local-destructure source still requires numeric consumption of its boxed selected field; for-destructure and declarators-later-destructure still use numeric parameters where the pattern requires an array. Flat array/object assignment patterns now update existing mutable local cells, including Number-initialized and bare let locals, using boxed storage from declaration execution. RHS identity, captures, static keys, lazy identifier defaults and identifier rest targets are supported. Assignment defaults preserve live array length, sticky iterator exhaustion, source ordering and supported suspension. The exact gap-destructuring-write source advances to the separate numeric-consumption restriction for boxed selected values. Nested/member assignment targets, parameter patterns, runtime assignment keys, general iterators and primitive RHS coercion remain separate requirements; rejection of these exact sources is not evidence that those forms execute.",
+      "assessment": "Local const/let object and array binding declarations now admit mixed nesting, empty patterns and lazy defaults on identifier leaves or whole nested patterns over source-proven containers. Ordered nested reads preserve each selected receiver; every array pattern owns independent live-length/exhaustion state, including when a descendant default changes an ancestor array. Identifier rest elements in arrays collect fresh dense tails with shared reference values and independent slots, preserving live defaults and persistent exhaustion. Rest results have proven Array receivers but opaque element origins. The same supported patterns also work in const/let heads of intrinsic-array for-of loops, with a positive container proof for every selected receiver. Source-proven Number selections now project to arithmetic and numeric returns, so the exact gap-local-destructure source executes unchanged; for-destructure and declarators-later-destructure still use numeric parameters where the pattern requires an array. Flat array/object assignment patterns now update existing mutable local cells, including Number-initialized and bare let locals, using boxed storage from declaration execution. RHS identity, captures, static keys, lazy identifier defaults and identifier rest targets are supported. Assignment defaults preserve live array length, sticky iterator exhaustion, source ordering and supported suspension. The exact gap-destructuring-write source now executes unchanged through the source-proven Number projection. Nested/member assignment targets, parameter patterns, runtime assignment keys, general iterators and primitive RHS coercion remain separate requirements; rejection of these exact sources is not evidence that those forms execute.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-destructuring-assignment",
@@ -799,7 +799,7 @@
     {
       "id": "property-targets",
       "kind": "open-requirement",
-      "assessment": "Property assignment/update targets require object and strict property-write semantics.",
+      "assessment": "Own data properties support plain assignment and source-proven Number fields now support prefix/postfix updates and all eleven existing arithmetic/bitwise compound assignments with saved receivers, old-value snapshots and ordered RHS evaluation. Missing/mixed fields, runtime update keys, array length, accessors, broader coercion and strict primitive property-write errors remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation",
@@ -894,7 +894,7 @@
     {
       "id": "for-in-of",
       "kind": "open-requirement",
-      "assessment": "Local const/let for-of bindings now admit identifiers and supported object/array patterns, including mixed nesting, identifier rest elements in arrays and lazy defaults on identifier leaves or nested patterns, over source-proven managed arrays. Pattern heads require each selected container kind to be proven and initialize every leaf before the body, with fresh captured const/let cells per iteration. The exact for-of fixture remains rejected because returning its boxed selected element requires numeric consumption in the numeric ABI. for-in over unknown or prototype-mutable receivers, general iterables, for-await-of, var or assignment heads and unsupported pattern forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
+      "assessment": "Local const/let for-of bindings now admit identifiers and supported object/array patterns, including mixed nesting, identifier rest elements in arrays and lazy defaults on identifier leaves or nested patterns, over source-proven managed arrays. Pattern heads require each selected container kind to be proven and initialize every leaf before the body, with fresh captured const/let cells per iteration. The exact for-of fixture now executes unchanged: Number-only selected elements project to arithmetic and numeric returns. for-in over unknown or prototype-mutable receivers, general iterables, for-await-of, var or assignment heads and unsupported pattern forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements",
@@ -1083,20 +1083,6 @@
       "group": "nullish-values"
     },
     {
-      "id": "gap-typeof-unresolved",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4d3a52377056d2f8f3bd8ef1fb8d722c94461ce13008e8bbf84655b4321d443d",
-      "group": "typeof"
-    },
-    {
-      "id": "gap-delete",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "007d45b36dfd6d6d941189163094b261019a260d0f23ed0736c45fc848ac0d3f",
-      "group": "delete"
-    },
-    {
       "id": "gap-instanceof",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1109,20 +1095,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "f62e0982596b138842c8528ee56dbbf8d24e5bb9cabc664c2c7ba76a5609586c",
       "group": "string-values"
-    },
-    {
-      "id": "gap-object-property",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a7d2e7d7306cbde71e2fb1db6397b0a9d87f8c33d7f449c82347b1bea9157e46",
-      "group": "object-values"
-    },
-    {
-      "id": "gap-array-value",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2d0bd7338ed4499fdf7c1ff686f81383b08a807793cd605b91113bb4dc850ec7",
-      "group": "array-values"
     },
     {
       "id": "gap-bigint",
@@ -1186,20 +1158,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d3d6244a1b7c62f6aca211c70f4e40c895b6756835b8bf156d7da8566dd19833",
       "group": "uninitialized-bindings"
-    },
-    {
-      "id": "gap-local-destructure",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "bd0e98405bb8cd832047966de53955f4ecf99acb4dddacea6b7830490c439841",
-      "group": "destructuring"
-    },
-    {
-      "id": "gap-destructuring-write",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1afc439b3efa7d353c3da4f0bbb7ee0aa4b9a3f0fd1ad3023b53881875b717d0",
-      "group": "destructuring"
     },
     {
       "id": "gap-defaults",
@@ -1536,13 +1494,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fc138156a8ad063ebebf5755c5652f41309bd03201111b679847af75fc2f0b6b",
       "group": "return-policy"
-    },
-    {
-      "id": "for-of",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6ec79ccff9f7ab9e84d3c6f91990edb072bd1aa0bf66834c1aa199df066c6845",
-      "group": "for-in-of"
     },
     {
       "id": "for-label",

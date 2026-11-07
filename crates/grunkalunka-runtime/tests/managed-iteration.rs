@@ -4,6 +4,34 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn numeric_for_of_result_executes_the_exact_former_guard_source() {
+    let source = "export function run(a,b){for(const item of [a])return item+1;return a;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn boxed_number_iteration_cells_support_updates_and_captures() {
+    for body in [
+        "for(let item of [a])return item++;return b;",
+        "let read=()=>a;for(let item of [a]){read=()=>item;item+=b;}return read();",
+        "for(let [item] of [[a]])return ++item;return b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn boxed_number_iteration_cells_support_logical_assignments() {
+    for body in [
+        "for(let item of [a])return item&&=b;return b;",
+        "let read=()=>a;for(let item of [a]){read=()=>item;item||=b;}return read();",
+        "for(let [item] of [[a]])return item??=b;return b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn array_for_of_visits_values_holes_and_empty_arrays() {
     for body in [
         "let n=0;for(const item of [a,,b,undefined])n=n*10+(item===undefined?3:item===a?1:2);return n;",
@@ -312,7 +340,6 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "let saved=()=>0;for(const item of (saved=()=>item,[a])){}return saved()===a?1:0;",
         "for(const item of [a]){}return item;",
         "for(const item of [a])item=b;return a;",
-        "for(const item of [a])return item+1;return a;",
         "outer:for(const item of [a]){break outer;}return a;",
         "for(var key in {item:a}){}return a;",
     ] {

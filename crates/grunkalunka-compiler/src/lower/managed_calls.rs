@@ -1030,7 +1030,10 @@ pub(super) fn closure_identities(
             AstKind::BinaryExpression(binary)
                 if matches!(
                     binary.operator,
-                    BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
+                    BinaryOperator::Equality
+                        | BinaryOperator::Inequality
+                        | BinaryOperator::StrictEquality
+                        | BinaryOperator::StrictInequality
                 ) =>
             {
                 observe(kinds, &binary.left);

@@ -9,6 +9,74 @@ fn discarded_template_executes_the_exact_former_rejection_source() {
 use common::compare_sources;
 
 #[test]
+fn string_loose_equality_uses_contents_and_saved_left_values() {
+    for body in [
+        "const o={x:'text'};return o.x=='text'?1:0;",
+        "return ''==''&&'a'!='b'&&('x'+'')=='x'?1:0;",
+        "let text='old';const value=text==(text='new','old');return value&&text==='new'?1:0;",
+        "const o={s:'old'};const value=o.s==(o.s='new','old');return value&&o.s==='new'?1:0;",
+        "let n=0;for(const text of ['a','b']){if(text=='a')n++;if(text!='b')n+=10;}return n;",
+        "const o={s:'x'};const equal=()=>o.s=='x';o.s+='';return equal()?1:0;",
+        "const flags=['x'=='x','x'!='y'];return flags[0]===true&&flags[1]===true?1:0;",
+        r"return '\ud800\0'=='\ud800\x00'&&'\ud83d\ude00'=='\u{1f600}'&&'\u00e9'!='e\u0301'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={s:'text'};return o.s=='text'?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={s:'text'};return (o as boolean).s==('text' as number)?1:0;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_property_compounds_keep_reference_snapshots_and_utf16() {
+    for body in [
+        "const o={s:'x'};return (o.s+='y').length;",
+        "const xs=['x'];const value=xs[0]+='y';return value==='xy'&&xs[0]===value&&xs.length===1?1:0;",
+        "const o={inner:{s:'x'}};o.inner['s']+='y';return o.inner.s==='xy'?1:0;",
+        "let o={s:'old'};const alias=o;const value=o.s+=(o={s:'other'},'new');return alias.s==='oldnew'&&o.s==='other'&&value===alias.s?1:0;",
+        "const o={s:'old'};const value=o.s+=(o.s='changed','new');return value==='oldnew'&&o.s===value?1:0;",
+        "let n=0;const o={s:'x'};const value=(n=n+1,o).s+=(n=n+10,'y');return n===11&&value==='xy'&&o.s===value?1:0;",
+        "const o={s:''};for(const value of ['a','b'])o.s+=value;const read=()=>o.s;return read()==='ab'?1:0;",
+        "const o={s:'x'};const add=()=>o.s+='y';return add()==='xy'&&o.s==='xy'?1:0;",
+        "const o={s:''};if(o.s+='')return -1;if(o.s+='x')return o.s==='x'?1:0;return -2;",
+        "const o={s:'a'};const xs=['b'];const value=o.s+=(xs[0]+='c');return value==='abc'&&o.s===value&&xs[0]==='bc'?1:0;",
+        r"const o={s:'\ud800'};o.s+='\udfff\0';return o.s==='\ud800\udfff\0'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={s:'x'};const value=o['s']+='y';return value===o.s?value.length:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={s:'x'};const value=(o as boolean)[('s' as number)]+=('y' as never);return value===o.s?value.length:0;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm,
+    );
+}
+
+#[test]
+fn string_local_compounds_preserve_snapshots_captures_and_utf16() {
+    for body in [
+        "let text='x';text+='y';return text.length;",
+        "let [text]=['x'];return (text+='y').length;",
+        "for(let text of ['x'])return (text+='y').length;return a;",
+        "let text='old';const value=text+=(text='changed','new');return text==='oldnew'&&value===text?1:0;",
+        "let text='x';const read=()=>text;text+='y';return read()==='xy'?1:0;",
+        "let text='x';const add=()=>text+='y';return add()==='xy'&&text==='xy'?1:0;",
+        "let text='';for(let value of ['a','b'])text+=value;return text==='ab'?1:0;",
+        r"let text='\ud800';text+='\udfff\0';return text==='\ud800\udfff\0'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn string_indices_clamp_number_positions_and_return_numeric_offsets() {
     for body in [
         // The first input selects the method; the second still exercises every
@@ -836,14 +904,13 @@ fn string_concat_composes_helpers_captures_and_erased_types() {
 }
 
 #[test]
-fn string_concat_keeps_mixed_coercion_and_compound_assignment_outside_this_slice() {
+fn string_concat_keeps_mixed_coercion_outside_this_slice() {
     for body in [
         "return ('x'+a).length;",
         "return (a+'x').length;",
         "return ('x'+null).length;",
         "return ({}+'x').length;",
         "const value=a?'x':b;return (value+'x').length;",
-        "let text='x';text+='y';return text.length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
