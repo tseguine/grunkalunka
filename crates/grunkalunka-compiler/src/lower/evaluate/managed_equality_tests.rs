@@ -1,4 +1,42 @@
 #[test]
+fn function_loose_equality_requires_reference_proofs_and_supported_functions() {
+    for (body, admitted) in [
+        ("const f=x=>x;const alias=f;return f==alias?1:0;", true),
+        ("const f=x=>x;return f!=(()=>a)?1:0;", true),
+        ("const f=x=>x;return f!={}&&f!=[]?1:0;", true),
+        ("const f=x=>x;const value=a?f:{};return value==f?1:0;", true),
+        ("const o={f:x=>x};return o.f==o.f?1:0;", true),
+        ("const f=x=>x;return f==a?1:0;", false),
+        ("const f=x=>x;return f=='function'?1:0;", false),
+        ("const o={f:x=>x};delete o.f;return o.f==(x=>x)?1:0;", false),
+        (
+            "const f=x=>x;const value=a?f:false;return value==f?1:0;",
+            false,
+        ),
+        (
+            "const f=async()=>{await a;return b;};return f==f?1:0;",
+            false,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    assert!(
+        crate::compile(
+            "export function run(a,b){const f=x=>x;return f==(a as unknown as Function)?1:0;}",
+            true
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn boxed_number_loose_equality_requires_positive_number_pairs() {
     for (body, admitted) in [
         ("const o={n:a};return o.n==b?1:0;", true),
