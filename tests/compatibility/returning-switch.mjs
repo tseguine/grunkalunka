@@ -1,3 +1,8 @@
+export const promotedSwitchBreak = {
+  id: 'break-switch-remains',
+  sourceSha256: 'f035afcac33b5aa15033b8c0c5681e966bb9115b80f5957459e4ca932b200de0',
+  sourceJS: 'export function run(a,b) { switch(a) { default: break; } return b; }',
+};
 export const promotedSwitchGap = {
   id: 'gap-switch',
   sourceSha256: 'ced717662fb6f26e1bd4f553db7716c7dc42697c174e5df51bbf25b5426ab604',
@@ -5,6 +10,9 @@ export const promotedSwitchGap = {
   sourceTS: 'export function run(a,b) { switch(a) { case 4: return b; default: return a; } }',
 };
 export const returningSwitch = [
+  [promotedSwitchBreak.id, '', '', undefined, undefined, {
+    sourceJS: promotedSwitchBreak.sourceJS, sourceTS: promotedSwitchBreak.sourceJS,
+  }],
   [promotedSwitchGap.id, '', '', undefined, undefined, {
     sourceJS: promotedSwitchGap.sourceJS, sourceTS: promotedSwitchGap.sourceTS,
   }],
@@ -31,5 +39,9 @@ export const returningSwitch = [
     ['switch-mixed-object-null', 'const x={};switch(a?x:null){case null:return b;case x:return a;}return 99;'],
     ['switch-mixed-function-null', 'const f=()=>a;switch(a?f:null){case null:return b;case f:return a;}return 99;'],
     ['switch-mixed-array-element', "const xs=[{},'x',null,a];switch(xs[0]){case xs[1]:return 99;case xs[0]:return a;}return b;"],
+    ['switch-break-update', 'let n=0;switch(a){case 0:n=b;break;default:n=a;}return n;'],
+    ['switch-break-default-middle', 'let n=0;switch(a){default:n=3;break;case 0:n=4;break;case 1:n=5;}return n;'],
+    ['switch-break-loop-suffix', 'let n=0;for(let i=0;i<3;i++){switch(i){case 0:n++;break;default:n+=10;}n+=100;}return n;'],
+    ['switch-break-finally', 'let n=0;switch(a){case 0:try{n=1;break;}finally{n+=10;}default:n=2;}return n;'],
   ].map(([id, body]) => [id, body, body]),
 ];

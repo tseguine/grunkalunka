@@ -1,6 +1,6 @@
 import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
-import { returningSwitch, promotedSwitchGap } from './returning-switch.mjs';
+import { returningSwitch, promotedSwitchGap, promotedSwitchBreak } from './returning-switch.mjs';
 import { managedNumbers, managedNumberPromotions } from './managed-numbers.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
@@ -48,7 +48,7 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 
-test('returning switch promotes the unchanged dispatch gap and keeps break/fallthrough open',()=>{
+test('returning switch promotes the unchanged dispatch gap and keeps fallthrough open',()=>{
   const sources=programSources(returningSwitch.find(row=>row[0]===promotedSwitchGap.id));
   assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'),promotedSwitchGap.sourceSha256);
   assert.equal(sources.sourceJS,sources.sourceTS);
@@ -315,7 +315,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 806);
+  assert.equal(inventory.records.size, 805);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -897,4 +897,13 @@ test('delete promotes the unchanged numeric-receiver gap with its original oracl
   assert.equal(sources.oracleSource, sources.sourceJS);
   assert.ok(!rejected.some(row => row[0] === 'gap-delete'));
   assert.ok(!catalog.records.some(row => row.id === 'gap-delete'));
+});
+
+test('switch break promotion preserves its exact original source and hash',()=>{
+  const sources=programSources(returningSwitch.find(row=>row[0]===promotedSwitchBreak.id));
+  assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'),promotedSwitchBreak.sourceSha256);
+  assert.equal(sources.sourceJS,sources.sourceTS);
+  assert.equal(sources.oracleSource,sources.sourceJS);
+  assert.ok(!rejected.some(row=>row[0]===promotedSwitchBreak.id));
+  assert.ok(!catalog.records.some(row=>row.id===promotedSwitchBreak.id));
 });

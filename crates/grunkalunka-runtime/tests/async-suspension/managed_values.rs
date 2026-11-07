@@ -1286,3 +1286,18 @@ fn mixed_switch_values_survive_awaited_case_effects() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn switch_breaks_preserve_awaited_cleanup_and_suffix() {
+    compare_promises(
+        &[
+            "let n=0;switch(a){case 0:n=await b;break;default:n=a;}return n;",
+            "let n=0;switch(a){case(await b,0):n=await b;break;default:n=a;}return n;",
+            "let n=0;switch(a){case 0:try{await b;break;}finally{n=await b;}default:n=a;}return n;",
+            "let n=0;switch(a){case 0:try{await Promise.reject(b);break;}catch(e){n=+e;break;}default:n=a;}return n;",
+            "let n=0;for(let i=0;i<2;i++){switch(i){case 0:n=await b;break;default:n+=await a;}n+=10;}return n;",
+            "let n=0;switch(a){case 0:try{break;}finally{await Promise.reject(b);}default:n=a;}return n;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}
