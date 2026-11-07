@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn boolean_logical_cells_keep_origins_through_selected_awaits() {
+    compare_promises(
+        &[
+            "let [flag]=[false];const value=flag||=await true;return value==true&&flag==true?1:0;",
+            "let [flag]=[true];flag&&=(await b,false);return +flag;",
+            "let [flag]=[false];flag&&=(await Promise.reject(b),true);return flag==false?1:0;",
+            "let [flag]=[false];flag??=(await Promise.reject(b),true);return +flag;",
+            "let [flag]=[false];try{flag||=(await Promise.reject(b),true);}catch(e){return flag==false&&e===b?1:0;}return -1;",
+            "let [flag]=[true];const read=()=>flag;const value=flag&&=(flag=false,await b,true);return read()==value&&value==true?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn awaited_boolean_origins_compose_with_storage_and_scalar_consumers() {
     compare_promises(
         &[
