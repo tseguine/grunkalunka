@@ -2,6 +2,33 @@
 mod common;
 
 #[test]
+fn reference_loose_equality_preserves_identity_and_saved_operands() {
+    for body in [
+        "const make=()=>({});const first=make();const second=make();return first!=second&&first==first?1:0;",
+        "const o={};const alias=o;return o==alias&&o!={}?1:0;",
+        "const xs=[];const alias=xs;return xs==alias&&xs!=[]?1:0;",
+        "return {}!=[]&&[]!={}?1:0;",
+        "const d=Object.create(null);const alias=d;return d==alias&&d!={}?1:0;",
+        "const o={x:{}};return o.x==o.x&&o.x!={}?1:0;",
+        "let o={};const old=o;const value=o==(o={},old);return value&&o!=old?1:0;",
+        "const o={x:{}};const old=o.x;const value=o.x==(o.x={},old);return value&&o.x!=old?1:0;",
+        "let n=0;const o={};const value=(n=1,o)==(n=n*10+2,o);return value&&n===12?1:0;",
+        "const xs=[{},{}];let n=0;for(const value of xs){if(value==value)n++;if(value!=xs[0])n+=10;}return n;",
+        "const o={};const same=(x,y)=>x==y;return same(o,o)&&!same(o,{})?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const xs=[];const alias=xs;return xs==alias?1:0;}";
+    let ts = "export function run(a:number,b:number){const xs:number=[];const alias:boolean=xs;return (xs as string)==(alias as number)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn loose_null_checks_cover_managed_tags_and_keep_operand_snapshots() {
     for body in [
         "const o={x:null};return o.x==null?1:0;",

@@ -1,4 +1,35 @@
 #[test]
+fn reference_loose_equality_requires_two_known_reference_operands() {
+    for (body, admitted) in [
+        ("const o={};const alias=o;return o==alias?1:0;", true),
+        ("const xs=[];return xs!=[]?1:0;", true),
+        ("return {}==[]?1:0;", true),
+        ("const d=Object.create(null);return d=={}?1:0;", true),
+        ("const o={x:{}};return o.x==o.x?1:0;", true),
+        ("const o={x:{}};delete o.x;return o.x=={}?1:0;", false),
+        ("return {}==a?1:0;", false),
+        ("return []==''?1:0;", false),
+        ("const o={x:a?{}:false};return o.x=={}?1:0;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    assert!(
+        crate::compile(
+            "export function run(a,b){return {}==(a as unknown as object)?1:0;}",
+            true
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn managed_loose_equality_requires_nullish_or_string_pair_proofs() {
     for (body, admitted) in [
         ("const o={x:null};return o.x==null?1:0;", true),

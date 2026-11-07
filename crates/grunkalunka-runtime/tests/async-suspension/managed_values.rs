@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn reference_loose_equality_keeps_identity_across_rhs_suspension() {
+    compare_promises(
+        &[
+            "let o={};const old=o;const value=o==(await a,o={},old);return value&&o!=old?1:0;",
+            "const xs=[{}];const old=xs[0];const value=xs[0]==(await b,xs[0]={},old);return value&&xs[0]!=old?1:0;",
+            "const o={};try{const value=o==(await Promise.reject(b),{});return +value;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_loose_equality_saves_operands_through_await_and_rejection() {
     compare_promises(
         &[
