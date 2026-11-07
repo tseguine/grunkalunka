@@ -500,7 +500,7 @@
     {
       "id": "closures",
       "kind": "open-requirement",
-      "assessment": "Synchronous local arrows and supported factories/callbacks share captured primitive and WasmGC object/array/String bindings, including rebinding, mutation, per-iteration cells and closure use after a factory returns. Maintained source differential tests and a test-only rooted generated-closure adapter exercise copying-GC lifetime. Nested function declarations, managed private arguments/results, general function identities/escape boundaries and reference-aware async frames remain open.",
+      "assessment": "Synchronous local arrows and supported factories/callbacks share captured primitive and WasmGC object/array/String bindings, including rebinding, mutation, per-iteration cells and closure use after a factory returns. Maintained source differential tests and a test-only rooted generated-closure adapter exercise copying-GC lifetime. Checked factory-created local closures also route captured managed results into primitive exports and String/object/array consumers using verified local metadata. Broader nested function declarations, opaque private signatures, general function escape boundaries and unrepresented async frame contents remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",

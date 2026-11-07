@@ -729,3 +729,19 @@ fn omitted_runtime_closure_arguments_preserve_tags_and_snapshots() {
     let ts = "export function run(a?:number,b?:number){let f=(x?:unknown,y?:unknown)=>y??x;return f(a);}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn factory_created_local_closures_preserve_managed_values_and_effects() {
+    for body in [
+        "const f=x=>()=>x;const g=f();return +g();",
+        "const f=x=>()=>x;const g=f('x');return g()==='x'?a:b;",
+        "const f=x=>()=>x;const g=f({v:a});return +g().v;",
+        "const f=x=>()=>x;const g=f([a]);return +g()[0];",
+        "const f=x=>()=>x;const g=f();return typeof g()==='undefined'?a:b;",
+        "let n=0;const f=x=>()=>{n++;return x;};const g=f();return +(g()??b)+n;",
+        "const f=x=>()=>x;const o={v:a};const g=f(o);o.v=b;return +g().v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}

@@ -2394,7 +2394,12 @@ while typeof, equality, defaults and primitive returns retain the Undefined tag.
 
 Asynchronous helpers/arrows and Promise-valued closure wrappers retain their
 existing missing-argument guards. Required callback and Promise signatures
-retain their checks; broader managed factory-result consumers remain guarded.
+retain their checks. Checked, statically known factory-created local closures
+route managed results through the same consumers as other managed expressions:
+primitive-result exports preserve Undefined/Null/Boolean/Number tags, while
+String and object/array consumers retain references. This uses checked local
+closure metadata even when the original-source call graph has no result fact;
+unchecked definitions and asynchronous closures still require their own checks.
 The public numeric interface still requires a proven numeric return; use the existing primitive-result profile for Undefined
 results. This does not add parameter defaults, rest, destructuring or arguments
 objects. Declared/supplied parameter budgets and source-depth limits are unchanged.
