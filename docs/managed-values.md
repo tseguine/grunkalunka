@@ -32,6 +32,14 @@ await: objects and functions may participate in thenable assimilation, and
 unknown or mixed operands do not prove numeric fulfillment. Type assertions
 cannot turn such an operand into a Number proof.
 
+Mutable source-proven String locals now support `+=` with a source-proven String
+RHS. The old String is saved before RHS effects or suspension, concatenated with
+the completed RHS, then stored and returned. Captures observe the new String;
+RHS rejection performs no store. UTF-16 units use the existing concatenation
+operation unchanged. Destructured and iteration cells follow the same path.
+Type assertions, mixed coercion, const targets and property `+=` do not acquire
+String support from this increment.
+
 The exact original numeric-field, array-element, destructuring declaration,
 destructuring assignment and `for-of` rejection sources now execute unchanged in
 the canonical corpus. Compiler admission/verifier tests and synchronous/async
