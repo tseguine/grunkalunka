@@ -1101,10 +1101,10 @@ impl Fields {
                     Rule::AwaitPrimitive(input) => get(input)
                         .into_iter()
                         .map(|origin| {
-                            // Numbers and Strings have no thenable assimilation.
+                            // Known primitive kinds have no thenable assimilation.
                             // Do not retain reference identity or infer a value
                             // kind from unknown Promise/thenable fulfillments.
-                            if matches!(origin, Origin::Number | Origin::String) {
+                            if matches!(origin, Origin::Number | Origin::String | Origin::Boolean) {
                                 origin
                             } else {
                                 Origin::Other

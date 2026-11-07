@@ -79,6 +79,16 @@ suspension. Mixed Boolean/Number or other uncertain alternatives remain guarded,
 and annotations cannot supply a Boolean proof. Boolean truthiness stays conservative
 in the origin analysis; it does not predict which branch executes.
 
+Proven Boolean values in managed storage can also enter the existing scalar
+primitive path. Lowering reads the saved Boolean, projects its predicate and packs
+it with the Boolean tag; explicit numeric coercion then uses the existing primitive
+conversion. This enables scalar consumers such as `+record.enabled` while preserving
+Boolean identity and negative-zero behavior. Await preserves positive Boolean
+origins, and managed await results box the existing General-protocol completion.
+Boxed Boolean operands project before their await, so RHS effects cannot change a
+saved value. Pure primitive awaits retain their existing lowering path. Unknown,
+mixed and reference/thenable origins remain guarded; there is no new async ABI.
+
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
 suspension through the existing private numeric await protocol. That internal

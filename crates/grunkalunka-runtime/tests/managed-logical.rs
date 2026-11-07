@@ -2,6 +2,28 @@
 mod common;
 
 #[test]
+fn boolean_fields_project_as_booleans_before_scalar_coercion() {
+    for body in [
+        "const o={flag:a<b};return +o.flag;",
+        "const xs=[true,false];return +xs[0]*10+ +xs[1];",
+        "const o={flag:false};return 1/-o.flag;",
+        "const o={flag:true};const value=(+o.flag)+(o.flag=false,+o.flag);return value;",
+        "const o={flag:a<b};const take=value=>+value;return take(o.flag);",
+        "const o={flag:true};return (o.flag?1:0)+ +(o.flag==true);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={flag:a<b};return +o.flag;}";
+    let ts = "export function run(a:number,b:number){const o:string={flag:a<b};return +((o as boolean).flag as number);}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn boxed_boolean_loose_equality_keeps_tags_and_saved_values() {
     for body in [
         "const o={flag:false??a};return o.flag==false?1:0;",

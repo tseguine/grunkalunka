@@ -605,6 +605,27 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if matches!(mode, Mode::Managed)
+            && matches!(node, Expression::AwaitExpression(_))
+            && self.stored.boolean(node.node_id())
+        {
+            // Keep the existing General await protocol and Boolean language
+            // tag, then box its completed result for managed storage.
+            work.push(Work::Managed(ManagedWork::Primitive(node)));
+            work.push(Work::Eval(node, depth, Mode::General));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::General)
+            && self.stored.boolean(node.node_id())
+            && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
+        {
+            // Truthiness is exact Boolean projection only with this positive
+            // kind proof. Pack the predicate as Boolean, never as Number.
+            work.push(Work::Pack(node));
+            work.push(Work::Managed(ManagedWork::Truthy(node)));
+            work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
         if self.schedule_string_await(node, depth, mode, work)?
             || self.schedule_string_addition(node, depth, mode, regions, work)?
             || self.schedule_local_logical(node, depth, mode, regions, work)?

@@ -1,6 +1,25 @@
 use super::*;
 
 #[test]
+fn awaited_boolean_origins_compose_with_storage_and_scalar_consumers() {
+    compare_promises(
+        &[
+            "const o={flag:await true};return o.flag==true?1:0;",
+            "const xs=[await false,await true];return +xs[0]*10+ +xs[1];",
+            "const o={flag:await(await(a<b))};return +o.flag;",
+            "const o={flag:a<b};return +(await o.flag);",
+            "const o={flag:true};const value=(await o.flag)==(o.flag=false,true);return value&&o.flag==false?1:0;",
+            "const o={flag:true};try{o.flag=await (await Promise.reject(b),false);}catch(e){return o.flag==true&&e===b?1:0;}return -1;",
+            "const o={flag:a<b};if(await o.flag)return a;return b;",
+            "const o={flag:true};await o.flag;return +o.flag;",
+            "return await true;",
+            "return await false;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn boolean_loose_equality_saves_operands_through_rhs_awaits() {
     compare_promises(
         &[
