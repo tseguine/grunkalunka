@@ -10,6 +10,7 @@ mod array_search;
 mod array_slice;
 mod destructure;
 mod dictionary;
+mod dictionary_logical;
 mod has_own;
 mod local_logical;
 mod local_update;
@@ -1540,6 +1541,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     self.resume_array_mutation(task, regions, values, work)?
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
+                Work::DictionaryLogical(task) => {
+                    self.resume_dictionary_logical(task, regions, values, work)
+                }
                 Work::PropertyDelete(task) => {
                     self.resume_property_delete(task, regions, values, work)
                 }
