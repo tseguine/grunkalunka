@@ -32,6 +32,17 @@ await: objects and functions may participate in thenable assimilation, and
 unknown or mixed operands do not prove numeric fulfillment. Type assertions
 cannot turn such an operand into a Number proof.
 
+Awaiting a source-proven String also preserves its String origin and contents.
+The operand evaluates once, then its traced value stays live across one real
+suspension through the existing private numeric await protocol. That internal
+fulfilled token's result is unused; the expression returns the saved String.
+Strings are primitive and cannot be thenables, so no source code can replace
+their fulfillment value. Nested awaits, String concatenation, local and property
+`+=`, predicates, destructuring and discarded awaits compose with this path.
+Operand throws still bypass the String suspension, and every executed String
+await consumes the normal await/job budgets. String-valued Promises, async String
+return interfaces and reference/unknown thenable results remain separate work.
+
 Mutable source-proven String locals now support `+=` with a source-proven String
 RHS. The old String is saved before RHS effects or suspension, concatenated with
 the completed RHS, then stored and returned. Captures observe the new String;

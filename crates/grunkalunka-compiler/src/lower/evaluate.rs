@@ -25,6 +25,7 @@ mod property_delete;
 mod property_logical;
 pub(super) mod property_update;
 mod string_addition;
+mod string_await;
 mod string_methods;
 mod string_template;
 mod tasks;
@@ -1559,6 +1560,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::StringAddition(task) => {
                     self.resume_string_addition(task, regions, values, work)
                 }
+                Work::StringAwait(node) => self.resume_string_await(node, regions, values),
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?
