@@ -1,4 +1,56 @@
 #[test]
+fn boolean_projection_and_await_require_positive_boolean_origins() {
+    for (body, admitted) in [
+        ("const o={flag:true};return +o.flag;", true),
+        ("const xs=[a<b];return +xs[0];", true),
+        ("const o={flag:a?true:b};return +o.flag;", false),
+        ("const o={flag:true};delete o.flag;return +o.flag;", false),
+        (
+            "const get=()=>{if(a)return true;};const o={flag:get()};return +o.flag;",
+            false,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert_eq!(crate::compile(&source, typed).is_ok(), admitted, "{source}");
+        }
+    }
+    for (body, admitted) in [
+        ("const o={flag:await true};return o.flag==true?1:0;", true),
+        ("const o={flag:await(await (a<b))};return +o.flag;", true),
+        ("const o={flag:true};return +(await o.flag);", true),
+        (
+            "const o={flag:await (a?true:b)};return o.flag==true?1:0;",
+            false,
+        ),
+        (
+            "const o={flag:await {then:resolve=>resolve(true)}};return o.flag==true?1:0;",
+            false,
+        ),
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile_async(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+        }
+    }
+    assert!(
+        crate::compile(
+            "export function run(a,b){const o={flag:a};return +(o.flag as boolean);}",
+            true
+        )
+        .is_ok()
+    );
+    assert!(
+        crate::compile(
+            "export function run(a,b){const o={flag:'text'};return +(o.flag as boolean);}",
+            true
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn boolean_loose_equality_requires_positive_boolean_pairs() {
     for (body, admitted) in [
         ("const o={flag:true};return o.flag==true?1:0;", true),
