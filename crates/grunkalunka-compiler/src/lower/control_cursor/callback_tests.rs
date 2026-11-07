@@ -38,6 +38,10 @@ fn check_scheduled(cases: &[(&str, &str)]) {
 fn local_call_callback_factories_use_the_source_scheduler() {
     check_scheduled(&[
         (
+            "omitted_callback_scalar",
+            "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a));",
+        ),
+        (
             "local_callback",
             "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a),b);",
         ),
@@ -85,10 +89,6 @@ fn runtime_call_callback_factories_use_the_source_scheduler() {
 #[test]
 fn callback_argument_continuations_preserve_first_diagnostics() {
     for (body, expected) in [
-        (
-            "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a));",
-            "unsupported at bytes 89..103: local call is missing declared arguments",
-        ),
         (
             "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a),...b);",
             "unsupported at bytes 89..108: spread call arguments are not admitted",

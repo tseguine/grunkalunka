@@ -62,6 +62,7 @@ fn on_small_stack(body: &str, asynchronous: bool, typescript: bool) -> (Result<(
 #[test]
 fn ordinary_unchecked_callees_share_the_source_scheduler() {
     for body in [
+        "return((x,y)=>x+y)(a);",
         "return(x=>x+a)(b);",
         "return(x=>{return(y=>y+x)(b);})(a);",
         "return(x=>{return(y=>{if(y)return y+x;return x;})(b);})(a);",
@@ -110,11 +111,6 @@ fn unchecked_callees_preserve_validation_and_first_error_order() {
             false,
             "return((x,y)=>Math.noSuch(x))(a);",
             "unsupported at bytes 39..53: expression is outside the numeric experiment",
-        ),
-        (
-            false,
-            "return((x,y)=>x+y)(a);",
-            "unsupported at bytes 31..46: local call is missing declared arguments",
         ),
         (
             false,

@@ -49,6 +49,7 @@ fn check_scheduled(cases: &[&str]) {
 #[test]
 fn concise_factory_arguments_use_the_source_scheduler() {
     check_scheduled(&[
+        "const make=x=>y=>x+y;return make()(b);",
         "const make=x=>y=>x+y;return make(a)(b);",
         "let n=0;const make=(x,y)=>z=>x*100+y*10+z+n;return make((n=n*10+1),(n=n*10+2),n=n*10+3)(n=n*10+4)+n;",
         "const make=(a,b)=>x=>a+b+x;return make(a,b)(a);",
@@ -88,10 +89,6 @@ fn concise_factory_async_callees_use_the_source_scheduler() {
 #[test]
 fn concise_factory_arguments_preserve_first_diagnostics() {
     for (body, expected) in [
-        (
-            "const make=x=>y=>x+y;return make()(b);",
-            "unsupported at bytes 53..59: local call is missing declared arguments",
-        ),
         (
             "const make=x=>y=>x+y;return make(...a)(b);",
             "unsupported at bytes 53..63: spread call arguments are not admitted",

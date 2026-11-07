@@ -234,7 +234,23 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arguments: Vec<ValueId>,
         region: &mut Region,
     ) -> Result<(), String> {
-        for (parameter, mut value) in arrow.params.items.iter().zip(arguments) {
+        for (index, parameter) in arrow.params.items.iter().enumerate() {
+            // Supplied arguments have already run, including discarded extras.
+            // Materialize each absent formal with its actual JS tag.
+            let mut value = if let Some(value) = arguments.get(index) {
+                *value
+            } else {
+                let value = self.value(Type::General);
+                Self::push(
+                    region,
+                    parameter,
+                    Op::Nullish {
+                        result: value,
+                        value: ir::Nullish::Undefined,
+                    },
+                );
+                value
+            };
             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                 unreachable!("checked arrow parameter");
             };
@@ -242,6 +258,20 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 .symbol_id
                 .get()
                 .ok_or("missing arrow parameter binding")?;
+            if arguments.get(index).is_none()
+                && self.managed_kinds.inputs.get(&symbol) == Some(&Type::ManagedValue)
+            {
+                let boxed = self.value(Type::ManagedValue);
+                Self::push(
+                    region,
+                    parameter,
+                    Op::ManagedPrimitive {
+                        result: boxed,
+                        input: value,
+                    },
+                );
+                value = boxed;
+            }
             let input_type = self.values[value.0];
             if let Some(expected) = self
                 .callback_parameters
@@ -557,7 +587,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 "at most 1000 ordinary local call arguments are admitted",
             ));
         }
-        if invocation::arguments(call).len() < self.arrow(closure.arrow).params.items.len() {
+        let arrow = self.arrow(closure.arrow);
+        if arrow.r#async && invocation::arguments(call).len() < arrow.params.items.len() {
             return Err(unsupported(
                 call,
                 "local call is missing declared arguments",

@@ -481,3 +481,25 @@ fn omitted_named_helper_parameters_keep_undefined_result_tags() {
         .collect(),
     );
 }
+
+#[test]
+fn omitted_local_arrow_results_keep_exact_primitive_tags() {
+    compare_primitive_sources(
+        [
+            "const f=x=>x;return f();",
+            "return (x=>x)();",
+            "const f=(x,y)=>y;return f(a);",
+            "const f=x=>x;return a?f():f(b);",
+            "const f=(x,y)=>y??x;return f(false);",
+            "const f=(x,y)=>y??x;return f(null);",
+        ]
+        .into_iter()
+        .map(|body| {
+            (
+                format!("export function run(a,b){{{body}}}"),
+                format!("export function run(a:number,b:number):unknown{{{body}}}"),
+            )
+        })
+        .collect(),
+    );
+}

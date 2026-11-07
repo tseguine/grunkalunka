@@ -232,7 +232,10 @@ fn runtime_factory_arguments_keep_the_active_result_budget() {
     for typescript in [false, true] {
         assert_eq!(
             on_small_stack(&body, false, typescript).0.unwrap_err(),
-            "unsupported at bytes 90..96: at most 8 active runtime function-result calls are admitted"
+            // The innermost omitted input now carries Undefined. This source
+            // asks the numeric export to return it through runtime factories;
+            // the value-position guard precedes expansion of the nested input.
+            "unsupported at bytes 50..122: expression is outside the numeric experiment: managed value requires an identity or managed storage position"
         );
     }
 }

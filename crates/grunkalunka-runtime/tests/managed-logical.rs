@@ -666,3 +666,40 @@ fn omitted_named_helper_arguments_preserve_undefined_and_effects() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn omitted_local_arrow_arguments_use_undefined_and_preserve_effect_order() {
+    for body in [
+        "const f=x=>x===undefined?1:0;return f();",
+        "const f=(x,y)=>y??x;return f(a);",
+        "const f=x=>+x;return f();",
+        "const f=x=>x;return +f();",
+        "const f=x=>{x=3;return x;};return +f();",
+        "const f=x=>{const g=()=>x===undefined?1:0;return g();};return f();",
+        "const f=x=>x===undefined?1:0;return f()*100+f(a)*10+f(NaN);",
+        "const f=(x,y)=>y===undefined?x:0;let n=0;const x=f((n++,a));return x+n;",
+        "const f=x=>x===undefined?1:0;let n=0;const x=f.call((n++,a));return x*10+n;",
+        "const f=x=>x===undefined?1:0;return f.call();",
+        "return (x=>x===undefined?1:0)();",
+        "const f=(x,y)=>y??x;const x=f('x');return x==='x'?a:b;",
+        "const f=(x,y)=>y??x;const x=f({v:a});return +x.v;",
+        "const f=x=>()=>x===undefined?1:0;const g=f();return g();",
+        "const f=x=>x===undefined?1:0;const alias=f;return alias();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    // Exact source fixtures formerly rejected by the scheduler arity checks.
+    for body in [
+        "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a));",
+        "const make=x=>y=>x+y;return make()(b);",
+        "const make=x=>y=>x+y;const f=make();return f(b);",
+        "return((x,y)=>x+y)(a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const f=(x,y)=>y??x;return f(a);}";
+    let ts = "export function run(a?:number,b?:number){const f=(x?:unknown,y?:unknown)=>y??x;return f(a);}";
+    common::compare_sources(js, ts);
+}
