@@ -85,6 +85,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         ty: Type,
     },
     NumberProjection(&'e Expression<'a>),
+    PrimitiveProjection(&'e Expression<'a>),
     SetReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -618,22 +619,21 @@ impl Lowering<'_, '_> {
     ) -> Result<bool, String> {
         if matches!(mode, Mode::Managed)
             && matches!(node, Expression::AwaitExpression(_))
-            && self.stored.boolean(node.node_id())
+            && self.stored.primitive(node.node_id())
         {
-            // Keep the existing General await protocol and Boolean language
-            // tag, then box its completed result for managed storage.
+            // Keep the General await protocol and primitive language tag,
+            // then box its completed result for managed storage.
             work.push(Work::Managed(ManagedWork::Primitive(node)));
             work.push(Work::Eval(node, depth, Mode::General));
             return Ok(true);
         }
         if matches!(mode, Mode::General)
-            && self.stored.boolean(node.node_id())
+            && self.stored.primitive(node.node_id())
             && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
         {
-            // Truthiness is exact Boolean projection only with this positive
-            // kind proof. Pack the predicate as Boolean, never as Number.
-            work.push(Work::Pack(node));
-            work.push(Work::Managed(ManagedWork::Truthy(node)));
+            // Preserve primitive tags and Number bits. Coercion belongs to
+            // the existing scalar consumer, never to this storage bridge.
+            work.push(Work::Managed(ManagedWork::PrimitiveProjection(node)));
             work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
@@ -918,6 +918,27 @@ impl Lowering<'_, '_> {
                 operator,
             }));
             work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Predicate)
+            && let Expression::BinaryExpression(binary) = node
+            && matches!(
+                binary.operator,
+                BinaryOperator::Equality | BinaryOperator::Inequality
+            )
+            && self.stored.primitive(binary.left.node_id())
+            && self.stored.primitive(binary.right.node_id())
+            && (self.managed_source_type(&binary.left, depth + 1).is_some()
+                || self.managed_source_type(&binary.right, depth + 1).is_some())
+        {
+            work.push(Work::PrimitiveCompareRight {
+                node,
+                right: &binary.right,
+                depth: depth + 1,
+                loose: true,
+                negated: binary.operator == BinaryOperator::Inequality,
+            });
+            work.push(Work::Eval(&binary.left, depth + 1, Mode::General));
             return Ok(true);
         }
         if matches!(mode, Mode::Predicate)
@@ -1601,6 +1622,16 @@ impl Lowering<'_, '_> {
                 };
                 Self::push(regions.current(), node, kind);
                 values.push(Value::Managed(result));
+            }
+            ManagedWork::PrimitiveProjection(node) => {
+                let input = values.pop().expect("managed primitive input").id();
+                let result = self.value(Type::General);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedToPrimitive { result, input },
+                );
+                values.push(Value::General(result));
             }
             ManagedWork::StringCompareRight {
                 node,

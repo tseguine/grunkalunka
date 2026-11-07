@@ -2,6 +2,55 @@
 mod common;
 
 #[test]
+fn boxed_primitive_alternatives_use_scalar_coercion_and_saved_values() {
+    for body in [
+        "const o={v:a?true:b};return +o.v;",
+        "const o={v:a?null:b};return o.v/b;",
+        "const o={v:a?undefined:false};return ~o.v;",
+        "const o={v:a?true:b};return (o.v<<1)|~o.v;",
+        "const o={v:a?null:b};return o.v<(o.v=false,b)?1:0;",
+        "const o={v:a?true:b};const value=o.v==(o.v=null,b);return (value?1:0)+ +o.v;",
+        "const o={v:a?true:b};return o.v===true?1:0;",
+        "const {v}={v:a?undefined:true};return +v;",
+        "let n=0;for(const v of [true,null,undefined,b])n+=~v;return n;",
+        "const read=x=>x.v;const o={v:a?null:b};return +read(o);",
+        "const o={v:a?false:b};const read=()=>o.v;return +read();",
+        // Exact former compiler guards now execute with native source oracles.
+        "const o={flag:a?true:b};return +o.flag;",
+        "const o={flag:true};delete o.flag;return +o.flag;",
+        "const o={flag:true||a};return o.flag==true?1:0;",
+        "const o={flag:false&&a};return o.flag==false?1:0;",
+        "const o={flag:true};return o.flag==1?1:0;",
+        "const o={flag:a?true:b};return o.flag==true?1:0;",
+        "const o={flag:true};delete o.flag;return o.flag==true?1:0;",
+        "const o={n:a?b:false};return o.n==b?1:0;",
+        "const o={n:a};delete o.n;return o.n==b?1:0;",
+        "const o={x:a};delete o.x;return o.x+b;",
+        "const o={x:a};const change=t=>{t.x=null;return 0;};change(o);return o.x+b;",
+        "const o={x:a};const key='x';delete o[key];return o.x+b;",
+        "const xs=[a,,b];return xs[1]+b;",
+        "const o={};return o.x+b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={flag:true};return o.flag==a?1:0;}";
+    let ts = "export function run(a:number,b:number){const o={flag:true};return o.flag==(a as unknown as boolean)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+    let js = "export function run(a,b){const o={x:a};delete o.x;return o.x+b;}";
+    let ts = "export function run(a:number,b:number){const o={x:a};delete o.x;return (o.x as number)+b;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn boolean_logical_cells_keep_selection_snapshots_and_captures() {
     for body in [
         "let [flag]=[true];const value=flag&&=false;return value==false&&flag==false?1:0;",

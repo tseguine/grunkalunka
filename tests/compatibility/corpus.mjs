@@ -48,6 +48,7 @@ import { numberLooseEquality } from './number-loose-equality.mjs';
 import { functionLooseEquality } from './function-loose-equality.mjs';
 import { booleanLooseEquality } from './boolean-loose-equality.mjs';
 import { booleanProjection } from './boolean-projection.mjs';
+import { boxedPrimitives } from './boxed-primitives.mjs';
 import { booleanLogicalOrigins } from './boolean-logical-origins.mjs';
 import { dictionaryLogical } from './dictionary-logical.mjs';
 import { stringLocalAddition } from './string-local-addition.mjs';
@@ -116,7 +117,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 122;
+export const corpusVersion = 123;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -180,6 +181,7 @@ programs.push(...numberLooseEquality);
 programs.push(...functionLooseEquality);
 programs.push(...booleanLooseEquality);
 programs.push(...booleanProjection);
+programs.push(...boxedPrimitives);
 programs.push(...booleanLogicalOrigins);
 programs.push(...dictionaryLogical);
 programs.push(...stringLocalAddition);

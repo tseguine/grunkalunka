@@ -10,6 +10,25 @@ the existing async contract are preserved.
 [Property deletion](property-deletion.md) removes configurable own data fields,
 preserves sparse-array length and updates the source facts used by later reads.
 
+Boxed values whose source alternatives are all Number, Boolean, Null or Undefined
+can now project into the existing tagged scalar path. This preserves each actual
+language tag and every Number bit; arithmetic, explicit coercion, relational
+comparison and loose equality use their existing scalar operations. For example,
+`const o={v:a?true:null}; return +o.v` works without pretending the field is always
+a Number. Missing/deleted fields and sparse holes can likewise supply Undefined
+when the existing source analysis proves it. Checked helper/capture flows and
+primitive return interfaces retain these tags. Numeric-only returns still require
+a Number proof or explicit conversion.
+
+Primitive projection requires a nonempty set containing only those four origins;
+type annotations, String/reference alternatives, unknown writes and unresolved
+helper results do not satisfy it. Its verified IR checks a visible managed input
+and tagged scalar output; the backend checks that the runtime tag is in the same
+four-kind domain. No coercion, user-code call or thenable assimilation occurs in
+the projection. Await preserves these primitive source alternatives, including
+Null/Undefined; saved operands survive RHS mutation, rejection and suspension.
+This extends the earlier singleton Number/Boolean proofs below to primitive unions.
+
 Source-proven Number fields and elements now project from boxed storage into
 ordinary arithmetic, comparisons and numeric returns. The same path supports
 destructured locals, assignment-pattern targets, intrinsic-array iteration and
@@ -77,20 +96,22 @@ Source-proven Number pairs in boxed storage also support `==` and `!=` without
 coercion. NaN compares unequal to itself, signed zero compares equal to zero,
 and infinities retain ordinary Number equality. Fields, elements, destructured
 cells and checked helper inputs use the same operation and save the left Number
-before RHS effects or suspension. Mixed kinds, deleted or uncertain field origins,
-and type assertions cannot supply the required Number-pair proof.
+before RHS effects or suspension. Other represented primitive alternatives use
+the tagged scalar bridge above. String/reference alternatives and type assertions
+cannot supply the required Number-pair proof.
 
 Source-proven Boolean pairs in boxed fields, elements and cells now support `==`
 and `!=` without Number conversion. Boolean literals, comparisons, `in`, `delete`
 and logical negation supply positive Boolean origins; aliases and checked helper
 flows retain those facts. Left values remain snapshots across RHS writes and
-suspension. Mixed Boolean/Number or other uncertain alternatives remain guarded,
-and annotations cannot supply a Boolean proof. Boolean truthiness stays conservative
+suspension. Mixed Boolean/Number alternatives now use tagged scalar equality;
+String/reference alternatives remain guarded, and annotations cannot supply a
+Boolean proof. Boolean truthiness stays conservative
 in the origin analysis; it does not predict which branch executes.
 
 Proven Boolean values in managed storage can also enter the existing scalar
-primitive path. Lowering reads the saved Boolean, projects its predicate and packs
-it with the Boolean tag; explicit numeric coercion then uses the existing primitive
+primitive path. Lowering preserves the saved Boolean tag and payload; explicit
+numeric coercion then uses the existing primitive
 conversion. This enables scalar consumers such as `+record.enabled` while preserving
 Boolean identity and negative-zero behavior. Await preserves positive Boolean
 origins, and managed await results box the existing General-protocol completion.

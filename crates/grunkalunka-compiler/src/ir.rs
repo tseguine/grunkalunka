@@ -801,6 +801,11 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    // Checked projection of represented non-String primitives, without coercion.
+    ManagedToPrimitive {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedEqual {
         result: ValueId,
         left: ValueId,
@@ -1837,6 +1842,10 @@ impl Verifier<'_> {
             Op::ManagedToNumber { result, input } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedToPrimitive { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::General, visible, span)?;
             }
             Op::ManagedEqual {
                 result,
