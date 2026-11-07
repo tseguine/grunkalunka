@@ -766,10 +766,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         result
     }
 
-    pub(crate) fn only_empty_returns(&self, function: &oxc_ast::ast::Function<'_>) -> bool {
-        block_results::return_statements(self.semantic, function.node_id.get())
-            .iter()
-            .all(|statement| statement.argument.is_none())
+    pub(crate) fn undefined_completion(&self, function: &oxc_ast::ast::Function<'_>) -> bool {
+        block_results::conditional_fallthrough(function)
+            || block_results::return_statements(self.semantic, function.node_id.get())
+                .iter()
+                .all(|statement| statement.argument.is_none())
     }
 
     fn statement_leaf_inner(

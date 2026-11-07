@@ -181,7 +181,8 @@ pub(super) fn undefined_return_bodies(semantic: &Semantic<'_>) -> BTreeSet<NodeI
     for node in semantic.nodes().iter() {
         if let AstKind::Function(function) = node.kind()
             && !function.r#async
-            && block_results::return_statements(semantic, node.id()).is_empty()
+            && (block_results::return_statements(semantic, node.id()).is_empty()
+                || block_results::conditional_fallthrough(function))
         {
             bodies.insert(node.id());
         }
@@ -838,6 +839,7 @@ impl Fields {
                             .collect::<Vec<_>>();
                         let undefined_return = !function.r#async
                             && (returns.is_empty()
+                                || block_results::conditional_fallthrough(function)
                                 || block_results::return_statements(semantic, id)
                                     .iter()
                                     .any(|statement| statement.argument.is_none()));

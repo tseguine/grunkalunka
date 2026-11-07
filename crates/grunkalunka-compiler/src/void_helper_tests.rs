@@ -29,7 +29,6 @@ fn implicit_helper_results_keep_number_and_source_guards() {
         assert!(crate::compile(source, false).is_err(), "{source}");
     }
     for source in [
-        "function f(x){if(x)return null;}export function run(a,b){return +f(a);}",
         "function f(x){Math.random();}export function run(a,b){return f(a);}",
         "function f(x){return;Math.random();}export function run(a,b){return f(a);}",
     ] {

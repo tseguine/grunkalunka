@@ -129,7 +129,6 @@ fn named_module_helpers_keep_numeric_interfaces_and_source_limits() {
         "function helper(x){return Promise.resolve(x);}export function run(a,b){return helper(b);}",
         "function helper(x){return y=>y;}export function run(a,b){return helper(b);}",
         "function helper(x){return 'text';}export function run(a,b){return helper(b);}",
-        "function helper(x){if(x)return null;}export function run(a,b){return helper(b);}",
         "function helper(x){return null;}export function run(a,b){helper=a;return helper(b);}",
     ] {
         assert!(compile_value(source, false).is_err(), "{source}");
@@ -179,5 +178,18 @@ fn side_effect_only_helpers_preserve_undefined_and_caller_state() {
         "function helper(x){x++;}export function run(a,b){const f=x=>helper(x);return f(a);}",
         "function helper(o){o.x++;}export function run(a,b){const o={x:a};const result=helper(o);return result??o.x;}",
         "function helper(o){try{if(o.x)return;}finally{o.x++;}}export function run(a,b){const o={x:a};const result=helper(o);return result??o.x;}",
+    ]);
+}
+
+#[test]
+fn conditional_helper_values_keep_the_implicit_undefined_path() {
+    compare_helpers(&[
+        "function helper(x) { if(x) return x; } export function run(a,b) { return helper(a); }",
+        "function helper(x){if(x)return null;}export function run(a,b){return helper(b);}",
+        "function helper(x){if(x)return x;}export function run(a,b){return helper(a);}",
+        "function helper(x){{if(x)return false;}}export function run(a,b){return helper(a);}",
+        "function helper(x){if(x){if(x>1)return 3;}else{if(x<0)return 4;}}export function run(a,b){return helper(a);}",
+        "function helper(x){if(x)return x;}export function run(a,b){const f=helper;return f(a);}",
+        "function helper(x){if(x)return x;}export function run(a,b){const f=x=>helper(x);return f(a);}",
     ]);
 }

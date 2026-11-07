@@ -2434,3 +2434,12 @@ rather than treating an empty set of returns as proof of a Number result. A
 nested arrow's return does not count as its creator's return. Helpers with partial
 value-returning paths still require the existing completion proof, and numeric
 exports cannot directly return Undefined.
+
+Synchronous helper tails composed of blocks and `if` statements can now retain
+both an explicit primitive result and implicit Undefined. An `if` without an
+`else` supplies the normal completion alternative; nested tail blocks and
+conditional branches use the same finite source query. General/managed return
+interfaces preserve both tags, and explicit numeric coercion produces NaN on
+the Undefined path. Exhaustive numeric helpers retain their Number interface.
+This does not yet classify fallthrough through arbitrary loop, switch or
+try/finally tails; those helpers retain their existing completion guards.

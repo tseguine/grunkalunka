@@ -33,7 +33,6 @@ fn implicit_undefined_keeps_source_validation_and_private_number_guards() {
         "export function run(a,b){if(a){missing;}}",
         "export function run(a,b){break;}",
         "export function run(a,b){continue;}",
-        "function f(x){if(x)return x;}export function run(a,b){return f(a);}",
     ] {
         assert!(crate::compile_value(source, false).is_err(), "{source}");
     }

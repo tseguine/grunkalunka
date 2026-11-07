@@ -2,6 +2,8 @@
 //! The admitted numeric contract is documented in docs/compiler.md.
 #[cfg(test)]
 mod bare_return_tests;
+#[cfg(test)]
+mod conditional_helper_tests;
 mod emit;
 #[cfg(test)]
 mod evaluator_tests;
@@ -580,7 +582,7 @@ fn lower_source_profile_with_identities(
                         lowering.return_type,
                         ir::Type::General | ir::Type::ManagedValue
                     )
-                    && lowering.only_empty_returns(function)))
+                    && lowering.undefined_completion(function)))
         {
             lowering.return_undefined(body.as_ref(), &mut region);
             completion = completion.then(ir::Completion::RETURN);

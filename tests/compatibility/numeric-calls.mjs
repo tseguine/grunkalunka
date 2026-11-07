@@ -102,7 +102,7 @@ bad('unused-function-write', `${identity} function unused() { identity=1; return
 bad('capture-entry-parameter', 'function helper() { return a; }', 'return helper();', reference);
 bad('cross-function-local', 'function first() { const x=1; return x; } function second() { return x; }', 'return second();', reference);
 bad('nested-declaration', 'function helper(x) { function nested() { return 1; } return x; }', 'return helper(a);', 'statement is outside');
-bad('missing-return', 'function helper(x) { if(x) return x; }', 'return helper(a);', 'every structural path');
+bad('missing-return', 'function helper(x) { if(x) return x; }', 'return helper(a);', 'managed value requires an identity or managed storage position');
 bad('boolean-return', 'function helper() { return true; }', 'return helper();', expression);
 for(const [id,value] of [['boolean','true'],['string','"1"'],['object','({})'],['bigint','1n'],['null','null'],['call','Math.random()']]) bad(`argument-${id}`,identity,`return identity(${value});`,expression);
 bad('unselected-argument', identity, 'return true?a:identity(Math.random());', expression);
