@@ -146,12 +146,45 @@ fn switch_reference_proofs_and_guards() {
             true,
         ),
         ("const x=a?{}:[];switch(x){case x:return a;}return b;", true),
-        ("switch(a?{}:null){default:return a;}", false),
+        ("switch(a?{}:null){default:return a;}", true),
         (
             "const x={};switch(x){case a?x:null:return b;}return a;",
-            false,
+            true,
         ),
         ("const x={};switch(x){case x:break;}return a;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
+fn mixed_switch_values_need_positive_source_proofs() {
+    for (body, admitted) in [
+        (
+            "switch(a?'x':null){case null:return a;default:return b;}",
+            true,
+        ),
+        (
+            "const f=()=>a;switch(a?f:false){case f:return a;default:return b;}",
+            true,
+        ),
+        (
+            "const xs=[{},'x',null,a];switch(xs[0]){case xs[1]:return a;default:return b;}",
+            true,
+        ),
+        ("switch(Promise.resolve(a)){default:return b;}", false),
+        (
+            "switch(a){case Promise.resolve(b):return a;default:return b;}",
+            false,
+        ),
+        ("switch(a?{}:missing){default:return b;}", false),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {

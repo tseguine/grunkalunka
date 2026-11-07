@@ -1273,3 +1273,16 @@ fn switch_references_keep_saved_values_across_suspension() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn mixed_switch_values_survive_awaited_case_effects() {
+    compare_promises(
+        &[
+            "const x={};switch(a?x:null){case(await b,null):return b;case x:return a;}return 99;",
+            "let x=a?{}:'x';const old=x;switch(x){case(await b,x=null,x):return 99;case old:return a;}return b;",
+            "const f=()=>a;switch(a?f:0){case(await b,()=>a):return 99;case(await b,f):return a;default:return b;}",
+            "let n=0;try{switch(a?'x':{}){case(await Promise.reject(b),'x'):n=99;}}catch(e){return n;}return a;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}

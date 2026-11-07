@@ -21,9 +21,7 @@ struct Arm {
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
     fn switch_operand(&self, expression: &Expression<'_>) -> bool {
-        self.stored.primitive(expression.node_id())
-            || self.stored.string(expression.node_id())
-            || self.stored.reference(expression.node_id())
+        self.stored.represented(expression.node_id())
     }
 
     pub(super) fn begin_switch<'n>(
