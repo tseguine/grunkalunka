@@ -1258,3 +1258,18 @@ fn numeric_string_index_saves_receiver_across_awaits() {
         ],
     );
 }
+
+#[test]
+fn switch_references_keep_saved_values_across_suspension() {
+    compare_promises(
+        &[
+            "const x={};switch(x){case(await a,{}):return 99;case(await b,x):return a;default:return b;}",
+            "let x=[];const old=x;switch(x){case(await a,x=[],x):return 99;case(await b,old):return a;}return b;",
+            "const f=()=>a;switch(f){case(await a,()=>a):return 99;case(await b,f):return a;}return b;",
+            "const f=async()=>a;switch(f){case(await a,f):return await b;}return a;",
+            "const x={};let n=0;try{switch(x){case(await Promise.reject(b),x):n=99;}}catch(e){return n;}return a;",
+            "const x={};switch(x){case x:return await a;case(await Promise.reject(b),{}):return 99;}return b;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}

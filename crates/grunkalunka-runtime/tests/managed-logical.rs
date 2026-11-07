@@ -494,3 +494,25 @@ fn logical_selection_retains_reference_identity_and_compatible_receivers() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn switch_references_preserve_aliases_and_fresh_function_identity() {
+    for body in [
+        "const x={};switch(x){case {}:return 99;case x:return a;default:return b;}",
+        "const x=[];switch(x){case []:return 99;case x:return a;default:return b;}",
+        "const x=Object.create(null);const y=x;switch(x){case y:return a;default:return b;}",
+        "let x={};const old=x;switch(x){case (x={},x):return 99;case old:return a;default:return b;}",
+        "const x={};let n=0;switch(x){case(n++,x):return n;case(n=99,{}):return n;}return n;",
+        "const f=()=>a;const g=f;switch(f){case g:return a;default:return b;}",
+        "const f=()=>a;const g=()=>a;switch(f){case g:return 99;case f:return a;default:return b;}",
+        "const make=()=>()=>a;const f=make();const g=make();switch(f){case g:return 99;case f:return a;default:return b;}",
+        "const f=async()=>a;const g=f;switch(f){case g:return a;default:return b;}",
+        "const make=()=>async()=>a;const f=make();const g=make();switch(f){case g:return 99;case f:return a;default:return b;}",
+        "const x={};switch(a){case x:return 99;default:return b;}",
+        "switch({}){case null:return b;default:return a;}",
+        "switch(a){case {}:return b;default:return a;}",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}

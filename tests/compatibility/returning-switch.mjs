@@ -22,5 +22,10 @@ export const returningSwitch = [
     ['switch-final-normal-default', 'switch(a){case 0:return b;default:a=b;}return a;'],
     ['switch-final-case-after-default', 'switch(a){default:return b;case 0:a=b;}return a;'],
     ['switch-final-empty-case', 'switch(a){case 0:;}return a;'],
+    ['switch-object-identity', 'const x={};switch(x){case {}:return 99;case x:return a;default:return b;}'],
+    ['switch-array-snapshot', 'let x=[];const old=x;switch(x){case(x=[],x):return 99;case old:return a;}return b;'],
+    ['switch-function-alias', 'const f=()=>a;const g=f;switch(f){case g:return a;default:return b;}'],
+    ['switch-fresh-closures', 'const make=()=>()=>a;const f=make();const g=make();switch(f){case g:return 99;case f:return a;}return b;'],
+    ['switch-fresh-async-closures', 'const make=()=>async()=>a;const f=make();const g=make();switch(f){case g:return 99;case f:return a;}return b;'],
   ].map(([id, body]) => [id, body, body]),
 ];

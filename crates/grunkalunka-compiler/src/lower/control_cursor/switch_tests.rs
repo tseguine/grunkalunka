@@ -14,8 +14,8 @@ fn returning_switches_accept_scalar_dispatch_and_reject_fallthrough() {
         ("switch(a){case 4:return b;}", false),
         ("switch(a){case 4:;default:return a;}", false),
         ("switch(a){case 4:if(b)return b;default:return a;}", false),
-        ("switch({}){case null:return b;default:return a;}", false),
-        ("switch(a){case {}:return b;default:return a;}", false),
+        ("switch({}){case null:return b;default:return a;}", true),
+        ("switch(a){case {}:return b;default:return a;}", true),
         (
             "let x=a;switch(x){case 0:break;default:return b;}return a;",
             false,
@@ -118,6 +118,40 @@ fn final_switch_arms_can_complete_normally_without_enabling_fallthrough() {
         ("switch(a){default:a=b;case 0:return a;}return b;", false),
         ("while(a){switch(b){case 0:continue;}}return b;", false),
         ("while(a){switch(b){default:break;}}return b;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
+fn switch_reference_proofs_and_guards() {
+    for (body, admitted) in [
+        (
+            "const x={};switch(x){case x:return a;default:return b;}",
+            true,
+        ),
+        (
+            "const f=()=>a;switch(f){case f:return a;default:return b;}",
+            true,
+        ),
+        (
+            "const f=async()=>a;switch(f){case f:return a;}return b;",
+            true,
+        ),
+        ("const x=a?{}:[];switch(x){case x:return a;}return b;", true),
+        ("switch(a?{}:null){default:return a;}", false),
+        (
+            "const x={};switch(x){case a?x:null:return b;}return a;",
+            false,
+        ),
+        ("const x={};switch(x){case x:break;}return a;", false),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {

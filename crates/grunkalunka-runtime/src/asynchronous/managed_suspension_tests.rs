@@ -477,3 +477,27 @@ fn trapped_managed_invocations_are_terminal_until_store_teardown() {
         AsyncState::Fulfilled(super::super::Value::Number(1.0))
     ));
 }
+
+#[test]
+fn switch_reference_discriminants_survive_gc_during_rebinding_tests() {
+    for body in [
+        "let x={};switch(x){case(await b,x={},x):return 0;default:return 1;}",
+        "let x=[];switch(x){case(await b,x=[],x):return 0;default:return 1;}",
+        "let f=()=>a;switch(f){case(await b,f=()=>a,f):return 0;default:return 1;}",
+        "let f=async()=>a;switch(f){case(await b,f=async()=>a,f):return 0;default:return 1;}",
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let artifact = grunkalunka_compiler::compile_async(&source, typed).unwrap();
+            let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+            assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+            activation.store.gc(None).unwrap();
+            assert!(activation.run_one_job().unwrap());
+            assert!(matches!(
+                activation.state().unwrap(),
+                AsyncState::Fulfilled(super::super::Value::Number(1.0))
+            ));
+            assert!(!activation.run_one_job().unwrap());
+        }
+    }
+}

@@ -876,7 +876,7 @@
     {
       "id": "switch",
       "kind": "open-requirement",
-      "assessment": "Scalar/String switch dispatch executes with terminal non-final arms, optional defaults, normal unmatched completion and ordinary final-arm completion. Fallthrough between arms, switch-local break and broader discriminants remain open.",
+      "assessment": "Primitive/String/reference switch dispatch executes with terminal non-final arms, optional defaults, normal unmatched completion and ordinary final-arm completion. Fallthrough between arms, switch-local break and unproven or mixed reference/primitive discriminants remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-switch-statement",
