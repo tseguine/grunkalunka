@@ -34,6 +34,7 @@ enum Rule {
     Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
+    DictionaryMember(NodeId, NodeId),
     Call(
         NodeId,
         Vec<NodeId>,
@@ -1033,10 +1034,13 @@ impl Fields {
                     {
                         Some(Rule::Member(m.object.node_id(), key))
                     } else {
-                        // A dynamic read is an unknown boxed value, not an
-                        // unresolved fact that a conditional can silently omit.
-                        values.insert(id, BTreeSet::from([Origin::Other]));
-                        None
+                        // Null-prototype dictionaries have no inherited values.
+                        // The solver checks the receiver/key before collecting
+                        // all possible own values plus a missing alternative.
+                        Some(Rule::DictionaryMember(
+                            m.object.node_id(),
+                            m.expression.node_id(),
+                        ))
                     }
                 }
                 _ => {
@@ -1067,6 +1071,9 @@ impl Fields {
         let has_logical_selection = rules
             .iter()
             .any(|(_, rule)| matches!(rule, Rule::Logical(..)));
+        let has_dictionary_selection = rules
+            .iter()
+            .any(|(_, rule)| matches!(rule, Rule::DictionaryMember(..)));
         let track_elements = has_iterations
             || has_relative_selection
             || !elements.rest_sources.is_empty()
@@ -1289,6 +1296,9 @@ impl Fields {
                         found
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
+                    Rule::DictionaryMember(receiver, key) => {
+                        members.dictionary_value(*receiver, *key)
+                    }
                 };
                 additions.push((*id, found));
             }
@@ -1428,6 +1438,7 @@ impl Fields {
                     || has_iterations
                     || has_relative_selection
                     || has_logical_selection
+                    || has_dictionary_selection
                     || !elements.rest_sources.is_empty()
                     || !indexed_copy_inputs.is_empty())
                 && !finalized_unresolved

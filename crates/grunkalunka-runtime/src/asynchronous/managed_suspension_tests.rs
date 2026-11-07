@@ -3,6 +3,21 @@ use super::*;
 const SOURCE: &str = "export async function run(a,b){const o={x:a};const p=o;o.self=o;await b;p.x=b;return o===p&&o.self===p&&o.x===b?1:0;}";
 
 #[test]
+fn dictionary_receiver_stays_traced_during_primitive_key_selection() {
+    let source = "export async function run(a,b){let d=Object.create(null);d.x=a;const other=Object.create(null);other.x=b;const value=d[(d=other,await b,'x')];return +value+ +d['x'];}";
+    let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
+    let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+    assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+    activation.store.gc(None).unwrap();
+    assert!(activation.run_one_job().unwrap());
+    assert!(matches!(
+        activation.state().unwrap(),
+        AsyncState::Fulfilled(super::super::Value::Number(6.0))
+    ));
+    assert!(!activation.run_one_job().unwrap());
+}
+
+#[test]
 fn projected_primitive_keeps_its_tag_and_snapshot_through_gc() {
     let source = "export async function run(a,b){const o={v:false};const value=o.v==(o.v=true,await b,0);return value&&o.v===true?1:0;}";
     let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();

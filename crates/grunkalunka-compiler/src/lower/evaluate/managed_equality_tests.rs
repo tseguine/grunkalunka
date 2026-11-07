@@ -341,3 +341,61 @@ fn boxed_primitive_projection_requires_only_represented_primitive_origins() {
         .is_err()
     );
 }
+#[test]
+fn dictionary_scalar_reads_require_primitive_value_domains_and_string_keys() {
+    for (body, admitted) in [
+        (
+            "const d=Object.create(null);d.x=a;const k='x';return d[k]+b;",
+            true,
+        ),
+        (
+            "const d=Object.create(null);const k='missing';return +d[k];",
+            true,
+        ),
+        (
+            "const d=Object.create(null);d.x=a;d.y=false;d.z=null;const k='x';return d[k]==b?1:0;",
+            true,
+        ),
+        (
+            "const d=Object.create(null);d.x=a;d.y='text';const k='x';return +d[k];",
+            false,
+        ),
+        (
+            "const d=Object.create(null);d.x=a;const alias=d;alias.y={};const k='x';return +d[k];",
+            false,
+        ),
+        (
+            "const d=Object.create(null);d.x=a;const set=t=>{t.y='text';return 0;};set(d);const k='x';return +d[k];",
+            false,
+        ),
+        ("const d=Object.create(null);d.x=a;return +d[a];", false),
+        ("const d={x:a};const k='x';return +d[k];", false),
+        (
+            "const d=Object.create(null);const k='x';d[k]=a?'text':b;return +d[k];",
+            false,
+        ),
+        (
+            "const d=Object.create(null);d.x=a;d.self=d;const k='x';return +d[k];",
+            false,
+        ),
+        (
+            "const d=Object.create(null);let f=()=>f();d.x=f();const k='x';return +d[k];",
+            false,
+        ),
+        (
+            "const d=a?Object.create(null):{x:b};const k='x';return +d[k];",
+            false,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    let source = "export function run(a,b){const d=Object.create(null);d.x='text';const k='x';return +(d[k] as number);}";
+    assert!(crate::compile(source, true).is_err());
+}
