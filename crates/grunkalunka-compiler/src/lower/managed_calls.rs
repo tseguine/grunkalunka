@@ -1027,6 +1027,14 @@ pub(super) fn closure_identities(
             {
                 observe(kinds, &assignment.right);
             }
+            AstKind::SwitchStatement(source) => {
+                observe(kinds, &source.discriminant);
+                for case in &source.cases {
+                    if let Some(test) = &case.test {
+                        observe(kinds, test);
+                    }
+                }
+            }
             AstKind::BinaryExpression(binary)
                 if matches!(
                     binary.operator,
