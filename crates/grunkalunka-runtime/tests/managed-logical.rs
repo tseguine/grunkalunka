@@ -745,3 +745,9 @@ fn factory_created_local_closures_preserve_managed_values_and_effects() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn proven_number_nullish_join_executes_the_exact_original_gap() {
+    let source = "export function run(a,b) { return (a === 4 ? null : a) ?? b; }";
+    common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 2], [3, 2, 3]]);
+}

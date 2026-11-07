@@ -94,7 +94,6 @@ fn declaration_values_keep_unsupported_constructs_explicit() {
         "function f(x){return x;}function g(x,y){return x+y;}export function run(a,b){const h=a?f:g;return h(a,b);}",
         "export function run(a,b){function f(){return a;}const g=f;return g();}",
         "function f(){return Symbol();}export function run(a,b){const o={f};return a;}",
-        "function make(x){return {x};}export function run(a,b){const f=make;return f(a).x;}",
         "function f(x){return x;}export async function run(a,b){const g=f;const h=async x=>{await b;return x;};const p=h(a);await p;return g;}",
     ] {
         for ts in [false, true] {
@@ -173,4 +172,9 @@ fn declaration_adapters_keep_the_existing_thousand_parameter_boundary() {
     // Wide typed frames are checked with an explicit engine-test budget; the
     // production NumericInstance per-call fuel policy remains unchanged.
     common::compare_sources_with_fuel(&source, &source, Some(2_000_000));
+}
+
+#[test]
+fn named_factory_number_field_executes_the_exact_former_guard() {
+    compare("function make(x){return {x};}export function run(a,b){const f=make;return f(a).x;}");
 }

@@ -177,7 +177,6 @@ fn synchronous_catches_keep_uncaught_cross_function_and_reason_boundaries() {
         "try{throw a;}catch([value]){return 0;}",
         "outer:try{throw a;}catch(e){break outer;}return b;",
         "try{throw a;}catch(e){}return +e;",
-        "for(const item of [a]){try{throw item;}catch(e){return +e;}}return b;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -388,4 +387,9 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn lexical_iteration_catch_executes_the_exact_former_guard() {
+    compare("for(const item of [a]){try{throw item;}catch(e){return +e;}}return b;");
 }

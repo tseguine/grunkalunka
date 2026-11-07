@@ -58,7 +58,7 @@ their specific declaration diagnostic.
 
 | Area | Exact fixture IDs |
 | --- | --- |
-| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-delete`, `gap-instanceof`, `gap-typeof-unresolved` |
+| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-delete`, `gap-instanceof`, `gap-typeof-unresolved` |
 | General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Nested declarations and nested recursion | `gap-nested-function`, `gap-recursion` |
@@ -735,10 +735,8 @@ Binary `??` selects between represented Undefined, Null, Boolean and Number valu
 retaining false, zero, signed zero and NaN. Corpus 66 promotes the three unchanged
 numeric sources `discarded-nullish`, `predicate-logical-nullish` and
 `logical-unsupported-8`. The original `gap-nullish` source executes unchanged in the
-Value profile but stays a numeric-profile rejection because the compiler keeps a
-General join instead of proving its selected result is always a Number. Its numeric
-diagnostic now identifies the unsupported null operand rather
-than the entire operator. Subsequent units admit primitive `void` and mutable
+Value profile and now in the numeric profile as well: its selected result is proven
+to be a Number, with projection after evaluating the General join. Subsequent units admit primitive `void` and mutable
 primitive/function identifier `??=`. String/heap operands, const/property assignment
 targets and mixed function/primitive joins remain gaps. See
 [binary coalescing](compiler.md#binary-nullish-coalescing).

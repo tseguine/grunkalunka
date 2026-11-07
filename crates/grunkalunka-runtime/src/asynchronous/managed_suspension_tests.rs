@@ -613,3 +613,29 @@ fn factory_created_local_result_roots_survive_collection() {
         }
     }
 }
+
+#[test]
+fn unrelated_zero_argument_calls_keep_async_signatures_and_settlement() {
+    for source in [
+        "export async function run(a,b){const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;const h=(a?f:g)(await b);await a;return h();}",
+        "export async function run(a,b){const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;let make=a?f:g;const h=make(await b);await a;return h();}",
+        "export async function run(a,b){const f=async x=>{await x;return x;};const make=p=>async()=>{await a;return await p;};const get=make(f(b));return await get();}",
+    ] {
+        for typed in [false, true] {
+            let artifact = grunkalunka_compiler::compile_async(source, typed).unwrap();
+            let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+            for _ in 0..20 {
+                if !matches!(activation.state().unwrap(), AsyncState::Pending) {
+                    break;
+                }
+                activation.store.gc(None).unwrap();
+                assert!(activation.run_one_job().unwrap());
+            }
+            assert!(matches!(
+                activation.state().unwrap(),
+                AsyncState::Fulfilled(super::super::Value::Number(2.0))
+            ));
+            assert!(!activation.run_one_job().unwrap());
+        }
+    }
+}

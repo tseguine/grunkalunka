@@ -1960,9 +1960,9 @@ skipped awaits create no reaction jobs. TypeScript claims do not change these fa
 
 The three exact former numeric rejections in `primitive-nullish.mjs` now execute.
 The Value profile also executes its original `nullish-operator` rejection and the
-unchanged curated `gap-nullish` source. Although that source always selects a Number,
-the compiler conservatively retains a General join and still rejects its numeric-only
-return. This is a missing narrowing proof, not a possible null result. The primitive
+unchanged curated `gap-nullish` source. Its selected value is proven to be a Number,
+so the numeric profile now evaluates its General join and then projects the result.
+That result proof does not justify evaluating nullish operands in Number-only slots. The primitive
 report at that step had 82 JS/TS
 pairs, 16 exact numeric origins, 6 rejection observations and 4592 comparisons.
 

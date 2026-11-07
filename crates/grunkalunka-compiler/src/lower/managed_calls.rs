@@ -22,6 +22,74 @@ enum Kind {
 }
 type Kinds = BTreeSet<Kind>;
 
+// Resolve actual source constructors before enabling omission-only facts. A
+// short call to an unrelated zero-argument closure is not an omitted input.
+pub(super) fn has_omitted_arrow_arguments(semantic: &Semantic<'_>) -> bool {
+    let maximum = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            AstKind::ArrowFunctionExpression(arrow) if !arrow.r#async => {
+                Some(arrow.params.items.len())
+            }
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    if !semantic.nodes().iter().any(|node| {
+        matches!(node.kind(),
+        AstKind::CallExpression(call) if invocation::arguments(call).len() < maximum)
+    }) {
+        return false;
+    }
+    let mut definitions = Vec::new();
+    let mut calls = Vec::new();
+    for node in semantic.nodes().iter() {
+        match node.kind() {
+            AstKind::VariableDeclarator(v) => {
+                if let BindingPattern::BindingIdentifier(identifier) = &v.id
+                    && let Some(symbol) = identifier.symbol_id.get()
+                {
+                    definitions.push((symbol, v.init.as_ref()));
+                }
+            }
+            AstKind::AssignmentExpression(a) => {
+                if let Some(identifier) = a
+                    .left
+                    .as_simple_assignment_target()
+                    .and_then(|target| target_identifier(target, 0).ok().flatten())
+                    && let Some(symbol) = symbol(identifier, semantic)
+                {
+                    definitions.push((symbol, Some(&a.right)));
+                }
+            }
+            AstKind::CallExpression(call) => calls.push(call),
+            _ => (),
+        }
+    }
+    let stored = stored_functions::Fields::default();
+    let inputs = input_flow::collect(semantic, &definitions, &calls, &stored);
+    let origins = callbacks::ReturnOrigins {
+        semantic,
+        stored: &stored,
+        targets: &inputs.targets,
+        arrows: &inputs.arrows,
+    };
+    calls.into_iter().any(|call| {
+        let (sources, mut bodies) =
+            origins.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
+        for source in sources {
+            if let Some(known) = inputs.targets.get(&source) {
+                bodies.extend(known);
+            }
+        }
+        bodies.into_iter().any(|body| {
+            let arrow = inputs.arrows[&body];
+            !arrow.r#async && invocation::arguments(call).len() < arrow.params.items.len()
+        })
+    })
+}
+
 fn managed_value_kinds() -> Kinds {
     [
         Kind::Primitive,
@@ -705,9 +773,20 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         callback_parameters,
         closure_signatures,
     } = flow;
-    if !has_managed_origin(semantic)
-        && !stored_functions::has_omitted_arguments(semantic, functions[0].symbol)
-    {
+    let omitted_arrow_input = semantic.nodes().iter().any(|node| {
+        let AstKind::CallExpression(call) = node.kind() else {
+            return false;
+        };
+        calls
+            .get(&call.node_id.get())
+            .into_iter()
+            .flatten()
+            .any(|body| {
+                let arrow = arrows[body];
+                !arrow.r#async && invocation::arguments(call).len() < arrow.params.items.len()
+            })
+    });
+    if !has_managed_origin(semantic) && !omitted_arrow_input {
         return ClosureKinds::default();
     }
     let from_type = |ty: Type| -> Kinds {

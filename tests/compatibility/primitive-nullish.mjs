@@ -1,6 +1,7 @@
 // Binary ?? retains its left value unless it is Null or Undefined.
 // https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation
 export const primitiveNullishPromotions = [
+  ['gap-nullish', 'export function run(a,b) { return (a === 4 ? null : a) ?? b; }', 'cc04ac11c14b9961473ec1c628ac3625e0098e727b8a9c6f4cb0f2df862ed31c'],
   ['discarded-nullish', 'export function run(a,b) { a??true; return a; }', '8579a29f43d4555ffafe768dfed4a60cf9affe0d36d4e4092c8541d1b7814de4'],
   ['predicate-logical-nullish', 'export function run(a,b) { if(a ?? b) return a; return b; }', '2516615f116e201c581665e2e9e48d0409cbe91889d9f82979221a907cd6c764'],
   ['logical-unsupported-8', 'export function run(a,b) { return a ?? b; }', '2d29afbcb3f53e9fecc4dfe4d06880b0af936d608feefbc8da26e835d131db80'],

@@ -773,9 +773,9 @@ Binary `??` now preserves represented primitive kinds and payloads, with RHS eff
 and async jobs only for Null/Undefined left operands. Number-only results and Boolean
 contexts retain their profile rules. Corpus 66 promotes three original numeric
 rejections; the Value profile has 82 pairs/4592 comparisons and also executes the
-original curated `gap-nullish` source. Its selected result is always a Number, but
-the compiler retains a General join; narrowing it for the numeric profile remains
-separate work. Constructor-free closure selectors using `??` now specialize successfully.
+original curated `gap-nullish` source. The later result/storage proof separation also
+admits that unchanged source in the numeric profile by projecting its proven Number
+after evaluating the General join. Constructor-free closure selectors using `??` now specialize successfully.
 `??=` and `void` remain separate units. See [the contract](compiler.md#binary-nullish-coalescing).
 
 ## Represented numeric coercion (2026-10-28)

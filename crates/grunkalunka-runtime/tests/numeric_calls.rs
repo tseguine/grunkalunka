@@ -85,11 +85,10 @@ fn direct_call_type_arguments_erase_without_changing_execution() {
 #[test]
 fn direct_call_type_arguments_do_not_prove_values_or_relax_limits() {
     for body in [
-        "return id<never>();",
-        "return id<never>(...a);",
-        "return id?.<never>(a);",
         "return id<number>(null);",
         "return id<number>(true);",
+        "return id<never>(...a);",
+        "return id?.<never>(a);",
         "return id<number>('x');",
         "return id<never>(missing);",
         "const id=a;return id<never>(b);",
@@ -247,7 +246,6 @@ fn local_call_type_arguments_preserve_numeric_and_primitive_execution() {
 #[test]
 fn local_primitive_inputs_keep_existing_call_and_result_guards() {
     for source in [
-        "export function run(a,b){const f=x=>+x;return f();}",
         "export function run(a,b){const f=x=>+x;return f(...a);}",
         "export function run(a,b){const f=x=>+x;return f('text');}",
         "export function run(a,b){const f=x=>+x;return f({});}",
@@ -733,7 +731,6 @@ fn helper_surplus_arguments_keep_width_input_and_source_guards() {
         format!(
             "function value(){{return 7;}} export function run(a,b){{return value({arguments},a);}}"
         ),
-        "function identity(x){return x;} export function run(a,b){return identity();}".into(),
         "function identity(x){return x;} export function run(a,b){return identity(null,a);}".into(),
         "function identity(x){return x;} export function run(a,b){return identity(a,...b);}".into(),
         "function identity(x){return x;} export function run(a,b){return identity?.(a,b);}".into(),
@@ -766,4 +763,22 @@ fn excessive_finite_recursion_traps_and_the_instance_can_run_again() {
     );
     println!("observed excessive-recursion protection: {trap:?}");
     assert_eq!(instance.run(0.0, 42.0).unwrap(), 42.0);
+}
+
+#[test]
+fn omitted_local_number_coercion_executes_the_exact_former_guard() {
+    compare_helper_sources(&["export function run(a,b){const f=x=>+x;return f();}"]);
+}
+
+#[test]
+fn primitive_helper_results_still_require_a_primitive_export() {
+    for source in [
+        "function id(x){return x;}export function run(a,b){return id<never>();}",
+        "function id(x){return x;}export function run(a,b){return id<number>(null);}",
+        "function id(x){return x;}export function run(a,b){return id<number>(true);}",
+        "function identity(x){return x;} export function run(a,b){return identity();}",
+        "function identity(x){return x;} export function run(a,b){return identity(null,a);}",
+    ] {
+        assert!(compile(source, true).is_err(), "{source}");
+    }
 }

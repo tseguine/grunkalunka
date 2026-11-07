@@ -546,3 +546,28 @@ fn factory_created_local_closures_return_exact_primitive_tags() {
         .collect(),
     );
 }
+
+#[test]
+fn former_helper_arity_and_type_guards_preserve_exact_primitive_results() {
+    compare_primitive_sources(
+        [
+            (
+                "function id(x){return x;}export function run(a,b){return id();}",
+                "function id(x){return x;}export function run(a,b){return id<never>();}",
+            ),
+            (
+                "function identity(x){return x;} export function run(a,b){return identity();}",
+                "function identity(x){return x;} export function run(a,b){return identity();}",
+            ),
+        ]
+        .into_iter()
+        .map(|(js, ts)| (js.to_owned(), ts.to_owned()))
+        .collect(),
+    );
+}
+
+#[test]
+fn omitted_callback_scalar_keeps_the_exact_former_value_guard_source() {
+    let source = "export function run(a,b){const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>y);}";
+    compare_primitive_sources(vec![(source.to_owned(), source.to_owned())]);
+}

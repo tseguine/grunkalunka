@@ -39,3 +39,30 @@ fn managed_factory_results_keep_numeric_return_and_definition_guards() {
         assert!(crate::compile(source, false).is_err(), "{source}");
     }
 }
+
+#[test]
+fn number_result_facts_do_not_require_number_only_logical_operands() {
+    for typed in [false, true] {
+        for source in [
+            "export function run(a,b) {return null||a;}",
+            "export function run(a,b) {const value=a?null:b;return value||a;}",
+            "export function run(a,b) {return false??'x';}",
+            "export function run(a,b){const f=x=>x??b;return f(null);}",
+        ] {
+            let result = crate::compile_value(source, typed);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+        let source = "export function run(a,b) {return ((undefined)||(0))===(0)?1:0;}";
+        let result = crate::compile(source, typed);
+        assert!(result.is_ok(), "{source}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn logical_function_writes_preserve_nested_receiver_provenance() {
+    let source = "export function run(a,b){const left={child:{x:a}},right={child:{x:b}};let pick=()=>left.child;pick&&=()=>right.child;const o={child:pick()};return o.child.x===b?1:0;}";
+    for typed in [false, true] {
+        let result = crate::compile(source, typed);
+        assert!(result.is_ok(), "{source}: {:?}", result.err());
+    }
+}
