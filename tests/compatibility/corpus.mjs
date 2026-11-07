@@ -40,6 +40,7 @@ import { numericLocalUpdates } from './numeric-local-updates.mjs';
 import { numericLocalLogical } from './numeric-local-logical.mjs';
 import { managedLocalLogical } from './managed-local-logical.mjs';
 import { managedPropertyLogical } from './managed-property-logical.mjs';
+import { managedNullishEquality } from './managed-nullish-equality.mjs';
 import { dictionaryLogical } from './dictionary-logical.mjs';
 import { stringLocalAddition } from './string-local-addition.mjs';
 import { stringPropertyAddition } from './string-property-addition.mjs';
@@ -107,7 +108,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 113;
+export const corpusVersion = 114;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -163,6 +164,7 @@ programs.push(...numericLocalUpdates);
 programs.push(...numericLocalLogical);
 programs.push(...managedLocalLogical);
 programs.push(...managedPropertyLogical);
+programs.push(...managedNullishEquality);
 programs.push(...dictionaryLogical);
 programs.push(...stringLocalAddition);
 programs.push(...stringPropertyAddition);
