@@ -5,6 +5,24 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod module_helpers;
 
 #[test]
+fn nonexhaustive_switch_keeps_primitive_suffix_tags() {
+    compare_primitive_sources(
+        [
+            "switch(a){case 0:return false;}return null;",
+            "switch(a){case b:return a;}return undefined;",
+        ]
+        .into_iter()
+        .map(|body| {
+            (
+                format!("export function run(a,b){{{body}}}"),
+                format!("export function run(a:number,b:number):unknown{{{body}}}"),
+            )
+        })
+        .collect(),
+    );
+}
+
+#[test]
 fn returning_switch_arms_preserve_primitive_result_kinds() {
     compare_primitive_sources(
         [
