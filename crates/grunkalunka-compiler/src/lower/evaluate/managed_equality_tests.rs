@@ -1,4 +1,34 @@
 #[test]
+fn boxed_number_loose_equality_requires_positive_number_pairs() {
+    for (body, admitted) in [
+        ("const o={n:a};return o.n==b?1:0;", true),
+        ("const xs=[a,b];return xs[0]!=xs[1]?1:0;", true),
+        ("const o={n:NaN};return o.n==o.n?1:0;", true),
+        ("const o={n:a};return o.n=='0'?1:0;", false),
+        ("const o={n:a?b:false};return o.n==b?1:0;", false),
+        ("const o={n:a};delete o.n;return o.n==b?1:0;", false),
+        ("const o={};return o.n==b?1:0;", true),
+        ("const o={n:a};o.n='text';return o.n==b?1:0;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    assert!(
+        crate::compile(
+            "export function run(a,b){const o={n:a};return o.n==('0' as unknown as number)?1:0;}",
+            true
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn reference_loose_equality_requires_two_known_reference_operands() {
     for (body, admitted) in [
         ("const o={};const alias=o;return o==alias?1:0;", true),
