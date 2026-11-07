@@ -438,7 +438,6 @@ fn value_profile_keeps_scope_and_reports_remaining_gaps() {
     for source in [
         "export function run(a,b) {return 'string';}",
         "export function run(a,b) {return a ? null : missing;}",
-        "export function run(a,b) {return;}",
         "export function run(a,b) {if(a) return null;}",
         "export function run(a,b) {return run?.(a,b);}",
         "export function run(a,b) {return run(...a);}",
@@ -569,5 +568,30 @@ fn former_helper_arity_and_type_guards_preserve_exact_primitive_results() {
 #[test]
 fn omitted_callback_scalar_keeps_the_exact_former_value_guard_source() {
     let source = "export function run(a,b){const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>y);}";
+    compare_primitive_sources(vec![(source.to_owned(), source.to_owned())]);
+}
+
+#[test]
+fn bare_returns_preserve_undefined_through_control_and_finalizers() {
+    compare_primitive_sources([
+        "return;",
+        "if(a)return;return b;",
+        "const undefined=b;return;",
+        "try{return;}finally{a=b;}",
+        "try{if(a)return;return b;}finally{b++;}",
+        "try{return b;}finally{if(a)return;}",
+        "for(let i=0;i<2;i++){if(a)return;}return b;",
+    ].into_iter().map(|body|(
+        format!("export function run(a,b) {{{body}}}"),
+        format!("export function run(a:number,b:number):unknown {{{body}}}"),
+    )).chain(std::iter::once((
+        "function f(x){if(x)return null;return;}export function run(a,b){return f(a);}".to_owned(),
+        "function f(x:number):unknown{if(x)return null;return;}export function run(a:number,b:number):unknown{return f(a);}".to_owned(),
+    ))).collect());
+}
+
+#[test]
+fn bare_private_helper_keeps_undefined_distinct_from_number_branches() {
+    let source = "function f(x,y){if(x)return y;return;}export function run(a,b){return f(a,b);}";
     compare_primitive_sources(vec![(source.to_owned(), source.to_owned())]);
 }

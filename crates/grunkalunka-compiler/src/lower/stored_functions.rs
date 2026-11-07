@@ -53,6 +53,7 @@ struct FunctionFlow {
     parameters: Vec<SymbolId>,
     returns: Vec<NodeId>,
     implicit: bool,
+    bare_return: bool,
 }
 #[derive(Default)]
 pub(crate) struct Fields {
@@ -149,6 +150,34 @@ fn assignment_definition(
         }
         definitions.push(Definition::Value(symbol, id));
     }
+}
+
+pub(super) fn bare_return_bodies(semantic: &Semantic<'_>) -> BTreeSet<NodeId> {
+    semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let AstKind::ReturnStatement(statement) = node.kind() else {
+                return None;
+            };
+            if statement.argument.is_some() {
+                return None;
+            }
+            semantic
+                .nodes()
+                .ancestor_kinds(node.id())
+                .find_map(|kind| match kind {
+                    AstKind::Function(function) => {
+                        Some((!function.r#async).then_some(function.node_id.get()))
+                    }
+                    AstKind::ArrowFunctionExpression(arrow) => {
+                        Some((!arrow.r#async).then_some(arrow.node_id.get()))
+                    }
+                    _ => None,
+                })
+                .flatten()
+        })
+        .collect()
 }
 
 pub(super) fn has_omitted_arguments(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
@@ -314,7 +343,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
-        if !has_omitted_arguments(semantic,entry) && !semantic.nodes().iter().any(|node| {
+        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_bare_returns(semantic,entry) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
@@ -777,6 +806,10 @@ impl Fields {
                             parameters: parameters(&arrow.params),
                             returns,
                             implicit: complete.is_none(),
+                            bare_return: !arrow.r#async
+                                && block_results::return_statements(semantic, id)
+                                    .iter()
+                                    .any(|statement| statement.argument.is_none()),
                         },
                     );
                     values.insert(id, BTreeSet::from([Origin::Arrow(id)]));
@@ -794,13 +827,18 @@ impl Fields {
                                 statement.argument.as_ref().map(GetNodeId::node_id)
                             })
                             .collect::<Vec<_>>();
-                        let implicit = returns.is_empty();
+                        let bare_return = !function.r#async
+                            && block_results::return_statements(semantic, id)
+                                .iter()
+                                .any(|statement| statement.argument.is_none());
+                        let implicit = returns.is_empty() && !bare_return;
                         functions.insert(
                             Origin::Named(name),
                             FunctionFlow {
                                 parameters: parameters(&function.params),
                                 returns,
                                 implicit,
+                                bare_return,
                             },
                         );
                         if name == entry {
@@ -1334,6 +1372,9 @@ impl Fields {
                                 }
                                 for expression in &function.returns {
                                     found.extend(get(expression));
+                                }
+                                if function.bare_return {
+                                    found.insert(Origin::Undefined);
                                 }
                                 if function.implicit {
                                     found.insert(Origin::Other);

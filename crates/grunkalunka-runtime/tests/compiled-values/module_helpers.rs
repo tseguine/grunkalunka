@@ -129,7 +129,6 @@ fn named_module_helpers_keep_numeric_interfaces_and_source_limits() {
         "function helper(x){return Promise.resolve(x);}export function run(a,b){return helper(b);}",
         "function helper(x){return y=>y;}export function run(a,b){return helper(b);}",
         "function helper(x){return 'text';}export function run(a,b){return helper(b);}",
-        "function helper(x){return;}export function run(a,b){return helper(b);}",
         "function helper(x){if(x)return null;}export function run(a,b){return helper(b);}",
         "function helper(x){return null;}export function run(a,b){helper=a;return helper(b);}",
     ] {
@@ -162,4 +161,9 @@ fn named_module_helper_result_planning_fits_the_existing_small_stack() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+fn bare_named_helper_return_executes_the_exact_former_guard() {
+    compare_helpers(&["function helper(x){return;}export function run(a,b){return helper(b);}"]);
 }

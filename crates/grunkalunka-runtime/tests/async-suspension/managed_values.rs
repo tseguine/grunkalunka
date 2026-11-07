@@ -1385,3 +1385,12 @@ fn factory_created_local_results_survive_suspension() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn synchronous_bare_helper_returns_keep_async_tags_and_reactions() {
+    compare_async_sources(&[
+        "function helper(x){return;}export async function run(a,b){return helper(a);}".to_owned(),
+        "function f(x){if(x)return null;return;}export async function run(a,b){const saved=f(a);await b;return saved;}".to_owned(),
+        "function f(x){if(x)return null;return;}export async function run(a,b){await b;return +f(a);}".to_owned(),
+    ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
+}

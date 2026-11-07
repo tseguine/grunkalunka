@@ -751,3 +751,9 @@ fn proven_number_nullish_join_executes_the_exact_original_gap() {
     let source = "export function run(a,b) { return (a === 4 ? null : a) ?? b; }";
     common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 2], [3, 2, 3]]);
 }
+
+#[test]
+fn bare_helper_return_retains_tags_until_explicit_numeric_coercion() {
+    let source = "function f(x){if(x)return null;return;}export function run(a,b){return +f(a);}";
+    common::compare_sources(source, source);
+}
