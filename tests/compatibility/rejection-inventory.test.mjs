@@ -958,3 +958,11 @@ test('unused side effect only helper promotion preserves the exact original nume
   assert.ok(!catalog.records.some(row=>row.id===former.id));
   assert.equal(sources.oracleSource,former.source);
 });
+
+test('conditional helper fallthrough keeps its exact numeric boundary source',()=>{
+ const row=rejected.find(row=>row[0]==='direct-call-missing-return');
+ assert.equal(row[1],'function helper(x) { if(x) return x; } export function run(a,b) { return helper(a); }');
+ assert.equal(createHash('sha256').update(row[1]).digest('hex'),'992962503d4d3ce449edabea14ba708156d6be360eb97b358e66a6dbbb4cedbe');
+ assert.equal(row[3],'managed value requires an identity or managed storage position');
+ assert.equal(rejectionClassification(validate(catalog),row[0]).group,'return-policy');
+});

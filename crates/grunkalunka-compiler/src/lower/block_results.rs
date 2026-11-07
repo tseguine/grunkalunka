@@ -30,6 +30,39 @@ pub(super) fn return_statements<'a>(
         .collect()
 }
 
+// Recognize normal tails without borrowing the lowering cursor or native stack.
+// Other control forms retain their existing completion/admission checks.
+pub(super) fn conditional_fallthrough(function: &oxc_ast::ast::Function<'_>) -> bool {
+    let Some(tail) = function
+        .body
+        .as_ref()
+        .and_then(|body| body.statements.last())
+    else {
+        return false;
+    };
+    let mut pending = vec![tail];
+    while let Some(statement) = pending.pop() {
+        match statement {
+            Statement::IfStatement(branch) => {
+                let Some(alternate) = &branch.alternate else {
+                    return true;
+                };
+                pending.push(&branch.consequent);
+                pending.push(alternate);
+            }
+            Statement::BlockStatement(block) => {
+                if let Some(tail) = block.body.last() {
+                    pending.push(tail);
+                } else {
+                    return true;
+                }
+            }
+            _ => (),
+        }
+    }
+    false
+}
+
 impl Lowering<'_, '_> {
     // Only returns owned by this arrow participate; nested arrow bodies have their
     // own return contract. Shape recognition emits nothing and never runs effects.

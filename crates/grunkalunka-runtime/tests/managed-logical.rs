@@ -775,3 +775,14 @@ fn unused_side_effect_helper_executes_the_original_rejection_source() {
     let source = "function unused(x) { x++; } export function run(a,b) { return a; }";
     common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 4], [0, 9, 0]]);
 }
+
+#[test]
+fn conditional_helper_coercion_preserves_undefined_and_value_paths() {
+    for source in [
+        "function f(x){if(x)return x;}export function run(a,b){return +f(a);}",
+        "function f(x){if(x)return null;}export function run(a,b){return +f(a);}",
+        "function f(x){if(x)return false;}export function run(a,b){return +(f(a)??b);}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
