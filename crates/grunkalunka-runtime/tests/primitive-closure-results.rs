@@ -374,12 +374,21 @@ fn numeric_branch_and_implicit_undefined_keep_distinct_result_kinds() {
 
 #[test]
 fn local_undefined_completion_keeps_entry_and_function_value_boundaries() {
-    for source in [
+    let promoted = [
         "export function run(a,b){}",
         "export function run(a,b){return;}",
         "export function run(a,b){{return;}}",
         "export function run(a,b){if(a)return null;}",
+        "export function run(a,b){if(a)return b;}",
         "function helper(){return;}export function run(a,b){return helper();}",
+    ];
+    compare_primitive_closure_sources(&promoted);
+    for source in promoted {
+        for ts in [false, true] {
+            assert!(compile(source, ts).is_err(), "numeric result: {source}");
+        }
+    }
+    for source in [
         "export function run(a,b){const f=()=>{if(a)return ()=>b;};return a;}",
         "export function run(a,b){const f=()=>{return;a++;};return a;}",
     ] {
@@ -472,14 +481,21 @@ fn primitive_closure_results_match_javascript_and_node_wasm() {
 }
 
 fn compare_primitive_closure_programs(bodies: &[&str]) {
+    let sources = bodies
+        .iter()
+        .map(|body| format!("export function run(a,b){{{body}}}"))
+        .collect::<Vec<_>>();
+    compare_primitive_closure_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+fn compare_primitive_closure_sources(sources: &[&str]) {
     let mut cases = Vec::new();
-    for body in bodies {
+    for js in sources {
         for ts in [false, true] {
-            let js = format!("export function run(a,b){{{body}}}");
             let source = if ts {
                 js.replace("run(a,b)", "run(a:number,b:number)")
             } else {
-                js.clone()
+                (*js).to_owned()
             };
             let artifact = compile_value(&source, ts).unwrap_or_else(|e| panic!("{source}: {e}"));
             let mut instance = ValueInstance::new(&artifact.wasm).unwrap();
