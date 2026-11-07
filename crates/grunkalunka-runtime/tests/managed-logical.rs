@@ -534,3 +534,31 @@ fn mixed_switch_values_preserve_tags_identity_and_snapshots() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn switch_breaks_exit_selection_and_preserve_enclosing_control() {
+    for body in [
+        "let n=0;switch(a){case 0:n=b;break;default:n=a;}return n;",
+        "let n=0;switch(a){default:n=3;break;case 0:n=4;break;case 1:n=5;}return n;",
+        "let n=0;switch(a){case 0:if(b)break;else return a;default:n=b;}return n+1;",
+        "let n=0;for(let i=0;i<3;i++){switch(i){case 0:n++;break;default:n+=10;}n+=100;}return n;",
+        "let n=0;for(let i=0;i<3;i++){switch(i){case 0:n++;break;default:n+=10;}if(a)continue;n+=100;}return n;",
+        "let n=0;while(n<3){switch(n){case 0:n++;break;default:n+=2;break;}if(a)break;}return n;",
+        "let n=0;switch(a){case 0:while(n<3){n++;if(n===2)break;}n+=10;break;default:n=b;}return n;",
+        "let n=0;switch(a){case 0:switch(b){case 0:n=1;break;default:n=2;}n+=10;break;default:n=3;}return n;",
+        "let n=0;switch(a){case(n++,0):n+=10;break;case(n+=100,1):n+=1000;break;}return n;",
+        "let n=0;switch(a){case 0:try{n=1;break;}finally{n+=10;}default:n=2;}return n;",
+        "let n=0;switch(a){case 0:try{throw b;}catch(e){n=+e;break;}default:n=2;}return n;",
+        "let n=0;switch(a){case 0:try{break;}finally{return b;}default:n=2;}return n;",
+        "const f=x=>{switch(x){case 0:break;default:return x;}return b;};return f(a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn switch_break_executes_the_exact_former_rejection_source() {
+    let source = "export function run(a,b) { switch(a) { default: break; } return b; }";
+    common::compare_sources(source, source);
+}

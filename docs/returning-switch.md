@@ -1,15 +1,15 @@
 # Returning switch dispatch
 
-The compiler admits `switch` when every non-final arm returns or throws
+The compiler admits `switch` when every non-final arm returns, throws or breaks
 on every structural path. The final arm may complete normally and resume the
 enclosing suffix, including through an empty body or a conditional early return.
 Discriminants and case expressions require positive
 source proofs for the four represented scalar primitive kinds, a known String,
 or references (objects, arrays and known functions), including mixtures of those
 represented kinds. Empty or unknown origin sets do not establish admission.
-This is a first control-flow slice; fallthrough between arms, switch-local `break`,
-arms that continue an enclosing loop and operands without positive represented-kind
-proofs remain guarded. Type annotations provide no source-kind proof.
+This control-flow slice admits unlabelled switch-local `break`. Fallthrough
+between arms, arms that continue an enclosing loop and operands without positive
+represented-kind proofs remain guarded. Type annotations provide no source-kind proof.
 
 The discriminant evaluates once. Case expressions evaluate in source order until
 strict equality selects the first matching arm. Default may appear anywhere in
@@ -25,16 +25,22 @@ or user callback runs during comparison. Saved discriminants survive case-test
 mutation, throws, await and actual GC.
 
 A final default may likewise complete normally. A non-final default still must
-return or throw, because otherwise it would fall into the following arm.
+return, throw or break, because otherwise it would fall into the following arm.
 A default is optional. When all tests miss and no default exists, normal
 completion reaches the enclosing sequence's suffix. A selected return or throw
-bypasses that suffix. Empty switches still evaluate the discriminant once.
+bypasses that suffix; break reaches it. Empty switches still evaluate the
+discriminant once.
 An absent default cannot prove a complete function return by itself: the usual
 structural return requirement still applies to the unmatched path.
 
 Typed frames in the existing heap-owned source-control cursor lower each test
-and arm in turn. The completed arms fold iteratively into existing Block/If and
-strict managed-equality IR; no new runtime operation or public ABI is added.
+and arm in turn. The completed arms fold iteratively into existing If and
+strict managed-equality IR, inside a single-iteration DoWhile with a constant
+false condition. Its nearest-break target consumes switch-local breaks; nested
+source loops and nested switches keep their own targets. The lexical target is
+retained even when a finalizer overrides a break with return or throw. Cleanup
+runs before the break reaches the suffix, including awaited cleanup. No new
+runtime operation or public ABI is added.
 Each arm publishes locals only inside its branch. Shared-case TDZ reads remain
 unsupported rather than reading an outer binding with the same name. The
 effect-free completion query recognizes the same terminal-arm shape for checked

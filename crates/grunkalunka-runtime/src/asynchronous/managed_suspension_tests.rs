@@ -503,3 +503,20 @@ fn switch_reference_discriminants_survive_gc_during_rebinding_tests() {
         }
     }
 }
+
+#[test]
+fn switch_break_runs_awaited_finally_with_traced_suffix_roots() {
+    let source = "export async function run(a,b){const o={x:a};switch(a){case 0:try{break;}finally{await b;o.x=b;}default:o.x=a;}return +o.x;}";
+    for typed in [false, true] {
+        let artifact = grunkalunka_compiler::compile_async(source, typed).unwrap();
+        let mut activation = AsyncInstance::new(&artifact.wasm, 0.0, 2.0).unwrap();
+        assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+        activation.store.gc(None).unwrap();
+        assert!(activation.run_one_job().unwrap());
+        assert!(matches!(
+            activation.state().unwrap(),
+            AsyncState::Fulfilled(super::super::Value::Number(2.0))
+        ));
+        assert!(!activation.run_one_job().unwrap());
+    }
+}
