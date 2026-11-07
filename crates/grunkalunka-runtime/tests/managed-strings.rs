@@ -9,6 +9,33 @@ fn discarded_template_executes_the_exact_former_rejection_source() {
 use common::compare_sources;
 
 #[test]
+fn string_property_compounds_keep_reference_snapshots_and_utf16() {
+    for body in [
+        "const o={s:'x'};return (o.s+='y').length;",
+        "const xs=['x'];const value=xs[0]+='y';return value==='xy'&&xs[0]===value&&xs.length===1?1:0;",
+        "const o={inner:{s:'x'}};o.inner['s']+='y';return o.inner.s==='xy'?1:0;",
+        "let o={s:'old'};const alias=o;const value=o.s+=(o={s:'other'},'new');return alias.s==='oldnew'&&o.s==='other'&&value===alias.s?1:0;",
+        "const o={s:'old'};const value=o.s+=(o.s='changed','new');return value==='oldnew'&&o.s===value?1:0;",
+        "let n=0;const o={s:'x'};const value=(n=n+1,o).s+=(n=n+10,'y');return n===11&&value==='xy'&&o.s===value?1:0;",
+        "const o={s:''};for(const value of ['a','b'])o.s+=value;const read=()=>o.s;return read()==='ab'?1:0;",
+        "const o={s:'x'};const add=()=>o.s+='y';return add()==='xy'&&o.s==='xy'?1:0;",
+        "const o={s:''};if(o.s+='')return -1;if(o.s+='x')return o.s==='x'?1:0;return -2;",
+        "const o={s:'a'};const xs=['b'];const value=o.s+=(xs[0]+='c');return value==='abc'&&o.s===value&&xs[0]==='bc'?1:0;",
+        r"const o={s:'\ud800'};o.s+='\udfff\0';return o.s==='\ud800\udfff\0'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={s:'x'};const value=o['s']+='y';return value===o.s?value.length:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={s:'x'};const value=(o as boolean)[('s' as number)]+=('y' as never);return value===o.s?value.length:0;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm,
+    );
+}
+
+#[test]
 fn string_local_compounds_preserve_snapshots_captures_and_utf16() {
     for body in [
         "let text='x';text+='y';return text.length;",

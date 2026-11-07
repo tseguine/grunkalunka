@@ -1556,7 +1556,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
                 Work::LocalLogical(task) => self.resume_local_logical(task, regions, values),
                 Work::LocalUpdate(task) => self.resume_local_update(task, regions, values),
-                Work::StringAddition(task) => self.resume_string_addition(task, regions, values),
+                Work::StringAddition(task) => {
+                    self.resume_string_addition(task, regions, values, work)
+                }
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?
