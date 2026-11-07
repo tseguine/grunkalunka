@@ -516,3 +516,21 @@ fn switch_references_preserve_aliases_and_fresh_function_identity() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn mixed_switch_values_preserve_tags_identity_and_snapshots() {
+    for body in [
+        "switch(a?'x':null){case null:return b;case 'x':return a;default:return 99;}",
+        "switch(a?'1':1){case 1:return b;case '1':return a;default:return 99;}",
+        "const x={};switch(a?x:false){case false:return b;case {}:return 99;case x:return a;}return 98;",
+        "const x={};switch(x){case a?x:null:return a;}return b;",
+        "const f=()=>a;switch(a?f:null){case null:return b;case f:return a;}return 99;",
+        "const make=()=>()=>a;const f=make();const g=make();switch(a?f:0){case a?g:0:return b;case f:return a;}return 99;",
+        "const xs=[{},'x',null,a];switch(xs[0]){case xs[1]:return 99;case xs[0]:return a;}return b;",
+        "const x=a?undefined:[];switch(x){case undefined:return a;default:return b;}",
+        "let x=a?{}:'x';const old=x;switch(x){case(x=null,x):return 99;case old:return a;}return b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}

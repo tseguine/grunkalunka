@@ -152,6 +152,28 @@ fn assignment_definition(
 }
 
 impl Fields {
+    /// Strict tag/identity observations accept any proven represented alternative.
+    pub(super) fn represented(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::Object(_)
+                            | Origin::NullObject(_)
+                            | Origin::Array(_)
+                            | Origin::Arrow(_)
+                            | Origin::Named(_)
+                            | Origin::String
+                            | Origin::Number
+                            | Origin::Boolean
+                            | Origin::Null
+                            | Origin::Undefined
+                    )
+                })
+        })
+    }
+
     pub(super) fn ordinary_object(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()

@@ -5,10 +5,11 @@ on every structural path. The final arm may complete normally and resume the
 enclosing suffix, including through an empty body or a conditional early return.
 Discriminants and case expressions require positive
 source proofs for the four represented scalar primitive kinds, a known String,
-or references (objects, arrays and known functions).
+or references (objects, arrays and known functions), including mixtures of those
+represented kinds. Empty or unknown origin sets do not establish admission.
 This is a first control-flow slice; fallthrough between arms, switch-local `break`,
-arms that continue an enclosing loop and unknown or mixed reference/primitive
-discriminants remain guarded. Type annotations provide no source-kind proof.
+arms that continue an enclosing loop and operands without positive represented-kind
+proofs remain guarded. Type annotations provide no source-kind proof.
 
 The discriminant evaluates once. Case expressions evaluate in source order until
 strict equality selects the first matching arm. Default may appear anywhere in
@@ -18,8 +19,10 @@ match; primitive kinds stay distinct; Strings compare exact UTF-16 contents.
 References compare allocation identity, including fresh closures from the same
 body and non-suspending async closures used as values. Switch observations
 materialize function identity just like strict equality expressions; they do not
-call the function. Saved discriminants survive case-test mutation, throws, await
-and actual GC.
+call the function. Mixed operands retain their language tags: a String never
+matches a Number and a reference never matches null or a primitive. No coercion
+or user callback runs during comparison. Saved discriminants survive case-test
+mutation, throws, await and actual GC.
 
 A final default may likewise complete normally. A non-final default still must
 return or throw, because otherwise it would fall into the following arm.
