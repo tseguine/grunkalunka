@@ -1,5 +1,6 @@
 // Abstract equality with a proven nullish operand needs no managed coercion.
 export const managedNullishEquality = [
+  ['managed-nullish-equality-former-object-guard', 'const o={};return o==null?a:b;'],
   ['managed-nullish-equality-null', 'const o={x:null};return o.x==null?1:0;'],
   ['managed-nullish-equality-missing', 'const o={};return undefined==o.x?1:0;'],
   ['managed-nullish-equality-mixed', "const o={x:a?'text':null};return (o.x!=null)==!!a?1:0;"],

@@ -5,6 +5,11 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn loose_null_equality_executes_the_exact_former_object_rejection() {
+    compare("const o={};return o==null?a:b;");
+}
+
+#[test]
 fn runtime_dictionary_logical_writes_save_keys_receivers_and_values() {
     for body in [
         "const d=Object.create(null);const key='x';d[key]??=a;return a;",
@@ -830,7 +835,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "const o={};return o;",
         "let o={};o=a;return a;",
         "const o={};o={};return a;",
-        "const o={};return o==null?a:b;",
         "const o={};Object.setPrototypeOf(o,{});return a;",
     ] {
         for ts in [false, true] {
