@@ -4,6 +4,17 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn numeric_array_binding_results_execute_the_exact_former_guard_sources() {
+    for body in [
+        "let x=a;[x]=[b];return x;",
+        "const [x]=[a];return x+1;",
+        "const [x=a]=[];return x+1;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn array_assignment_defaults_keep_order_live_length_and_sticky_exhaustion() {
     for body in [
         "let x=0,y=0,n=0;[x=(n=n*10+1,a),y=(n=n*10+2,b)]=[];return n*100+(x===a?10:0)+(y===b?1:0);",
@@ -398,10 +409,8 @@ fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
         "const [,]=undefined;return a;",
         "const source=a?[a]:null;const [x]=source;return a;",
         "var [x]=[a];return a;",
-        "let x=a;[x]=[b];return x;",
         "const [x]=[a];x=b;return a;",
         "const x=a;{const [x]=[x];return x===a?1:0;}",
-        "const [x]=[a];return x+1;",
         "const source=['ready'];source[0]=a;const [text]=source;return text.length;",
         "const source=['ready'];const alias=source;alias.pop();const [text]=source;return text.trim().length;",
         "const source=[{value:a}];source.length=0;const [row]=source;return row.value===a?1:0;",
@@ -567,7 +576,6 @@ fn array_binding_defaults_keep_tdz_and_conservative_origin_guards() {
         "const [f=()=>x,x=a]=[0,b];return a;",
         "const [x=undefined,undefined=a]=[];return a;",
         "const [x=a]=[];x=b;return a;",
-        "const [x=a]=[];return x+1;",
         "const [text='fallback']=[a];return text.trim().length;",
         "const [text='fallback']=[null];return text.trim().length;",
         "const source=[];const alias=source;alias[0]=a;const [text='fallback']=source;return text.trim().length;",

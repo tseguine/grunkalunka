@@ -4,6 +4,13 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn numeric_object_binding_results_execute_the_exact_former_guard_sources() {
+    for body in ["const {x=a}={};return x+1;", "const {x}={x:a};return x+1;"] {
+        compare(body);
+    }
+}
+
+#[test]
 fn object_assignment_defaults_are_lazy_ordered_and_keep_rhs_snapshots() {
     let original =
         "export function run(a,b){let c='';({c='?'}={c:'abc'.at(a)});return c.charCodeAt(0);}";
@@ -421,7 +428,6 @@ fn object_binding_defaults_keep_tdz_kind_and_pattern_guards() {
         "const {f=()=>x,x=a}={f:0};return a;",
         "const {x=undefined,undefined=a}={};return a;",
         "const {x=a}={};x=b;return a;",
-        "const {x=a}={};return x+1;",
         "const {text='fallback'}={text:a};return text.trim().length;",
         // Default-selected callable values do not establish direct call signatures.
         "const {read=()=>a}={};return +read();",
@@ -518,7 +524,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "var {x}={x:a};return a;",
         "const {x}={x:a};x=b;return a;",
         "const x=a;{const {x}={x:x};return x===a?1:0;}",
-        "const {x}={x:a};return x+1;",
         "const source={text:'abc'};source.text=a;const {text}=source;return text.length;",
         "const source={text:'abc'};const alias=source;alias.text=a;const {text}=source;return text.trim().length;",
         "const d=Object.create(null);d.text='abc';d[a?'text':'other']=a;const {text}=d;return text.length;",
