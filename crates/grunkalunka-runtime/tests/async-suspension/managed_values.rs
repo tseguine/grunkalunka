@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn string_local_compounds_keep_snapshots_and_commit_after_await_success() {
+    compare_promises(
+        &[
+            "let text='old';const value=text+=(await b,text='changed','new');return value==='oldnew'&&text===value?1:0;",
+            "let [text]=['x'];text+=(await a,'y');return text==='xy'?1:0;",
+            "let text='old';try{text+=(await Promise.reject(b),'new');}catch(e){return text==='old'&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn runtime_dictionary_logical_writes_keep_snapshots_across_awaits() {
     compare_promises(
         &[
