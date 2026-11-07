@@ -2,6 +2,33 @@
 mod common;
 
 #[test]
+fn nonexhaustive_switch_runs_suffix_only_after_every_case_misses() {
+    for body in [
+        "switch(a){case 0:return b;}return a;",
+        "let n=0;switch((n++,a)){}return n+a;",
+        "let n=0;switch(a){case(n++,0):return n;case(n=n*10+2,1):return n;}return n+100;",
+        "switch(a){case(a=b,b):return 10;}return a;",
+        "switch(a){case NaN:return 99;case -0:return b;}return a;",
+        "switch(a?'a':'b'){case 'a':return a;}return b;",
+        "const f=x=>{switch(x){case 0:return b;}return x;};return f(a);",
+        "let n=0;for(let i=0;i<2;i++){switch(a){case 0:return b;}n++;}return n;",
+        "try{switch(a){case 0:throw b;}return a;}catch(e){return e+1;}",
+        "let n=0;try{switch(a){case 0:return b;}}finally{n++;}return n;",
+        "switch(a){case 0:switch(b){case 0:return 1;default:return 2;}}return 3;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){switch(a){case 0:return b;}return a;}";
+    let ts = "export function run(a:number,b:number){switch(a as boolean){case (0 as string):return b;}return a;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn returning_switch_executes_the_exact_original_gap_and_goldens() {
     let source = "export function run(a,b) { switch(a) { case 4: return b; default: return a; } }";
     common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 2], [3, 2, 3]]);

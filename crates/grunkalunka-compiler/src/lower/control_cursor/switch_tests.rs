@@ -81,3 +81,27 @@ fn switch_case_chains_and_nested_dispatch_keep_native_stack_and_source_budgets()
         .join()
         .unwrap();
 }
+#[test]
+fn nonexhaustive_switch_preserves_normal_completion_and_terminal_case_guards() {
+    for (body, admitted) in [
+        ("switch(a){case 0:return b;}return a;", true),
+        ("switch((a=b,a)){}return a;", true),
+        ("switch(a){case 0:return b;}", false),
+        ("switch(a){case 0:a=b;}return a;", false),
+        ("switch(a){case 0:;case 1:return b;}return a;", false),
+        (
+            "const f=x=>{switch(x){case 0:return b;}return x;};return f(a);",
+            true,
+        ),
+        ("switch(a){case 0:{const x=b;return x;}}return x;", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}

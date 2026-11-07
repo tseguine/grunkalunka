@@ -1,10 +1,10 @@
 # Returning switch dispatch
 
-The compiler admits `switch` with a default arm when every arm returns or throws
+The compiler admits `switch` when every arm returns or throws
 on every structural path. Discriminants and case expressions require positive
 source proofs for the four represented scalar primitive kinds or a known String.
 This is a first control-flow slice; fallthrough, empty arms, switch-local `break`,
-arms that continue an enclosing loop, absent defaults and broader reference
+arms that continue an enclosing loop and broader reference
 discriminants remain guarded. Type annotations provide no source-kind proof.
 
 The discriminant evaluates once. Case expressions evaluate in source order until
@@ -13,6 +13,12 @@ the source, but its body runs only after every case expression misses. A later
 case test does not run after a match. Numeric NaN never matches; signed zeros
 match; primitive kinds stay distinct; Strings compare exact UTF-16 contents.
 Saved discriminants survive case-test mutation, throws, await and actual GC.
+
+A default is optional. When all tests miss and no default exists, normal
+completion reaches the enclosing sequence's suffix. A selected return or throw
+bypasses that suffix. Empty switches still evaluate the discriminant once.
+An absent default cannot prove a complete function return by itself: the usual
+structural return requirement still applies to the unmatched path.
 
 Typed frames in the existing heap-owned source-control cursor lower each test
 and arm in turn. The completed arms fold iteratively into existing Block/If and
