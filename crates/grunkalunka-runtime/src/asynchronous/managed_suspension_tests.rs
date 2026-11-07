@@ -3,6 +3,44 @@ use super::*;
 const SOURCE: &str = "export async function run(a,b){const o={x:a};const p=o;o.self=o;await b;p.x=b;return o===p&&o.self===p&&o.x===b?1:0;}";
 
 #[test]
+fn awaited_strings_remain_traced_and_pending_until_their_reaction_jobs() {
+    for (body, expected_jobs) in [
+        (
+            r"const text=await '\ud800\udfff\0';return text==='\ud800\udfff\0'?1:0;",
+            1,
+        ),
+        ("return (await (await 'abc'))==='abc'?1:0;", 2),
+        (
+            "let current={s:'old'};const old=current;const value=current.s+=await (current={s:'other'},'new');return old.s==='oldnew'&&current.s==='other'&&value===old.s?1:0;",
+            1,
+        ),
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        let artifact = grunkalunka_compiler::compile_async(&source, false).unwrap();
+        let prepared = PreparedAsyncModule::new(&artifact.wasm).unwrap();
+        let mut activation = prepared.instantiate(4.0, 2.0).unwrap();
+        for _ in 0..expected_jobs {
+            assert!(
+                matches!(activation.state().unwrap(), AsyncState::Pending),
+                "{source}"
+            );
+            assert_eq!(activation.pending_job_count().unwrap(), 1);
+            activation.store.gc(None).unwrap();
+            assert!(activation.run_one_job().unwrap());
+        }
+        assert!(
+            matches!(
+                activation.state().unwrap(),
+                AsyncState::Fulfilled(super::super::Value::Number(1.0))
+            ),
+            "{source}"
+        );
+        assert_eq!(activation.pending_job_count().unwrap(), 0);
+        assert!(!activation.run_one_job().unwrap());
+    }
+}
+
+#[test]
 fn generated_managed_references_survive_copying_collection_while_pending() {
     for source in [
         SOURCE,
