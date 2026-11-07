@@ -2431,9 +2431,8 @@ side effects, bare early returns and normal finalizers use the represented
 General/managed result lanes; explicit numeric coercion converts that Undefined
 to NaN after the helper's effects. Return-origin inference records this completion
 rather than treating an empty set of returns as proof of a Number result. A
-nested arrow's return does not count as its creator's return. Helpers with partial
-value-returning paths still require the existing completion proof, and numeric
-exports cannot directly return Undefined.
+nested arrow's return does not count as its creator's return. Each helper still requires a compatible represented result interface, and
+numeric exports cannot directly return Undefined.
 
 Synchronous helper tails composed of blocks and `if` statements can now retain
 both an explicit primitive result and implicit Undefined. An `if` without an
@@ -2441,5 +2440,13 @@ both an explicit primitive result and implicit Undefined. An `if` without an
 conditional branches use the same finite source query. General/managed return
 interfaces preserve both tags, and explicit numeric coercion produces NaN on
 the Undefined path. Exhaustive numeric helpers retain their Number interface.
-This does not yet classify fallthrough through arbitrary loop, switch or
-try/finally tails; those helpers retain their existing completion guards.
+Loop, switch and try/finally completions use the analysis described below.
+
+Private helper normal completion is now analyzed across sequences, loops,
+switch entries and fallthrough, catches and finalizers using the same completion
+algebra as region lowering. Zero-iteration and break/continue exits retain an
+Undefined alternative; exhaustive do-loops, switches and return-preserving
+finalizers keep their numeric interface. The analysis visits statements on a
+heap worklist, does not inspect nested function bodies, and does not execute or
+admit expressions. Ordinary lowering still validates source, escaping throws,
+result profiles and source/stack budgets independently.

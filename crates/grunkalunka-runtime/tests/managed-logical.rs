@@ -786,3 +786,18 @@ fn conditional_helper_coercion_preserves_undefined_and_value_paths() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn helper_control_flow_coercion_keeps_undefined_separate_from_number() {
+    for body in [
+        "while(x){return x;}",
+        "do{if(x)break;return x;}while(false);",
+        "switch(x){case 0:break;default:return 3;}",
+        "try{if(x)return x;}finally{x++;}",
+        "try{throw x;}catch(e){if(e)return e;}",
+    ] {
+        let source =
+            format!("function helper(x){{{body}}}export function run(a,b){{return +helper(a);}}");
+        common::compare_sources(&source, &source);
+    }
+}

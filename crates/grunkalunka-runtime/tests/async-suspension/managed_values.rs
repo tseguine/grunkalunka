@@ -1413,3 +1413,13 @@ fn conditional_helper_completions_keep_tags_across_suspension() {
         "function f(x){if(x)return x;}export async function run(a,b){await b;return +f(a);}".to_owned(),
     ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
 }
+
+#[test]
+fn helper_loop_switch_and_finalizer_results_survive_suspension() {
+    compare_async_sources(&[
+        "function f(x){while(x){return x;}}export async function run(a,b){const saved=f(a);await b;return saved;}".to_owned(),
+        "function f(x){switch(x){case 0:break;default:return 3;}}export async function run(a,b){await b;return f(a);}".to_owned(),
+        "function f(x){try{if(x)return x;}finally{x++;}}export async function run(a,b){const saved=f(a);await b;return saved;}".to_owned(),
+        "function f(x){try{throw x;}catch(e){if(e)return e;}}export async function run(a,b){await b;return +f(a);}".to_owned(),
+    ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
+}

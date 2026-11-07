@@ -30,37 +30,148 @@ pub(super) fn return_statements<'a>(
         .collect()
 }
 
-// Recognize normal tails without borrowing the lowering cursor or native stack.
-// Other control forms retain their existing completion/admission checks.
-pub(super) fn conditional_fallthrough(function: &oxc_ast::ast::Function<'_>) -> bool {
-    let Some(tail) = function
-        .body
-        .as_ref()
-        .and_then(|body| body.statements.last())
-    else {
+// Representation planning uses the same completion algebra as lowering, but
+// visits source statements with a heap worklist and never evaluates expressions.
+// Unknown/unsupported statements still undergo the ordinary admission checks.
+pub(super) fn normal_completion(function: &oxc_ast::ast::Function<'_>) -> bool {
+    enum Task<'n, 'a> {
+        Sequence(&'n [Statement<'a>]),
+        Statement(&'n Statement<'a>),
+        Constant(Completion),
+        SequenceResult(usize),
+        Union,
+        Pretest,
+        Do,
+        Try { handler: bool, finalizer: bool },
+        Switch { count: usize, default: bool },
+    }
+    let Some(body) = &function.body else {
         return false;
     };
-    let mut pending = vec![tail];
-    while let Some(statement) = pending.pop() {
-        match statement {
-            Statement::IfStatement(branch) => {
-                let Some(alternate) = &branch.alternate else {
-                    return true;
-                };
-                pending.push(&branch.consequent);
-                pending.push(alternate);
+    let mut work = vec![Task::Sequence(body.statements.as_slice())];
+    let mut values: Vec<Completion> = Vec::new();
+    while let Some(task) = work.pop() {
+        match task {
+            Task::Sequence(statements) => {
+                work.push(Task::SequenceResult(statements.len()));
+                work.extend(statements.iter().rev().map(Task::Statement));
             }
-            Statement::BlockStatement(block) => {
-                if let Some(tail) = block.body.last() {
-                    pending.push(tail);
-                } else {
-                    return true;
+            Task::SequenceResult(count) => {
+                let completion = values
+                    .drain(values.len() - count..)
+                    .fold(Completion::NORMAL, Completion::then);
+                values.push(completion);
+            }
+            Task::Constant(completion) => values.push(completion),
+            Task::Union => {
+                let right = values.pop().unwrap();
+                let left = values.pop().unwrap();
+                values.push(left.union(right));
+            }
+            Task::Pretest => {
+                let body = values.pop().unwrap();
+                values.push(body.pretest_loop());
+            }
+            Task::Do => {
+                let body = values.pop().unwrap();
+                values.push(body.do_loop());
+            }
+            Task::Try { handler, finalizer } => {
+                let finalizer = finalizer.then(|| values.pop().unwrap());
+                let handler = handler.then(|| values.pop().unwrap());
+                let mut body = values.pop().unwrap();
+                if let Some(handler) = handler {
+                    body = body.caught_by(handler);
                 }
+                if let Some(finalizer) = finalizer {
+                    body = body.finalized_by(finalizer);
+                }
+                values.push(body);
             }
-            _ => (),
+            Task::Switch { count, default } => {
+                let mut suffix = Completion::NORMAL;
+                let mut entries: Option<Completion> = None;
+                for body in values.drain(values.len() - count..).rev() {
+                    suffix = body.then(suffix);
+                    entries = Some(entries.map_or(suffix, |all| all.union(suffix)));
+                }
+                let mut completion = entries.unwrap_or(Completion::NORMAL);
+                if !default {
+                    completion = completion.union(Completion::NORMAL);
+                }
+                completion.normal |= completion.breaks;
+                completion.breaks = false;
+                values.push(completion);
+            }
+            Task::Statement(statement) => match statement {
+                Statement::ReturnStatement(_) => values.push(Completion::RETURN),
+                Statement::ThrowStatement(_) => values.push(Completion::THROW),
+                Statement::BreakStatement(_) => values.push(Completion::BREAK),
+                Statement::ContinueStatement(_) => values.push(Completion::CONTINUE),
+                Statement::BlockStatement(block) => {
+                    work.push(Task::Sequence(block.body.as_slice()))
+                }
+                Statement::IfStatement(branch) => {
+                    work.push(Task::Union);
+                    if let Some(alternate) = &branch.alternate {
+                        work.push(Task::Statement(alternate));
+                    } else {
+                        work.push(Task::Constant(Completion::NORMAL));
+                    }
+                    work.push(Task::Statement(&branch.consequent));
+                }
+                Statement::WhileStatement(loop_) => {
+                    work.push(Task::Pretest);
+                    work.push(Task::Statement(&loop_.body));
+                }
+                Statement::ForStatement(loop_) => {
+                    work.push(Task::Pretest);
+                    work.push(Task::Statement(&loop_.body));
+                }
+                Statement::ForOfStatement(loop_) => {
+                    work.push(Task::Pretest);
+                    work.push(Task::Statement(&loop_.body));
+                }
+                Statement::ForInStatement(loop_) => {
+                    work.push(Task::Pretest);
+                    work.push(Task::Statement(&loop_.body));
+                }
+                Statement::DoWhileStatement(loop_) => {
+                    work.push(Task::Do);
+                    work.push(Task::Statement(&loop_.body));
+                }
+                Statement::TryStatement(try_) => {
+                    work.push(Task::Try {
+                        handler: try_.handler.is_some(),
+                        finalizer: try_.finalizer.is_some(),
+                    });
+                    if let Some(finalizer) = &try_.finalizer {
+                        work.push(Task::Sequence(finalizer.body.as_slice()));
+                    }
+                    if let Some(handler) = &try_.handler {
+                        work.push(Task::Sequence(handler.body.body.as_slice()));
+                    }
+                    work.push(Task::Sequence(try_.block.body.as_slice()));
+                }
+                Statement::SwitchStatement(switch) => {
+                    work.push(Task::Switch {
+                        count: switch.cases.len(),
+                        default: switch.cases.iter().any(|case| case.test.is_none()),
+                    });
+                    work.extend(
+                        switch
+                            .cases
+                            .iter()
+                            .rev()
+                            .map(|case| Task::Sequence(case.consequent.as_slice())),
+                    );
+                }
+                _ => values.push(Completion::NORMAL),
+            },
         }
     }
-    false
+    assert_eq!(values.len(), 1);
+    values[0].normal
 }
 
 impl Lowering<'_, '_> {

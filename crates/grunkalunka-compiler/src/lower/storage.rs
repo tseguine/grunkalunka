@@ -1191,7 +1191,7 @@ pub(crate) fn general_mutable_bindings(
             }
             let returns = block_results::return_statements(semantic, function.node_id.get());
             let number = !returns.is_empty()
-                && !block_results::conditional_fallthrough(function)
+                && !block_results::normal_completion(function)
                 && returns.iter().all(|statement| {
                     statement.argument.as_ref().is_some_and(|expression| {
                         number_result_shape(

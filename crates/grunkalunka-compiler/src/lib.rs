@@ -4,6 +4,8 @@
 mod bare_return_tests;
 #[cfg(test)]
 mod conditional_helper_tests;
+#[cfg(test)]
+mod control_helper_tests;
 mod emit;
 #[cfg(test)]
 mod evaluator_tests;
