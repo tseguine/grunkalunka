@@ -754,8 +754,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
   `for-in` and labels. [Returning switch dispatch](returning-switch.md) now admits
-  non-final arms ending in return/throw/break, ordinary final arms and proven represented operands with an optional default;
-  fallthrough and outer-loop continue through switch remain guarded. The separately documented managed, primitive
+  grouped labels, fallthrough, break and proven represented operands with an optional default;
+  shared-case lexical bindings and outer-loop continue through switch remain guarded. The separately documented managed, primitive
   and async extensions have their own admission; in particular,
   [managed bindings and iteration](#managed-bindings-and-iteration) admit the
   supported object/array declarations and intrinsic-array `for...of` forms.

@@ -43,5 +43,10 @@ export const returningSwitch = [
     ['switch-break-default-middle', 'let n=0;switch(a){default:n=3;break;case 0:n=4;break;case 1:n=5;}return n;'],
     ['switch-break-loop-suffix', 'let n=0;for(let i=0;i<3;i++){switch(i){case 0:n++;break;default:n+=10;}n+=100;}return n;'],
     ['switch-break-finally', 'let n=0;switch(a){case 0:try{n=1;break;}finally{n+=10;}default:n=2;}return n;'],
+    ['switch-fallthrough-values', 'let n=0;switch(a){case 0:n++;case 1:n+=10;default:n+=100;}return n;'],
+    ['switch-fallthrough-group', 'let n=0;switch(a){case 0:case 1:n=b;break;default:n=a;}return n;'],
+    ['switch-fallthrough-default-middle', 'let n=0;switch(a){case(n=1,0):n+=10;default:n+=100;case(n=n*10+2,1):n+=1000;}return n;'],
+    ['switch-fallthrough-return-proof', 'const f=x=>{switch(x){case 0:;default:return b;}};return f(a);'],
+    ['switch-fallthrough-conditional-break', 'let n=0;switch(a){case 0:if(b)break;n++;case 1:n+=10;}return n;'],
   ].map(([id, body]) => [id, body, body]),
 ];

@@ -123,17 +123,17 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
             }
             Task::Switch(count, has_default) => {
                 let start = values.len() - count;
-                let mut children = values.drain(start..);
-                let mut completion = children.next().unwrap_or(Completion::NORMAL);
-                let mut terminal = has_default && completion.returns_or_throws();
-                for child in children {
-                    terminal &= child.returns_or_throws();
-                    completion = completion.union(child);
+                let mut suffix = Completion::NORMAL;
+                let mut entries: Option<Completion> = None;
+                for child in values.drain(start..).rev() {
+                    suffix = child.then(suffix);
+                    entries = Some(entries.map_or(suffix, |all| all.union(suffix)));
                 }
-                values.push(if terminal {
-                    completion
-                } else {
-                    Completion::NORMAL
+                let completion = entries.unwrap_or(Completion::NORMAL);
+                values.push(Completion {
+                    normal: completion.normal || completion.breaks || !has_default,
+                    breaks: false,
+                    ..completion
                 });
             }
             Task::Union | Task::CaughtBy | Task::FinalizedBy => {

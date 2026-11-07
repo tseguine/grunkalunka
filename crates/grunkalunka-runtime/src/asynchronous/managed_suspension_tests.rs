@@ -520,3 +520,23 @@ fn switch_break_runs_awaited_finally_with_traced_suffix_roots() {
         assert!(!activation.run_one_job().unwrap());
     }
 }
+
+#[test]
+fn switch_fallthrough_keeps_selection_and_suffix_roots_through_repeated_gc() {
+    let source = "export async function run(a,b){const o={x:a};switch(a){case 0:await b;o.x=b;default:await a;o.x=+o.x+1;}return +o.x;}";
+    for typed in [false, true] {
+        let artifact = grunkalunka_compiler::compile_async(source, typed).unwrap();
+        for (a, jobs, expected) in [(0.0, 2, 3.0), (1.0, 1, 2.0)] {
+            let mut activation = AsyncInstance::new(&artifact.wasm, a, 2.0).unwrap();
+            for _ in 0..jobs {
+                assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+                activation.store.gc(None).unwrap();
+                assert!(activation.run_one_job().unwrap());
+            }
+            assert!(
+                matches!(activation.state().unwrap(),AsyncState::Fulfilled(super::super::Value::Number(value)) if value==expected)
+            );
+            assert!(!activation.run_one_job().unwrap());
+        }
+    }
+}
