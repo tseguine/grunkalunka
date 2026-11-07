@@ -85,7 +85,7 @@ fn calculated_callee_continuations_preserve_first_diagnostics() {
         (
             false,
             "const f=(x,y)=>x+y;return(Math.noSuch(a),f)(b);",
-            "unsupported at bytes 50..71: runtime closure call is missing declared arguments",
+            "unsupported at bytes 51..65: expression is outside the numeric experiment",
         ),
         (
             false,

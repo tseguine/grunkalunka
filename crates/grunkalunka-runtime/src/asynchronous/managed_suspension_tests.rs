@@ -574,3 +574,20 @@ fn omitted_arrow_fallback_keeps_returned_managed_root_through_gc() {
         assert!(!activation.run_one_job().unwrap());
     }
 }
+
+#[test]
+fn omitted_runtime_fallback_keeps_returned_managed_root_through_gc() {
+    let source = "export async function run(a,b){let choose=(x,y)=>y??x;const selected=choose({v:a});await b;return +selected.v;}";
+    for typed in [false, true] {
+        let artifact = grunkalunka_compiler::compile_async(source, typed).unwrap();
+        let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+        assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+        activation.store.gc(None).unwrap();
+        assert!(activation.run_one_job().unwrap());
+        assert!(matches!(
+            activation.state().unwrap(),
+            AsyncState::Fulfilled(super::super::Value::Number(4.0))
+        ));
+        assert!(!activation.run_one_job().unwrap());
+    }
+}

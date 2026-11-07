@@ -13,6 +13,8 @@ mod missing_arrow_argument_tests;
 #[cfg(test)]
 mod missing_helper_argument_tests;
 #[cfg(test)]
+mod missing_runtime_argument_tests;
+#[cfg(test)]
 mod optional_parameter_tests;
 mod prototype_keys;
 #[cfg(test)]

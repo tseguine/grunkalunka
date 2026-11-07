@@ -72,6 +72,10 @@ fn local_call_callback_factories_use_the_source_scheduler() {
 fn runtime_call_callback_factories_use_the_source_scheduler() {
     check_scheduled(&[
         (
+            "omitted_runtime_callback_scalar",
+            "const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply(make(a));",
+        ),
+        (
             "runtime_callback",
             "const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply(make(a),b);",
         ),
@@ -92,10 +96,6 @@ fn callback_argument_continuations_preserve_first_diagnostics() {
         (
             "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a),...b);",
             "unsupported at bytes 89..108: spread call arguments are not admitted",
-        ),
-        (
-            "const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply(make(a));",
-            "unsupported at bytes 107..121: runtime closure call is missing declared arguments",
         ),
         (
             "const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply(make(a),...b);",

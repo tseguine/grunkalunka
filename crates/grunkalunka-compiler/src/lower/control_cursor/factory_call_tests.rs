@@ -93,8 +93,8 @@ fn block_factory_call_async_callees_and_arguments_use_the_source_scheduler() {
 
 #[test]
 fn block_factory_call_preserves_outer_validation_and_first_diagnostics() {
-    // In particular, an invalid receiver must not preempt missing outer-call
-    // inputs. Broadening block_factory_shape would change that ordering.
+    // Missing synchronous inputs are admitted; invalid receiver effects still
+    // require source validation before the call can execute.
     for (body, expected) in [
         (
             "const make=x=>{return y=>x+y;};return make.call(null)(b);".to_owned(),
@@ -102,7 +102,7 @@ fn block_factory_call_preserves_outer_validation_and_first_diagnostics() {
         ),
         (
             "const make=x=>{return y=>x+y;};return make.call(unknown(),a)();".to_owned(),
-            "unsupported at bytes 63..87: runtime closure call is missing declared arguments",
+            "unsupported at bytes 73..82: expression is outside the numeric experiment",
         ),
         (
             "const make=x=>{return y=>x+y;};return make.call(unknown(),a)?.(b);".to_owned(),

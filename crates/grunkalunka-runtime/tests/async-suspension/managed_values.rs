@@ -1360,3 +1360,16 @@ fn omitted_synchronous_arrow_parameters_compose_with_await() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn omitted_runtime_closure_parameters_compose_with_suspension() {
+    compare_promises(
+        &[
+            "const f=a?(x=>x===undefined?1:0):(x=>x===undefined?2:0);await b;return f();",
+            "let f=(x,y)=>y??x;return +f(await a);",
+            "let f=(x,y)=>y===undefined?x:0;const r=f((await b,f=(x,y)=>0,a));return +r;",
+            "let choose=(x,y)=>y??x;const selected=choose({v:a});await b;return +selected.v;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}
