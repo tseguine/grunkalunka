@@ -24,6 +24,7 @@ mod ownership_tests;
 mod property_delete;
 mod property_logical;
 pub(super) mod property_update;
+mod string_addition;
 mod string_methods;
 mod string_template;
 mod tasks;
@@ -1555,6 +1556,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
                 Work::LocalLogical(task) => self.resume_local_logical(task, regions, values),
                 Work::LocalUpdate(task) => self.resume_local_update(task, regions, values),
+                Work::StringAddition(task) => self.resume_string_addition(task, regions, values),
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringTemplate(task) => {
                     self.resume_string_template(task, regions, values, work)?

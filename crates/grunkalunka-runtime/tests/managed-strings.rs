@@ -9,6 +9,23 @@ fn discarded_template_executes_the_exact_former_rejection_source() {
 use common::compare_sources;
 
 #[test]
+fn string_local_compounds_preserve_snapshots_captures_and_utf16() {
+    for body in [
+        "let text='x';text+='y';return text.length;",
+        "let [text]=['x'];return (text+='y').length;",
+        "for(let text of ['x'])return (text+='y').length;return a;",
+        "let text='old';const value=text+=(text='changed','new');return text==='oldnew'&&value===text?1:0;",
+        "let text='x';const read=()=>text;text+='y';return read()==='xy'?1:0;",
+        "let text='x';const add=()=>text+='y';return add()==='xy'&&text==='xy'?1:0;",
+        "let text='';for(let value of ['a','b'])text+=value;return text==='ab'?1:0;",
+        r"let text='\ud800';text+='\udfff\0';return text==='\ud800\udfff\0'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn string_indices_clamp_number_positions_and_return_numeric_offsets() {
     for body in [
         // The first input selects the method; the second still exercises every
@@ -836,14 +853,13 @@ fn string_concat_composes_helpers_captures_and_erased_types() {
 }
 
 #[test]
-fn string_concat_keeps_mixed_coercion_and_compound_assignment_outside_this_slice() {
+fn string_concat_keeps_mixed_coercion_outside_this_slice() {
     for body in [
         "return ('x'+a).length;",
         "return (a+'x').length;",
         "return ('x'+null).length;",
         "return ({}+'x').length;",
         "const value=a?'x':b;return (value+'x').length;",
-        "let text='x';text+='y';return text.length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {

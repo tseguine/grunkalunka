@@ -500,6 +500,12 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&l.left, depth + 1));
                         }
                         Expression::AssignmentExpression(a)
+                            if a.operator == AssignmentOperator::Addition
+                                && self.stored.string(a.node_id()) =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
+                        Expression::AssignmentExpression(a)
                             if property_update::compound(a.operator).is_some() =>
                         {
                             // Numeric compound writes return a Number even
@@ -587,7 +593,8 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        if self.schedule_local_logical(node, depth, mode, regions, work)?
+        if self.schedule_string_addition(node, depth, mode, regions, work)?
+            || self.schedule_local_logical(node, depth, mode, regions, work)?
             || self.schedule_local_update(node, depth, mode, regions, values, work)?
             || self.schedule_dictionary_logical(node, depth, mode, work)?
             || self.schedule_property_logical(node, depth, mode, work)?
