@@ -2359,3 +2359,19 @@ now returns their ordinary source parameter count. Receivers retain effects,
 ordered snapshots and failures; bodies stay dormant. Full callable signatures
 and erased types do not become the count. Number/primitive/async entries share
 this lowering. See [the contract and remaining reflection gaps](function-length.md).
+
+## Optional TypeScript parameter markers
+
+Supported entry functions, module helpers and local arrows erase parameter `?`
+markers as metadata, just like parameter type annotations. The original formal
+count and existing argument evaluation/binding rules are retained, including
+function `length`, captures and calls through stored functions. Contradictory
+annotations provide no runtime source-kind proof. The same erasure applies to
+numeric, primitive-result, async and experimental heap-return compilation.
+
+This does not add missing-argument calls to profiles that reject them. Entry
+exports still require their existing two-formal shape. Defaults, rest,
+destructuring, decorators, parameter properties and `this` parameters retain
+separate guards. The original annotated sources are retained in the positive
+corpus and paired with independent JavaScript references; typed and plain
+artifacts are compared byte-for-byte.

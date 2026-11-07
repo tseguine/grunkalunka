@@ -1,3 +1,4 @@
+import { optionalParameterPrograms, optionalParameterPromotions } from './optional-parameters.mjs';
 import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
 import { returningSwitch, promotedSwitchGap, promotedSwitchBreak } from './returning-switch.mjs';
@@ -315,7 +316,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 805);
+  assert.equal(inventory.records.size, 801);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -906,4 +907,15 @@ test('switch break promotion preserves its exact original source and hash',()=>{
   assert.equal(sources.oracleSource,sources.sourceJS);
   assert.ok(!rejected.some(row=>row[0]===promotedSwitchBreak.id));
   assert.ok(!catalog.records.some(row=>row.id===promotedSwitchBreak.id));
+});
+
+test('optional parameters preserve all exact original typed sources and hashes',()=>{
+  for(const promotion of optionalParameterPromotions){
+    const sources=programSources(optionalParameterPrograms.find(row=>row[0]===promotion.id));
+    assert.equal(sources.sourceTS,promotion.sourceTS);
+    assert.equal(createHash('sha256').update(sources.sourceTS).digest('hex'),promotion.sourceSha256);
+    assert.equal(sources.oracleSource,promotion.sourceJS);
+    assert.ok(!rejected.some(row=>row[0]===promotion.id));
+    assert.ok(!catalog.records.some(row=>row.id===promotion.id));
+  }
 });

@@ -1316,3 +1316,26 @@ fn switch_fallthrough_preserves_suspension_selection_and_cleanup_order() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn optional_ts_parameters_preserve_async_artifacts_and_reactions() {
+    for (js, ts) in [
+        (
+            "export async function run(a,b){return a+await b;}",
+            "export async function run(a?:unknown,b?:unknown){return a+await b;}",
+        ),
+        (
+            "export async function run(a,b){const f=async(x)=>await x;return await f(a);}",
+            "export async function run(a?:unknown,b?:unknown){const f=async(x?:unknown)=>await x;return await f(a);}",
+        ),
+    ] {
+        assert_eq!(
+            compile_async(js, false).unwrap().wasm,
+            compile_async(ts, true).unwrap().wasm
+        );
+        compare_async_sources(
+            &[js.to_owned()],
+            &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+        );
+    }
+}

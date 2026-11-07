@@ -214,7 +214,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         for parameter in &arrow.params.items {
             if !matches!(parameter.pattern, BindingPattern::BindingIdentifier(_))
                 || parameter.initializer.is_some()
-                || parameter.optional
                 || !parameter.decorators.is_empty()
                 || parameter.accessibility.is_some()
                 || parameter.readonly

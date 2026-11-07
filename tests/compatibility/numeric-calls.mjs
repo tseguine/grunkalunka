@@ -104,7 +104,6 @@ bad('helper-self-tdz', 'function helper(x) { const y=y; return y; }', 'return he
 bad('helper-default', 'function helper(x=1) { return x; }', 'return helper(a);', 'parameter modifiers');
 bad('helper-rest', 'function helper(...x) { return 1; }', 'return helper(a);', 'ordinary numeric helper parameters');
 bad('helper-destructure', 'function helper({x}) { return 1; }', 'return helper(a);', 'destructured parameters');
-bad('helper-optional', 'function helper(x?:number) { return x; }', 'return helper(a);', 'parameter modifiers', 'ts');
 bad('helper-this', 'function helper(this:number,x:number) { return x; }', 'return helper(a);', 'plain, synchronous', 'ts');
 bad('helper-async', 'async function helper(x) { return x; }', 'return helper(a);', 'plain, synchronous');
 bad('helper-generator', 'function* helper(x) { return x; }', 'return helper(a);', 'plain, synchronous');
