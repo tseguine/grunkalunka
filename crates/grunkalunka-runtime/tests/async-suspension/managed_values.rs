@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn runtime_dictionary_logical_writes_keep_snapshots_across_awaits() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);const k='x';const value=d[k]??=(await b,'new');return d.x===value?1:0;",
+            "const d=Object.create(null);const k='x';d[k]='old';d[k]||=(await Promise.reject(b),'new');return d.x==='old'?1:0;",
+            "const d=Object.create(null);const k='x';try{d[k]??=(await Promise.reject(b),'new');}catch(e){return d.x===undefined&&e===b?1:0;}return -1;",
+            "let d=Object.create(null);const old=d;let k='x';const value=d[(await b,d=Object.create(null),k)]??=(await a,k='y','new');return old.x===value&&old.y===undefined&&d.x===undefined?1:0;",
+            "const d=Object.create(null);let n=0;try{d[(await Promise.reject(b),'x')]??=(n++,a);}catch(e){return n===0&&d.x===undefined&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn mixed_property_logical_assignments_preserve_selection_across_awaits() {
     compare_promises(
         &[
