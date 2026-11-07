@@ -754,7 +754,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
   `for-in` and labels. [Returning switch dispatch](returning-switch.md) now admits
-  structurally terminal arms with proven scalar/String operands and an optional default;
+  structurally terminal non-final arms, ordinary final arms and proven scalar/String operands with an optional default;
   fallthrough and switch-local break remain guarded. The separately documented managed, primitive
   and async extensions have their own admission; in particular,
   [managed bindings and iteration](#managed-bindings-and-iteration) admit the

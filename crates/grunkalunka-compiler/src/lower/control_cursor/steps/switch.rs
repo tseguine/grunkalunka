@@ -158,7 +158,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         completion: Completion,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if !completion.returns_or_throws() {
+        let final_arm = state.index + 1 == state.source.cases.len();
+        if completion.breaks || completion.continues || (!final_arm && completion.normal) {
             return Err(unsupported(
                 &state.source.cases[state.index],
                 "switch arms must return or throw on every path; fallthrough and switch breaks are not yet admitted",
@@ -183,7 +184,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         if let Some(default) = state.default
-            && !completion.returns_or_throws()
+            && (completion.breaks
+                || completion.continues
+                || (default + 1 != state.source.cases.len() && completion.normal))
         {
             return Err(unsupported(
                 &state.source.cases[default],

@@ -3,6 +3,21 @@ use super::*;
 const SOURCE: &str = "export async function run(a,b){const o={x:a};const p=o;o.self=o;await b;p.x=b;return o===p&&o.self===p&&o.x===b?1:0;}";
 
 #[test]
+fn normal_final_switch_arm_keeps_suffix_roots_through_gc() {
+    let source = "export async function run(a,b){const o={x:a};switch(a){case 0:await b;o.x=b;}return +o.x;}";
+    let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
+    let mut activation = AsyncInstance::new(&artifact.wasm, 0.0, 2.0).unwrap();
+    assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+    activation.store.gc(None).unwrap();
+    assert!(activation.run_one_job().unwrap());
+    assert!(matches!(
+        activation.state().unwrap(),
+        AsyncState::Fulfilled(super::super::Value::Number(2.0))
+    ));
+    assert!(!activation.run_one_job().unwrap());
+}
+
+#[test]
 fn missed_switch_case_keeps_saved_string_live_until_suffix() {
     let source =
         "export async function run(a,b){switch('a'+''){case(await b,'b'):return 99;}return 1;}";

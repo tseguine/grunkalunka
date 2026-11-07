@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn final_switch_arms_keep_selected_awaits_rejection_and_suffix_order() {
+    compare_promises(
+        &[
+            "switch(a){case 0:a=await b;}return await a;",
+            "switch(a){case 0:return await b;default:a=await b;}return a;",
+            "switch(a){default:return b;case 0:a=await b;}return a;",
+            "let n=0;switch(a){case(await b,0):n++;}return n+await b;",
+            "try{switch(a){case 0:await Promise.reject(b);}return a;}catch(e){return e;}",
+            "switch(a){case 0:if(b)return await b;}return await a;",
+            "const o={x:a};switch(a){case 0:await b;o.x=b;}return +o.x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn nonexhaustive_switch_preserves_await_order_rejection_and_suffix() {
     compare_promises(
         &[
