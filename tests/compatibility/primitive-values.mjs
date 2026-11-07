@@ -13,6 +13,7 @@ const wrap = (body, ts) => ts
   : `export function run(a,b) {${body}}\n`;
 const rows = [
   ['empty-return', 'return;'],
+  ['implicit-return', 'if(a) return null;'],
   ['function-identity-selected', 'const f=a?()=>a:()=>b;return f===f;'],
   ['function-identity-and', 'const f=()=>a;const g=()=>b;return (f&&g)===f;'],
   ['function-identity-or', 'const f=()=>a;const g=()=>b;return (f||g)===f;'],
@@ -238,7 +239,6 @@ valuePrograms.push(...moduleDeclarationPrimitiveSources.map((source, index) => (
 })));
 
 export const valueRejected = [
-  ['implicit-return', 'if(a) return null;', 'every structural path must return a primitive value'],
   ['string', 'return "x";', expression],
 ].map(([id, body, diagnostic]) => ({
   id, sourceJS: wrap(body, false), sourceTS: wrap(body, true), diagnostic,

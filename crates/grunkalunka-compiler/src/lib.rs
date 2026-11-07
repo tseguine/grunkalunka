@@ -6,6 +6,8 @@ mod emit;
 #[cfg(test)]
 mod evaluator_tests;
 mod heap;
+#[cfg(test)]
+mod implicit_return_tests;
 mod ir;
 #[path = "ir/iterative_drop.rs"]
 mod ir_iterative_drop;
@@ -568,7 +570,9 @@ fn lower_source_profile_with_identities(
         }
         lowering.initialize_general_parameters(&mut region);
         let mut completion = lowering.sequence(&body.statements, &mut region, 0)?;
-        if lowering.allow_await && completion.normal {
+        if completion.normal
+            && (lowering.allow_await || (index == 0 && lowering.return_type == ir::Type::General))
+        {
             lowering.return_undefined(body.as_ref(), &mut region);
             completion = completion.then(ir::Completion::RETURN);
         }
