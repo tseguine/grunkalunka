@@ -1,4 +1,38 @@
 #[test]
+fn boolean_loose_equality_requires_positive_boolean_pairs() {
+    for (body, admitted) in [
+        ("const o={flag:true};return o.flag==true?1:0;", true),
+        ("const xs=[a<b,false];return xs[0]!=xs[1]?1:0;", true),
+        ("const o={flag:!a};return o.flag==!!b?1:0;", true),
+        ("const o={flag:a?true:false};return o.flag==true?1:0;", true),
+        ("const o={flag:true??a};return o.flag==true?1:0;", true),
+        // Boolean kind proves non-nullishness, not which truthy branch runs.
+        ("const o={flag:true||a};return o.flag==true?1:0;", false),
+        ("const o={flag:false&&a};return o.flag==false?1:0;", false),
+        ("const o={flag:true};return o.flag==1?1:0;", false),
+        ("const o={flag:a?true:b};return o.flag==true?1:0;", false),
+        (
+            "const o={flag:true};delete o.flag;return o.flag==true?1:0;",
+            false,
+        ),
+        (
+            "const o={flag:true};o.flag='text';return o.flag==true?1:0;",
+            false,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    assert!(crate::compile("export function run(a,b){const o={flag:true};return o.flag==(a as unknown as boolean)?1:0;}",true).is_err());
+}
+
+#[test]
 fn function_loose_equality_requires_reference_proofs_and_supported_functions() {
     for (body, admitted) in [
         ("const f=x=>x;const alias=f;return f==alias?1:0;", true),
