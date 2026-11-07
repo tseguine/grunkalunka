@@ -27,5 +27,9 @@ export const returningSwitch = [
     ['switch-function-alias', 'const f=()=>a;const g=f;switch(f){case g:return a;default:return b;}'],
     ['switch-fresh-closures', 'const make=()=>()=>a;const f=make();const g=make();switch(f){case g:return 99;case f:return a;}return b;'],
     ['switch-fresh-async-closures', 'const make=()=>async()=>a;const f=make();const g=make();switch(f){case g:return 99;case f:return a;}return b;'],
+    ['switch-mixed-string-number', "switch(a?'1':1){case 1:return b;case '1':return a;default:return 99;}"],
+    ['switch-mixed-object-null', 'const x={};switch(a?x:null){case null:return b;case x:return a;}return 99;'],
+    ['switch-mixed-function-null', 'const f=()=>a;switch(a?f:null){case null:return b;case f:return a;}return 99;'],
+    ['switch-mixed-array-element', "const xs=[{},'x',null,a];switch(xs[0]){case xs[1]:return 99;case xs[0]:return a;}return b;"],
   ].map(([id, body]) => [id, body, body]),
 ];

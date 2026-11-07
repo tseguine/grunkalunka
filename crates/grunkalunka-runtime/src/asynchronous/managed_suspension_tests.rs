@@ -482,6 +482,8 @@ fn trapped_managed_invocations_are_terminal_until_store_teardown() {
 fn switch_reference_discriminants_survive_gc_during_rebinding_tests() {
     for body in [
         "let x={};switch(x){case(await b,x={},x):return 0;default:return 1;}",
+        "let x=a?{}:'x';switch(x){case(await b,x=null,x):return 0;default:return 1;}",
+        "let f=a?()=>a:null;switch(f){case(await b,f=()=>a,f):return 0;default:return 1;}",
         "let x=[];switch(x){case(await b,x=[],x):return 0;default:return 1;}",
         "let f=()=>a;switch(f){case(await b,f=()=>a,f):return 0;default:return 1;}",
         "let f=async()=>a;switch(f){case(await b,f=async()=>a,f):return 0;default:return 1;}",
