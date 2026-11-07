@@ -1,5 +1,5 @@
 #[test]
-fn managed_loose_null_checks_require_a_positive_nullish_operand() {
+fn managed_loose_equality_requires_nullish_or_string_pair_proofs() {
     for (body, admitted) in [
         ("const o={x:null};return o.x==null?1:0;", true),
         ("const o={};return undefined==o.x?1:0;", true),
@@ -10,7 +10,14 @@ fn managed_loose_null_checks_require_a_positive_nullish_operand() {
             true,
         ),
         ("const o={x:'text'};return o.x==a?1:0;", false),
-        ("const o={x:'text'};return o.x=='text'?1:0;", false),
+        ("const o={x:'text'};return o.x=='text'?1:0;", true),
+        ("return 'x'!='y'?1:0;", true),
+        ("let x='old';return x==(x='new','old')?1:0;", true),
+        ("const o={x:a?'text':false};return o.x=='text'?1:0;", false),
+        (
+            "const o={x:'text'};delete o.x;return o.x=='text'?1:0;",
+            false,
+        ),
         (
             "const o={x:a?'text':null};const undefined=b;return o.x==undefined?1:0;",
             false,
@@ -36,6 +43,13 @@ fn managed_loose_null_checks_require_a_positive_nullish_operand() {
     assert!(
         crate::compile(
             "export function run(a,b){const o={x:'text'};return o.x==(a as unknown as null)?1:0;}",
+            true
+        )
+        .is_err()
+    );
+    assert!(
+        crate::compile(
+            "export function run(a,b){return 'text'==(a as unknown as string)?1:0;}",
             true
         )
         .is_err()

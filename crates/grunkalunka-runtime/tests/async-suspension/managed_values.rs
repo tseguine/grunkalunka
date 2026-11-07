@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn string_loose_equality_saves_operands_through_await_and_rejection() {
+    compare_promises(
+        &[
+            "const o={s:'old'};const value=o.s==(await a,o.s='new','old');return value&&o.s==='new'?1:0;",
+            "const left=await 'x';return left!=(await b,'y')?1:0;",
+            "const o={s:'old'};try{const value=o.s==(await Promise.reject(b),'old');return +value;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn loose_null_checks_keep_left_snapshots_and_rhs_reactions() {
     compare_promises(
         &[
