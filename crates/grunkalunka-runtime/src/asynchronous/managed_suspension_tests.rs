@@ -591,3 +591,25 @@ fn omitted_runtime_fallback_keeps_returned_managed_root_through_gc() {
         assert!(!activation.run_one_job().unwrap());
     }
 }
+
+#[test]
+fn factory_created_local_result_roots_survive_collection() {
+    for body in [
+        "const f=x=>()=>x;const g=f({v:a});await b;return +g().v;",
+        "const f=x=>()=>x;const g=f([a]);const saved=g();await b;return +saved[0];",
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let artifact = grunkalunka_compiler::compile_async(&source, typed).unwrap();
+            let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+            assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+            activation.store.gc(None).unwrap();
+            assert!(activation.run_one_job().unwrap());
+            assert!(matches!(
+                activation.state().unwrap(),
+                AsyncState::Fulfilled(super::super::Value::Number(4.0))
+            ));
+            assert!(!activation.run_one_job().unwrap());
+        }
+    }
+}

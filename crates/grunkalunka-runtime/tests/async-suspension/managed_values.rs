@@ -1373,3 +1373,15 @@ fn omitted_runtime_closure_parameters_compose_with_suspension() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn factory_created_local_results_survive_suspension() {
+    compare_promises(
+        &[
+            "const f=x=>()=>x;const g=f();await a;return typeof g()==='undefined'?a:b;",
+            "const f=x=>()=>x;const g=f({v:a});await b;return +g().v;",
+            "const f=x=>()=>x;const g=f([a]);const saved=g();await b;return +saved[0];",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}

@@ -54,6 +54,7 @@ import { dictionaryLogical } from './dictionary-logical.mjs';
 import { dictionaryPrimitives } from './dictionary-primitives.mjs';
 import { returningSwitch } from './returning-switch.mjs';
 import { optionalParameterPrograms } from './optional-parameters.mjs';
+import { managedFactoryResults } from './managed-factory-results.mjs';
 import { missingRuntimeArguments } from './missing-runtime-arguments.mjs';
 import { missingArrowArguments } from './missing-arrow-arguments.mjs';
 import { missingHelperArguments } from './missing-helper-arguments.mjs';
@@ -123,7 +124,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 135;
+export const corpusVersion = 136;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -196,6 +197,7 @@ programs.push(...optionalParameterPrograms);
 programs.push(...missingHelperArguments);
 programs.push(...missingArrowArguments);
 programs.push(...missingRuntimeArguments);
+programs.push(...managedFactoryResults);
 programs.push(...stringLocalAddition);
 programs.push(...stringPropertyAddition);
 programs.push(...managedStrings);

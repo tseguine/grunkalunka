@@ -525,3 +525,24 @@ fn omitted_runtime_closure_results_keep_exact_primitive_tags() {
         .collect(),
     );
 }
+
+#[test]
+fn factory_created_local_closures_return_exact_primitive_tags() {
+    compare_primitive_sources(
+        [
+            "const f=x=>()=>x;const g=f();return g();",
+            "const f=x=>()=>x;const g=f(false);return g();",
+            "const f=x=>()=>x;const g=f(null);return g();",
+            "const f=x=>()=>x;const g=f(a?null:b);return g();",
+            "const f=x=>()=>x;const g=f();const alias=g;return alias();",
+        ]
+        .into_iter()
+        .map(|body| {
+            (
+                format!("export function run(a,b){{{body}}}"),
+                format!("export function run(a:number,b:number):unknown{{{body}}}"),
+            )
+        })
+        .collect(),
+    );
+}

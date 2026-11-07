@@ -449,6 +449,19 @@ impl Lowering<'_, '_> {
                                         self.managed_kinds.calls.get(&call.node_id.get()).copied()
                                     })
                                     .or_else(|| {
+                                        self.closure_target(
+                                            invocation::callee(call),
+                                            invocation::depth(call, depth + 1),
+                                        )
+                                        .filter(|closure| {
+                                            closure.checked
+                                                && !closure.factory
+                                                && !self.arrow(closure.arrow).r#async
+                                        })
+                                        .map(|closure| closure.result)
+                                        .filter(|ty| ty.is_managed())
+                                    })
+                                    .or_else(|| {
                                         self.runtime_closure_callee(
                                             invocation::callee(call),
                                             invocation::depth(call, depth + 1),
@@ -1085,6 +1098,14 @@ impl Lowering<'_, '_> {
             && let Expression::CallExpression(call) = node
             && managed_calls::function(call, self.semantic, self.functions).is_none()
             && (self.managed_kinds.calls.contains_key(&call.node_id.get())
+                || self
+                    .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+                    .is_some_and(|closure| {
+                        closure.checked
+                            && !closure.factory
+                            && !self.arrow(closure.arrow).r#async
+                            && closure.result.is_managed()
+                    })
                 || self
                     .runtime_closure_callee(
                         invocation::callee(call),
