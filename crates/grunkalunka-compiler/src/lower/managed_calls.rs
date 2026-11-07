@@ -437,8 +437,7 @@ pub(crate) fn infer(
 ) {
     // Public inputs are Numbers. Omitted private inputs also need a lossless
     // Undefined tag, even when no literal managed origin occurs in the module.
-    let missing_inputs =
-        stored_functions::has_omitted_named_arguments(semantic, functions[0].symbol);
+    let missing_inputs = stored_functions::has_omitted_arguments(semantic, functions[0].symbol);
     if !functions
         .iter()
         .skip(1)
@@ -706,7 +705,9 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         callback_parameters,
         closure_signatures,
     } = flow;
-    if !has_managed_origin(semantic) {
+    if !has_managed_origin(semantic)
+        && !stored_functions::has_omitted_arguments(semantic, functions[0].symbol)
+    {
         return ClosureKinds::default();
     }
     let from_type = |ty: Type| -> Kinds {
@@ -774,6 +775,33 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
             (*body, (expressions, missing))
         })
         .collect::<BTreeMap<_, _>>();
+    // Missing source actuals are real Undefined inputs, not bottom/Number.
+    // Keep their tag in the shared primitive carrier across specializations.
+    for node in semantic.nodes().iter() {
+        let AstKind::CallExpression(call) = node.kind() else {
+            continue;
+        };
+        for body in calls.get(&call.node_id.get()).into_iter().flatten() {
+            if arrows[body].r#async {
+                continue;
+            }
+            for parameter in arrows[body]
+                .params
+                .items
+                .iter()
+                .skip(invocation::arguments(call).len())
+            {
+                if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                    && let Some(symbol) = identifier.symbol_id.get()
+                {
+                    bindings
+                        .entry(symbol)
+                        .or_default()
+                        .insert(Kind::BoxedPrimitive);
+                }
+            }
+        }
+    }
     let mut results: BTreeMap<_, Kinds> = bodies.keys().map(|body| (*body, Kinds::new())).collect();
     let mut call_kinds: BTreeMap<_, Kinds> =
         calls.keys().map(|call| (*call, Kinds::new())).collect();

@@ -851,18 +851,18 @@ pub(crate) fn general_mutable_bindings(
             constructor_groups.insert(bodies.clone());
         }
         for body in bodies {
-            for (parameter, argument) in arrows[&body]
-                .params
-                .items
-                .iter()
-                .zip(invocation::arguments(call))
-            {
+            for (index, parameter) in arrows[&body].params.items.iter().enumerate() {
                 let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                     continue;
                 };
-                let (Some(symbol), Some(actual)) =
-                    (identifier.symbol_id.get(), argument.as_expression())
-                else {
+                let Some(symbol) = identifier.symbol_id.get() else {
+                    continue;
+                };
+                let Some(argument) = invocation::arguments(call).get(index) else {
+                    omitted_inputs.insert(symbol);
+                    continue;
+                };
+                let Some(actual) = argument.as_expression() else {
                     continue;
                 };
                 let (sources, constructors) = returns.expression(actual, &BTreeMap::new(), 0, 0);

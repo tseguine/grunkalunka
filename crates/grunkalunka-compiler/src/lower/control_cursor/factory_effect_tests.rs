@@ -104,7 +104,7 @@ fn discarded_and_truthy_factories_preserve_first_diagnostics() {
     for (body, expected) in [
         (
             "const make=x=>{return ()=>x;};make();return a;",
-            "unsupported at bytes 55..61: local call is missing declared arguments",
+            "unsupported at bytes 55..61: function-valued local calls require an immutable closure binding",
         ),
         (
             "const make=x=>{return ()=>x;};if(make(...a))return a;return b;",

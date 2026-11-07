@@ -52,7 +52,7 @@ fn optional_markers_preserve_entry_helper_and_arrow_artifacts() {
     }
 }
 #[test]
-fn optional_markers_do_not_admit_other_parameter_forms_or_missing_arguments() {
+fn optional_markers_keep_other_parameter_and_numeric_return_guards() {
     for source in [
         "export function run(a?:number){return a;}",
         "export function run(a?:number,b=1){return a;}",

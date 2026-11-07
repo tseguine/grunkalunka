@@ -799,7 +799,7 @@ fn declaration_publication_preserves_first_diagnostics() {
         (
             "export function run(a,b){const f=(x,y)=>x+y;const x=f(a),y=Math.noSuch(b);return x+y;}",
             false,
-            "unsupported at bytes 52..56: local call is missing declared arguments",
+            "unsupported at bytes 59..73: expression is outside the numeric experiment",
         ),
         (
             "export async function run(a,b){const p=q,q=Promise.resolve(a);return await p;}",

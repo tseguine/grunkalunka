@@ -151,7 +151,7 @@ fn assignment_definition(
     }
 }
 
-pub(super) fn has_omitted_named_arguments(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
+pub(super) fn has_omitted_arguments(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
     let arities: BTreeMap<_, _> = semantic
         .nodes()
         .iter()
@@ -164,10 +164,27 @@ pub(super) fn has_omitted_named_arguments(semantic: &Semantic<'_>, entry: Symbol
                 .then_some((name, function.params.items.len()))
         })
         .collect();
+    // This is only a conservative fast-path gate. The flow solver below
+    // resolves actual arrow targets (including aliases and factory results).
+    let arrow_arity = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            if let AstKind::ArrowFunctionExpression(arrow) = node.kind() {
+                (!arrow.r#async).then_some(arrow.params.items.len())
+            } else {
+                None
+            }
+        })
+        .max()
+        .unwrap_or(0);
     semantic.nodes().iter().any(|node| {
         let AstKind::CallExpression(call) = node.kind() else {
             return false;
         };
+        if invocation::arguments(call).len() < arrow_arity {
+            return true;
+        }
         let Expression::Identifier(identifier) = invocation::callee(call) else {
             return false;
         };
@@ -314,7 +331,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
-        if !has_omitted_named_arguments(semantic,entry) && !semantic.nodes().iter().any(|node| {
+        if !has_omitted_arguments(semantic,entry) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)

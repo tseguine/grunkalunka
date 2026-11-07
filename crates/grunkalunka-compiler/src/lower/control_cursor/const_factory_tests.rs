@@ -139,10 +139,6 @@ fn const_factory_awaited_arguments_use_the_source_scheduler() {
 fn const_factory_arguments_preserve_first_diagnostics() {
     for (body, expected) in [
         (
-            "const make=x=>y=>x+y;const f=make();return f(b);",
-            "unsupported at bytes 54..60: local call is missing declared arguments",
-        ),
-        (
             "const make=x=>y=>x+y;const f=make(...a);return f(b);",
             "unsupported at bytes 54..64: spread call arguments are not admitted",
         ),
@@ -261,4 +257,9 @@ fn const_factory_arguments_keep_original_expression_depth() {
             }
         }
     }
+}
+
+#[test]
+fn omitted_const_factory_argument_uses_the_source_scheduler() {
+    check_scheduled(&["const make=x=>y=>x+y;const f=make();return f(b);"], false);
 }

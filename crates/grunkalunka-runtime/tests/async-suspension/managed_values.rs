@@ -1348,3 +1348,15 @@ fn omitted_synchronous_helper_parameters_compose_with_await() {
         "function choose(x,y){return y??x;}export async function run(a,b){const selected=choose({v:a});await b;return +selected.v;}".to_owned(),
     ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
 }
+
+#[test]
+fn omitted_synchronous_arrow_parameters_compose_with_await() {
+    compare_promises(
+        &[
+            "await a;const f=x=>x===undefined?1:0;return f()+await b;",
+            "const f=(x,y)=>y??x;return await f(await a);",
+            "const f=(x,y)=>y??x;const selected=f({v:a});await b;return +selected.v;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}
