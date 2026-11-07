@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn boxed_primitive_unions_preserve_await_tags_snapshots_and_rejections() {
+    compare_promises(
+        &[
+            "const o={v:await (a?null:b)};return +o.v;",
+            "const o={v:a?null:undefined};return +(await o.v);",
+            "const o={v:await null};return o.v===null?1:0;",
+            "const o={v:await undefined};return o.v===undefined?1:0;",
+            "const o={flag:await (a?true:b)};return o.flag==true?1:0;",
+            "const o={v:a?true:b};return o.v==(o.v=false,await b)?1:0;",
+            "const o={v:a?null:b};const value=o.v<(o.v=false,await b);return (value?10:0)+ +o.v;",
+            "const o={v:false};const value=o.v==(o.v=true,await b,0);return value&&o.v===true?1:0;",
+            "let n=0;const o={v:null};try{const value=(n++,o.v)==(await Promise.reject(b));return value?9:8;}catch(e){return e===b&&n===1?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_relational_values_keep_snapshots_rejections_and_await_order() {
     compare_promises(
         &[

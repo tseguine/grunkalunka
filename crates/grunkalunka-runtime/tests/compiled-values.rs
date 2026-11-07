@@ -5,6 +5,33 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod module_helpers;
 
 #[test]
+fn boxed_primitive_results_preserve_language_tags_and_number_bits() {
+    compare_primitive_sources(
+        [
+            "const o={v:null};return o.v;",
+            "const o={v:undefined};return o.v;",
+            "const o={v:true};return o.v;",
+            "const o={v:a?false:b};return o.v;",
+            "const o={v:a?null:b};return o.v;",
+            "const o={v:a?undefined:b};return o.v;",
+            "const read=x=>x.v;const o={v:a?true:b};return read(o);",
+            "const o={v:a?null:b};return o.v==(o.v=false,b);",
+        ]
+        .into_iter()
+        .map(|body| {
+            let js = format!("export function run(a,b){{{body}}}");
+            let ts = format!("export function run(a:number,b:number):unknown{{{body}}}");
+            assert_eq!(
+                compile_value(&js, false).unwrap().wasm,
+                compile_value(&ts, true).unwrap().wasm
+            );
+            (js, ts)
+        })
+        .collect(),
+    );
+}
+
+#[test]
 fn compiled_null_is_a_null_value() {
     let artifact = compile_value("export function run(a,b) { return null; }", false).unwrap();
     let mut instance = ValueInstance::new(&artifact.wasm).unwrap();

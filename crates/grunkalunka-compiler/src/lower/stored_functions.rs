@@ -178,6 +178,17 @@ impl Fields {
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Number))
     }
+    pub(super) fn primitive(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::Number | Origin::Boolean | Origin::Null | Origin::Undefined
+                    )
+                })
+        })
+    }
     pub(super) fn nullish(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()
@@ -1104,7 +1115,14 @@ impl Fields {
                             // Known primitive kinds have no thenable assimilation.
                             // Do not retain reference identity or infer a value
                             // kind from unknown Promise/thenable fulfillments.
-                            if matches!(origin, Origin::Number | Origin::String | Origin::Boolean) {
+                            if matches!(
+                                origin,
+                                Origin::Number
+                                    | Origin::String
+                                    | Origin::Boolean
+                                    | Origin::Null
+                                    | Origin::Undefined
+                            ) {
                                 origin
                             } else {
                                 Origin::Other
