@@ -18,7 +18,7 @@ fn returning_switches_accept_scalar_dispatch_and_reject_fallthrough() {
         ("switch(a){case {}:return b;default:return a;}", true),
         (
             "let x=a;switch(x){case 0:break;default:return b;}return a;",
-            false,
+            true,
         ),
         (
             "const x=a;switch(x){case 0:return b;default:const x=b;return x;}",
@@ -117,7 +117,7 @@ fn final_switch_arms_can_complete_normally_without_enabling_fallthrough() {
         ("switch(a){case 0:a=b;case 1:return a;}return b;", false),
         ("switch(a){default:a=b;case 0:return a;}return b;", false),
         ("while(a){switch(b){case 0:continue;}}return b;", false),
-        ("while(a){switch(b){default:break;}}return b;", false),
+        ("while(a){switch(b){default:break;}}return b;", true),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -151,7 +151,7 @@ fn switch_reference_proofs_and_guards() {
             "const x={};switch(x){case a?x:null:return b;}return a;",
             true,
         ),
-        ("const x={};switch(x){case x:break;}return a;", false),
+        ("const x={};switch(x){case x:break;}return a;", true),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -195,4 +195,80 @@ fn mixed_switch_values_need_positive_source_proofs() {
             }
         }
     }
+}
+
+#[test]
+fn switch_breaks_are_normal_exits_without_case_fallthrough() {
+    for (body, admitted) in [
+        ("switch(a){case 0:a=b;break;default:a++;}return a;", true),
+        (
+            "switch(a){case 0:if(b)break;else return a;default:return b;}return a;",
+            true,
+        ),
+        (
+            "switch(a){case 0:if(b)break;default:return b;}return a;",
+            false,
+        ),
+        ("switch(a){case 0:break;default:break;}", false),
+        (
+            "switch(a){case 0:break;default:break;}break;return a;",
+            false,
+        ),
+        ("switch(a){case 0:continue;}return a;", false),
+        ("while(a){switch(b){case 0:continue;}}return b;", false),
+        (
+            "const f=x=>{switch(x){case 0:break;default:return x;}return b;};return f(a);",
+            true,
+        ),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
+fn switch_break_targets_keep_small_stack_and_case_limits() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            for count in [254, 255] {
+                let cases = (0..count)
+                    .map(|i| format!("case {i}:break;"))
+                    .collect::<String>();
+                let source = format!("export function run(a,b){{switch(a){{{cases}}}return b;}}");
+                let result = crate::compile(&source, false);
+                if count == 254 {
+                    assert!(result.is_ok(), "{:?}", result.err());
+                } else {
+                    assert!(result.err().unwrap().contains("at most 256 statements"));
+                }
+            }
+            for count in [63, 65] {
+                let source = format!(
+                    "export function run(a,b){{{}break;{}return b;}}",
+                    "switch(a){default:".repeat(count),
+                    "}".repeat(count)
+                );
+                let result = crate::compile(&source, false);
+                if count == 63 {
+                    assert!(result.is_ok(), "{:?}", result.err());
+                } else {
+                    assert!(
+                        result
+                            .err()
+                            .unwrap()
+                            .contains("statement nesting exceeds 64")
+                    );
+                }
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }

@@ -1,4 +1,4 @@
-//! Return/throw-only switch dispatch uses heap-owned continuations and ordinary If IR.
+//! Switch dispatch uses heap-owned continuations and existing structured IR.
 use super::*;
 
 pub(in crate::lower::control_cursor) struct SwitchFrame<'n, 'a> {
@@ -7,6 +7,7 @@ pub(in crate::lower::control_cursor) struct SwitchFrame<'n, 'a> {
     pub(in crate::lower::control_cursor) depth: usize,
     visible: usize,
     discriminant: ValueId,
+    old_loop: bool,
     index: usize,
     default: Option<usize>,
     arms: Vec<Arm>,
@@ -57,12 +58,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         discriminant: ValueId,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
+        let old_loop = self.in_loop_body;
+        self.in_loop_body = true;
         let state = Box::new(SwitchFrame {
             source,
             output,
             depth,
             visible: self.bindings.len(),
             discriminant,
+            old_loop,
             index: 0,
             default: source.cases.iter().position(|case| case.test.is_none()),
             arms: Vec::new(),
@@ -159,10 +163,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         let final_arm = state.index + 1 == state.source.cases.len();
-        if completion.breaks || completion.continues || (!final_arm && completion.normal) {
+        if completion.continues || (!final_arm && completion.normal) {
             return Err(unsupported(
                 &state.source.cases[state.index],
-                "switch arms must return or throw on every path; fallthrough and switch breaks are not yet admitted",
+                "non-final switch arms must return, throw or break on every path; fallthrough and outer-loop continue are not yet admitted",
             ));
         }
         self.bindings.truncate(state.visible);
@@ -184,13 +188,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         if let Some(default) = state.default
-            && (completion.breaks
-                || completion.continues
+            && (completion.continues
                 || (default + 1 != state.source.cases.len() && completion.normal))
         {
             return Err(unsupported(
                 &state.source.cases[default],
-                "switch arms must return or throw on every path; fallthrough and switch breaks are not yet admitted",
+                "non-final switch arms must return, throw or break on every path; fallthrough and outer-loop continue are not yet admitted",
             ));
         }
         self.bindings.truncate(state.visible);
@@ -209,7 +212,42 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             );
             alternate = arm.test;
         }
-        Self::push(&mut state.output, state.source, Op::Block(alternate));
+        self.in_loop_body = state.old_loop;
+        {
+            // Even a break overridden by a finalizer needs a lexical IR target.
+            // A single-iteration region supplies the existing nearest-break
+            // target. Outer-loop continue is guarded above; nested source loops
+            // consume their own break/continue completions before reaching here.
+            let mut condition = self.region(state.source);
+            let zero = self.value(Type::Number);
+            Self::push(
+                &mut condition,
+                state.source,
+                Op::Constant {
+                    result: zero,
+                    value: 0.0,
+                },
+            );
+            let predicate = self.value(Type::Predicate);
+            Self::push(
+                &mut condition,
+                state.source,
+                Op::Truthy {
+                    result: predicate,
+                    input: zero,
+                },
+            );
+            condition.exit = Exit::Yield(predicate);
+            Self::push(
+                &mut state.output,
+                state.source,
+                Op::DoWhile {
+                    body: alternate,
+                    condition,
+                },
+            );
+            completion = completion.do_loop();
+        }
         cursor.completed = Some(Outcome::Statement(state.output, completion));
         Ok(())
     }
