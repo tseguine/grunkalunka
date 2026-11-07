@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn dictionary_primitive_origins_keep_awaited_keys_receivers_and_results() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);d.x=a;return +(await d[await 'x']);",
+            "const d=Object.create(null);d.x=a;const k='x';const value=d[k]+(d.x=b,await b);return value;",
+            "let d=Object.create(null);d.x=a;const other=Object.create(null);other.x=b;const value=d[(d=other,await b,'x')];return +value+ +d['x'];",
+            "const d=Object.create(null);d.x=false;const value=d[(d.x=true,await b,'x')];return value==1?1:0;",
+            "const d=Object.create(null);const k=await 'missing';return +(await d[k]);",
+            "const d=Object.create(null);const k='x';const value=d[k]??=await b;return +value+ +d[k];",
+            "const d=Object.create(null);d.x=false;const k='x';const value=d[k]&&=(await Promise.reject(b),b);return +value;",
+            "const d=Object.create(null);d.x=a;let n=0;try{const value=d[(n++,await Promise.reject(b),'x')];return +value;}catch(e){return n===1&&e===b?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn boxed_primitive_unions_preserve_await_tags_snapshots_and_rejections() {
     compare_promises(
         &[
