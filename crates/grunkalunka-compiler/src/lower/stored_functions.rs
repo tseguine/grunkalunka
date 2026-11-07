@@ -51,6 +51,7 @@ enum Definition {
 }
 struct FunctionFlow {
     parameters: Vec<SymbolId>,
+    defaults: Vec<Option<NodeId>>,
     returns: Vec<NodeId>,
     implicit: bool,
     undefined_return: bool,
@@ -353,7 +354,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
-        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !semantic.nodes().iter().any(|node| {
+        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
@@ -814,6 +815,7 @@ impl Fields {
                         Origin::Arrow(id),
                         FunctionFlow {
                             parameters: parameters(&arrow.params),
+                            defaults: vec![None; arrow.params.items.len()],
                             returns,
                             implicit: complete.is_none(),
                             undefined_return: !arrow.r#async
@@ -848,6 +850,14 @@ impl Fields {
                             Origin::Named(name),
                             FunctionFlow {
                                 parameters: parameters(&function.params),
+                                defaults: function
+                                    .params
+                                    .items
+                                    .iter()
+                                    .map(|p| {
+                                        p.initializer.as_ref().map(|value| value.as_ref().node_id())
+                                    })
+                                    .collect(),
                                 returns,
                                 implicit,
                                 undefined_return,
@@ -1207,6 +1217,16 @@ impl Fields {
                     Definition::ForIn(symbol) => (*symbol, BTreeSet::from([Origin::String])),
                 })
                 .collect::<Vec<_>>();
+            // A fallback is also a possible input of an unused declaration.
+            // Seed it conservatively; actuals and body writes still union their
+            // origins, so it cannot hide a nonnumeric supplied alternative.
+            for function in functions.values() {
+                for (index, symbol) in function.parameters.iter().enumerate() {
+                    if let Some(Some(default)) = function.defaults.get(index) {
+                        symbol_additions.push((*symbol, get(default)));
+                    }
+                }
+            }
             let mut additions = Vec::new();
             for (id, rule) in &rules {
                 let found = match rule {
@@ -1374,13 +1394,16 @@ impl Fields {
                         for target in get(callee) {
                             if let Some(function) = functions.get(&target) {
                                 for (index, symbol) in function.parameters.iter().enumerate() {
-                                    symbol_additions.push((
-                                        *symbol,
-                                        arguments
-                                            .get(index)
-                                            .map(get)
-                                            .unwrap_or_else(|| BTreeSet::from([Origin::Undefined])),
-                                    ));
+                                    let mut incoming = arguments
+                                        .get(index)
+                                        .map(get)
+                                        .unwrap_or_else(|| BTreeSet::from([Origin::Undefined]));
+                                    if let Some(Some(default)) = function.defaults.get(index)
+                                        && incoming.remove(&Origin::Undefined)
+                                    {
+                                        incoming.extend(get(default));
+                                    }
+                                    symbol_additions.push((*symbol, incoming));
                                 }
                                 for expression in &function.returns {
                                     found.extend(get(expression));

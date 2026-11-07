@@ -34,6 +34,7 @@ mod finalizers;
 #[cfg(test)]
 mod for_statements;
 mod function_values;
+pub(super) mod helper_defaults;
 #[cfg(test)]
 mod if_statements;
 mod invocation;

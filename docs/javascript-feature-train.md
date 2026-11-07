@@ -359,3 +359,12 @@ The broader [stack audit](https://github.com/tseguine/grunkalunka/issues/281),
 and [managed async boundary](https://github.com/tseguine/grunkalunka/issues/356)
 continue to inform implementation without making their entire scope a dependency
 of every new feature.
+
+
+Private synchronous named helpers now accept primitive literal parameter defaults.
+Omitted or Undefined inputs select the fallback; null, false, zero and NaN remain
+supplied values. Parameters retain per-call mutable cells and closure captures;
+`function.length` stops at the first default. This bounded language feature keeps
+entry, async, arrow, expression, rest and destructured parameter guards. See
+[the compiler contract](compiler.md#primitive-literal-defaults-on-private-synchronous-helpers)
+and the compiled-values / managed-logical differential suites.

@@ -41,7 +41,7 @@ pub(super) struct BindingState<'n, 'a> {
     selected: Option<ValueId>,
 }
 
-pub(super) struct LazyDefault {
+pub(in crate::lower) struct LazyDefault {
     selected: ValueId,
     condition: ValueId,
 }
@@ -396,7 +396,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         undefined
     }
 
-    pub(super) fn prepare_binding_default(
+    pub(in crate::lower) fn prepare_binding_default(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,
@@ -421,7 +421,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         }
     }
 
-    pub(super) fn finish_binding_default(
+    pub(in crate::lower) fn finish_binding_default(
         &mut self,
         node: &impl GetSpan,
         output: &mut Region,

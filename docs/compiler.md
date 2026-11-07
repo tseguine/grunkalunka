@@ -537,7 +537,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   from a type annotation or one positive function origin.
   Nested declarations/captures and writes to module function bindings remain
   rejected, including writes in dead or unused code. Missing inputs, more than
-  1,000 supplied arguments, spread, defaults, rest and optional calls stay outside
+  1,000 supplied arguments, spread, nonliteral defaults, rest and optional calls stay outside
   this subset. Call-site type arguments erase as unvalidated metadata; see
   [the contract](#direct-module-call-type-arguments).
   Self/mutual calls share the existing Wasmtime store's fuel budget; they do not
@@ -2450,3 +2450,25 @@ finalizers keep their numeric interface. The analysis visits statements on a
 heap worklist, does not inspect nested function bodies, and does not execute or
 admit expressions. Ordinary lowering still validates source, escaping throws,
 result profiles and source/stack budgets independently.
+
+
+## Primitive literal defaults on private synchronous helpers
+
+Ordinary private named synchronous helpers accept Number (including signed
+numeric literals), Boolean, null, unshadowed `undefined`, and String constant
+parameter defaults. Omitted inputs and actual Undefined select the fallback;
+null, false, zero, signed zero and NaN retain their original values. Each
+activation selects defaults into its own managed parameter cells before the body,
+so subsequent writes and closure captures see the initialized value. Supplied and
+surplus arguments still execute once, from left to right, before the call.
+Type annotations remain erased metadata. Numeric exports require the usual
+positive Number proof or explicit conversion after a helper result.
+
+The callable ABI keeps all declared parameters; `function.length` counts only
+parameters preceding the first default. Reflected runtime selections must prove
+one uniform source length. Public entry defaults, async defaults (including
+helpers in async-entry modules), arrow defaults, expressions/references with
+effects, rest and destructured parameters retain explicit guards. This first
+subset does not evaluate parameter expressions or expose body bindings to
+initializers. The exact former `direct-call-helper-default` rejection is now an
+unchanged positive fixture in corpus 142; 798 rejections remain.

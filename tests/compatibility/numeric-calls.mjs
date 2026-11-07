@@ -109,7 +109,12 @@ bad('unselected-argument', identity, 'return true?a:identity(Math.random());', e
 bad('predicate-argument', identity, 'return identity(a<b);', 'managed value requires an identity or managed storage position');
 bad('helper-const-write', 'function helper(x) { const y=x; y=1; return y; }', 'return helper(a);', 'assignment to a const');
 bad('helper-self-tdz', 'function helper(x) { const y=y; return y; }', 'return helper(a);', reference);
-bad('helper-default', 'function helper(x=1) { return x; }', 'return helper(a);', 'parameter modifiers');
+export const helperDefaultPromotion = {
+  id:'direct-call-helper-default',
+  source:'function helper(x=1) { return x; } export function run(a,b) { return helper(a); }',
+  sha256:'f9a383c6e80f314053876a82f76948c2f6fc576aa2223b245ce7431dc9d4564a',
+};
+full('helper-default', helperDefaultPromotion.source);
 bad('helper-rest', 'function helper(...x) { return 1; }', 'return helper(a);', 'ordinary numeric helper parameters');
 bad('helper-destructure', 'function helper({x}) { return 1; }', 'return helper(a);', 'destructured parameters');
 bad('helper-this', 'function helper(this:number,x:number) { return x; }', 'return helper(a);', 'plain, synchronous', 'ts');

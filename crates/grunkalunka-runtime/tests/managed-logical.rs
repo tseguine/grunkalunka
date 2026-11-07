@@ -801,3 +801,18 @@ fn helper_control_flow_coercion_keeps_undefined_separate_from_number() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn primitive_helper_defaults_keep_numeric_proofs_and_conversions() {
+    for source in [
+        "function helper(x=1) { return x; } export function run(a,b) { return helper(a); }",
+        "function f(x=3){return x;}export function run(a,b){return f();}",
+        "function f(x=3){return x;}export function run(a,b){return +f(undefined);}",
+        "function f(x=3){return x;}export function run(a,b){return +f(null);}",
+        "function f(x=3){return x;}export function run(a,b){return +f(false);}",
+        "function f(x=-0){return x;}export function run(a,b){return f();}",
+        "function f(x=3){return x;}export function run(a,b){const g=f;return g();}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}

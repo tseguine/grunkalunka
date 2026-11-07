@@ -4611,13 +4611,6 @@
       "group": "binding-errors"
     },
     {
-      "id": "direct-call-helper-default",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f9a383c6e80f314053876a82f76948c2f6fc576aa2223b245ce7431dc9d4564a",
-      "group": "parameters"
-    },
-    {
       "id": "direct-call-helper-rest",
       "extension": "js",
       "sourceMode": "module-strict",
