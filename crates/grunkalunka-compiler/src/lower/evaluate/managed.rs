@@ -886,10 +886,12 @@ impl Lowering<'_, '_> {
                 && self.stored.string(binary.right.node_id()))
                 || (self.stored.number(binary.left.node_id())
                     && self.stored.number(binary.right.node_id()))
+                || (self.stored.boolean(binary.left.node_id())
+                    && self.stored.boolean(binary.right.node_id()))
                 || (self.stored.reference(binary.left.node_id())
                     && self.stored.reference(binary.right.node_id()))
             {
-                // Same-kind Number/String pairs and language-object reference
+                // Same-kind Number/String/Boolean pairs and language-object reference
                 // pairs need no primitive coercion for abstract equality.
                 EqualityKind::Exact
             } else if self.stored.nullish(binary.left.node_id()) {

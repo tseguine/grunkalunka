@@ -71,6 +71,14 @@ cells and checked helper inputs use the same operation and save the left Number
 before RHS effects or suspension. Mixed kinds, deleted or uncertain field origins,
 and type assertions cannot supply the required Number-pair proof.
 
+Source-proven Boolean pairs in boxed fields, elements and cells now support `==`
+and `!=` without Number conversion. Boolean literals, comparisons, `in`, `delete`
+and logical negation supply positive Boolean origins; aliases and checked helper
+flows retain those facts. Left values remain snapshots across RHS writes and
+suspension. Mixed Boolean/Number or other uncertain alternatives remain guarded,
+and annotations cannot supply a Boolean proof. Boolean truthiness stays conservative
+in the origin analysis; it does not predict which branch executes.
+
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
 suspension through the existing private numeric await protocol. That internal

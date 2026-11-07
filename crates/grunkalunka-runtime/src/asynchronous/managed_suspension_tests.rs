@@ -3,6 +3,21 @@ use super::*;
 const SOURCE: &str = "export async function run(a,b){const o={x:a};const p=o;o.self=o;await b;p.x=b;return o===p&&o.self===p&&o.x===b?1:0;}";
 
 #[test]
+fn boolean_loose_equality_keeps_saved_values_through_gc() {
+    let source = "export async function run(a,b){const o={flag:true};const same=o.flag==(await b,o.flag=false,true);return same&&o.flag==false?1:0;}";
+    let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
+    let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+    assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+    activation.store.gc(None).unwrap();
+    assert!(activation.run_one_job().unwrap());
+    assert!(matches!(
+        activation.state().unwrap(),
+        AsyncState::Fulfilled(super::super::Value::Number(1.0))
+    ));
+    assert!(!activation.run_one_job().unwrap());
+}
+
+#[test]
 fn function_loose_equality_keeps_saved_closures_through_gc() {
     let source = "export async function run(a,b){let f=()=>a;const old=f;const same=f==(await b,f=()=>b,old);return same&&f!=old?1:0;}";
     let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();

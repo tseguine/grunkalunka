@@ -18,6 +18,7 @@ pub(super) enum Origin {
     Named(SymbolId),
     String,
     Number,
+    Boolean,
     Null,
     Undefined,
     Other,
@@ -184,6 +185,11 @@ impl Fields {
                     .iter()
                     .all(|origin| matches!(origin, Origin::Null | Origin::Undefined))
         })
+    }
+    pub(super) fn boolean(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Boolean))
     }
     pub(super) fn number_update(&self, node: NodeId) -> bool {
         self.number_updates.contains(&node)
@@ -525,6 +531,36 @@ impl Fields {
                 }
                 AstKind::NumericLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::Number]));
+                    None
+                }
+                AstKind::BooleanLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::Boolean]));
+                    None
+                }
+                AstKind::UnaryExpression(unary)
+                    if matches!(
+                        unary.operator,
+                        UnaryOperator::LogicalNot | UnaryOperator::Delete
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Boolean]));
+                    None
+                }
+                AstKind::BinaryExpression(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Equality
+                            | BinaryOperator::Inequality
+                            | BinaryOperator::StrictEquality
+                            | BinaryOperator::StrictInequality
+                            | BinaryOperator::LessThan
+                            | BinaryOperator::LessEqualThan
+                            | BinaryOperator::GreaterThan
+                            | BinaryOperator::GreaterEqualThan
+                            | BinaryOperator::In
+                    ) =>
+                {
+                    values.insert(id, BTreeSet::from([Origin::Boolean]));
                     None
                 }
                 AstKind::AwaitExpression(awaited) => {
