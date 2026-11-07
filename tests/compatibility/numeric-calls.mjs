@@ -1,6 +1,13 @@
 // Numeric calls with declared inputs and evaluated surplus arguments; counters bound recursion/loops independently of inputs.
 // https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-evaluatecall
 export const numericCalls = [];
+// Exact original rejection source: validating an unused helper still checks its
+// body, but reaching its closing brace is a normal Undefined completion.
+export const unusedNoReturnPromotion = {
+  id:'direct-call-unused-missing-return',
+  source:'function unused(x) { x++; } export function run(a,b) { return a; }',
+  sha256:'f8b69c31b44590cc9faa9a2accea27cac5853c653fde1a06be9173ccfd87a025',
+};
 function full(id, sourceJS, sourceTS = sourceJS) {
   numericCalls.push([`direct-call-${id}`, '', '', undefined, undefined, { sourceJS, sourceTS }]);
 }
@@ -8,6 +15,7 @@ function add(id, helpers, body, helpersTS = helpers, bodyTS = body) {
   full(id, `${helpers} export function run(a,b) { ${body} }`,
     `${helpersTS} export function run(a:unknown,b:unknown):unknown { ${bodyTS} }`);
 }
+full('unused-missing-return',unusedNoReturnPromotion.source);
 const identity = 'function identity(x) { return x; }';
 const pack = 'function pack(x,y) { return x*10+y; }';
 full('extra', 'function identity(x) { return x; } export function run(a,b) { return identity(a,b); }', 'function identity(x:string):never { return x as never; } export function run(a:never,b:Missing):Wrong { return identity(a,b); }');
@@ -95,7 +103,6 @@ bad('capture-entry-parameter', 'function helper() { return a; }', 'return helper
 bad('cross-function-local', 'function first() { const x=1; return x; } function second() { return x; }', 'return second();', reference);
 bad('nested-declaration', 'function helper(x) { function nested() { return 1; } return x; }', 'return helper(a);', 'statement is outside');
 bad('missing-return', 'function helper(x) { if(x) return x; }', 'return helper(a);', 'every structural path');
-bad('unused-missing-return', 'function unused(x) { x++; }', 'return a;', 'every structural path');
 bad('boolean-return', 'function helper() { return true; }', 'return helper();', expression);
 for(const [id,value] of [['boolean','true'],['string','"1"'],['object','({})'],['bigint','1n'],['null','null'],['call','Math.random()']]) bad(`argument-${id}`,identity,`return identity(${value});`,expression);
 bad('unselected-argument', identity, 'return true?a:identity(Math.random());', expression);

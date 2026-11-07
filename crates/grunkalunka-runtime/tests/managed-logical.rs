@@ -757,3 +757,21 @@ fn bare_helper_return_retains_tags_until_explicit_numeric_coercion() {
     let source = "function f(x){if(x)return null;return;}export function run(a,b){return +f(a);}";
     common::compare_sources(source, source);
 }
+
+#[test]
+fn side_effect_only_helpers_convert_undefined_after_completing_effects() {
+    for source in [
+        "function f(x){}export function run(a,b){return +f(a);}",
+        "function f(x){x++;}export function run(a,b){return +f(a);}",
+        "function f(x){if(x)return;}export function run(a,b){return +f(a);}",
+        "function f(o){o.x++;}export function run(a,b){const o={x:a};return +f(o)||o.x;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn unused_side_effect_helper_executes_the_original_rejection_source() {
+    let source = "function unused(x) { x++; } export function run(a,b) { return a; }";
+    common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 4], [0, 9, 0]]);
+}

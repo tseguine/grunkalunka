@@ -53,7 +53,7 @@ struct FunctionFlow {
     parameters: Vec<SymbolId>,
     returns: Vec<NodeId>,
     implicit: bool,
-    bare_return: bool,
+    undefined_return: bool,
 }
 #[derive(Default)]
 pub(crate) struct Fields {
@@ -152,8 +152,8 @@ fn assignment_definition(
     }
 }
 
-pub(super) fn bare_return_bodies(semantic: &Semantic<'_>) -> BTreeSet<NodeId> {
-    semantic
+pub(super) fn undefined_return_bodies(semantic: &Semantic<'_>) -> BTreeSet<NodeId> {
+    let mut bodies: BTreeSet<_> = semantic
         .nodes()
         .iter()
         .filter_map(|node| {
@@ -177,7 +177,16 @@ pub(super) fn bare_return_bodies(semantic: &Semantic<'_>) -> BTreeSet<NodeId> {
                 })
                 .flatten()
         })
-        .collect()
+        .collect();
+    for node in semantic.nodes().iter() {
+        if let AstKind::Function(function) = node.kind()
+            && !function.r#async
+            && block_results::return_statements(semantic, node.id()).is_empty()
+        {
+            bodies.insert(node.id());
+        }
+    }
+    bodies
 }
 
 pub(super) fn has_omitted_arguments(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
@@ -343,7 +352,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
-        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_bare_returns(semantic,entry) && !semantic.nodes().iter().any(|node| {
+        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
@@ -806,7 +815,7 @@ impl Fields {
                             parameters: parameters(&arrow.params),
                             returns,
                             implicit: complete.is_none(),
-                            bare_return: !arrow.r#async
+                            undefined_return: !arrow.r#async
                                 && block_results::return_statements(semantic, id)
                                     .iter()
                                     .any(|statement| statement.argument.is_none()),
@@ -827,18 +836,19 @@ impl Fields {
                                 statement.argument.as_ref().map(GetNodeId::node_id)
                             })
                             .collect::<Vec<_>>();
-                        let bare_return = !function.r#async
-                            && block_results::return_statements(semantic, id)
-                                .iter()
-                                .any(|statement| statement.argument.is_none());
-                        let implicit = returns.is_empty() && !bare_return;
+                        let undefined_return = !function.r#async
+                            && (returns.is_empty()
+                                || block_results::return_statements(semantic, id)
+                                    .iter()
+                                    .any(|statement| statement.argument.is_none()));
+                        let implicit = returns.is_empty() && !undefined_return;
                         functions.insert(
                             Origin::Named(name),
                             FunctionFlow {
                                 parameters: parameters(&function.params),
                                 returns,
                                 implicit,
-                                bare_return,
+                                undefined_return,
                             },
                         );
                         if name == entry {
@@ -1373,7 +1383,7 @@ impl Fields {
                                 for expression in &function.returns {
                                     found.extend(get(expression));
                                 }
-                                if function.bare_return {
+                                if function.undefined_return {
                                     found.insert(Origin::Undefined);
                                 }
                                 if function.implicit {

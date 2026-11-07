@@ -3983,7 +3983,6 @@ fn async_root_completion_keeps_other_profile_and_abrupt_guards() {
         assert!(grunkalunka_compiler::compile_value(&source, false).is_ok());
     }
     for source in [
-        "function helper(x){x++;}export async function run(a,b){return helper(a);}",
         "export async function run(a,b){return;await a;}",
         "export async function run(a,b){break;}",
         "export async function run(a,b){continue;}",

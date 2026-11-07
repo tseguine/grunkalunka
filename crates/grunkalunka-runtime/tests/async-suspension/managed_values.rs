@@ -1394,3 +1394,13 @@ fn synchronous_bare_helper_returns_keep_async_tags_and_reactions() {
         "function f(x){if(x)return null;return;}export async function run(a,b){await b;return +f(a);}".to_owned(),
     ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
 }
+
+#[test]
+fn side_effect_only_helpers_keep_undefined_and_state_across_suspension() {
+    compare_async_sources(&[
+        "function helper(x){x++;}export async function run(a,b){return helper(a);}".to_owned(),
+        "function helper(x){if(x)return;}export async function run(a,b){await b;return helper(a);}".to_owned(),
+        "function helper(o){o.x++;}export async function run(a,b){const o={x:a};const result=helper(o);await b;return result??+o.x;}".to_owned(),
+        "function unused(x){x++;}export async function run(a,b){unused(a);const f=async x=>{await x;return x;};const make=p=>async()=>{await a;return await p;};const get=make(f(b));return await get();}".to_owned(),
+    ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
+}

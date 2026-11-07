@@ -1189,9 +1189,9 @@ pub(crate) fn general_mutable_bindings(
             if function.r#async || !functions.iter().skip(1).any(|f| f.symbol == symbol) {
                 return None;
             }
-            let number = block_results::return_statements(semantic, function.node_id.get())
-                .iter()
-                .all(|statement| {
+            let returns = block_results::return_statements(semantic, function.node_id.get());
+            let number = !returns.is_empty()
+                && returns.iter().all(|statement| {
                     statement.argument.as_ref().is_some_and(|expression| {
                         number_result_shape(
                             expression,

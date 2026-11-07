@@ -25,6 +25,8 @@ mod optional_parameter_tests;
 mod prototype_keys;
 #[cfg(test)]
 mod source_cursor_tests;
+#[cfg(test)]
+mod void_helper_tests;
 
 use lower::{Lowering, NumericBinding, NumericFunction};
 
@@ -571,7 +573,14 @@ fn lower_source_profile_with_identities(
         lowering.initialize_general_parameters(&mut region);
         let mut completion = lowering.sequence(&body.statements, &mut region, 0)?;
         if completion.normal
-            && (lowering.allow_await || (index == 0 && lowering.return_type == ir::Type::General))
+            && (lowering.allow_await
+                || (index == 0 && lowering.return_type == ir::Type::General)
+                || (index != 0
+                    && matches!(
+                        lowering.return_type,
+                        ir::Type::General | ir::Type::ManagedValue
+                    )
+                    && lowering.only_empty_returns(function)))
         {
             lowering.return_undefined(body.as_ref(), &mut region);
             completion = completion.then(ir::Completion::RETURN);
