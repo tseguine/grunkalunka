@@ -589,6 +589,7 @@ impl Lowering<'_, '_> {
     ) -> Result<bool, String> {
         if self.schedule_local_logical(node, depth, mode, regions, work)?
             || self.schedule_local_update(node, depth, mode, regions, values, work)?
+            || self.schedule_dictionary_logical(node, depth, mode, work)?
             || self.schedule_property_logical(node, depth, mode, work)?
             || self.schedule_property_update(node, depth, mode, work)?
             || self.schedule_property_delete(node, depth, mode, work)?

@@ -62,6 +62,15 @@ fallback can grow an array without filling preceding holes. Receiver rebinding
 during RHS effects or suspension does not redirect the saved reference. Runtime
 keys, prototype names, accessors and array-length writes retain their guards.
 
+Null-prototype dictionaries also admit `&&=`, `||=` and `??=` through a
+source-proven runtime String key. The receiver finishes before key evaluation,
+the saved key is read before testing the old value, and the RHS runs only when
+selected. Rebinding the receiver or key during callbacks or suspension cannot
+redirect the store. Failed key evaluation or a rejected selected RHS performs no
+write. Dynamic logical writes conservatively invalidate property-kind proofs
+through aliases, just like other dynamic writes. General key coercion, ordinary
+object prototype lookup and runtime array keys remain separate work.
+
 Mutable local cells populated by destructuring and iteration use the same proven
 Number update path. Prefix/postfix updates and arithmetic/bitwise compound
 assignments load and validate the old boxed Number before evaluating the right

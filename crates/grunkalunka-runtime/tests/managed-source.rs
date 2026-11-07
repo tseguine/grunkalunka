@@ -5,6 +5,24 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn runtime_dictionary_logical_writes_save_keys_receivers_and_values() {
+    for body in [
+        "const d=Object.create(null);const key='x';d[key]??=a;return a;",
+        "const d=Object.create(null);const k='x';return (d[k]??=a)===a?1:0;",
+        "const d=Object.create(null);const k='x';d[k]||='ok';return d[k]==='ok'?1:0;",
+        "const d=Object.create(null);const k='x';d[k]=false;let n=0;const value=d[k]&&=(n++,'new');return value===false&&n===0?1:0;",
+        "let d=Object.create(null);const old=d;let k='x';const value=d[(d=Object.create(null),k)]??=(k='y','new');return old.x===value&&old.y===undefined&&d.x===undefined?1:0;",
+        "const d=Object.create(null);let n=0;const key=()=>{n++;return 'x';};d.x='old';const value=d[key()]||=(n+=10,'new');d.x='later';return value==='old'&&n===1?1:0;",
+        "const d=Object.create(null);const k='__proto__';const other={n:a};const value=d[k]??=other;return d[k]===other&&value===other?1:0;",
+        "const d=Object.create(null);const k='x';if(d[k]??=a)return b;return a;",
+        "const d=Object.create(null);const k='x';d.x=null;const value=d[(d.x='old',k)]??='new';return value==='old'&&d.x==='old'?1:0;",
+        "const d=Object.create(null);const k='x';d.x=true;const value=d[k]&&='new';return value==='new'&&d.x===value?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn mixed_property_logical_assignments_keep_values_and_saved_receivers() {
     for body in [
         "const o={};return o.n||=b;",
@@ -467,7 +485,6 @@ fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
         "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
         "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",
         "const d=Object.create(null);const key='x';d[key]+=a;return a;",
-        "const d=Object.create(null);const key='x';d[key]??=a;return a;",
         "const d=Object.create(null);const key='x';d[key]++;return a;",
         "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
         "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
