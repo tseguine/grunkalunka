@@ -119,7 +119,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 127;
+export const corpusVersion = 128;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [

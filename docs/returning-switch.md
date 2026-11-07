@@ -4,9 +4,10 @@ The compiler admits `switch` when every non-final arm returns or throws
 on every structural path. The final arm may complete normally and resume the
 enclosing suffix, including through an empty body or a conditional early return.
 Discriminants and case expressions require positive
-source proofs for the four represented scalar primitive kinds or a known String.
+source proofs for the four represented scalar primitive kinds, a known String,
+or references (objects, arrays and known functions).
 This is a first control-flow slice; fallthrough between arms, switch-local `break`,
-arms that continue an enclosing loop and broader reference
+arms that continue an enclosing loop and unknown or mixed reference/primitive
 discriminants remain guarded. Type annotations provide no source-kind proof.
 
 The discriminant evaluates once. Case expressions evaluate in source order until
@@ -14,7 +15,11 @@ strict equality selects the first matching arm. Default may appear anywhere in
 the source, but its body runs only after every case expression misses. A later
 case test does not run after a match. Numeric NaN never matches; signed zeros
 match; primitive kinds stay distinct; Strings compare exact UTF-16 contents.
-Saved discriminants survive case-test mutation, throws, await and actual GC.
+References compare allocation identity, including fresh closures from the same
+body and non-suspending async closures used as values. Switch observations
+materialize function identity just like strict equality expressions; they do not
+call the function. Saved discriminants survive case-test mutation, throws, await
+and actual GC.
 
 A final default may likewise complete normally. A non-final default still must
 return or throw, because otherwise it would fall into the following arm.

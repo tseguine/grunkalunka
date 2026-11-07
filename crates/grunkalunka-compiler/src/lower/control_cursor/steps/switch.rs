@@ -20,8 +20,10 @@ struct Arm {
 }
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
-    fn switch_scalar(&self, expression: &Expression<'_>) -> bool {
-        self.stored.primitive(expression.node_id()) || self.stored.string(expression.node_id())
+    fn switch_operand(&self, expression: &Expression<'_>) -> bool {
+        self.stored.primitive(expression.node_id())
+            || self.stored.string(expression.node_id())
+            || self.stored.reference(expression.node_id())
     }
 
     pub(super) fn begin_switch<'n>(
@@ -31,10 +33,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         depth: usize,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if !self.switch_scalar(&source.discriminant) {
+        if !self.switch_operand(&source.discriminant) {
             return Err(unsupported(
                 source,
-                "switch discriminant requires proven scalar primitives or Strings",
+                "switch discriminant requires proven primitives, Strings or references",
             ));
         }
         cursor
@@ -81,10 +83,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         }
         if let Some(case) = state.source.cases.get(state.index) {
             let test = case.test.as_ref().expect("default skipped");
-            if !self.switch_scalar(test) {
+            if !self.switch_operand(test) {
                 return Err(unsupported(
                     test,
-                    "switch case requires proven scalar primitives or Strings",
+                    "switch case requires proven primitives, Strings or references",
                 ));
             }
             let output = self.region(case);
