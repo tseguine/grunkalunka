@@ -164,34 +164,17 @@ pub(super) fn has_omitted_arguments(semantic: &Semantic<'_>, entry: SymbolId) ->
                 .then_some((name, function.params.items.len()))
         })
         .collect();
-    // This is only a conservative fast-path gate. The flow solver below
-    // resolves actual arrow targets (including aliases and factory results).
-    let arrow_arity = semantic
-        .nodes()
-        .iter()
-        .filter_map(|node| {
-            if let AstKind::ArrowFunctionExpression(arrow) = node.kind() {
-                (!arrow.r#async).then_some(arrow.params.items.len())
-            } else {
-                None
-            }
-        })
-        .max()
-        .unwrap_or(0);
     semantic.nodes().iter().any(|node| {
         let AstKind::CallExpression(call) = node.kind() else {
             return false;
         };
-        if invocation::arguments(call).len() < arrow_arity {
-            return true;
-        }
         let Expression::Identifier(identifier) = invocation::callee(call) else {
             return false;
         };
         symbol(identifier, semantic)
             .and_then(|name| arities.get(&name))
             .is_some_and(|count| invocation::arguments(call).len() < *count)
-    })
+    }) || managed_calls::has_omitted_arrow_arguments(semantic)
 }
 
 impl Fields {
@@ -1559,6 +1542,24 @@ impl Fields {
                                 origins.len() == 1 && origins.contains(&Origin::Boolean)
                             })
                         });
+                    // Logical writes can replace a function without applying
+                    // numeric coercion. Keep every constructor alternative.
+                    let preserves_functions = bindings.get(&symbol).is_some_and(|origins| {
+                        !origins.is_empty()
+                            && origins
+                                .iter()
+                                .all(|origin| matches!(origin, Origin::Arrow(_) | Origin::Named(_)))
+                    }) && numeric_targets
+                        .iter()
+                        .filter(|(_, _, target)| *target == symbol)
+                        .all(|(_, result, _)| {
+                            values.get(result).is_some_and(|origins| {
+                                !origins.is_empty()
+                                    && origins.iter().all(|origin| {
+                                        matches!(origin, Origin::Arrow(_) | Origin::Named(_))
+                                    })
+                            })
+                        });
                     if binding_is_number && targets_are_number {
                         number_updates.extend(
                             numeric_targets
@@ -1566,7 +1567,7 @@ impl Fields {
                                 .filter(|(_, _, target_symbol)| *target_symbol == symbol)
                                 .map(|(target, _, _)| *target),
                         );
-                    } else if !preserves_string && !preserves_boolean {
+                    } else if !preserves_string && !preserves_boolean && !preserves_functions {
                         changed |= extend(&mut bindings, symbol, BTreeSet::from([Origin::Other]));
                     }
                 }

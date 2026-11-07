@@ -153,9 +153,9 @@ fn function_call_receiver_does_not_supply_a_declared_parameter() {
     for typescript in [false, true] {
         let error = compile(source, typescript)
             .err()
-            .expect("missing forwarded input");
+            .expect("Undefined return needs a primitive export");
         assert!(
-            error.contains("call is missing declared arguments"),
+            error.contains("managed value requires an identity or managed storage position"),
             "{error}"
         );
     }

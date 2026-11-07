@@ -297,8 +297,6 @@ fn updates_keep_binding_source_kind_and_return_guards() {
         "clock++; return a;",
         "let value={}; value++; return a;",
         "let value={}; --value; return a;",
-        "const o={x:a}; let value=o.x; value++; return a;",
-        "const o={x:a}; let value=o.x; --value; return a;",
         "let value=1n; value++; return a;",
         "let value=\"0\"; value++; return a;",
         "let value=null; value.x++; return a;",
@@ -306,7 +304,9 @@ fn updates_keep_binding_source_kind_and_return_guards() {
         "let value=null; if(false) Math.random(); value++; return a;",
     ] {
         let source = format!("export function run(a,b) {{{body}}}");
-        let error = compile(&source, false).err().unwrap();
+        let error = compile(&source, false)
+            .err()
+            .unwrap_or_else(|| panic!("newly admitted: {source}"));
         assert!(error.contains("unsupported"), "{source}: {error}");
         assert!(!error.contains("internal IR"));
     }
@@ -350,6 +350,30 @@ fn primitive_updates_retain_depth_local_and_statement_budgets() {
             result.unwrap();
         } else {
             assert!(result.err().unwrap().contains("at most 256 statements"));
+        }
+    }
+}
+
+#[test]
+fn boxed_number_update_executes_the_unchanged_former_guard() {
+    for source in [
+        "export function run(a,b) {const o={x:a}; let value=o.x; value++; return a;}",
+        "export function run(a,b) {const o={x:a}; let value=o.x; --value; return a;}",
+    ] {
+        for typed in [false, true] {
+            let artifact = compile(source, typed).unwrap();
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+            let script = format!(
+                "const assert=require('node:assert/strict');const run=Function({:?}.replace('export function','function')+';return run;')();assert.equal(run(4,2),4);const wasm=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from({:?}))).exports.run;assert.equal(wasm(4,2),4);console.log('PASS original boxed update');",
+                source, artifact.wasm
+            );
+            node(&script, "PASS original boxed update");
         }
     }
 }

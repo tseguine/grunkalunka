@@ -114,7 +114,7 @@ fn logical_matrix_preserves_selected_kind_and_payload() {
                         } else {
                             compile(&source, ts)
                         }
-                        .unwrap();
+                        .unwrap_or_else(|error| panic!("{source}: {error}"));
                         let expected = if value {
                             encode(selected.1)
                         } else {
@@ -308,7 +308,6 @@ fn general_logical_entry_calls_and_depth_guards_remain_bounded() {
     }
     for body in [
         "return null??Math.random();",
-        "return false??'x';",
         "return undefined??({});",
         "const value=null;return true??(value=1);",
         "return false&&Math.random();",
@@ -319,7 +318,7 @@ fn general_logical_entry_calls_and_depth_guards_remain_bounded() {
     ] {
         let error = compile_value(&format!("export function run(a,b) {{{body}}}"), false)
             .err()
-            .unwrap();
+            .unwrap_or_else(|| panic!("newly admitted: {body}"));
         assert!(error.contains("unsupported"), "{error}");
         assert!(!error.contains("internal IR"), "{error}");
     }
@@ -347,5 +346,25 @@ fn former_value_logical_guards_keep_exact_sources_and_fixed_results() {
             );
             node(&script, "PASS original logical guard");
         }
+    }
+}
+
+#[test]
+fn unselected_string_fallback_keeps_the_exact_former_primitive_guard() {
+    let source = "export function run(a,b) {return false??'x';}";
+    for typed in [false, true] {
+        let artifact = compile_value(source, typed).unwrap();
+        assert!(matches!(
+            ValueInstance::new(&artifact.wasm)
+                .unwrap()
+                .run(4.0, 2.0)
+                .unwrap(),
+            Value::Boolean(false)
+        ));
+        let script = format!(
+            "const assert=require('node:assert/strict');const run=Function({:?}.replace('export function','function')+';return run;')();assert.equal(run(4,2),false);const wasm=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from({:?}))).exports.run;assert.deepEqual(wasm(4,2),[2,0]);console.log('PASS original false fallback');",
+            source, artifact.wasm
+        );
+        node(&script, "PASS original false fallback");
     }
 }

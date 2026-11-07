@@ -3188,6 +3188,17 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     if self.schedule_managed(node, depth, mode, regions, values, work)? {
                         continue;
                     }
+                    // Prove the selected tag, then project the evaluated General
+                    // value. The proof does not change its operands' storage ABI.
+                    if matches!(mode, Mode::Number)
+                        && (self.general_logical_shape(node, depth)
+                            || self.general_binding_shape(node, depth))
+                        && self.numeric_result_shape(node, depth)
+                    {
+                        work.push(Work::NumberFromGeneral(node));
+                        work.push(Work::Eval(node, depth, Mode::General));
+                        continue;
+                    }
                     if matches!(mode, Mode::DiscardLogical) {
                         self.schedule_discarded_logical(node, depth, work);
                         continue;

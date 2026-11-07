@@ -78,3 +78,20 @@ fn omitted_runtime_formals_keep_complete_signature_and_parameter_limits() {
         .join()
         .expect("runtime omitted arguments must keep bounded native stack");
 }
+
+// Exact master-CI regressions: unrelated zero-argument calls must not activate
+// omitted-input representation inference for other constructors in the module.
+#[test]
+fn zero_argument_calls_preserve_async_constructor_and_promise_signatures() {
+    for source in [
+        "export async function run(a,b){const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;const h=(a?f:g)(await b);await a;return h();}",
+        "export async function run(a,b){const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;let make=a?f:g;const h=make(await b);await a;return h();}",
+        "export async function run(a,b){const f=async x=>{await x;return x;};const make=p=>async()=>{await a;return await p;};const get=make(f(b));return await get();}",
+        "export async function run(a,b){const f=async()=>{await a;return b;};let p=f();const g=async()=>{await a;return p;};p=g();try{await p;}catch(e){const cmp=(x,y)=>x<=y;cmp(p,e);return cmp(e,p);}}",
+    ] {
+        for typed in [false, true] {
+            let result = crate::compile_async(source, typed);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+}

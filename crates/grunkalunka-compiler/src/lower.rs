@@ -481,6 +481,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if depth <= 128 && self.stored.number(expression.node_id()) {
             return true;
         }
+        self.numeric_storage_shape(expression, depth)
+    }
+
+    // A Number result proof does not prove that every operand is stored as a
+    // Number. Scalar specialization must also respect General input slots.
+    fn numeric_storage_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
         if self.managed_length_receiver(expression, depth).is_some() {
             return true;
         }
@@ -648,8 +654,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             } else if let Expression::ParenthesizedExpression(wrapper) = expression {
                 expression = &wrapper.expression;
             } else {
-                return matches!(expression, Expression::LogicalExpression(_))
-                    && !self.numeric_result_shape(expression, depth);
+                return matches!(expression, Expression::LogicalExpression(logical)
+                    if !self.numeric_storage_shape(expression, depth)
+                        || self.stored.primitive(logical.left.node_id()) && !self.stored.number(logical.left.node_id())
+                        || self.stored.primitive(logical.right.node_id()) && !self.stored.number(logical.right.node_id()));
             }
             depth += 1;
         }

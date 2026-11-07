@@ -162,7 +162,6 @@ fn unused_callback_peers_keep_complete_signature_guards() {
         "const f=a?(fn,x)=>fn(x):(fn,x)=>x;f(y=>y,b);return f(y=>()=>y,b);",
         "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(a?y=>y:y=>()=>y,b);",
         "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(...a);",
-        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>y);",
     ] {
         for ts in [false, true] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -242,7 +241,6 @@ fn runtime_general_frames_retain_width_and_input_guards() {
         format!(
             "export function run(a,b){{let f=({parameters},extra)=>+extra;return f({arguments},true);}}"
         ),
-        "export function run(a,b){let f=x=>+x;f(null);return f();}".into(),
         "export function run(a,b){let f=(x=null)=>+x;return f(null);}".into(),
         "export function run(a,b){let f=x=>+x;return f('text');}".into(),
         "export function run(a,b){let f=x=>+x;return f({});}".into(),
@@ -1947,7 +1945,6 @@ fn runtime_surplus_arguments_keep_width_and_missing_input_guards() {
     compare_functions(&[&format!("let f=()=>a;return f({arguments});")]);
     for body in [
         format!("let f=()=>a;return f({arguments},a);"),
-        "let f=x=>x+a;return f();".into(),
         "let f=x=>x+a;return f(a,...b);".into(),
         "let f=x=>x+a;return f?.(a,b);".into(),
         "const invoke=fn=>fn(a);return invoke((x,y)=>x+y);".into(),
@@ -1994,7 +1991,6 @@ fn known_local_surplus_arguments_keep_width_and_source_guards() {
     compare_function_programs(&[&format!("const f=()=>a;return f({arguments});")], false);
     for body in [
         format!("const f=()=>a;return f({arguments},a);"),
-        "const f=x=>x+a;return f();".into(),
         "const f=x=>x+a;return f(a,...b);".into(),
         "const f=x=>x+a;return f?.(a,b);".into(),
         "const f=()=>a;return f(()=>missing);".into(),
@@ -2984,5 +2980,24 @@ fn promise_returning_callbacks_keep_synchronous_profile_guards() {
             assert!(compile(&source, typescript).is_err(), "{source}");
             assert!(compile_value(&source, typescript).is_err(), "{source}");
         }
+    }
+}
+
+#[test]
+fn omitted_numeric_runtime_and_local_inputs_execute_exact_former_guards() {
+    compare_function_programs(
+        &[
+            "let f=x=>+x;f(null);return f();",
+            "let f=x=>x+a;return f();",
+            "const f=x=>x+a;return f();",
+        ],
+        false,
+    );
+    for typed in [false, true] {
+        let source = "export function run(a,b){const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>y);}";
+        assert!(
+            compile(source, typed).is_err(),
+            "primitive result is not a Number"
+        );
     }
 }

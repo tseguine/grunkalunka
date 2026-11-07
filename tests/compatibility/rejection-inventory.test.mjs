@@ -170,8 +170,8 @@ test('synchronous finally preserves both original rejection sources and the retu
   }
 });
 
-test('binary coalescing promotes three exact numeric sources and the original primitive rejection', () => {
-  assert.equal(primitiveNullishPromotions.length, 3);
+test('binary coalescing preserves four exact numeric promotion sources and primitive origins', () => {
+  assert.equal(primitiveNullishPromotions.length, 4);
   for (const [id, js, hash] of primitiveNullishPromotions) {
     const sources = programSources(primitiveNullish.find(row => row[0] === id));
     assert.equal(sources.sourceJS, js);
@@ -184,9 +184,11 @@ test('binary coalescing promotes three exact numeric sources and the original pr
   assert.equal(former.sourceJS, 'export function run(a,b) {return null??b;}\n');
   assert.equal(former.sourceTS, 'export function run(a:number,b:number):unknown {return null??b;}\n');
   assert.ok(!valueRejected.some(row => row.id === former.id));
-  const numeric = rejected.find(row => row[0] === 'gap-nullish');
+  const numeric = primitiveNullish.find(row => row[0] === 'gap-nullish');
+  assert.ok(!rejected.some(row=>row[0]==='gap-nullish'));
+  assert.ok(!catalog.records.some(row=>row.id==='gap-nullish'));
   const value = valuePrograms.find(row => row.id === 'nullish-origin');
-  assert.equal(value.sourceJS, numeric[1]);
+  assert.equal(value.sourceJS, programSources(numeric).sourceJS);
   assert.equal(value.numericOrigin, numeric[0]);
   assert.equal(createHash('sha256').update(value.sourceJS).digest('hex'), 'cc04ac11c14b9961473ec1c628ac3625e0098e727b8a9c6f4cb0f2df862ed31c');
   const run = Function('"use strict";' + value.sourceJS.replace('export function', 'function') + ';return run;')();
@@ -316,7 +318,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 801);
+  assert.equal(inventory.records.size, 800);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
