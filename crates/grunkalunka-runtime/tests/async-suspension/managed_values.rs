@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn boxed_number_loose_equality_keeps_snapshots_through_rhs_awaits() {
+    compare_promises(
+        &[
+            "const o={n:a};const value=o.n==(await b,o.n=b,a);return value==(a==a)?1:0;",
+            "const xs=[a,b];return xs[0]!=(await a,xs[0]=b,b)?1:0;",
+            "const o={n:await a};return o.n==(await b,a)?1:0;",
+            "const o={n:a};try{const value=o.n==(await Promise.reject(b),a);return +value;}catch(e){return e;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn reference_loose_equality_keeps_identity_across_rhs_suspension() {
     compare_promises(
         &[

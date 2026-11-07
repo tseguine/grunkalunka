@@ -2,6 +2,31 @@
 mod common;
 
 #[test]
+fn boxed_number_loose_equality_keeps_number_semantics_and_snapshots() {
+    for body in [
+        "const o={n:a};return o.n==b?1:0;",
+        "const xs=[a,b];return xs[0]!=xs[1]?1:0;",
+        "const o={n:NaN};return o.n!=o.n&&!(o.n==o.n)?1:0;",
+        "const o={n:-0};return o.n==0&&0==o.n&&!(o.n!=0)?1:0;",
+        "const o={n:Infinity};const xs=[-Infinity];return o.n==Infinity&&xs[0]!=o.n?1:0;",
+        "const o={n:a};const value=o.n==(o.n=b,a);return value==(a==a)?1:0;",
+        "let [x]=[a];const same=x==(x=b,a);return same==(a==a)?1:0;",
+        "const same=(x,y)=>x.n==y.n;const first={n:a};const second={n:b};return same(first,second)?1:0;",
+        "let n=0;const o={n:a};const value=(n=1,o.n)==(n=n*10+2,a);return n===12&&value==(a==a)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={n:a};return o.n!=b?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:string={n:a};return (o as boolean).n!=(b as string)?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn reference_loose_equality_preserves_identity_and_saved_operands() {
     for body in [
         "const make=()=>({});const first=make();const second=make();return first!=second&&first==first?1:0;",
