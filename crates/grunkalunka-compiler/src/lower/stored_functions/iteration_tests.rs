@@ -102,7 +102,12 @@ fn observe_typed_source(source: &str, typescript: bool) -> Observation {
         other: fields
             .values
             .get(&observed)
-            .is_some_and(|origins| origins.contains(&Origin::Other)),
+            // These reference-kind observations historically group Numbers
+            // with other scalar alternatives. Preserve that observation;
+            // number_projection_tests checks the stricter Number-only proof.
+            .is_some_and(|origins| {
+                origins.contains(&Origin::Other) || origins.contains(&Origin::Number)
+            }),
         undefined: fields
             .values
             .get(&observed)

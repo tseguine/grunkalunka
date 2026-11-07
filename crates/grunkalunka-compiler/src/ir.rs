@@ -789,6 +789,11 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    // Source-proven Number projection; this does not perform ToNumber.
+    ManagedToNumber {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedEqual {
         result: ValueId,
         left: ValueId,
@@ -1821,6 +1826,10 @@ impl Verifier<'_> {
             Op::ManagedPrimitive { result, input } => {
                 self.value(*input, Type::General, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedToNumber { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
             }
             Op::ManagedEqual {
                 result,

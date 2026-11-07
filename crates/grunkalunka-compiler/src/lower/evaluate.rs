@@ -12,6 +12,8 @@ mod destructure;
 mod dictionary;
 mod has_own;
 mod managed;
+#[cfg(test)]
+mod number_projection_tests;
 pub(super) use managed::member_key as managed_member_key;
 mod own_keys;
 #[cfg(test)]

@@ -32,8 +32,6 @@ add('typeof-unresolved', 'operators', 'return typeof __grunkalunka_typeof_missin
 
 for (const [id, body, expected, diagnostic] of [
   ['string-coercion', 'return a + "2" === "42" ? 1 : 0;', 1, expression],
-  ['object-property', 'return ({x:a}).x + b;', 6, expression],
-  ['array-value', 'const items = [a,b]; return items[1];', 2, expression],
   ['bigint', 'return 1n === 1n ? a : b;', 4, expression],
 ]) add(id, 'values', body, expected, diagnostic);
 
@@ -53,14 +51,6 @@ add('var', 'bindings', 'var x=a; return x+b;', 6, declaration);
 add('var-hoisting', 'bindings', 'const before = x === undefined ? 1 : 0; var x=a; return before;', 1, reference,
   { prerequisites: ['undefined values', 'var bindings'] });
 add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'General bindings require a primitive value position');
-// The flat object binding is admitted; its selected field remains boxed, so
-// this exact reference still requires a Number consumer for managed values.
-add('local-destructure', 'bindings', 'const {x}={x:a}; return x+b;', 6,
-  `${expression}: managed value requires an identity or managed storage position`,
-  { prerequisites: ['numeric consumption of managed field values'] });
-add('destructuring-write', 'bindings', 'let x=a; [x]=[b]; return x;', 2,
-  `${expression}: managed value requires an identity or managed storage position`,
-  { prerequisites: ['numeric consumption of managed field values'] });
 add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators are not admitted',
   { source: 'export function run(a=4,b=2) { return a+b; }', args: [] });
 add('rest', 'bindings', '', 6, ordinaryParameters,
