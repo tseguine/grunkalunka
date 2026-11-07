@@ -40,6 +40,13 @@ read and write operations share the existing managed storage and numeric IR.
 Runtime keys, array length, missing or mixed-kind fields, coercion from other
 stored kinds, accessors and logical property assignments remain separate work.
 
+Mutable local cells populated by destructuring and iteration use the same proven
+Number update path. Prefix/postfix updates and arithmetic/bitwise compound
+assignments load and validate the old boxed Number before evaluating the right
+side, then store a newly boxed Number only after successful completion. Captures
+observe the updated cell. Missing, String or mixed-origin local values remain
+guarded rather than turning the private projection into general coercion.
+
 **Current integration frontier (2026-11-01):** known source synchronous
 function values, module declarations, typed closures/callbacks and captures
 now work with traced references; later sections document these separately.

@@ -37,6 +37,33 @@ fn number_property_updates_preserve_old_new_values_and_receiver_snapshots() {
 }
 
 #[test]
+fn boxed_number_local_updates_preserve_old_new_values_and_cells() {
+    for body in [
+        "let [x]=[a];return x++;",
+        "let {x}={x:a};return ++x;",
+        "let [x]=[a];return x--;",
+        "let {x}={x:a};return --x;",
+        "let [x]=[a];const old=x++;return old*100+x;",
+        "let {x}={x:a};const read=()=>x;const old=x++;return read()===old+1?1:0;",
+        "let [x]=[a];const value=x+=(x=b,b);return value===x?value:NaN;",
+        "let {x}={x:a};const add=()=>x+=b;add();return x;",
+    ] {
+        compare(body);
+    }
+    for operator in [
+        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ">>>=",
+    ] {
+        compare(&format!(
+            "let {{x}}={{x:a}};const value=x{operator}b;return x===value?value:NaN;"
+        ));
+    }
+    compare_typed(
+        "let [x]=[a];return x+=b;",
+        "let [x]:any=[a];return (x as number)+=(b as number);",
+    );
+}
+
+#[test]
 fn typeof_unresolvable_names_preserves_scope_and_expression_effects() {
     for body in [
         "return typeof missingFeature==='undefined'?1:0;",
