@@ -1,4 +1,5 @@
 import { managedTypeof, promotedTypeof } from './managed-typeof.mjs';
+import { deletePrograms, promotedDeleteGap } from './delete.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
 import { managedObjects, promotedPropertyInGap } from './managed-objects.mjs';
@@ -290,7 +291,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 814);
+  assert.equal(inventory.records.size, 813);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -859,4 +860,14 @@ test('typeof promotes its exact original while unresolved names keep the parent 
   assert.ok(rejected.some(row=>row[0]==='gap-typeof-unresolved'));
   assert.equal(catalog.records.find(row=>row.id==='gap-typeof-unresolved').group,'typeof');
   assert.ok(catalog.groups.find(group=>group.id==='typeof').observableDone.some(text=>text.includes('TDZ')));
+});
+
+
+test('delete promotes the unchanged numeric-receiver gap with its original oracle', () => {
+  const sources = programSources(deletePrograms.find(row => row[0] === 'gap-delete'));
+  assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'), promotedDeleteGap.sourceSha256);
+  assert.equal(sources.sourceJS, sources.sourceTS);
+  assert.equal(sources.oracleSource, sources.sourceJS);
+  assert.ok(!rejected.some(row => row[0] === 'gap-delete'));
+  assert.ok(!catalog.records.some(row => row.id === 'gap-delete'));
 });

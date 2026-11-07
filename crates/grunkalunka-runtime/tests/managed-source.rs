@@ -5,6 +5,39 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn primitive_property_deletion_preserves_receiver_and_key_effects() {
+    for body in [
+        "return delete a.x?1:0;",
+        "return delete (a<b).length?1:0;",
+        "let n=0;const number=()=>{n=n*10+1;return a;};const key=()=>{n=n*10+2;return 'x';};return delete number()[key()]?n:-1;",
+        "let n=0;return delete (n++,a)[(n++,b)]?n:-1;",
+        "return delete a[null]&&delete a[undefined]&&delete a[false]?1:0;",
+        "const flag=a<b;return delete flag.x?1:0;",
+    ] {
+        compare(body);
+    }
+    let original = "export function run(a,b) { return delete a.x ? 1 : 0; }";
+    common::compare_sources(original, original);
+}
+
+#[test]
+fn nonreference_delete_evaluates_values_without_deleting_selected_properties() {
+    for body in [
+        "const o={x:a};return delete (0,o.x)&&o.x===a?1:0;",
+        "const o={x:a,y:b};return delete (a?o.x:o.y)&&Object.hasOwn(o,'x')&&Object.hasOwn(o,'y')?1:0;",
+        "let n=0;const make=()=>{n++;return {x:a};};return delete make()?n:-1;",
+        "return delete (a=b)?a:0;",
+        "const o={x:a};return delete (o.x=b)&&o.x===b?1:0;",
+        "let n=0;return delete [n++,n++]?n:-1;",
+        "let n=0;return delete {x:n++,y:n++}?n:-1;",
+        "let n=0;return delete void(n++)?n:-1;",
+        "const o={x:a};return delete delete o.x&&o.x===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn runtime_delete_keys_keep_receiver_snapshots_and_source_order() {
     for body in [
         "const d=Object.create(null);const key='x';delete d[key];return a;",

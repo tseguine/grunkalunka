@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn primitive_and_value_delete_keep_await_order_and_rejections() {
+    compare_promises(
+        &[
+            "let n=0;const removed=delete (n++,a)[(await b,n++,'x')];await a;return removed?n:-1;",
+            "const o={x:a};const removed=delete (await b,o.x);await a;return removed&&o.x===a?1:0;",
+            "const o={x:a};try{delete (await Promise.reject(b),o.x);}catch(e){await a;return o.x===a&&e===b?1:0;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn runtime_delete_keys_keep_saved_objects_across_waits_and_rejections() {
     compare_promises(
         &[
