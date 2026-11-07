@@ -365,6 +365,13 @@ Private synchronous named helpers now accept primitive literal parameter default
 Omitted or Undefined inputs select the fallback; null, false, zero and NaN remain
 supplied values. Parameters retain per-call mutable cells and closure captures;
 `function.length` stops at the first default. This bounded language feature keeps
-entry, async, arrow, expression, rest and destructured parameter guards. See
+entry, async, expression, rest and destructured parameter guards. See
 [the compiler contract](compiler.md#primitive-literal-defaults-on-private-synchronous-helpers)
 and the compiled-values / managed-logical differential suites.
+
+
+Synchronous local arrows share literal defaults across inline calls, captures,
+aliases, typed callback calls with supplied inputs and emitted own-field closures.
+Defaulted creator parameters can be captured by returned functions. Public/async
+entry, effectful/default-scope, complete callback signature and factory-result
+limits remain explicit; reflection counts the position before the first default.

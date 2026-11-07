@@ -17,6 +17,15 @@ export const localArrowNumericOrigins = [
 export const localArrows = localArrowNumericOrigins.map(([id,,source])=>
   [id,'','',undefined,undefined,{sourceJS:source,sourceTS:source}]);
 const rows = [
+  ['literal-default-omitted','const f=(x=3)=>x;return f();'],
+  ['literal-default-undefined','const f=(x=3)=>x;return f(undefined);'],
+  ['literal-default-supplied','const f=(x=3)=>x;return f(a);'],
+  ['literal-default-negative-zero','const f=(x=-0)=>x;return f();'],
+  ['literal-default-boolean','const f=(x=false)=>x;return +f();'],
+  ['literal-default-null','const f=(x=null)=>x;return +f();'],
+  ['literal-default-string','const f=(x="abc")=>x.length;return f();'],
+  ['literal-default-reflection','const f=(x=3)=>x;return f.length;'],
+  ['literal-default-capture','const make=(x=1)=>y=>x+y;return make(a)(b);'],
   ['shared-write','let x=a; const read=()=>x; const add=()=>x+=b; add(); return read();'],
   ['lexical-shadow','let x=a; const read=()=>x; {let x=b; return read()+x;}'],
   ['alias','const read=()=>a; const alias=read; a=b; return alias();'],

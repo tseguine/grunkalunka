@@ -19,8 +19,12 @@ fn compare_helpers(sources: &[&str]) {
                 )
                 .replace("function helper(x)", "function helper<T>(x:number):unknown");
             assert_eq!(
-                compile_value(source, false).unwrap().wasm,
-                compile_value(&typed, true).unwrap().wasm,
+                compile_value(source, false)
+                    .unwrap_or_else(|error| panic!("{source}: {error}"))
+                    .wasm,
+                compile_value(&typed, true)
+                    .unwrap_or_else(|error| panic!("{typed}: {error}"))
+                    .wasm,
                 "{source}"
             );
             ((*source).to_owned(), typed)
@@ -247,5 +251,43 @@ fn default_parameter_reflection_uses_first_default_position() {
         "function f(x=3){return x;}export function run(a,b){const g=f;return g.length;}",
         "function f(x=3){return x;}function g(x=4){return x;}export function run(a,b){const h=a?f:g;return h.length;}",
         "function f(x=3){return x;}function g(x){return x;}export function run(a,b){return g.length;}",
+    ]);
+}
+
+#[test]
+fn synchronous_arrow_defaults_preserve_selections_captures_and_callable_abi() {
+    compare_helpers(&[
+        "export function run(a,b){return ((x=3)=>x)();}",
+        "export function run(a,b){const f=(x=3)=>x;return f();}",
+        "export function run(a,b){const f=(x=3)=>x;return f(a);}",
+        "export function run(a,b){const f=(x=3)=>x;return f(undefined);}",
+        "export function run(a,b){const f=(x=3)=>x;return f(null);}",
+        "export function run(a,b){const f=(x=3)=>x;return f(false);}",
+        "export function run(a,b){const f=(x=-0)=>x;return f();}",
+        "export function run(a,b){const f=(x=true)=>x;return f();}",
+        "export function run(a,b){const f=(x=null)=>x;return f();}",
+        "export function run(a,b){const f=(x=undefined)=>x;return f();}",
+        "export function run(a,b){const f=(x='abc')=>x.length;return f();}",
+        "export function run(a,b){const f=(x='abc')=>x.length;return f('hello');}",
+        r"export function run(a,b){const f=(x='\u{1f600}\ud800')=>x.charCodeAt(2)+x.length;return f();}",
+        "export function run(a,b){const f=(x=3,y=4)=>x*10+y;return f();}",
+        "export function run(a,b){const f=(x=3,y=4)=>x*10+y;return f(undefined,a);}",
+        "export function run(a,b){const f=(x=3)=>{x++;return x;};return f();}",
+        "export function run(a,b){const f=(x=3)=>()=>x;const g=f();return g();}",
+        "export function run(a,b){const f=(x=3)=>y=>x+y;return f()(a);}",
+        "export function run(a,b){const f=(x=3)=>x;return f(a,a=b)+a;}",
+        "export function run(a,b){const f=(x=3)=>x;return f(undefined,a=b)+a;}",
+        "export function run(a,b){let x=a;const f=(y=3)=>y+x;x=b;return f();}",
+        "export function run(a,b){const f=(x=3)=>x;const g=f;return g();}",
+        "export function run(a,b){const f=a?((x=3)=>x):((x=4)=>x);return f();}",
+        "export function run(a,b){let f=(x=3)=>x;const result=f(undefined,f=(x=4)=>x);return result+f();}",
+        "export function run(a,b){const o={f:(x=3)=>x};return o.f();}",
+        "export function run(a,b){const f=(x=3)=>x;const invoke=g=>g(a);return invoke(f);}",
+        "export function run(a,b){const f=(x=3)=>x;const invoke=g=>g(undefined);return invoke(f);}",
+        "export function run(a,b){const f=(x=3)=>x;const invoke=g=>g(null);return invoke(f);}",
+        "export function run(a,b){const f=(x=3)=>x;const invoke=g=>g(false);return invoke(f);}",
+        "export function run(a,b){const f=(x=3)=>x;return f.length;}",
+        "export function run(a,b){const f=(x,y=3,z)=>y;return f.length;}",
+        "export function run(a,b){const f=(x=3)=>x;const g=f;return g.length;}",
     ]);
 }
