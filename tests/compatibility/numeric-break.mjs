@@ -31,7 +31,7 @@ const expression = 'expression is outside the numeric experiment';
 const negatives = [
   ['break-no-loop', 'break; return a;'],
   ['break-label', 'outer: while(1) { break outer; } return a;', 'statement is outside'],
-  ['break-switch-remains', 'switch(a) { default: break; } return b;', 'statement is outside'],
+  ['break-switch-remains', 'switch(a) { default: break; } return b;', 'only unlabelled break inside a loop is admitted'],
   ['break-do-needs-return', 'do { break; } while(0);', missing],
   ['break-do-mixed-needs-return', 'do { if(a) break; else return b; } while(0);', missing],
   ['break-do-suffix-needs-return', 'do { if(a) break; a++; return b; } while(0);', missing],

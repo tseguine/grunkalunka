@@ -1,5 +1,6 @@
 import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
+import { returningSwitch, promotedSwitchGap } from './returning-switch.mjs';
 import { managedNumbers, managedNumberPromotions } from './managed-numbers.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
@@ -46,6 +47,16 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
+
+test('returning switch promotes the unchanged dispatch gap and keeps break/fallthrough open',()=>{
+  const sources=programSources(returningSwitch.find(row=>row[0]===promotedSwitchGap.id));
+  assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'),promotedSwitchGap.sourceSha256);
+  assert.equal(sources.sourceJS,sources.sourceTS);
+  assert.equal(sources.oracleSource,sources.sourceJS);
+  assert.ok(!rejected.some(row=>row[0]===promotedSwitchGap.id));
+  assert.ok(!catalog.records.some(row=>row.id===promotedSwitchGap.id));
+  assert.ok(catalog.groups.find(group=>group.id==='switch').observableDone.some(text=>text.includes('fallthrough')));
+});
 
 test('boxed Number projection executes five unchanged sources with their original oracle', () => {
   for (const [id, source, hash] of managedNumberPromotions) {
@@ -304,7 +315,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 807);
+  assert.equal(inventory.records.size, 806);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

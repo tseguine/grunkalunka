@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn returning_switch_dispatch_keeps_awaited_tests_and_saved_discriminants() {
+    compare_promises(
+        &[
+            "switch(await a){case await b:return a;default:return b;}",
+            "switch(await 'x'){case await 'y':return a;case await 'x':return b;default:return 99;}",
+            "switch(a){case (a=b,await b):return a;default:return a+b;}",
+            "switch(a){case a:return await b;case (await Promise.reject(b),b):return 99;default:return a;}",
+            "let n=0;switch(a){case (n++,await 0):return n;default:return n;case (n++,await 1):return n;}",
+            "try{switch(a){case (await Promise.reject(b),b):return 99;default:return a;}}catch(e){return e;}",
+            "switch(a?null:undefined){case await null:return a;case await undefined:return b;default:return 99;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn dictionary_primitive_origins_keep_awaited_keys_receivers_and_results() {
     compare_promises(
         &[
