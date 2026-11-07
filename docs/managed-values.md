@@ -37,8 +37,15 @@ RHS. The old String is saved before RHS effects or suspension, concatenated with
 the completed RHS, then stored and returned. Captures observe the new String;
 RHS rejection performs no store. UTF-16 units use the existing concatenation
 operation unchanged. Destructured and iteration cells follow the same path.
-Type assertions, mixed coercion, const targets and property `+=` do not acquire
-String support from this increment.
+Static own String data fields and array elements also support `+=`. Their
+receiver and old String are saved before the RHS; receiver rebinding does not
+redirect the final store. The same operation covers nested receivers. Successful
+completion stores once, and a throw or rejection leaves the saved reference
+untouched by the compound store.
+Type assertions, mixed coercion, const local targets, runtime keys, missing fields,
+array length and accessors do not acquire String support from this increment.
+Dictionary fields retain an absent alternative in the source analysis; an earlier
+plain write alone does not prove that such a field contains only Strings.
 
 The exact original numeric-field, array-element, destructuring declaration,
 destructuring assignment and `for-of` rejection sources now execute unchanged in
@@ -417,7 +424,8 @@ without normalization. Results compose with `.length`, equality, truthiness,
 local/property storage, admitted helper signatures and captures.
 
 This slice requires positive String facts for both operands. Mixed-kind `+`
-needs separate JavaScript coercion work, and compound `+=` remains unadmitted.
+needs separate JavaScript coercion work. String-only `+=` over mutable locals and
+static own data references uses the same concatenation operation as described above.
 The private helper is included only when the module needs it. It checks the sum
 in an unsigned 64-bit lane before allocating the Wasm32 array; overflow and
 engine allocation exhaustion are resource failures, not catchable source
