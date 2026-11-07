@@ -167,3 +167,17 @@ fn named_module_helper_result_planning_fits_the_existing_small_stack() {
 fn bare_named_helper_return_executes_the_exact_former_guard() {
     compare_helpers(&["function helper(x){return;}export function run(a,b){return helper(b);}"]);
 }
+
+#[test]
+fn side_effect_only_helpers_preserve_undefined_and_caller_state() {
+    compare_helpers(&[
+        "function helper(x){}export function run(a,b){return helper(a);}",
+        "function helper(x){x++;}export function run(a,b){return helper(a);}",
+        "function helper(x){if(x)return;}export function run(a,b){return helper(a);}",
+        "function helper(x){const f=()=>x;}export function run(a,b){return helper(a);}",
+        "function helper(x){x++;}export function run(a,b){const f=helper;return f(a);}",
+        "function helper(x){x++;}export function run(a,b){const f=x=>helper(x);return f(a);}",
+        "function helper(o){o.x++;}export function run(a,b){const o={x:a};const result=helper(o);return result??o.x;}",
+        "function helper(o){try{if(o.x)return;}finally{o.x++;}}export function run(a,b){const o={x:a};const result=helper(o);return result??o.x;}",
+    ]);
+}

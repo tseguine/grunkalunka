@@ -4534,13 +4534,6 @@
       "group": "return-policy"
     },
     {
-      "id": "direct-call-unused-missing-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f8b69c31b44590cc9faa9a2accea27cac5853c653fde1a06be9173ccfd87a025",
-      "group": "return-policy"
-    },
-    {
       "id": "direct-call-boolean-return",
       "extension": "js",
       "sourceMode": "module-strict",

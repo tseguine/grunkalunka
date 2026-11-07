@@ -90,11 +90,11 @@ pub(super) fn has_omitted_arrow_arguments(semantic: &Semantic<'_>) -> bool {
     })
 }
 
-// Bare returns only need global source facts when a call can reach them.
+// Undefined completions only need global source facts when a call can reach them.
 // An unused declaration must not perturb an unrelated async calling convention.
-pub(super) fn has_called_bare_returns(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
+pub(super) fn has_called_undefined_returns(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
     // Async entry/private-helper interfaces already retain General completions.
-    // Bare-return-only facts are needed for synchronous private result boxing;
+    // Undefined-completion-only facts are needed for synchronous private result boxing;
     // they must not widen the separate Promise-origin analysis of an async root.
     if semantic.nodes().iter().any(|node| {
         let AstKind::Function(function) = node.kind() else {
@@ -105,8 +105,8 @@ pub(super) fn has_called_bare_returns(semantic: &Semantic<'_>, entry: SymbolId) 
     }) {
         return false;
     }
-    let bare = stored_functions::bare_return_bodies(semantic);
-    if bare.is_empty() {
+    let undefined_bodies = stored_functions::undefined_return_bodies(semantic);
+    if undefined_bodies.is_empty() {
         return false;
     }
     let mut definitions = Vec::new();
@@ -114,7 +114,7 @@ pub(super) fn has_called_bare_returns(semantic: &Semantic<'_>, entry: SymbolId) 
     let mut names = Vec::new();
     for node in semantic.nodes().iter() {
         match node.kind() {
-            AstKind::Function(function) if bare.contains(&function.node_id.get()) => {
+            AstKind::Function(function) if undefined_bodies.contains(&function.node_id.get()) => {
                 if let Some(symbol) = function.id.as_ref().and_then(|name| name.symbol_id.get()) {
                     names.push(symbol);
                 }
@@ -173,7 +173,7 @@ pub(super) fn has_called_bare_returns(semantic: &Semantic<'_>, entry: SymbolId) 
                 bodies.extend(known);
             }
         }
-        bodies.iter().any(|body| bare.contains(body))
+        bodies.iter().any(|body| undefined_bodies.contains(body))
     })
 }
 
@@ -526,7 +526,7 @@ fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) ->
 }
 
 fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
-    if !stored_functions::bare_return_bodies(semantic).is_empty() {
+    if !stored_functions::undefined_return_bodies(semantic).is_empty() {
         return true;
     }
     semantic.nodes().iter().any(|node| {
@@ -767,6 +767,9 @@ pub(crate) fn infer(
         for (index, statements) in results.iter().enumerate().skip(1) {
             if functions[index].async_signature.is_some() {
                 continue;
+            }
+            if statements.is_empty() {
+                changed |= returns[index].insert(Kind::GeneralPrimitive);
             }
             for statement in statements {
                 let next = statement

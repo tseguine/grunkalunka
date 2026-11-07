@@ -10,7 +10,7 @@ import { numericBitNot } from './numeric-bit-not.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
 import { numericMathUnary } from './numeric-math-unary.mjs';
-import { numericCalls } from './numeric-calls.mjs';
+import { numericCalls, unusedNoReturnPromotion } from './numeric-calls.mjs';
 import { numericForPrograms } from './numeric-for.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
@@ -318,7 +318,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 800);
+  assert.equal(inventory.records.size, 799);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -946,4 +946,15 @@ test('implicit primitive return promotes the exact original sources',()=>{
   assert.equal(program.sourceJS,'export function run(a,b) {if(a) return null;}\n');
   assert.equal(program.sourceTS,'export function run(a:number,b:number):unknown {if(a) return null;}\n');
   assert.ok(!valueRejected.some(row=>row.id==='implicit-return'));
+});
+
+test('unused side effect only helper promotion preserves the exact original numeric source',()=>{
+  const former=unusedNoReturnPromotion;
+  const fixture=numericCalls.find(row=>row[0]===former.id);
+  const sources=programSources(fixture);
+  assert.equal(sources.sourceJS,former.source);
+  assert.equal(createHash('sha256').update(former.source).digest('hex'),former.sha256);
+  assert.ok(!rejected.some(row=>row[0]===former.id));
+  assert.ok(!catalog.records.some(row=>row.id===former.id));
+  assert.equal(sources.oracleSource,former.source);
 });

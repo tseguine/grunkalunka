@@ -2424,3 +2424,13 @@ control flow and effects. A shadowed `undefined` binding does not change this
 result. Number-only exports and private helper signature inference retain their
 existing completion checks, and unsupported source is still validated even after
 a return.
+
+Private synchronous helpers with no value-returning statements also complete
+with canonical Undefined when they reach the end of their body. Empty bodies,
+side effects, bare early returns and normal finalizers use the represented
+General/managed result lanes; explicit numeric coercion converts that Undefined
+to NaN after the helper's effects. Return-origin inference records this completion
+rather than treating an empty set of returns as proof of a Number result. A
+nested arrow's return does not count as its creator's return. Helpers with partial
+value-returning paths still require the existing completion proof, and numeric
+exports cannot directly return Undefined.
