@@ -9,6 +9,30 @@ fn discarded_template_executes_the_exact_former_rejection_source() {
 use common::compare_sources;
 
 #[test]
+fn string_loose_equality_uses_contents_and_saved_left_values() {
+    for body in [
+        "const o={x:'text'};return o.x=='text'?1:0;",
+        "return ''==''&&'a'!='b'&&('x'+'')=='x'?1:0;",
+        "let text='old';const value=text==(text='new','old');return value&&text==='new'?1:0;",
+        "const o={s:'old'};const value=o.s==(o.s='new','old');return value&&o.s==='new'?1:0;",
+        "let n=0;for(const text of ['a','b']){if(text=='a')n++;if(text!='b')n+=10;}return n;",
+        "const o={s:'x'};const equal=()=>o.s=='x';o.s+='';return equal()?1:0;",
+        "const flags=['x'=='x','x'!='y'];return flags[0]===true&&flags[1]===true?1:0;",
+        r"return '\ud800\0'=='\ud800\x00'&&'\ud83d\ude00'=='\u{1f600}'&&'\u00e9'!='e\u0301'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={s:'text'};return o.s=='text'?1:0;}";
+    let ts = "export function run(a:number,b:number){const o:number={s:'text'};return (o as boolean).s==('text' as number)?1:0;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn string_property_compounds_keep_reference_snapshots_and_utf16() {
     for body in [
         "const o={s:'x'};return (o.s+='y').length;",

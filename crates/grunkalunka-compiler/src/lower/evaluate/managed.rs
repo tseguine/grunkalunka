@@ -882,7 +882,11 @@ impl Lowering<'_, '_> {
             let kind = if matches!(
                 binary.operator,
                 BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
-            ) {
+            ) || (self.stored.string(binary.left.node_id())
+                && self.stored.string(binary.right.node_id()))
+            {
+                // Abstract equality between two Strings is content equality;
+                // it cannot invoke ToPrimitive or mixed-kind conversion.
                 EqualityKind::Exact
             } else if self.stored.nullish(binary.left.node_id()) {
                 EqualityKind::LeftNullish

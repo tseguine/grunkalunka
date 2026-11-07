@@ -40,8 +40,14 @@ unequal, including empty Strings, false, zero and object/array/function referenc
 Both operands still evaluate left to right, with the left value saved before
 RHS effects, throws or suspension. This covers `record.field == null` and
 `record.field != undefined` without invoking managed coercion. Name spelling
-and type annotations supply no nullish proof. Other managed loose comparisons
-retain their current guards.
+and type annotations supply no nullish proof.
+
+Two source-proven Strings also support `==` and `!=`. Abstract equality between
+Strings uses the same exact UTF-16 content comparison as strict equality,
+including NUL, surrogate units and distinct allocations with equal contents.
+The saved left operand remains independent of RHS mutations or suspension.
+Mixed-kind comparisons and uncertain String origins still require separate
+coercion work and retain their current guards.
 
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
