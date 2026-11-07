@@ -14,6 +14,19 @@ fn number_property_writes_save_old_values_and_commit_only_after_await_success() 
 }
 
 #[test]
+fn number_property_logical_writes_select_awaits_and_commit_on_success() {
+    compare_promises(
+        &[
+            "const o={n:a};const value=o.n&&=(await b,b);return +value;",
+            "const values=[a];const value=values[0]||=(await b,b);return +value;",
+            "const o={n:a};const value=o.n??=(await Promise.reject(b),b);return +value;",
+            "const o={n:a};try{o.n||=(await Promise.reject(b),b);}catch(e){return e;}return +o.n;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn boxed_number_local_writes_save_old_values_and_commit_after_await_success() {
     compare_promises(
         &[

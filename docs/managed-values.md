@@ -38,7 +38,13 @@ returns the old snapshot, while prefix and compound assignment return the new
 Number. Rejection during RHS evaluation leaves the property unchanged. Ordinary
 read and write operations share the existing managed storage and numeric IR.
 Runtime keys, array length, missing or mixed-kind fields, coercion from other
-stored kinds, accessors and logical property assignments remain separate work.
+stored kinds and accessors remain separate work.
+
+Source-proven own Number properties also support `&&=`, `||=` and `??=`. The
+receiver and old Number are saved before selection, and the RHS plus boxed store
+remain entirely inside the selected branch. Skipped assignments return the old
+snapshot without evaluating the RHS. A proven Number is never nullish, so `??=`
+always retains the old property while still validating the complete source RHS.
 
 Mutable local cells populated by destructuring and iteration use the same proven
 Number update path. Prefix/postfix updates and arithmetic/bitwise compound
