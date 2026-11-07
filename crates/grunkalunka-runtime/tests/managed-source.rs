@@ -1268,3 +1268,34 @@ fn enumerated_values_refuse_unknown_or_replaced_elements() {
         }
     }
 }
+#[test]
+fn runtime_dictionary_primitive_reads_keep_missing_tags_and_operand_snapshots() {
+    for body in [
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]+b;",
+        "const d=Object.create(null);d.x=a;const k=a?'x':'missing';return +d[k];",
+        "const d=Object.create(null);d.x=false;d.y=null;const k=a?'x':'y';return d[k]==0?1:0;",
+        "const d=Object.create(null);const k='missing';return +d[k];",
+        "const d=Object.create(null);const k='x';d[k]=a?true:b;return +d[k];",
+        "const d=Object.create(null);d.x=a;const k='x';delete d[k];return +d[k];",
+        "const d=Object.create(null);d.x=a;const k='x';const saved=d[k];d.x=b;return saved+d[k];",
+        "let d=Object.create(null);d.x=a;const other=Object.create(null);other.x=b;const k='x';return d[(d=other,k)]+d[k];",
+        "const d=Object.create(null);d.x=a;const key=()=>{d.x=b;return 'x';};return +d[key()];",
+        "const d=Object.create(null);d.x=a;const get=(o,k)=>o[k];return +get(d,'x');",
+        "const d=Object.create(null);d.x=a;const k='x';const read=()=>d[k];return +read();",
+        "const d=Object.create(null);d['__proto__']=a;const k='__proto__';return +d[k];",
+        "const d=Object.create(null);const k='x';const value=d[k]??=a;return +value+ +d[k];",
+        "const d=Object.create(null);d.x=false;const k='x';const value=d[k]||=b;return +value+ +d[k];",
+        "const d=Object.create(null);const k='x';const value=d[k]&&=b;return +value;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js =
+        "export function run(a,b){const d=Object.create(null);d.x=a;const k='x';return +d[k];}";
+    let ts = "export function run(a:number,b:number){const d:number=Object.create(null);d.x=a;const k:boolean='x';return +((d as string)[k] as boolean);}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}

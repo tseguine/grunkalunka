@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod module_helpers;
 
 #[test]
+fn runtime_dictionary_reads_return_exact_primitive_tags() {
+    compare_primitive_sources(
+        [
+            "const d=Object.create(null);d.x=a;const k='x';return d[k];",
+            "const d=Object.create(null);d.x=a?null:b;const k='x';return d[k];",
+            "const d=Object.create(null);d.x=false;const k='x';return d[k];",
+            "const d=Object.create(null);const k='missing';return d[k];",
+        ]
+        .into_iter()
+        .map(|body| {
+            (
+                format!("export function run(a,b){{{body}}}"),
+                format!("export function run(a:number,b:number):unknown{{{body}}}"),
+            )
+        })
+        .collect(),
+    );
+}
+
+#[test]
 fn boxed_primitive_results_preserve_language_tags_and_number_bits() {
     compare_primitive_sources(
         [

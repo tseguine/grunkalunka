@@ -21,6 +21,31 @@ pub(super) struct Members<'a, 'ast> {
 }
 
 impl Members<'_, '_> {
+    pub(super) fn dictionary_value(&self, receiver: NodeId, key: NodeId) -> Alternatives {
+        let Some(keys) = self.values.get(&key).filter(|origins| !origins.is_empty()) else {
+            return Alternatives::new();
+        };
+        let Some(receivers) = self
+            .values
+            .get(&receiver)
+            .filter(|origins| !origins.is_empty())
+        else {
+            return Alternatives::new();
+        };
+        if keys.len() != 1
+            || !keys.contains(&Origin::String)
+            || !receivers
+                .iter()
+                .all(|origin| matches!(origin, Origin::NullObject(_)))
+        {
+            return BTreeSet::from([Origin::Other]);
+        }
+        let mut found = self.enumerable_values(receiver);
+        // A runtime name may select no own field even after a known write.
+        found.insert(Origin::Undefined);
+        found
+    }
+
     pub(super) fn enumerable_values(&self, receiver: NodeId) -> Alternatives {
         let mut found = Alternatives::new();
         let origins = |id: NodeId| self.values.get(&id).into_iter().flatten().copied();

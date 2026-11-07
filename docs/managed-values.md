@@ -29,6 +29,16 @@ the projection. Await preserves these primitive source alternatives, including
 Null/Undefined; saved operands survive RHS mutation, rejection and suspension.
 This extends the earlier singleton Number/Boolean proofs below to primitive unions.
 
+Runtime String-key reads from proven null-prototype dictionaries also retain the
+union of every possible own value, including writes through aliases and checked
+helpers, plus Undefined for a missing key. When that domain contains only the
+four represented scalar primitives, the same projection enables arithmetic,
+comparisons and primitive return interfaces. Receiver/key evaluation and saved
+operands still use the existing runtime read path, including across await and GC.
+Any possible String, reference or opaque value blocks a primitive-only proof;
+ordinary-object prototypes, array indexing and non-String key conversion gain no
+new admission from this analysis. Unresolved facts finalize conservatively.
+
 Source-proven Number fields and elements now project from boxed storage into
 ordinary arithmetic, comparisons and numeric returns. The same path supports
 destructured locals, assignment-pattern targets, intrinsic-array iteration and
