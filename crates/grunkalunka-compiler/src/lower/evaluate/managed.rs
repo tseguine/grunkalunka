@@ -884,9 +884,11 @@ impl Lowering<'_, '_> {
                 BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
             ) || (self.stored.string(binary.left.node_id())
                 && self.stored.string(binary.right.node_id()))
+                || (self.stored.container(binary.left.node_id()).is_some()
+                    && self.stored.container(binary.right.node_id()).is_some())
             {
-                // Abstract equality between two Strings is content equality;
-                // it cannot invoke ToPrimitive or mixed-kind conversion.
+                // String pairs compare by contents and object/array reference
+                // pairs by identity. Neither invokes primitive coercion.
                 EqualityKind::Exact
             } else if self.stored.nullish(binary.left.node_id()) {
                 EqualityKind::LeftNullish

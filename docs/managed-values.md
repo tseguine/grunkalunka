@@ -49,6 +49,13 @@ The saved left operand remains independent of RHS mutations or suspension.
 Mixed-kind comparisons and uncertain String origins still require separate
 coercion work and retain their current guards.
 
+Known object and array reference pairs also support `==` and `!=` by identity,
+including aliases, nested data fields and null-prototype dictionaries. An object
+and an array are unequal even if their contents match. Neither operand invokes
+primitive conversion. Left snapshots survive RHS rebinding and suspension.
+Mixed primitive/reference alternatives and annotation-only claims remain guarded;
+this increment does not add function-reference or general coercing comparisons.
+
 Awaiting a source-proven String also preserves its String origin and contents.
 The operand evaluates once, then its traced value stays live across one real
 suspension through the existing private numeric await protocol. That internal
