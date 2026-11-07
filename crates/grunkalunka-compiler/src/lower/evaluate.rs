@@ -22,6 +22,7 @@ mod property_delete;
 mod string_methods;
 mod string_template;
 mod tasks;
+mod typeof_name;
 mod values;
 use tasks::Work;
 pub(super) use values::Mode;

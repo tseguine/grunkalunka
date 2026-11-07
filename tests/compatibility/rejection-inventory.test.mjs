@@ -1,4 +1,4 @@
-import { managedTypeof, promotedTypeof } from './managed-typeof.mjs';
+import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
 import { managedNumbers, managedNumberPromotions } from './managed-numbers.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
@@ -304,7 +304,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 808);
+  assert.equal(inventory.records.size, 807);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -862,7 +862,7 @@ test('String values promote exact originals with separate nonterminating-loop ev
  }
 });
 
-test('typeof promotes its exact original while unresolved names keep the parent open',()=>{
+test('typeof promotions preserve both exact originals while TDZ remains open',()=>{
   const fixture=managedTypeof.find(row=>row[0]==='gap-typeof');
   assert.ok(fixture);assert.ok(!rejected.some(row=>row[0]==='gap-typeof'));
   const sources=programSources(fixture);
@@ -870,8 +870,11 @@ test('typeof promotes its exact original while unresolved names keep the parent 
   assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'),hash);
   assert.equal(promotedTypeof.sourceSha256,hash);
   assert.equal(sources.sourceJS,sources.sourceTS);assert.equal(sources.oracleSource,sources.sourceJS);
-  assert.ok(rejected.some(row=>row[0]==='gap-typeof-unresolved'));
-  assert.equal(catalog.records.find(row=>row.id==='gap-typeof-unresolved').group,'typeof');
+  const absent=programSources(managedTypeof.find(row=>row[0]===promotedUnresolvableTypeof.id));
+  assert.equal(createHash('sha256').update(absent.sourceJS).digest('hex'),promotedUnresolvableTypeof.sourceSha256);
+  assert.equal(absent.sourceJS,absent.sourceTS);assert.equal(absent.oracleSource,absent.sourceJS);
+  assert.ok(!rejected.some(row=>row[0]===promotedUnresolvableTypeof.id));
+  assert.ok(!catalog.records.some(row=>row.id===promotedUnresolvableTypeof.id));
   assert.ok(catalog.groups.find(group=>group.id==='typeof').observableDone.some(text=>text.includes('TDZ')));
 });
 

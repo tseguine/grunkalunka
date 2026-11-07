@@ -34,6 +34,16 @@ export const promotedTypeof = {
   sourceSha256: '34e0f464195e83123a20d4854639000916133aa27bcb6d79b7b51cf8c361f23a',
   sourceJS: 'export function run(a,b) { return typeof a === "number" ? 1 : 0; }',
 };
+export const promotedUnresolvableTypeof = {
+  id: 'gap-typeof-unresolved',
+  sourceSha256: '4d3a52377056d2f8f3bd8ef1fb8d722c94461ce13008e8bbf84655b4321d443d',
+  sourceJS: 'export function run(a,b) { return typeof __grunkalunka_typeof_missing__ === "undefined" ? 1 : 0; }',
+};
+managedTypeof.push([promotedUnresolvableTypeof.id,'','',1,undefined,{
+  sourceJS: promotedUnresolvableTypeof.sourceJS,
+  sourceTS: promotedUnresolvableTypeof.sourceJS,
+  oracleSource: promotedUnresolvableTypeof.sourceJS,
+}]);
 managedTypeof.push([promotedTypeof.id,'','',1,undefined,{sourceJS:promotedTypeof.sourceJS,sourceTS:promotedTypeof.sourceJS}]);
 
 managedTypeof.push(

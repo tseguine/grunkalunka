@@ -391,7 +391,7 @@
     {
       "id": "typeof",
       "kind": "open-requirement",
-      "assessment": "typeof is implemented for represented values and known functions. Unknown global namespace resolution and actual TDZ exception execution remain open; source rejection guards do not prove those semantics.",
+      "assessment": "typeof is implemented for represented values, known functions and unresolvable identifier references in the closed source environment. The exact original missing-name source executes unchanged. Known global/intrinsic names retain their guards instead of being assumed absent; resolved TDZ references and value-producing operands retain GetValue validation. General ambient global namespace resolution and actual TDZ exception execution remain open; rejection guards do not prove those semantics.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-typeof-operator",
@@ -1081,13 +1081,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "cc04ac11c14b9961473ec1c628ac3625e0098e727b8a9c6f4cb0f2df862ed31c",
       "group": "nullish-values"
-    },
-    {
-      "id": "gap-typeof-unresolved",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4d3a52377056d2f8f3bd8ef1fb8d722c94461ce13008e8bbf84655b4321d443d",
-      "group": "typeof"
     },
     {
       "id": "gap-instanceof",
