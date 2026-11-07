@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn loose_null_checks_keep_left_snapshots_and_rhs_reactions() {
+    compare_promises(
+        &[
+            "const o={x:a?null:'text'};return o.x==(await b,null)?(a?1:0):(a?0:1);",
+            "const o={x:null};const value=o.x==(await a,o.x='changed',null);return value&&o.x==='changed'?1:0;",
+            "const o={x:null};const value=(await a,void(o.x='changed'))!=o.x;return value?1:0;",
+            "const o={x:'text'};try{const value=o.x==(await Promise.reject(b),null);return +value;}catch(e){return e;}",
+            "const d=Object.create(null);const key=await 'x';d[key]=null;return d[key]!=null?0:1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn awaited_strings_keep_contents_snapshots_and_native_microtask_order() {
     compare_promises(
         &[

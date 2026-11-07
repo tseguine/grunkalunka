@@ -1,5 +1,12 @@
 //! Managed source values use the ordinary expression cursor and traced IR lanes.
 use super::*;
+
+#[derive(Clone, Copy)]
+pub(super) enum EqualityKind {
+    Exact,
+    LeftNullish,
+    RightNullish,
+}
 mod arrays;
 mod objects;
 
@@ -45,11 +52,13 @@ pub(super) enum ManagedWork<'e, 'a> {
         right: &'e Expression<'a>,
         depth: usize,
         negated: bool,
+        kind: EqualityKind,
     },
     Equal {
         node: &'e Expression<'a>,
         left: ValueId,
         negated: bool,
+        kind: EqualityKind,
     },
     Literal(objects::ObjectWork<'e, 'a>),
     Read {
@@ -870,20 +879,30 @@ impl Lowering<'_, '_> {
             && (self.managed_source_type(&binary.left, depth + 1).is_some()
                 || self.managed_source_type(&binary.right, depth + 1).is_some())
         {
-            if !matches!(
+            let kind = if matches!(
                 binary.operator,
                 BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
             ) {
+                EqualityKind::Exact
+            } else if self.stored.nullish(binary.left.node_id()) {
+                EqualityKind::LeftNullish
+            } else if self.stored.nullish(binary.right.node_id()) {
+                EqualityKind::RightNullish
+            } else {
                 return Err(unsupported(
                     node,
                     "expression is outside the numeric experiment: managed comparisons require strict equality",
                 ));
-            }
+            };
             work.push(Work::Managed(ManagedWork::EqualRight {
                 node,
                 right: &binary.right,
                 depth: depth + 1,
-                negated: binary.operator == BinaryOperator::StrictInequality,
+                negated: matches!(
+                    binary.operator,
+                    BinaryOperator::Inequality | BinaryOperator::StrictInequality
+                ),
+                kind,
             }));
             work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
             return Ok(true);
@@ -1525,12 +1544,14 @@ impl Lowering<'_, '_> {
                 right,
                 depth,
                 negated,
+                kind,
             } => {
                 let left = values.pop().expect("managed equality left").id();
                 work.push(Work::Managed(ManagedWork::Equal {
                     node,
                     left,
                     negated,
+                    kind,
                 }));
                 work.push(Work::Eval(right, depth, Mode::Managed));
             }
@@ -1538,16 +1559,30 @@ impl Lowering<'_, '_> {
                 node,
                 left,
                 negated,
+                kind,
             } => {
                 let right = values.pop().expect("managed equality right").id();
                 let result = self.value(Type::Predicate);
                 Self::push(
                     regions.current(),
                     node,
-                    Op::ManagedEqual {
-                        result,
-                        left,
-                        right,
+                    match kind {
+                        EqualityKind::Exact => Op::ManagedEqual {
+                            result,
+                            left,
+                            right,
+                        },
+                        // Abstract equality with a positively nullish operand is
+                        // exactly a nullish test of the other value. Both operands
+                        // still evaluate left-to-right, even when one is `void`.
+                        EqualityKind::LeftNullish => Op::ManagedIsNullish {
+                            result,
+                            input: right,
+                        },
+                        EqualityKind::RightNullish => Op::ManagedIsNullish {
+                            result,
+                            input: left,
+                        },
                     },
                 );
                 let result = if negated {

@@ -3,6 +3,23 @@ use super::*;
 const SOURCE: &str = "export async function run(a,b){const o={x:a};const p=o;o.self=o;await b;p.x=b;return o===p&&o.self===p&&o.x===b?1:0;}";
 
 #[test]
+fn managed_loose_null_checks_observe_language_tags_after_suspension() {
+    let source = "export async function run(a,b){let count=0;for(const value of [null,undefined,false,0,'',{},[]]){await a;if(value==null)count++;}return count;}";
+    let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
+    let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+    for _ in 0..7 {
+        assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+        activation.store.gc(None).unwrap();
+        assert!(activation.run_one_job().unwrap());
+    }
+    assert!(matches!(
+        activation.state().unwrap(),
+        AsyncState::Fulfilled(super::super::Value::Number(2.0))
+    ));
+    assert!(!activation.run_one_job().unwrap());
+}
+
+#[test]
 fn awaited_strings_remain_traced_and_pending_until_their_reaction_jobs() {
     for (body, expected_jobs) in [
         (
