@@ -1,6 +1,38 @@
 use super::*;
 
 #[test]
+fn primitive_projection_checks_visible_input_and_general_result() {
+    for invalid in 0..4 {
+        let mut module = crate::lower_source(
+            "export function run(a,b){const o={v:null};return +o.v;}",
+            false,
+        )
+        .unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (result, input) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedToPrimitive { result, input } = &mut op.kind {
+                    Some((result, input))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        match invalid {
+            0 => *input = ValueId(usize::MAX),
+            1 => *input = *result,
+            2 => function.values[result.0] = Type::Number,
+            _ => function.values[input.0] = Type::General,
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+}
+
+#[test]
 fn string_comparison_checks_visible_managed_operands_and_predicate_result() {
     for invalid in 0..7 {
         let mut module =

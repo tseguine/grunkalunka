@@ -29,12 +29,12 @@ fn boolean_logical_writes_preserve_only_boolean_cells_and_results() {
 }
 
 #[test]
-fn boolean_projection_and_await_require_positive_boolean_origins() {
+fn boolean_projection_and_await_preserve_proven_primitive_origins() {
     for (body, admitted) in [
         ("const o={flag:true};return +o.flag;", true),
         ("const xs=[a<b];return +xs[0];", true),
-        ("const o={flag:a?true:b};return +o.flag;", false),
-        ("const o={flag:true};delete o.flag;return +o.flag;", false),
+        ("const o={flag:a?true:b};return +o.flag;", true),
+        ("const o={flag:true};delete o.flag;return +o.flag;", true),
         (
             "const get=()=>{if(a)return true;};const o={flag:get()};return +o.flag;",
             false,
@@ -51,7 +51,7 @@ fn boolean_projection_and_await_require_positive_boolean_origins() {
         ("const o={flag:true};return +(await o.flag);", true),
         (
             "const o={flag:await (a?true:b)};return o.flag==true?1:0;",
-            false,
+            true,
         ),
         (
             "const o={flag:await {then:resolve=>resolve(true)}};return o.flag==true?1:0;",
@@ -81,21 +81,21 @@ fn boolean_projection_and_await_require_positive_boolean_origins() {
 }
 
 #[test]
-fn boolean_loose_equality_requires_positive_boolean_pairs() {
+fn boolean_loose_equality_accepts_proven_primitive_pairs() {
     for (body, admitted) in [
         ("const o={flag:true};return o.flag==true?1:0;", true),
         ("const xs=[a<b,false];return xs[0]!=xs[1]?1:0;", true),
         ("const o={flag:!a};return o.flag==!!b?1:0;", true),
         ("const o={flag:a?true:false};return o.flag==true?1:0;", true),
         ("const o={flag:true??a};return o.flag==true?1:0;", true),
-        // Boolean kind proves non-nullishness, not which truthy branch runs.
-        ("const o={flag:true||a};return o.flag==true?1:0;", false),
-        ("const o={flag:false&&a};return o.flag==false?1:0;", false),
-        ("const o={flag:true};return o.flag==1?1:0;", false),
-        ("const o={flag:a?true:b};return o.flag==true?1:0;", false),
+        // Alternatives keep their runtime tags; the solver predicts no truth value.
+        ("const o={flag:true||a};return o.flag==true?1:0;", true),
+        ("const o={flag:false&&a};return o.flag==false?1:0;", true),
+        ("const o={flag:true};return o.flag==1?1:0;", true),
+        ("const o={flag:a?true:b};return o.flag==true?1:0;", true),
         (
             "const o={flag:true};delete o.flag;return o.flag==true?1:0;",
-            false,
+            true,
         ),
         (
             "const o={flag:true};o.flag='text';return o.flag==true?1:0;",
@@ -111,7 +111,7 @@ fn boolean_loose_equality_requires_positive_boolean_pairs() {
             }
         }
     }
-    assert!(crate::compile("export function run(a,b){const o={flag:true};return o.flag==(a as unknown as boolean)?1:0;}",true).is_err());
+    assert!(crate::compile("export function run(a,b){const o={flag:true};return o.flag==({} as unknown as boolean)?1:0;}",true).is_err());
 }
 
 #[test]
@@ -153,14 +153,14 @@ fn function_loose_equality_requires_reference_proofs_and_supported_functions() {
 }
 
 #[test]
-fn boxed_number_loose_equality_requires_positive_number_pairs() {
+fn boxed_number_loose_equality_accepts_proven_primitive_pairs() {
     for (body, admitted) in [
         ("const o={n:a};return o.n==b?1:0;", true),
         ("const xs=[a,b];return xs[0]!=xs[1]?1:0;", true),
         ("const o={n:NaN};return o.n==o.n?1:0;", true),
         ("const o={n:a};return o.n=='0'?1:0;", false),
-        ("const o={n:a?b:false};return o.n==b?1:0;", false),
-        ("const o={n:a};delete o.n;return o.n==b?1:0;", false),
+        ("const o={n:a?b:false};return o.n==b?1:0;", true),
+        ("const o={n:a};delete o.n;return o.n==b?1:0;", true),
         ("const o={};return o.n==b?1:0;", true),
         ("const o={n:a};o.n='text';return o.n==b?1:0;", false),
     ] {
@@ -304,4 +304,40 @@ fn string_relational_operators_require_positive_string_pairs() {
         );
         assert!(crate::compile_async(&source, false).is_ok());
     }
+}
+#[test]
+fn boxed_primitive_projection_requires_only_represented_primitive_origins() {
+    for (body, admitted) in [
+        ("const o={v:a?true:null};return +o.v;", true),
+        ("const o={v:a?true:undefined};return o.v==1?1:0;", true),
+        ("const [v]=[a?true:b];return +v;", true),
+        ("const o={v:a?'1':true};return +o.v;", false),
+        ("const o={v:a?{}:false};return +o.v;", false),
+        ("const o={v:a?(()=>b):false};return +o.v;", false),
+        ("const o={v:a?true:b};return o.v;", false),
+        ("const o={v:null};return o.v+{};", false),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = crate::compile(&source, typed);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            if let Err(error) = result {
+                assert!(!error.contains("internal IR"), "{error}");
+            }
+        }
+    }
+    for body in [
+        "const o={v:await (a?null:b)};return +o.v;",
+        "const o={v:a?null:undefined};return +(await o.v);",
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        assert!(crate::compile_async(&source, false).is_ok(), "{source}");
+    }
+    assert!(
+        crate::compile(
+            "export function run(a,b){const o={v:a?'1':false};return +(o.v as number);}",
+            true
+        )
+        .is_err()
+    );
 }
