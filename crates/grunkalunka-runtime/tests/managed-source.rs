@@ -5,6 +5,23 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn runtime_delete_keys_keep_receiver_snapshots_and_source_order() {
+    for body in [
+        "const d=Object.create(null);const key='x';delete d[key];return a;",
+        "const o={x:a,y:b};const key=a?'x':'y';return delete o[key]&&!Object.hasOwn(o,key)&&Object.keys(o).length===1?1:0;",
+        "let current={x:a};const original=current;const key=()=>{current={x:b};return 'x';};const removed=delete current[key()];return removed&&original.x===undefined&&current.x===b?1:0;",
+        "let key='old',n=0;const o={old:a,next:b};const receiver=()=>{n++;key='next';return o;};delete receiver()[key];return n===1&&o.old===a&&o.next===undefined?1:0;",
+        "const o={x:a};let n=0;delete o[(n=n*10+1,'missing')];delete o[(n=n*10+2,'x')];return n*10+(o.x===undefined?1:0);",
+        "const d=Object.create(null);d.__proto__=a;const key='__proto__';return delete d[key]&&d.__proto__===undefined?1:0;",
+        "const o={};const key='constructor';return delete o[key]&&('constructor' in o)?1:0;",
+        "const o={x:'text'};const alias=o;const key='x';delete alias[key];const {x='fallback'}=o;return x.length;",
+        "const o={x:a,y:b};const remove=(target,key)=>delete target[key];return remove(o,'x')&&o.x===undefined&&o.y===b?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn delete_own_properties_preserves_presence_aliases_and_insertion_order() {
     for body in [
         "const o={x:a,y:b};const alias=o;const removed=delete alias.x;return removed&&o.x===undefined&&!Object.hasOwn(o,'x')&&o.y===b?1:0;",
@@ -224,7 +241,6 @@ fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
         "const d=Object.create(null);const key='x';d[key]+=a;return a;",
         "const d=Object.create(null);const key='x';d[key]??=a;return a;",
         "const d=Object.create(null);const key='x';d[key]++;return a;",
-        "const d=Object.create(null);const key='x';delete d[key];return a;",
         "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
         "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
         "const d=Object.create(null);const key='x';d.x=()=>a;const alias=d;alias[key]=b;return d.x();",
