@@ -2369,9 +2369,26 @@ function `length`, captures and calls through stored functions. Contradictory
 annotations provide no runtime source-kind proof. The same erasure applies to
 numeric, primitive-result, async and experimental heap-return compilation.
 
-This does not add missing-argument calls to profiles that reject them. Entry
+Optional markers alone do not add missing-argument calls. Entry
 exports still require their existing two-formal shape. Defaults, rest,
 destructuring, decorators, parameter properties and `this` parameters retain
 separate guards. The original annotated sources are retained in the positive
 corpus and paired with independent JavaScript references; typed and plain
 artifacts are compared byte-for-byte.
+
+## Omitted arguments to named helpers
+
+Ordinary synchronous named helpers accept fewer actual arguments than formals.
+Each omitted trailing input receives canonical Undefined in a boxed private
+parameter slot after supplied arguments have evaluated. The existing `.call`
+projection retains its receiver-expression effects and argument offset. Supplied
+extra arguments still evaluate in order. Signature inference and original-source
+origin/storage facts include the omitted value; Number-only assumptions must not
+replace it with NaN. Numeric operations apply their existing explicit coercion,
+while typeof, equality, defaults and primitive returns retain the Undefined tag.
+
+Calls to local arrows, runtime closures and asynchronous helpers retain their
+existing missing-argument guards. The public numeric interface still requires a
+proven numeric return; use the existing primitive-result profile for Undefined
+results. This does not add parameter defaults, rest, destructuring or arguments
+objects. Declared/supplied parameter budgets and source-depth limits are unchanged.

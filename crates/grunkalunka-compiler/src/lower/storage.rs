@@ -790,6 +790,7 @@ pub(crate) fn general_mutable_bindings(
         })
         .collect();
     let mut incoming = Vec::new();
+    let mut omitted_inputs = BTreeSet::new();
     let mut managed_call_targets = BTreeMap::new();
     let mut constructor_groups: BTreeSet<_> = targets
         .values()
@@ -819,15 +820,21 @@ pub(crate) fn general_mutable_bindings(
             .flatten()
         {
             if let Some(parameters) = named_parameters.get(target) {
-                for (parameter, argument) in
-                    parameters.items.iter().zip(invocation::arguments(call))
-                {
+                for (position, parameter) in parameters.items.iter().enumerate() {
                     if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                         && let Some(symbol) = identifier.symbol_id.get()
-                        && let Some(actual) = argument.as_expression()
                     {
-                        writes.entry(symbol).or_default().push(actual);
-                        incoming.push((symbol, actual));
+                        match invocation::arguments(call).get(position) {
+                            Some(argument) => {
+                                if let Some(actual) = argument.as_expression() {
+                                    writes.entry(symbol).or_default().push(actual);
+                                    incoming.push((symbol, actual));
+                                }
+                            }
+                            None => {
+                                omitted_inputs.insert(symbol);
+                            }
+                        }
                     }
                 }
             }
@@ -1017,7 +1024,8 @@ pub(crate) fn general_mutable_bindings(
     }
     let mut numbers = candidates.clone();
     let mut pending = invalid.into_iter().collect::<Vec<_>>();
-    let mut inputs = BTreeSet::new();
+    let mut inputs = omitted_inputs;
+    pending.extend(inputs.iter().copied());
     loop {
         while let Some(input) = pending.pop() {
             if numbers.remove(&input)

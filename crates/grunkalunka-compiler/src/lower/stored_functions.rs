@@ -151,6 +151,32 @@ fn assignment_definition(
     }
 }
 
+pub(super) fn has_omitted_named_arguments(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
+    let arities: BTreeMap<_, _> = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let AstKind::Function(function) = node.kind() else {
+                return None;
+            };
+            let name = function.id.as_ref()?.symbol_id.get()?;
+            (name != entry && !function.r#async && function.body.is_some())
+                .then_some((name, function.params.items.len()))
+        })
+        .collect();
+    semantic.nodes().iter().any(|node| {
+        let AstKind::CallExpression(call) = node.kind() else {
+            return false;
+        };
+        let Expression::Identifier(identifier) = invocation::callee(call) else {
+            return false;
+        };
+        symbol(identifier, semantic)
+            .and_then(|name| arities.get(&name))
+            .is_some_and(|count| invocation::arguments(call).len() < *count)
+    })
+}
+
 impl Fields {
     /// Strict tag/identity observations accept any proven represented alternative.
     pub(super) fn represented(&self, node: NodeId) -> bool {
@@ -288,7 +314,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
-        if !semantic.nodes().iter().any(|node| {
+        if !has_omitted_named_arguments(semantic,entry) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
@@ -1303,7 +1329,7 @@ impl Fields {
                                         arguments
                                             .get(index)
                                             .map(get)
-                                            .unwrap_or_else(|| BTreeSet::from([Origin::Other])),
+                                            .unwrap_or_else(|| BTreeSet::from([Origin::Undefined])),
                                     ));
                                 }
                                 for expression in &function.returns {

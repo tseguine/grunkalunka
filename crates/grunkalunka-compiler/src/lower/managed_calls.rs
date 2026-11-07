@@ -435,13 +435,15 @@ pub(crate) fn infer(
     functions: &mut [NumericFunction],
     stored: &stored_functions::Fields,
 ) {
-    // The only public inputs are Numbers. Without a construction there is no
-    // managed reference origin, so ordinary modules keep the old planning path.
+    // Public inputs are Numbers. Omitted private inputs also need a lossless
+    // Undefined tag, even when no literal managed origin occurs in the module.
+    let missing_inputs =
+        stored_functions::has_omitted_named_arguments(semantic, functions[0].symbol);
     if !functions
         .iter()
         .skip(1)
         .any(|f| f.async_signature.is_none())
-        || !has_managed_origin(semantic)
+        || (!has_managed_origin(semantic) && !missing_inputs)
     {
         return;
     }
@@ -585,13 +587,24 @@ pub(crate) fn infer(
             changed |= extend(&mut bindings, *symbol, next);
         }
         for (index, call) in &calls {
-            for (symbol, actual) in parameters[*index].iter().zip(invocation::arguments(call)) {
-                if let (Some(symbol), Some(actual)) = (symbol, actual.as_expression()) {
-                    let next = kinds(
-                        actual, semantic, functions, &bindings, &returns, None, stored,
-                    );
-                    changed |= extend(&mut bindings, *symbol, next);
-                }
+            for (position, symbol) in parameters[*index].iter().enumerate() {
+                let Some(symbol) = symbol else {
+                    continue;
+                };
+                let next = match invocation::arguments(call).get(position) {
+                    Some(actual) => {
+                        let Some(actual) = actual.as_expression() else {
+                            continue;
+                        };
+                        kinds(
+                            actual, semantic, functions, &bindings, &returns, None, stored,
+                        )
+                    }
+                    // Omission is a real Undefined value, carried losslessly in
+                    // the managed lane even if other calls supply only Numbers.
+                    None => [Kind::BoxedPrimitive].into(),
+                };
+                changed |= extend(&mut bindings, *symbol, next);
             }
         }
         for (index, statements) in results.iter().enumerate().skip(1) {

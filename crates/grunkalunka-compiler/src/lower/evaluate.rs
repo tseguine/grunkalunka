@@ -862,7 +862,11 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 "at most 1000 ordinary direct call arguments are admitted",
             ));
         }
-        if invocation::arguments(call).len() < function.parameter_count {
+        if invocation::arguments(call).len() < function.parameter_count
+            && (function.async_signature.is_some()
+                || (invocation::arguments(call).len()..function.parameter_count)
+                    .any(|index| function.parameter_type(index) != Type::ManagedValue))
+        {
             return Err(unsupported(node, "call is missing declared arguments"));
         }
         if function.return_type == Type::General && !matches!(mode, Mode::General) {
@@ -920,6 +924,27 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             arguments.push(values.pop().expect("call argument").id());
         }
         if index == call.arguments.len() {
+            while arguments.len() < parameter_count {
+                let value = self.value(Type::General);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Nullish {
+                        result: value,
+                        value: ir::Nullish::Undefined,
+                    },
+                );
+                let boxed = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedPrimitive {
+                        result: boxed,
+                        input: value,
+                    },
+                );
+                arguments.push(boxed);
+            }
             let ty = self.functions[function.0].return_type;
             let result = self.value(ty);
             Self::push(
