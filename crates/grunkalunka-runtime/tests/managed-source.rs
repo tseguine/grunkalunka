@@ -64,6 +64,18 @@ fn boxed_number_local_updates_preserve_old_new_values_and_cells() {
 }
 
 #[test]
+fn boxed_number_local_logical_assignments_preserve_selection_and_cells() {
+    for body in [
+        "let [x]=[a];const value=x&&=(x=b,b);return value===x?value:NaN;",
+        "let {x}={x:a};const value=x||=(x=b,b);return value===x?value:NaN;",
+        "let [x]=[a];let calls=0;const value=x??=(calls++,b);return calls===0&&value===a&&x===a?1:0;",
+        "let {x}={x:a};const read=()=>x;const value=x||=b;return read()===value?value:NaN;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn typeof_unresolvable_names_preserves_scope_and_expression_effects() {
     for body in [
         "return typeof missingFeature==='undefined'?1:0;",
