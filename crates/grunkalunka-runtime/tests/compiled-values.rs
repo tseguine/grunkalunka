@@ -503,3 +503,25 @@ fn omitted_local_arrow_results_keep_exact_primitive_tags() {
         .collect(),
     );
 }
+
+#[test]
+fn omitted_runtime_closure_results_keep_exact_primitive_tags() {
+    compare_primitive_sources(
+        [
+            "let f=x=>x;return f();",
+            "const f=a?(x=>x):(x=>x);return f();",
+            "const o={f:x=>x};return o.f();",
+            "const fs=[x=>x];return fs[0]();",
+            "let f=(x,y)=>y??x;return f(false);",
+            "let f=(x,y)=>y??x;return f(null);",
+        ]
+        .into_iter()
+        .map(|body| {
+            (
+                format!("export function run(a,b){{{body}}}"),
+                format!("export function run(a:number,b:number):unknown{{{body}}}"),
+            )
+        })
+        .collect(),
+    );
+}

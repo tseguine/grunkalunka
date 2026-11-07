@@ -703,3 +703,29 @@ fn omitted_local_arrow_arguments_use_undefined_and_preserve_effect_order() {
     let ts = "export function run(a?:number,b?:number){const f=(x?:unknown,y?:unknown)=>y??x;return f(a);}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn omitted_runtime_closure_arguments_preserve_tags_and_snapshots() {
+    for body in [
+        "const f=a?(x=>x===undefined?1:0):(x=>x===undefined?2:0);return f();",
+        "let f=x=>x===undefined?1:0;return f();",
+        "const f=a?((x,y)=>y??x):((x,y)=>y??x+1);return f(b);",
+        "const f=a?(x=>+x):(x=>+x+1);return f();",
+        "const f=a?(x=>x===undefined?1:0):(x=>x===undefined?2:0);let n=0;const r=f.call((n++,a));return r*10+n;",
+        "let n=0;const f=(x,y)=>y===undefined?x:0;return (n++,f)((n++,a))+n;",
+        "let f=(x,y)=>y===undefined?x:0;const old=f;const r=f((f=(x,y)=>0,a));return r+old(b);",
+        "const o={f:x=>x===undefined?1:0};return o.f();",
+        "const fs=[x=>x===undefined?1:0];return fs[0]();",
+        "const make=x=>{return y=>y===undefined?x:0;};return (a?make(a):make(b))();",
+        "const make=x=>{return y=>y===undefined?x:0;};const f=a?make(a):make(b);return f();",
+        "const apply=a?((fn,x)=>fn(x)):((fn,x)=>fn(x)+1);return apply(x=>+x);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let source = "export function run(a,b){const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply(make(a));}";
+    common::compare_sources(source, source);
+    let js = "export function run(a,b){let f=(x,y)=>y??x;return f(a);}";
+    let ts = "export function run(a?:number,b?:number){let f=(x?:unknown,y?:unknown)=>y??x;return f(a);}";
+    common::compare_sources(js, ts);
+}

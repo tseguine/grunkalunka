@@ -2287,6 +2287,37 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         };
                         work.push(Work::Eval(argument, depth, mode));
                     } else {
+                        while arguments.len() < parameter_count {
+                            let parameter = self
+                                .closure_signatures
+                                .borrow()
+                                .parameter(signature, arguments.len())
+                                .expect("checked signature");
+                            let value = self.value(Type::General);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Nullish {
+                                    result: value,
+                                    value: ir::Nullish::Undefined,
+                                },
+                            );
+                            let value = if parameter == Type::ManagedValue {
+                                let boxed = self.value(parameter);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::ManagedPrimitive {
+                                        result: boxed,
+                                        input: value,
+                                    },
+                                );
+                                boxed
+                            } else {
+                                value
+                            };
+                            arguments.push(value);
+                        }
                         self.charge_closure_expansion(node)?;
                         let Type::Closure(signature) = self.values[callee.0] else {
                             unreachable!()
@@ -4570,6 +4601,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             signature,
             regions.current(),
             continuation.depth,
+            continuation.effect,
         )?;
         match prepared {
             PreparedClosureCallee::Ready(callee) => {
@@ -4597,6 +4629,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         signature: usize,
         region: &mut Region,
         depth: usize,
+        effect: ClosureEffect,
     ) -> Result<PreparedClosureCallee<'e, 'a>, String> {
         if call.optional {
             return Err(unsupported(
@@ -4610,13 +4643,33 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 "at most 1000 ordinary runtime closure arguments are admitted",
             ));
         }
-        if invocation::arguments(call).len()
-            < self
-                .closure_signatures
-                .borrow()
-                .parameter_count(signature)
-                .expect("checked closure signature")
-        {
+        let signatures = self.closure_signatures.borrow();
+        let parameter_count = signatures
+            .parameter_count(signature)
+            .expect("checked closure signature");
+        let supplied = invocation::arguments(call).len();
+        let missing = supplied < parameter_count;
+        // Async arrows can also have a synchronous wrapper returning a Promise.
+        // Keep both representations under the existing missing-input guard.
+        let missing_supported = matches!(effect, ClosureEffect::Sync)
+            && !signatures.is_async(signature)
+            && !matches!(
+                signatures.result(signature),
+                Some(
+                    Type::Promise
+                        | Type::FulfilledPromise
+                        | Type::SettledPromise
+                        | Type::AsyncValue
+                )
+            )
+            && (supplied..parameter_count).all(|index| {
+                matches!(
+                    signatures.parameter(signature, index),
+                    Some(Type::ManagedValue | Type::General)
+                )
+            });
+        drop(signatures);
+        if missing && !missing_supported {
             return Err(unsupported(
                 node,
                 "runtime closure call is missing declared arguments",

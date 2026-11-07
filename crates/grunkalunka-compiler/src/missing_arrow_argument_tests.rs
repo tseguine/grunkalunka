@@ -55,7 +55,7 @@ fn omitted_local_arrow_inputs_erase_optional_annotations() {
 }
 
 #[test]
-fn omitted_arrow_inputs_keep_async_runtime_callback_and_result_guards() {
+fn omitted_arrow_inputs_keep_async_callback_and_numeric_result_guards() {
     for (source, asynchronous) in [
         (
             "export async function run(a,b){const f=async x=>x;return await f();}",

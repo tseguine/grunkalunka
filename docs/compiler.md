@@ -2376,10 +2376,14 @@ separate guards. The original annotated sources are retained in the positive
 corpus and paired with independent JavaScript references; typed and plain
 artifacts are compared byte-for-byte.
 
-## Omitted arguments to synchronous helpers and local arrows
+## Omitted arguments to synchronous helpers and closures
 
 Ordinary synchronous named helpers and statically known local arrows accept
-fewer actual arguments than formals.
+fewer actual arguments than formals. Runtime-selected synchronous closures also
+accept omitted trailing inputs when their complete signature supplies General
+or boxed primitive slots. This includes mutable bindings, conditional callees,
+known object/array fields and returned functions. The callee snapshot is taken
+before supplied argument effects; missing inputs are filled only afterward.
 Each omitted trailing input receives canonical Undefined in a boxed private
 parameter slot after supplied arguments have evaluated. The existing `.call`
 projection retains its receiver-expression effects and argument offset. Supplied
@@ -2388,7 +2392,7 @@ origin/storage facts include the omitted value; Number-only assumptions must not
 replace it with NaN. Numeric operations apply their existing explicit coercion,
 while typeof, equality, defaults and primitive returns retain the Undefined tag.
 
-Calls to runtime closures and asynchronous helpers/arrows retain their
+Asynchronous helpers/arrows and Promise-valued closure wrappers retain their
 existing missing-argument guards. Required callback and Promise signatures
 retain their checks; broader managed factory-result consumers remain guarded.
 The public numeric interface still requires a proven numeric return; use the existing primitive-result profile for Undefined
