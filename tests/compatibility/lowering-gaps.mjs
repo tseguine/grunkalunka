@@ -34,7 +34,6 @@ for (const [id, body, expected, diagnostic] of [
 ]) add(id, 'values', body, expected, diagnostic);
 
 for (const [id, body, expected] of [
-  ['switch', 'switch(a) { case 4: return b; default: return a; }', 2],
   ['label', 'outer: while(1) { a=a+b; break outer; } return a;', 6],
 ]) add(id, 'control-flow', body, expected, statement, { milestone: 'L2' });
 

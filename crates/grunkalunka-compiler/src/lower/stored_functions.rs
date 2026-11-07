@@ -274,6 +274,7 @@ impl Fields {
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
                 || matches!(node.kind(), AstKind::LogicalExpression(_))
+                || matches!(node.kind(), AstKind::SwitchStatement(_))
                 // Function-only loose comparisons also need reference proofs,
                 // even when no literal heap container occurs in the module.
                 || matches!(node.kind(), AstKind::BinaryExpression(binary) if matches!(binary.operator, BinaryOperator::Equality | BinaryOperator::Inequality))

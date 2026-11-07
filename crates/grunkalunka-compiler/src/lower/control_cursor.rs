@@ -7,7 +7,7 @@
 use super::*;
 use oxc_ast::ast::{
     BlockStatement, DoWhileStatement, ForInStatement, ForOfStatement, ForStatement,
-    ForStatementLeft, IfStatement, TryStatement, WhileStatement,
+    ForStatementLeft, IfStatement, SwitchStatement, TryStatement, WhileStatement,
 };
 
 pub(in crate::lower) mod array_bindings;
@@ -47,6 +47,8 @@ mod materialization_tests;
 #[cfg(test)]
 mod runtime_factory_tests;
 mod steps;
+#[cfg(test)]
+mod switch_tests;
 
 #[cfg(test)]
 std::thread_local! {
@@ -134,6 +136,7 @@ impl GetSpan for IterationSource<'_, '_> {
 #[derive(Clone, Copy)]
 pub(super) enum ControlNode<'n, 'a> {
     If(&'n IfStatement<'a>),
+    Switch(&'n SwitchStatement<'a>),
     While(&'n WhileStatement<'a>),
     DoWhile(&'n DoWhileStatement<'a>),
     For(&'n ForStatement<'a>),
@@ -150,6 +153,7 @@ impl<'n, 'a> ControlNode<'n, 'a> {
     fn of_statement(source: &'n Statement<'a>) -> Option<Self> {
         match source {
             Statement::IfStatement(statement) => Some(Self::If(statement)),
+            Statement::SwitchStatement(statement) => Some(Self::Switch(statement)),
             Statement::WhileStatement(statement) => Some(Self::While(statement)),
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
@@ -439,6 +443,17 @@ enum Frame<'n, 'a> {
         source: &'n IfStatement<'a>,
         depth: usize,
     },
+    SwitchDiscriminant {
+        source: &'n SwitchStatement<'a>,
+        depth: usize,
+    },
+    SwitchTest(Box<steps::switch::SwitchFrame<'n, 'a>>),
+    SwitchArm {
+        state: Box<steps::switch::SwitchFrame<'n, 'a>>,
+        test: Region,
+        condition: ValueId,
+    },
+    SwitchDefault(Box<steps::switch::SwitchFrame<'n, 'a>>),
     If {
         source: &'n IfStatement<'a>,
         output: Region,
@@ -624,6 +639,7 @@ impl Frame<'_, '_> {
             | Self::FunctionReturn { depth }
             | Self::ThrowValue { depth }
             | Self::IfPredicate { depth, .. }
+            | Self::SwitchDiscriminant { depth, .. }
             | Self::If { depth, .. }
             | Self::WhilePredicate { depth, .. }
             | Self::While { depth, .. }
@@ -657,6 +673,9 @@ impl Frame<'_, '_> {
             Self::For(frame) => frame.depth,
             Self::ForOf(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
+            Self::SwitchTest(state)
+            | Self::SwitchDefault(state)
+            | Self::SwitchArm { state, .. } => state.depth,
         }
     }
 }
@@ -1078,6 +1097,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             if charge == source_control::SourceCharge::Uncharged {
                                 match source {
                                     ControlNode::If(node) => {
+                                        self.admit_source_statement(node, depth)?;
+                                    }
+                                    ControlNode::Switch(node) => {
                                         self.admit_source_statement(node, depth)?;
                                     }
                                     ControlNode::While(node) => {

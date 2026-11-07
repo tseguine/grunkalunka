@@ -31,6 +31,7 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
         FinalizedBy,
         PretestLoop,
         DoLoop,
+        Switch(usize, bool),
     }
     let mut pending = vec![Task::Statement(statement, depth)];
     let mut values = Vec::new();
@@ -58,6 +59,15 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
                             pending.push(Task::Value(Completion::NORMAL));
                         }
                         pending.push(Task::Statement(&branch.consequent, depth + 1));
+                    }
+                    Statement::SwitchStatement(source) => {
+                        pending.push(Task::Switch(
+                            source.cases.len(),
+                            source.cases.iter().any(|case| case.test.is_none()),
+                        ));
+                        for case in source.cases.iter().rev() {
+                            pending.push(Task::Sequence(&case.consequent, depth + 1));
+                        }
                     }
                     Statement::WhileStatement(loop_) => {
                         pending.push(Task::PretestLoop);
@@ -110,6 +120,21 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
                     completion = completion.then(child);
                 }
                 values.push(completion);
+            }
+            Task::Switch(count, has_default) => {
+                let start = values.len() - count;
+                let mut children = values.drain(start..);
+                let mut completion = children.next().unwrap_or(Completion::NORMAL);
+                let mut terminal = has_default && completion.returns_or_throws();
+                for child in children {
+                    terminal &= child.returns_or_throws();
+                    completion = completion.union(child);
+                }
+                values.push(if terminal {
+                    completion
+                } else {
+                    Completion::NORMAL
+                });
             }
             Task::Union | Task::CaughtBy | Task::FinalizedBy => {
                 let right = values.pop().expect("right completion");

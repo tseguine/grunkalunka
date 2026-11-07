@@ -2,6 +2,41 @@
 mod common;
 
 #[test]
+fn returning_switch_executes_the_exact_original_gap_and_goldens() {
+    let source = "export function run(a,b) { switch(a) { case 4: return b; default: return a; } }";
+    common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, 2], [3, 2, 3]]);
+}
+
+#[test]
+fn returning_switch_dispatch_preserves_strict_kinds_source_order_and_defaults() {
+    for body in [
+        "switch(a){case 4:return b;default:return a;}",
+        "switch(a){case NaN:return 99;case -0:return b;default:return a;}",
+        "switch(a?true:null){case 1:return 99;case true:return a;case null:return b;default:return 98;}",
+        "switch(a?'x':'y'){case 'x':return a;case ('y'+''):return b;default:return 99;}",
+        "let n=0;switch(a){case (n++,0):return n;default:return n;case (n=n*10+2,1):return n;case (n=99,2):return n;}",
+        "switch(a){case (a=b,b):return a+10;case b:return 99;default:return a;}",
+        "let n=0;switch((n++,a)){case a:return n;case (n=99,b):return n;default:return n;}",
+        "switch(a){default:{let x=b;return x;}case 0:{let x=a;return x;}}",
+        "switch(a){case 0:switch(b){case 0:return 1;default:return 2;}default:return 3;}",
+        "const f=x=>{switch(x){case 0:return b;default:return x;}};return f(a);",
+        "try{switch(a){case 0:throw b;default:return a;}}catch(e){return e+1;}",
+        "let n=0;try{switch(a){case 0:return b;default:return a;}}finally{n++;}",
+        "switch(a){default:return b;}",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){switch(a){case 4:return b;default:return a;}}";
+    let ts = "export function run(a:number,b:number){switch(a as boolean){case (4 as string):return b;default:return a;}}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn boxed_primitive_alternatives_use_scalar_coercion_and_saved_values() {
     for body in [
         "const o={v:a?true:b};return +o.v;",

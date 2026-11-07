@@ -6,6 +6,7 @@
 use super::*;
 mod for_loop;
 mod for_of;
+pub(super) mod switch;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn begin_control<'n>(
@@ -16,6 +17,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         match source {
+            ControlNode::Switch(source) => {
+                self.begin_switch(source, output, depth, cursor)?;
+            }
             ControlNode::TryFinally(source) => {
                 let outer_type = self.return_type;
                 if self.allow_await && !matches!(outer_type, Type::General | Type::AsyncValue) {
@@ -192,6 +196,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::SwitchDiscriminant { source, depth } => self.resume_switch_discriminant(
+                source,
+                depth,
+                output_region,
+                value.expect("switch discriminant"),
+                cursor,
+            ),
+            Frame::SwitchTest(state) => self.resume_switch_test(
+                state,
+                output_region,
+                value.expect("switch case value"),
+                cursor,
+            ),
             Frame::LiftedExpression {
                 completion,
                 function_value,
@@ -465,6 +482,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::SwitchArm {
+                state,
+                test,
+                condition,
+            } => {
+                self.resume_switch_arm(state, test, condition, finished_region, completion, cursor)?
+            }
+            Frame::SwitchDefault(state) => {
+                self.finish_switch(*state, finished_region, completion, cursor)?
+            }
             Frame::AdvanceDeclaration { sequence } => {
                 self.advance_declaration(sequence, finished_region, cursor)?;
             }
@@ -578,6 +605,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::FunctionReturn { .. }
             | Frame::ThrowValue { .. }
             | Frame::IfPredicate { .. }
+            | Frame::SwitchDiscriminant { .. }
+            | Frame::SwitchTest(_)
             | Frame::WhilePredicate { .. }
             | Frame::DoWhilePredicate { .. }
             | Frame::ForInitializer { .. }
