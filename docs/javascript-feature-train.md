@@ -464,3 +464,10 @@ synchronous helpers/arrows, including nested constants, IEEE edge values, captur
 results and emitted closures. Heap traversal retains source depth limits and does
 not suppress operand admission beneath void. Scope, effects, coercion, async and
 public-entry guards remain. Corpus 155 adds fourteen differential pairs.
+
+
+Earlier-parameter unary defaults now support void, !, + and - through the same
+lazy selection in helpers, arrows and emitted closures. Numeric signs require
+four-kind primitive proofs; truthiness and void also support represented
+references without invoking coercion hooks. Scope, source limits, unsupported
+value lanes and public/async guards remain. Corpus 156 adds fifteen pairs.

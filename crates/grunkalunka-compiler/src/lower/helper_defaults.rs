@@ -19,9 +19,31 @@ enum Constant {
 fn earlier_parameter<'n, 'a>(
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
-) -> Option<&'n IdentifierReference<'a>> {
-    let (Expression::Identifier(identifier), _) = closures::unwrapped_at(expression, 0)? else {
-        return None;
+) -> Option<(&'n IdentifierReference<'a>, Vec<UnaryOperator>)> {
+    let mut node = expression;
+    let mut depth = 0;
+    let mut operators = Vec::new();
+    let identifier = loop {
+        let (inner, next) = closures::unwrapped_at(node, depth)?;
+        node = inner;
+        depth = next;
+        match node {
+            Expression::UnaryExpression(unary)
+                if matches!(
+                    unary.operator,
+                    UnaryOperator::Void
+                        | UnaryOperator::LogicalNot
+                        | UnaryOperator::UnaryPlus
+                        | UnaryOperator::UnaryNegation
+                ) =>
+            {
+                operators.push(unary.operator);
+                node = &unary.argument;
+                depth += 1;
+            }
+            Expression::Identifier(id) => break id.as_ref(),
+            _ => return None,
+        }
     };
     let symbol = semantic
         .scoping()
@@ -42,7 +64,7 @@ fn earlier_parameter<'n, 'a>(
     })?;
     parameters.items[..index].iter().any(|parameter| {
         matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
-    }).then_some(identifier)
+    }).then_some((identifier,operators))
 }
 fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Constant> {
     enum Task<'n, 'a> {
@@ -279,7 +301,7 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
-        if let Some(identifier) = earlier_parameter(initializer, self.semantic) {
+        if let Some((identifier, operators)) = earlier_parameter(initializer, self.semantic) {
             let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
             let ty = self.slots[slot.0].ty;
             let input = self.value(ty);
@@ -291,7 +313,7 @@ impl Lowering<'_, '_> {
                     slot,
                 },
             );
-            let value = if ty == Type::ManagedValue {
+            let mut value = if ty == Type::ManagedValue {
                 input
             } else {
                 let result = self.value(Type::ManagedValue);
@@ -328,6 +350,94 @@ impl Lowering<'_, '_> {
                 Self::push(&mut consequent, initializer, op);
                 result
             };
+            let mut primitive = self.stored.primitive(identifier.node_id());
+            for operator in operators.into_iter().rev() {
+                if operator == UnaryOperator::Void {
+                    value = self.binding_undefined(initializer, &mut consequent);
+                    primitive = true;
+                    continue;
+                }
+                let scalar = if operator == UnaryOperator::LogicalNot {
+                    let truth = self.value(Type::Predicate);
+                    Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::ManagedTruthy {
+                            result: truth,
+                            input: value,
+                        },
+                    );
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::Not {
+                            result,
+                            input: truth,
+                        },
+                    );
+                    result
+                } else {
+                    if !primitive {
+                        return Err(unsupported(
+                            initializer,
+                            "numeric parameter defaults require a proven four-kind primitive operand",
+                        ));
+                    }
+                    let general = self.value(Type::General);
+                    Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::ManagedToPrimitive {
+                            result: general,
+                            input: value,
+                        },
+                    );
+                    let number = self.value(Type::Number);
+                    Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::NumberFromGeneral {
+                            result: number,
+                            input: general,
+                        },
+                    );
+                    if operator == UnaryOperator::UnaryNegation {
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Unary {
+                                result,
+                                operator: Unary::Negate,
+                                input: number,
+                            },
+                        );
+                        result
+                    } else {
+                        number
+                    }
+                };
+                let general = self.value(Type::General);
+                Self::push(
+                    &mut consequent,
+                    initializer,
+                    Op::Pack {
+                        result: general,
+                        input: scalar,
+                    },
+                );
+                value = self.value(Type::ManagedValue);
+                Self::push(
+                    &mut consequent,
+                    initializer,
+                    Op::ManagedPrimitive {
+                        result: value,
+                        input: general,
+                    },
+                );
+                primitive = true;
+            }
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
         let value = match constant(initializer, self.semantic).ok_or_else(|| {

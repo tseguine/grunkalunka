@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn unary_parameter_defaults_preserve_tags_truthiness_and_saved_arguments() {
+    compare_helpers(&[
+        "function f(x,y=void x){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=+x){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=-x){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=-x){return y;}export function run(a,b){return f(null);}",
+        "function f(x,y=+x){return y;}export function run(a,b){return f(false);}",
+        "function f(x,y=+x){return y;}export function run(a,b){return f();}",
+        "function f(x,y=!x){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!x){return y;}export function run(a,b){return f('');}",
+        "function f(x,y=!x){return y;}export function run(a,b){return f({});}",
+        "function f(x,y=+!!x){return y;}export function run(a,b){return f('abc');}",
+        "function f(x,y=+void x){return y;}export function run(a,b){return f([]);}",
+        "export function run(a,b){const o={f:(x,y=-x)=>y};return o.f(a);}",
+        "export function run(a,b){const f=(x,y=-x)=>()=>y;const g=f(a);return g();}",
+        "function f(x,y=-x){return y;}export function run(a,b){return f(a,b);}",
+        "export function run(a,b){const f=(x,y=-x)=>y;return f(a,undefined,a=b);}",
+    ]);
+}
+
+#[test]
 fn arithmetic_parameter_defaults_keep_number_bits_and_supplied_tags() {
     compare_helpers(&[
         "function f(x=1+2){return x;}export function run(a,b){return f();}",
