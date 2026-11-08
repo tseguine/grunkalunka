@@ -2761,3 +2761,12 @@ a 2 MiB native stack. Mixed dynamic Array/String/other iterable operands retain
 guards; the existing single-spread Array/String copy path is unchanged. Corpus
 158 adds thirteen JS/TS pairs, including the exact former runtime rejection
 source with a frozen hash; all 796 compatibility negatives remain.
+
+
+Debugger statements are now admitted in represented function bodies as normal,
+effect-free completion when no debugger facility is attached, matching the
+execution environment. They pass through the ordinary source statement budget
+and do not emit an IR operation. Helpers, arrows, loops, branches, exception
+cleanup and supported async bodies retain their existing completion behavior.
+This adds statement syntax support, without a debugger/host API. Corpus 159 adds
+eight JS/TS pairs; all 796 compatibility negatives remain.

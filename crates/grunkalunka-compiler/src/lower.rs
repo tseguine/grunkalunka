@@ -822,7 +822,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 region.exit = Exit::Break;
                 Ok(Completion::BREAK)
             }
-            Statement::EmptyStatement(_) => Ok(Completion::NORMAL),
+            // No debugger facility is attached to generated execution.
+            Statement::EmptyStatement(_) | Statement::DebuggerStatement(_) => {
+                Ok(Completion::NORMAL)
+            }
             Statement::ReturnStatement(statement) if statement.argument.is_none() => {
                 if matches!(
                     self.return_type,
@@ -876,6 +879,35 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn debugger_statements_keep_normal_completion_and_source_budgets() {
+        let source = "export function run(a,b){debugger;return a+b;}";
+        let empty = "export function run(a,b){;return a+b;}";
+        assert_eq!(
+            crate::compile(source, false).unwrap().wasm,
+            crate::compile(empty, false).unwrap().wasm
+        );
+        let typed = "export function run(a:string,b:boolean):never{debugger;return a+b;}";
+        assert_eq!(
+            crate::compile(source, false).unwrap().wasm,
+            crate::compile(typed, true).unwrap().wasm
+        );
+        for count in [255, 256] {
+            let source = format!(
+                "export function run(a,b){{{}return a;}}",
+                "debugger;".repeat(count)
+            );
+            let result = crate::compile(&source, false);
+            assert_eq!(result.is_ok(), count == 255, "{count}: {:?}", result.err());
+        }
+        for source in [
+            "export function run(a,b){debugger;const x=a;x=b;return x;}",
+            "export function run(a,b){const unused=()=>{debugger;return Math.random();};return a;}",
+        ] {
+            assert!(crate::compile(source, false).is_err(), "{source}");
+        }
+    }
     #[test]
     fn shift_unsigned_is_admitted() {
         crate::compile("export function run(a,b) { return -1 >>> 0; }", false).unwrap();

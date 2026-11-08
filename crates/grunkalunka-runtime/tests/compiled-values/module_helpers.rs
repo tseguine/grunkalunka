@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn debugger_statements_preserve_primitive_and_helper_completions() {
+    compare_helpers(&[
+        "export function run(a,b){debugger;return a;}",
+        "export function run(a,b){if(a){debugger;}else{debugger;}return null;}",
+        "function f(){debugger;}export function run(a,b){return f();}",
+        "export function run(a,b){const f=()=>{debugger;return false;};return f();}",
+        "export function run(a,b){try{debugger;return a;}finally{debugger;}}",
+    ]);
+}
+
+#[test]
 fn literal_call_spreads_preserve_argument_order_defaults_and_callee_snapshots() {
     compare_helpers(&[
         "function f(x){return x;}export function run(a,b){return f(...[a]);}",

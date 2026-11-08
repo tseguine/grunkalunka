@@ -1,3 +1,4 @@
+import { debuggerStatementPrograms } from './debugger-statements.mjs';
 import { mixedLiteralArraySpreadOriginal, mixedLiteralArraySpreadPrograms } from './mixed-literal-array-spreads.mjs';
 import { literalCallSpreadOriginals, literalCallSpreadPrograms } from './literal-call-spreads.mjs';
 import { unaryDefaultOriginal, unaryDefaultPrograms } from './unary-parameter-defaults.mjs';
@@ -1215,6 +1216,18 @@ test('mixed literal Array spreads keep original hole, ordering and position obse
   const row=mixedLiteralArraySpreadPrograms.find(row=>row[0]==='mixed-literal-array-spread-'+id);
   assert.equal(row[1],row[2]);
   assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+
+test('debugger statement corpus executes unchanged complete source programs',()=>{
+ assert.equal(debuggerStatementPrograms.length,8);
+ for(const row of debuggerStatementPrograms) {
+  const pair=programSources(row);
+  assert.ok(pair.sourceJS.includes('debugger;'));
+  assert.equal(pair.sourceJS,pair.sourceTS);
+  assert.equal(pair.sourceJS,pair.oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));
  }
 });
