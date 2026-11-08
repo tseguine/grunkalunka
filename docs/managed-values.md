@@ -1512,5 +1512,11 @@ proofs: unsigned numeric syntax on proven objects/Arrays, or source-proven Strin
 on null-prototype dictionaries. Each key is saved before the original destination
 reference executes, followed by GetV and its lazy default; awaits retain that order.
 Selected-value facts use the same conservative own-value/missing alternatives as
-ordinary computed reads. Runtime source keys combined with object rest, runtime
-String source properties and coercing/unproven keys remain guarded.
+ordinary computed reads. Runtime String source properties and coercing/unproven keys remain guarded.
+
+
+Computed source keys also participate in object-rest exclusions. Each saved key is
+retained through destination effects/default awaits and excluded from the fresh
+copy of the original RHS. Duplicate/static/runtime names share the existing key
+representation. Source facts conservatively include absence for every field that
+an unknown exclusion could remove, preserving kind and alias proof boundaries.

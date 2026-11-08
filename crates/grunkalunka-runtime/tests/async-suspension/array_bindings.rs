@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn computed_pattern_rest_preserves_exclusions_across_awaits_and_rejections() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);d.old=undefined;d.new=b;let k=\"old\",x;const o={rest:{}};({[(await a,k)]:x=(await b,k=\"new\",a),...(await a,o).rest}=d);return \"old\" in o.rest?0:1;",
+            "let rest={};let x;const rows=[a,b];({[(await a,0)>>>0]:x,...rest}=rows);await b;return Object.keys(rest).length;",
+            "const d=Object.create(null);d.old=a;d.keep=b;const k=\"old\";let x,rest;try{({[(await Promise.reject(b),k)]:x,...rest}=d);}catch(e){await a;return rest===undefined?1:0;}return 99;",
+            "const d=Object.create(null);const k=\"old\";let x,rest;try{({[(await a,k)]:x=(await Promise.reject(b),1),...rest}=d);}catch(e){await a;return rest===undefined?1:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn computed_pattern_selections_preserve_awaited_source_keys_and_lazy_defaults() {
     compare_promises(
         &[

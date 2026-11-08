@@ -6,6 +6,7 @@ const LENGTH: &[u16] = &[108, 101, 110, 103, 116, 104];
 pub(super) struct Rest {
     pub receiver: NodeId,
     pub excluded: BTreeSet<Key>,
+    pub dynamic_excluded: bool,
 }
 
 pub(super) struct Members<'a, 'ast> {
@@ -316,6 +317,12 @@ impl Members<'_, '_> {
                 if rest.excluded.contains(key) {
                     found.insert(Origin::Undefined);
                     continue;
+                }
+                // An unknown excluded name can remove this exact field. Its
+                // possible value remains a source alternative, never a proof
+                // that it is present on the fresh rest object.
+                if rest.dynamic_excluded {
+                    found.insert(Origin::Undefined);
                 }
                 Some((rest.receiver, shifted))
             } else if let Some(&(source, skipped)) = self.elements.rest_sources.get(&object) {
