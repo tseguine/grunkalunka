@@ -1,3 +1,4 @@
+import { unsignedHasOwnPrograms } from './unsigned-has-own.mjs';
 import { primitiveObjectBindingPrograms } from './primitive-object-bindings.mjs';
 import { unsignedBindingPrograms } from './unsigned-binding-keys.mjs';
 import { stringRestBindingPrograms } from './string-rest-bindings.mjs';
@@ -1427,3 +1428,11 @@ test('String object-rest bindings retain original source programs',()=>{assert.e
 test('unsigned binding keys retain original reference expressions',()=>{assert.equal(unsignedBindingPrograms.length,12);for(const row of unsignedBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('primitive object bindings retain original Number and Boolean sources',()=>{assert.equal(primitiveObjectBindingPrograms.length,12);for(const row of primitiveObjectBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('unsigned Object.hasOwn fixtures retain native reference and compiler sources', () => {
+  assert.equal(unsignedHasOwnPrograms.length, 12);
+  for (const row of unsignedHasOwnPrograms) {
+    assert.equal(programSources(row).sourceJS, programSources(row).oracleSource);
+    assert.ok(programs.some(program => program[0] === row[0]));
+  }
+});
