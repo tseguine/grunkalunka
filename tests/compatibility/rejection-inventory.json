@@ -668,7 +668,7 @@
     {
       "id": "var-bindings",
       "kind": "open-requirement",
-      "assessment": "Synchronous var identifier and destructuring declarations hoist function cells and write existing bindings, including defaults/rest. Var iteration pattern heads, callable initializers and catch-name collisions remain guarded.",
+      "assessment": "Synchronous var declarations and for-of patterns write hoisted function cells, including defaults/rest. Var for-in pattern heads, callable initializers and catch-name collisions remain guarded.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-variable-statement",
@@ -682,7 +682,7 @@
         "value-representation"
       ],
       "observableDone": [
-        "Admit the remaining var iteration-pattern, callable and catch-name sources with native-JS comparisons while preserving function cells."
+        "Admit the remaining var for-in-pattern, callable and catch-name sources with native-JS comparisons while preserving function cells."
       ]
     },
     {
@@ -6634,10 +6634,10 @@
       "group": "var-bindings"
     },
     {
-      "id": "var-guard-iteration-pattern",
+      "id": "var-guard-in-pattern",
       "extension": "js",
       "sourceMode": "module-strict",
-      "sourceSha256": "764cd5824ece2d7265a1e85d7cbf5c2a1641efc086b9e1305e067b46ccbd8008",
+      "sourceSha256": "c3d9a13011b88148ef06e3494a808941381271eaebc6a113ea19128248680d2f",
       "group": "var-bindings"
     }
   ]

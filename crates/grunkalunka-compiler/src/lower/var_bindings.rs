@@ -82,15 +82,27 @@ pub(super) fn iteration_symbols(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
     semantic
         .nodes()
         .iter()
-        .filter_map(|node| match node.kind() {
-            AstKind::ForOfStatement(source) => {
-                iteration::var_iteration_binding(&source.left).and_then(|id| id.symbol_id.get())
+        .filter_map(|node| {
+            let left = match node.kind() {
+                AstKind::ForOfStatement(source) => &source.left,
+                AstKind::ForInStatement(source) => &source.left,
+                _ => return None,
+            };
+            let oxc_ast::ast::ForStatementLeft::VariableDeclaration(d) = left else {
+                return None;
+            };
+            if d.kind != VariableDeclarationKind::Var || d.declare {
+                return None;
             }
-            AstKind::ForInStatement(source) => {
-                iteration::var_iteration_binding(&source.left).and_then(|id| id.symbol_id.get())
-            }
-            _ => None,
+            Some(
+                d.declarations
+                    .iter()
+                    .flat_map(|local| names(&local.id))
+                    .filter_map(|id| id.symbol_id.get())
+                    .collect::<Vec<_>>(),
+            )
         })
+        .flatten()
         .collect()
 }
 
@@ -128,7 +140,7 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
         for local in &d.declarations {
             if matches!(
                 semantic.nodes().parent_kind(node.id()),
-                AstKind::ForOfStatement(_) | AstKind::ForInStatement(_)
+                AstKind::ForInStatement(_)
             ) && !matches!(local.id, BindingPattern::BindingIdentifier(_))
             {
                 return Err(unsupported(

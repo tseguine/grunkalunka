@@ -406,5 +406,11 @@ TDZ reads and effects beneath void retain admission guards; no API is added.
 
 Var destructuring declarations reuse hoisted cells for Object/Array bindings,
 defaults, rest, parameter aliases and repeated declarations. Leaf-origin proofs
-preserve safe projections and capture identity. Iteration pattern heads, async var,
+preserve safe projections and capture identity. For-in pattern heads, async var,
 callable initializers and catch-name collisions remain separate work.
+
+
+Var for-of patterns now share hoisted cells across proven container elements,
+including defaults, nested selections and fresh rest values. Captures observe
+later writes; zero visits preserve old values and origin proofs retain all loop
+writes. Async var, for-in patterns and unproven iterables/elements remain guarded.

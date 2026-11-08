@@ -401,6 +401,8 @@ fn array_binding_annotations_are_erased_without_proving_values() {
 
 #[test]
 fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
+    let original = "export function run(a,b){for(var [x] of [[a]]){}return a;}";
+    common::compare_sources(original, original);
     let original = "export function run(a,b){var [x]=[a];return a;}";
     common::compare_sources(original, original);
     for body in [
@@ -410,7 +412,7 @@ fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
         "const []=null;return a;",
         "const [,]=undefined;return a;",
         "const source=a?[a]:null;const [x]=source;return a;",
-        "for(var [x] of [[a]]){}return a;",
+        "for(var [x] in {x:a}){}return a;",
         "const [x]=[a];x=b;return a;",
         "const x=a;{const [x]=[x];return x===a?1:0;}",
         "const source=['ready'];source[0]=a;const [text]=source;return text.length;",

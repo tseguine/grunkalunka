@@ -2571,8 +2571,22 @@ observe Undefined; lexical TDZ checks remain unchanged. Post-declaration proofs
 use selected leaf origins, including every duplicate binding occurrence, rather
 than the complete source object. Unknown writes disable refinement.
 
-Var iteration pattern heads, async var, callable initializers and catch-name
+Var for-in pattern heads, async var, callable initializers and catch-name
 collisions remain guarded. Source limits count all pattern names, with the same
 128/129 small-stack boundary. Corpus 147 preserves the exact former pattern
 rejection as a positive and retains a source-bound iteration-pattern guard. No
 standard-library, browser or Node API is added.
+
+
+Synchronous var Array/Object for-of patterns now select proven container elements
+through the existing pattern evaluator and write the function's hoisted cells on
+each visit. Captures share later iterations, including parameter aliases and
+emitted closures; lexical for-of patterns still create per-iteration bindings.
+Defaults and nested selections keep source order, while rest creates fresh values.
+Zero visits preserve the previous values or initial Undefined. Loop writes widen
+all aliases and suppress initializer-only Number refinements.
+
+The iterable and selected container kinds must remain source-proven. Async var,
+for-in patterns, general iterables and unproven selected receivers stay guarded.
+Corpus 148 executes the exact former var iteration-pattern rejection with its hash
+and retains a separate for-in pattern guard. No API or host import is added.
