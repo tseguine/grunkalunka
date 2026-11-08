@@ -339,3 +339,60 @@ fn unary_earlier_defaults_preserve_scope_conversion_and_depth_guards() {
         .join()
         .unwrap();
 }
+
+#[test]
+fn pure_expression_defaults_select_string_boolean_and_numeric_values() {
+    for expression in [
+        "'a'+'b'+'c'",
+        "'\\u{1F600}'+'x'",
+        "!(0/0)",
+        "!('nonempty')",
+        "false||7",
+        "true&&'ready'",
+        "null??'missing'",
+        "undefined??false",
+        "0??9",
+        "NaN||4",
+        "0?'wrong':'right'",
+        "1?2+3:4*5",
+        "(false||true)?'on'+'line':'off'",
+        "void (1?2:3)",
+    ] {
+        for source in [
+            format!("function f(x={expression}){{return x;}}export function run(a,b){{return f();}}"),
+            format!("export function run(a,b){{const f=(x={expression})=>x;return f();}}"),
+            format!("export function run(a,b){{const o={{f:(x={expression})=>x}};return o.f();}}"),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn pure_expression_defaults_reject_unproven_coercion_and_hidden_effects() {
+    for value in [
+        "'a'+1",
+        "true+2",
+        "null*3",
+        "true?g():3",
+        "false&&missing",
+        "void (1||g())",
+        "false?2:(a=3)",
+        "x??'fallback'",
+        "1?2:Math.random()",
+    ] {
+        let source = format!(
+            "function f(x={value}){{return x;}}export function run(a,b){{return f();}}"
+        );
+        assert!(crate::compile_value(&source, false).is_err(), "{source}");
+    }
+    let js = "function f(x='on'+'line'){return x.length;}export function run(a,b){return f();}";
+    let ts = "function f(x=(('on' as never)+('line' as unknown))){return x.length;}export function run(a:number,b:number):number{return f();}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}

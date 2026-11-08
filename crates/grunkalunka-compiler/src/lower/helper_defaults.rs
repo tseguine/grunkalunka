@@ -66,11 +66,31 @@ fn earlier_parameter<'n, 'a>(
         matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
     }).then_some((identifier,operators))
 }
+impl Constant {
+    fn truthy(&self) -> bool {
+        match self {
+            Self::Number(value) => *value != 0.0 && !value.is_nan(),
+            Self::Boolean(value) => *value,
+            Self::String(units) => !units.is_empty(),
+            Self::Null | Self::Undefined => false,
+        }
+    }
+
+    fn nullish(&self) -> bool {
+        matches!(self, Self::Null | Self::Undefined)
+    }
+}
+
+// Defaults must be independent of the caller and free of effects. Evaluate
+// every operand, including unselected branches, to reject hidden calls, name
+// reads or assignments rather than silently treating them as pure constants.
 fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Constant> {
     enum Task<'n, 'a> {
         Visit(&'n Expression<'a>, usize),
         Unary(UnaryOperator),
         Binary(BinaryOperator),
+        Logical(LogicalOperator),
+        Conditional,
     }
     let mut work = vec![Task::Visit(expression, 0)];
     let mut values = Vec::new();
@@ -87,6 +107,7 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                             unary.operator,
                             UnaryOperator::UnaryPlus
                                 | UnaryOperator::UnaryNegation
+                                | UnaryOperator::LogicalNot
                                 | UnaryOperator::Void
                         ) =>
                     {
@@ -107,6 +128,19 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                         work.push(Task::Binary(binary.operator));
                         work.push(Task::Visit(&binary.right, depth + 1));
                         work.push(Task::Visit(&binary.left, depth + 1));
+                        continue;
+                    }
+                    Expression::LogicalExpression(logical) => {
+                        work.push(Task::Logical(logical.operator));
+                        work.push(Task::Visit(&logical.right, depth + 1));
+                        work.push(Task::Visit(&logical.left, depth + 1));
+                        continue;
+                    }
+                    Expression::ConditionalExpression(conditional) => {
+                        work.push(Task::Conditional);
+                        work.push(Task::Visit(&conditional.alternate, depth + 1));
+                        work.push(Task::Visit(&conditional.consequent, depth + 1));
+                        work.push(Task::Visit(&conditional.test, depth + 1));
                         continue;
                     }
                     Expression::NumericLiteral(n) => Constant::Number(n.value),
@@ -132,8 +166,12 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                 values.push(value);
             }
             Task::Unary(op) => {
-                let value = match (op, values.pop()?) {
+                let operand = values.pop()?;
+                let value = match (op, operand) {
                     (UnaryOperator::Void, _) => Constant::Undefined,
+                    (UnaryOperator::LogicalNot, operand) => {
+                        Constant::Boolean(!operand.truthy())
+                    }
                     (UnaryOperator::UnaryPlus, Constant::Number(n)) => Constant::Number(n),
                     (UnaryOperator::UnaryNegation, Constant::Number(n)) => Constant::Number(-n),
                     _ => return None,
@@ -141,20 +179,42 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                 values.push(value);
             }
             Task::Binary(op) => {
-                let Constant::Number(right) = values.pop()? else {
-                    return None;
+                let right = values.pop()?;
+                let left = values.pop()?;
+                let value = match (op, left, right) {
+                    (BinaryOperator::Addition, Constant::String(mut left), Constant::String(right)) => {
+                        left.extend(right);
+                        Constant::String(left)
+                    }
+                    (op, Constant::Number(left), Constant::Number(right)) => {
+                        Constant::Number(match op {
+                            BinaryOperator::Addition => left + right,
+                            BinaryOperator::Subtraction => left - right,
+                            BinaryOperator::Multiplication => left * right,
+                            BinaryOperator::Division => left / right,
+                            BinaryOperator::Remainder => left % right,
+                            _ => unreachable!("planned constant arithmetic"),
+                        })
+                    }
+                    _ => return None,
                 };
-                let Constant::Number(left) = values.pop()? else {
-                    return None;
+                values.push(value);
+            }
+            Task::Logical(op) => {
+                let right = values.pop()?;
+                let left = values.pop()?;
+                let take_right = match op {
+                    LogicalOperator::And => left.truthy(),
+                    LogicalOperator::Or => !left.truthy(),
+                    LogicalOperator::Coalesce => left.nullish(),
                 };
-                values.push(Constant::Number(match op {
-                    BinaryOperator::Addition => left + right,
-                    BinaryOperator::Subtraction => left - right,
-                    BinaryOperator::Multiplication => left * right,
-                    BinaryOperator::Division => left / right,
-                    BinaryOperator::Remainder => left % right,
-                    _ => unreachable!("planned constant arithmetic"),
-                }));
+                values.push(if take_right { right } else { left });
+            }
+            Task::Conditional => {
+                let alternate = values.pop()?;
+                let consequent = values.pop()?;
+                let test = values.pop()?;
+                values.push(if test.truthy() { consequent } else { alternate });
             }
         }
     }
