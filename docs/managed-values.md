@@ -1537,3 +1537,9 @@ exclusions and existing member destinations share the saved RHS/key/reference
 cursor, including awaits and rejected defaults. A temporary own-data object feeds
 the existing rest operation after destination evaluation. Nullable/opaque String
 sources and runtime String source keys keep their guards.
+
+
+Declaration, nested and iteration object bindings also accept String object rest.
+Their existing binding cursor copies UTF-16 own indices after preceding fields and
+lazy defaults, including supported suspension; each rest result is fresh. Source
+proofs and static binding-key restrictions remain unchanged.
