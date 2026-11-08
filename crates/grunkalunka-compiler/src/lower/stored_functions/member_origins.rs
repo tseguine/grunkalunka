@@ -333,6 +333,14 @@ impl Members<'_, '_> {
                 if rest.dynamic_excluded {
                     found.insert(Origin::Undefined);
                 }
+                if self.values.get(&rest.receiver).is_some_and(|roots| {
+                    !roots.is_empty() && roots.iter().all(|origin| *origin == Origin::String)
+                }) && binding_patterns::string_index(key).is_none()
+                {
+                    // A String's length and inherited names are not copied.
+                    found.insert(Origin::Undefined);
+                    continue;
+                }
                 Some((rest.receiver, shifted))
             } else if let Some(&(source, skipped)) = self.elements.rest_sources.get(&object) {
                 // Only indexed values are copied. Out-of-bounds and named keys

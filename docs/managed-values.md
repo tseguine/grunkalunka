@@ -1529,3 +1529,11 @@ and saved RHS/key/reference ordering use the same cursor as object/Array sources
 String object-rest copying and runtime String/coercing keys remain guarded.
 The existing projections still require a proven String before String-only operations;
 numeric conversion of boxed Strings is outside this admission change.
+
+
+Object-rest assignment from a source-proven String copies its enumerable UTF-16
+index properties. Length and inherited names are absent. Literal/unsigned source
+exclusions and existing member destinations share the saved RHS/key/reference
+cursor, including awaits and rejected defaults. A temporary own-data object feeds
+the existing rest operation after destination evaluation. Nullable/opaque String
+sources and runtime String source keys keep their guards.

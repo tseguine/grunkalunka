@@ -1,3 +1,4 @@
+import { stringObjectRestPrograms } from './string-object-rest.mjs';
 import { stringComputedSelectionPrograms } from './string-computed-pattern-selections.mjs';
 import { computedRestPrograms } from './computed-pattern-rest.mjs';
 import { computedSelectionPrograms } from './computed-pattern-selections.mjs';
@@ -1415,3 +1416,5 @@ test('computed source selections retain the original property-key expressions',(
 test('computed source exclusions retain original rest-copy operations',()=>{assert.equal(computedRestPrograms.length,12);for(const row of computedRestPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('String computed selections retain original UTF-16 index sources',()=>{assert.equal(stringComputedSelectionPrograms.length,12);for(const row of stringComputedSelectionPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('String object rest retains original enumerable copying sources',()=>{assert.equal(stringObjectRestPrograms.length,12);for(const row of stringObjectRestPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
