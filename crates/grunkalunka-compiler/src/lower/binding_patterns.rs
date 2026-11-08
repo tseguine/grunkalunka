@@ -221,12 +221,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     "nested object bindings require a source-proven managed object or array",
                                 ));
                             };
-                            if receiver == Type::ManagedValue
-                                && (!self.stored.string(origin) || object.rest.is_some())
-                            {
+                            if receiver == Type::ManagedValue && !self.stored.string(origin) {
                                 return Err(unsupported(
                                     object.as_ref(),
-                                    "String object bindings require a proven String without rest",
+                                    "String object bindings require a proven String",
                                 ));
                             }
                             steps.push(BindingStep::Object {
@@ -351,5 +349,39 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             steps: steps.into_iter(),
             mutable,
         })
+    }
+}
+
+#[cfg(test)]
+mod string_rest_binding_tests {
+    #[test]
+    fn string_rest_bindings_keep_presence_and_source_guards() {
+        for (body, ok) in [
+            (
+                "const {...rest}='abc';return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "const {0:x,...rest}='abc';return Object.keys(rest).length;",
+                true,
+            ),
+            ("const {...rest}='abc';return rest.length;", false),
+            ("const {...rest}=(a?'abc':null);return a;", false),
+            ("const {...rest}=a;return a;", false),
+            ("const k='0';const {[k]:x,...rest}='abc';return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&source, ts);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){const {...rest}=(a as string);return a;}",
+                true
+            )
+            .is_err()
+        );
     }
 }

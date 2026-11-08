@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn string_rest_bindings_preserve_utf16_exclusions_and_fresh_identity() {
+    for body in [
+        "const {...rest}='abc';return Object.keys(rest).length;",
+        "const {0:x,...rest}='abc';return '0' in rest?0:1;",
+        "const {length:n,...rest}='abc';return n+Object.keys(rest).length;",
+        "const {...rest}='💠';return Object.keys(rest).length;",
+        "const {...rest}='';return Object.keys(rest).length;",
+        "var {...rest}='abc';return Object.keys(rest).length;",
+        "const {s:{0:x,...rest}}={s:'abc'};return Object.keys(rest).length;",
+        "let n=0;const {9:x=(n++,a),...rest}='abc';return n+Object.keys(rest).length;",
+        "let n=0;for(const {...rest} of ['a','bc'])n+=Object.keys(rest).length;return n;",
+        "const {...rest}='abc';const read=()=>Object.keys(rest).length;return read();",
+        "const {...rest}='abc';return rest.length===undefined?1:0;",
+        "const {...one}='abc';const {...two}='abc';return one===two?0:1;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn string_object_rest_copies_own_utf16_indices_and_excludes_length() {
     for body in [
         "let x;({...x}='abc');return a;",

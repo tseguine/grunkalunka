@@ -337,6 +337,7 @@ fn var_for_of_patterns_share_cells_and_preserve_iteration_origins() {
 #[test]
 fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
     for body in [
+        "const {...rest}='abc';return a;",
         "const {length:n}='abc';return n;",
         "let {0:x='?'}='abc';return x.charCodeAt(0);",
         "var {length:n}='abc';return +n;",
@@ -351,7 +352,6 @@ fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
         }
     }
     for body in [
-        "const {...rest}='abc';return a;",
         "const {slice}='abc';return a;",
         "const {'01':x}='abc';return a;",
         "const key='length';const {[key]:n}='abc';return a;",
@@ -375,6 +375,7 @@ fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
 fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
     assert!(crate::compile_value("export function run(a,b){for(const {length:n} in ((a?'abc':null) as object)){}return a;}",true).is_ok());
     for body in [
+        "for(const {...rest} in {a:1}){}return a;",
         "let n=0;for(const {length:l} in {a:1,abc:2})n+=l;return n;",
         "let n=0;for(let {0:x='?'} in {'':1,abc:2})n+=x.charCodeAt(0);return n;",
         "const get=()=>n;for(var {length:n} in {a:1,abc:2}){}return +get();",
@@ -389,7 +390,6 @@ fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
         }
     }
     for body in [
-        "for(const {...rest} in {a:1}){}return a;",
         "for(let {slice:x} in {a:1}){}return a;",
         "const key='length';for(const {[key]:x} in {a:1}){}return a;",
         "for(let {'01':x} in {a:1}){}return a;",

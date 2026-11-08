@@ -4,6 +4,11 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn string_rest_executes_the_exact_former_runtime_guard_source() {
+    compare("const {...rest}='abc';return a;");
+}
+
+#[test]
 fn numeric_object_binding_results_execute_the_exact_former_guard_sources() {
     for body in ["const {x=a}={};return x+1;", "const {x}={x:a};return x+1;"] {
         compare(body);
@@ -541,7 +546,6 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {x}=null;return a;",
         "const {x}=undefined;return a;",
         "const {}=null;return a;",
-        "const {...rest}='abc';return a;",
         "const source=a?{x:a}:null;const {x}=source;return a;",
         "const items=[{x:a}];const {x}=items.at(0);return a;",
         "const {constructor}={};return a;",

@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn string_rest_bindings_preserve_awaited_defaults_and_rejection() {
+    compare_promises(
+        &[
+            "const {9:x=(await a,b),...rest}='💠';await b;return Object.keys(rest).length;",
+            "const {...rest}='abc';await a;return Object.keys(rest).length;",
+            "let n=0;try{const {9:x=(await Promise.reject(b),1),...rest}='abc';n=Object.keys(rest).length;}catch(e){await a;return n;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_object_rest_preserves_awaited_destinations_and_rejected_defaults() {
     compare_promises(
         &[

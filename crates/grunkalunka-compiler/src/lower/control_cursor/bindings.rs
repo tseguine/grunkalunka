@@ -277,13 +277,28 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     else {
                         unreachable!("object rest has an object receiver");
                     };
+                    let object = if self.values[object.0] == Type::ManagedValue {
+                        let target = self.value(Type::ManagedObject);
+                        Self::push(&mut output, source, Op::ManagedObjectNew { result: target });
+                        Self::push(
+                            &mut output,
+                            source,
+                            Op::ManagedObjectSpread {
+                                object: target,
+                                input: *object,
+                            },
+                        );
+                        target
+                    } else {
+                        *object
+                    };
                     let rest = self.value(Type::ManagedObject);
                     Self::push(
                         &mut output,
                         source,
                         Op::ManagedObjectRest {
                             result: rest,
-                            object: *object,
+                            object,
                             excluded: excluded.take().expect("planned object rest"),
                         },
                     );
