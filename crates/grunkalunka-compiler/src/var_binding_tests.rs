@@ -73,7 +73,6 @@ fn var_keeps_unreachable_iteration_async_callable_and_lexical_guards() {
     for body in [
         "return x;var x=3;",
         "var f=x=>x;return f(a);",
-        "var {x}={x:a};return x;",
         "try{throw a;}catch(e){var e=3;}return 0;",
         "var x=1;let x=2;return x;",
         "var x=1;{const saved=x;let x=2;}return x;",
@@ -132,7 +131,8 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
                     "export function run(a,b){{var {loop_names};for(var item of [a]){{}}return a;}}"
                 );
                 let in_source=format!("export function run(a,b){{var {loop_names};for(var item in {{x:a}}){{}}return a;}}");
-                for source in [source, loop_source, in_source] {
+                let pattern_source=format!("export function run(a,b){{var [{names}]=[];return a;}}");
+                for source in [source, loop_source, in_source, pattern_source] {
                     for ts in [false, true] {
                         let result = crate::compile_value(&source, ts);
                         if count == 128 {
@@ -225,4 +225,71 @@ fn var_for_in_reuses_hoisted_cells_and_accounts_for_key_writes() {
             "{body}"
         );
     }
+}
+
+#[test]
+fn var_patterns_preserve_function_cells_and_selected_leaf_origins() {
+    for body in [
+        "var {x}={x:a};return +x;",
+        "var [x,y]=[a,b];return +x+(+y);",
+        "const get=()=>x;var {x}={x:a};var {x}={x:b};return get();",
+        "const before=x;var [x]=[a];return before;",
+        "var [x=x]=[];return x;",
+        "var [x,x]=[3,null];return x;",
+        "var [x=3,y=x]=[];return +y;",
+        "var {x,...rest}={x:a,y:b};return rest.y;",
+        "var [x,...rest]=[a,b];return rest[0];",
+        "var [a]=[null];return a;",
+        "for(var [x]=[a];0;){}return +x;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let r = crate::compile_value(&source, ts);
+            assert!(r.is_ok(), "{source}: {:?}", r.err());
+        }
+    }
+    for body in [
+        "var {x}=a;return a;",
+        "for(var [x] of [[a]]){}return a;",
+        "var {x}={x:a};let x=b;return x;",
+    ] {
+        assert!(
+            crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    assert!(
+        crate::compile(
+            "export function run(a,b){const get=()=>x;var [x]=[3];var [x]=[null];return get();}",
+            false
+        )
+        .is_err()
+    );
+    assert!(
+        crate::compile(
+            "export function run(a,b){var [x,x]=[3,null];return x;}",
+            false
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn var_pattern_types_erase_and_lexical_bindings_keep_tdz() {
+    let js = "export function run(a,b){var [x,y]=[a,b];return +x+(+y);}";
+    let ts = "export function run(a:string,b:boolean):void{var [x,y]:never=([a,b] as unknown);return +(x as string)+(+(y as boolean));}";
+    assert_eq!(
+        crate::compile(js, false).unwrap().wasm,
+        crate::compile(ts, true).unwrap().wasm
+    );
+    assert!(
+        crate::compile_value("export function run(a,b){let [x=x]=[];return x;}", false).is_err()
+    );
+    assert!(
+        crate::compile_value(
+            "export function run(a,b){try{throw a;}catch(e){var [e]=[b];}return a;}",
+            false
+        )
+        .is_err()
+    );
 }

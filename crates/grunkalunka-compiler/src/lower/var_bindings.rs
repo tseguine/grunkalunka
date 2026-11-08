@@ -15,6 +15,25 @@ pub(super) fn owner(id: NodeId, semantic: &Semantic<'_>) -> Option<NodeId> {
     None
 }
 
+fn names<'n, 'a>(pattern: &'n BindingPattern<'a>) -> Vec<&'n oxc_ast::ast::BindingIdentifier<'a>> {
+    match pattern {
+        BindingPattern::BindingIdentifier(id) => vec![id.as_ref()],
+        _ => binding_patterns::leaves(pattern).collect(),
+    }
+}
+
+pub(super) fn pattern_symbols(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
+    locals(semantic)
+        .into_iter()
+        .filter_map(|(symbol, site, _)| {
+            let AstKind::VariableDeclarator(local) = semantic.nodes().kind(site) else {
+                unreachable!()
+            };
+            (!matches!(local.id, BindingPattern::BindingIdentifier(_))).then_some(symbol)
+        })
+        .collect()
+}
+
 pub(super) fn locals(semantic: &Semantic<'_>) -> Vec<(SymbolId, NodeId, NodeId)> {
     let mut found = Vec::new();
     for node in semantic.nodes().iter() {
@@ -28,10 +47,10 @@ pub(super) fn locals(semantic: &Semantic<'_>) -> Vec<(SymbolId, NodeId, NodeId)>
             continue;
         };
         for local in &d.declarations {
-            if let BindingPattern::BindingIdentifier(id) = &local.id
-                && let Some(symbol) = id.symbol_id.get()
-            {
-                found.push((symbol, local.node_id.get(), body));
+            for id in names(&local.id) {
+                if let Some(symbol) = id.symbol_id.get() {
+                    found.push((symbol, local.node_id.get(), body));
+                }
             }
         }
     }
@@ -107,18 +126,23 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
             ));
         }
         for local in &d.declarations {
-            let BindingPattern::BindingIdentifier(id) = &local.id else {
+            if matches!(
+                semantic.nodes().parent_kind(node.id()),
+                AstKind::ForOfStatement(_) | AstKind::ForInStatement(_)
+            ) && !matches!(local.id, BindingPattern::BindingIdentifier(_))
+            {
                 return Err(unsupported(
                     local,
-                    "var requires ordinary identifier bindings",
+                    "var iteration heads require ordinary identifier bindings",
                 ));
-            };
-            count += 1;
-            if count > 128 {
-                return Err(unsupported(local, "at most 128 source locals are admitted"));
             }
-            for parent in semantic.nodes().ancestor_kinds(node.id()) {
-                match parent {
+            for id in names(&local.id) {
+                count += 1;
+                if count > 128 {
+                    return Err(unsupported(local, "at most 128 source locals are admitted"));
+                }
+                for parent in semantic.nodes().ancestor_kinds(node.id()) {
+                    match parent {
                     AstKind::Function(_) | AstKind::ArrowFunctionExpression(_) => break,
                     AstKind::CatchClause(c)
                         if c.param.as_ref().is_some_and(|p| {
@@ -130,9 +154,11 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
                     }
                     _ => (),
                 }
+                }
             }
         }
     }
+
     Ok(())
 }
 
@@ -197,7 +223,16 @@ pub(super) fn reads(semantic: &Semantic<'_>) -> BTreeMap<NodeId, Vec<NodeId>> {
             unreachable!()
         };
         if let Some(init) = &d.init {
-            writes.entry(symbol).or_default().push(init.node_id());
+            let selected = if matches!(d.id, BindingPattern::BindingIdentifier(_)) {
+                vec![init.node_id()]
+            } else {
+                names(&d.id)
+                    .into_iter()
+                    .filter(|id| id.symbol_id.get() == Some(symbol))
+                    .map(|id| id.node_id.get())
+                    .collect()
+            };
+            writes.entry(symbol).or_default().extend(selected);
             if straight(local, semantic, true) {
                 first
                     .entry(symbol)
@@ -341,7 +376,8 @@ impl Lowering<'_, '_> {
         region: &mut Region,
     ) -> Result<(), String> {
         let semantic = self.semantic;
-        let iterated = iteration_symbols(semantic);
+        let mut iterated = iteration_symbols(semantic);
+        iterated.extend(pattern_symbols(semantic));
         let mut seen = BTreeSet::new();
         for (symbol, site, owner) in locals(semantic) {
             if owner != body || !seen.insert(symbol) {

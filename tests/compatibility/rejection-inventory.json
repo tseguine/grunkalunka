@@ -668,7 +668,7 @@
     {
       "id": "var-bindings",
       "kind": "open-requirement",
-      "assessment": "Function-scoped identifier var bindings, hoisting, redeclarations and intrinsic for-in/of heads now execute in synchronous profiles. Pattern declarations, function-valued initializers and catch-name collisions remain explicit requirements.",
+      "assessment": "Synchronous var identifier and destructuring declarations hoist function cells and write existing bindings, including defaults/rest. Var iteration pattern heads, callable initializers and catch-name collisions remain guarded.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-variable-statement",
@@ -682,7 +682,7 @@
         "value-representation"
       ],
       "observableDone": [
-        "Admit the remaining var pattern, callable and catch-name sources with native-JS comparisons while preserving function-scoped cells and lexical shadowing."
+        "Admit the remaining var iteration-pattern, callable and catch-name sources with native-JS comparisons while preserving function cells."
       ]
     },
     {
@@ -6627,17 +6627,17 @@
       "group": "var-bindings"
     },
     {
-      "id": "var-guard-pattern",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "bfb2edfdf1365476de247e2a05f4caec375373c0524483ac2f0c4a0e52f7b245",
-      "group": "var-bindings"
-    },
-    {
       "id": "var-guard-catch-name",
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "16be9c1b536731829cd7f1393ba515ded370d7c1198bf249cfede4f1b528b352",
+      "group": "var-bindings"
+    },
+    {
+      "id": "var-guard-iteration-pattern",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "764cd5824ece2d7265a1e85d7cbf5c2a1641efc086b9e1305e067b46ccbd8008",
       "group": "var-bindings"
     }
   ]

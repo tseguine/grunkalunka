@@ -402,3 +402,9 @@ kind analysis; pattern/async var and unproven receivers remain explicit guards.
 Constant parameter defaults now include unshadowed Infinity/NaN and pure void
 constants through the same helper/arrow/emitted-closure selection. Shadowed names,
 TDZ reads and effects beneath void retain admission guards; no API is added.
+
+
+Var destructuring declarations reuse hoisted cells for Object/Array bindings,
+defaults, rest, parameter aliases and repeated declarations. Leaf-origin proofs
+preserve safe projections and capture identity. Iteration pattern heads, async var,
+callable initializers and catch-name collisions remain separate work.

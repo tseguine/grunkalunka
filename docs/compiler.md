@@ -2559,3 +2559,20 @@ values never suppress source admission or default-parameter TDZ checks. Numeric
 unary operators retain their Number-constant operand restriction. Actual Undefined
 alone selects defaults; supplied null, false, signed zero and NaN retain their
 values. Existing public/async/default-scope guards and callable lengths remain.
+
+
+Synchronous var Object/Array destructuring declarations now write pre-hoisted
+function cells through the existing ordered pattern evaluator. Defaults, nested
+selection and rest preserve their existing source-kind checks and execution order;
+var redeclarations write existing cells and captures keep the same storage.
+Parameter aliases widen before body-created captures, including separate body
+bindings for non-simple parameters. Pre-declaration reads and self defaults can
+observe Undefined; lexical TDZ checks remain unchanged. Post-declaration proofs
+use selected leaf origins, including every duplicate binding occurrence, rather
+than the complete source object. Unknown writes disable refinement.
+
+Var iteration pattern heads, async var, callable initializers and catch-name
+collisions remain guarded. Source limits count all pattern names, with the same
+128/129 small-stack boundary. Corpus 147 preserves the exact former pattern
+rejection as a positive and retains a source-bound iteration-pattern guard. No
+standard-library, browser or Node API is added.
