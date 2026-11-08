@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn optional_static_reads_preserve_exact_primitive_tags_and_number_bits() {
+    compare_helpers(&[
+        "export function run(a,b){const o=a?{x:b}:null;return o?.x;}",
+        "export function run(a,b){const o={x:null};return o?.x;}",
+        "export function run(a,b){const o=a?{x:false}:undefined;return o?.x;}",
+        "export function run(a,b){const xs=a?[b]:null;return xs?.[0];}",
+        "export function run(a,b){return null?.x;}",
+        "export function run(a,b){const xs=a?[b]:null;return xs?.length;}",
+    ]);
+}
+
+#[test]
 fn scalar_for_in_keeps_primitive_tags_when_no_iteration_executes() {
     compare_helpers(&[
         "export function run(a,b){let value=null;for(const k in false)value=a;return value;}",

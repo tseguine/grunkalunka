@@ -1,3 +1,4 @@
+import { optionalStaticReadPrograms } from './optional-static-reads.mjs';
 import { primitiveForInPrograms } from './primitive-for-in.mjs';
 import { primitivePropertyUpdatePrograms } from './primitive-property-updates.mjs';
 import { dictionaryNumericUpdatePrograms } from './dictionary-numeric-updates.mjs';
@@ -150,7 +151,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 169;
+export const corpusVersion = 170;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -176,7 +177,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);

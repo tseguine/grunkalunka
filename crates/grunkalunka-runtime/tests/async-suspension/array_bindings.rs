@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn optional_static_reads_preserve_await_order_and_rejected_receivers() {
+    compare_promises(
+        &[
+            "const o=a?{x:b}:null;const v=(await a,o)?.x;await b;return +v;",
+            "let n=0;const v=(await a,n++,null)?.x;await b;return n===1&&v===undefined?1:0;",
+            "const o={x:a};const v=(await b,o)?.x;o.x=b;await a;return +v;",
+            "let n=0;try{const v=(await Promise.reject(a),n++,{x:b})?.x;return +v;}catch(e){await b;return n;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn scalar_for_in_awaits_rhs_once_and_never_visits_primitive_keys() {
     compare_promises(
         &[

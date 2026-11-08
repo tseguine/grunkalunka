@@ -10,6 +10,21 @@ the existing async contract are preserved.
 [Property deletion](property-deletion.md) removes configurable own data fields,
 preserves sparse-array length and updates the source facts used by later reads.
 
+Optional property reads retain the original `?.` chain syntax. Static names and
+literal computed keys work on source-proven objects and Arrays, including unions
+with Null and Undefined. The receiver executes once; only the non-nullish branch
+projects its reference and reads the field. The other branch returns Undefined.
+Array length, sparse misses, primitive tags and selected reference identity retain
+their ordinary behavior. Literal-key reads from a proven nullish-only receiver
+perform no property selection, including for intrinsic prototype names.
+
+Receiver/key effects and supported suspension stay on the existing owned cursor.
+Numeric projections still need a Number proof or explicit primitive conversion.
+Unknown receivers, inherited fields, general runtime keys, optional calls and
+unparenthesized multi-step chains remain guarded. Type assertions establish no
+receiver or selected-value proof.
+
+
 Boxed values whose source alternatives are all Number, Boolean, Null or Undefined
 can now project into the existing tagged scalar path. This preserves each actual
 language tag and every Number bit; arithmetic, explicit coercion, relational
