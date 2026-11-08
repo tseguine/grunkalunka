@@ -146,3 +146,51 @@ test('unknown source inputs and missing audits fail rather than silently succeed
     readSource: () => '', exists: () => true, planForPath: file => plan(file),
   }), /invalid source audit/);
 });
+
+test('ESM re-exports are independent source inputs, including type-only exports', () => {
+  const source = [
+    "export { widget as view } from './view.mjs';",
+    "export * from '../shared/helpers.mjs';",
+    "export * as namespace from './namespace.mjs';",
+    "export type { Named } from './types.ts';",
+    "export { type Other } from './another.ts';",
+    "export { local };",
+    "export { external } from 'third-party';",
+    "import { widget } from './view.mjs';",
+  ].join('\n');
+  const discovered = discoverLiteralSourceInputs('tools/bench/index.mjs', source);
+  assert.deepEqual(discovered.inputs, [
+    'tools/bench/another.ts',
+    'tools/bench/namespace.mjs',
+    'tools/bench/types.ts',
+    'tools/bench/view.mjs',
+    'tools/shared/helpers.mjs',
+  ]);
+  assert.deepEqual(discovered.unresolved, []);
+});
+
+test('re-exported source changes cannot silently drop the consumer check', () => {
+  const spec = { source: 'tools/bench/index.mjs',
+    requiredChecks: ['check:benchmark-tests'] };
+  const options = {
+    specs: [spec],
+    readSource: () => "export * from './source.mjs';",
+    exists: () => true,
+  };
+  const missed = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: [] }),
+  });
+  assert.equal(missed.valid, false);
+  assert.deepEqual(missed.edges, [{
+    consumer: 'tools/bench/index.mjs',
+    dependency: 'tools/bench/source.mjs',
+    outcome: 'under-selected',
+  }]);
+  assert.match(missed.errors.join('\n'), /missing check:benchmark-tests/);
+  const selected = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: ['check:benchmark-tests'] }),
+  });
+  assert.equal(selected.valid, true, selected.errors.join('\n'));
+});
