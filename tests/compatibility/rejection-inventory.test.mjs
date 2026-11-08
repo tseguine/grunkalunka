@@ -1,3 +1,4 @@
+import { computedSelectionPrograms } from './computed-pattern-selections.mjs';
 import { memberRestPrograms } from './member-rest-targets.mjs';
 import { computedPatternPrograms } from './computed-pattern-targets.mjs';
 import { memberPatternPrograms } from './member-pattern-targets.mjs';
@@ -1406,3 +1407,5 @@ test('member pattern targets retain original address/selection/default ordering'
 test('computed pattern targets retain original key/address/selection order',()=>{assert.equal(computedPatternPrograms.length,14);for(const row of computedPatternPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('member rest targets retain original reference and copy operations',()=>{assert.equal(memberRestPrograms.length,12);for(const row of memberRestPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('computed source selections retain the original property-key expressions',()=>{assert.equal(computedSelectionPrograms.length,12);for(const row of computedSelectionPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

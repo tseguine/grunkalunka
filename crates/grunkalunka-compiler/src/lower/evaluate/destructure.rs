@@ -2,14 +2,16 @@
 use super::*;
 use oxc_ast::ast::{AssignmentTarget, AssignmentTargetProperty};
 
-pub(super) enum Selection {
+pub(super) enum Selection<'e, 'a> {
     Index(u32),
     Field(Vec<u16>),
+    Computed(&'e Expression<'a>, bool),
+    SavedField(ir::ManagedKey),
     ArrayRest(u32),
     ObjectRest(Vec<ir::ManagedKey>),
 }
 
-enum Destination<'e, 'a> {
+pub(super) enum Destination<'e, 'a> {
     Slot(SlotId),
     Member {
         object: &'e Expression<'a>,
@@ -27,7 +29,7 @@ pub(super) enum SavedDestination {
 }
 
 struct Write<'e, 'a> {
-    selection: Selection,
+    selection: Selection<'e, 'a>,
     destination: Destination<'e, 'a>,
     default: Option<&'e Expression<'a>>,
 }
@@ -43,27 +45,38 @@ pub(super) struct Plan<'e, 'a> {
 pub(super) struct State<'e, 'a> {
     node: &'e Expression<'a>,
     writes: std::vec::IntoIter<Write<'e, 'a>>,
+    ready: Option<Write<'e, 'a>>,
     input: Value,
     receiver: ValueId,
     mode: Mode,
     depth: usize,
     iterator: Option<control_cursor::array_bindings::IteratorState>,
     next_index: u32,
-    pending: Option<(Selection, SavedDestination, Option<&'e Expression<'a>>)>,
+    pending: Option<(
+        Selection<'e, 'a>,
+        SavedDestination,
+        Option<&'e Expression<'a>>,
+    )>,
 }
 
 pub(super) enum Task<'e, 'a> {
     Begin(Plan<'e, 'a>),
     Receiver {
         state: Box<State<'e, 'a>>,
-        selection: Selection,
+        selection: Selection<'e, 'a>,
         key: iteration::PropertyKey<'e, 'a>,
         default: Option<&'e Expression<'a>>,
     },
     Key {
         state: Box<State<'e, 'a>>,
-        selection: Selection,
+        selection: Selection<'e, 'a>,
         object: ValueId,
+        uint32: bool,
+        default: Option<&'e Expression<'a>>,
+    },
+    SourceKey {
+        state: Box<State<'e, 'a>>,
+        destination: Destination<'e, 'a>,
         uint32: bool,
         default: Option<&'e Expression<'a>>,
     },
@@ -315,16 +328,22 @@ impl Lowering<'_, '_> {
                 for property in &pattern.properties {
                     let (key, destination, default) = match property {
                         AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(p) => (
-                            p.binding.name.encode_utf16().collect(),
+                            iteration::PropertyKey::Literal(
+                                p.binding.name.encode_utf16().collect(),
+                            ),
                             Destination::Slot(self.assignment_identifier_slot(&p.binding)?),
                             p.init.as_ref(),
                         ),
                         AssignmentTargetProperty::AssignmentTargetPropertyProperty(p) => {
                             let key = static_keys::property(&p.name, p.computed, depth + 1)
+                                .map(iteration::PropertyKey::Literal)
+                                .or_else(|| {
+                                    p.name.as_expression().map(iteration::PropertyKey::Runtime)
+                                })
                                 .ok_or_else(|| {
                                     unsupported(
                                         p.as_ref(),
-                                        "object assignment keys require static property names",
+                                        "object assignment requires an admitted property key",
                                     )
                                 })?;
                             let (target, default) =
@@ -336,24 +355,47 @@ impl Lowering<'_, '_> {
                             )
                         }
                     };
-                    let key = managed::member_key(
-                        property,
-                        key,
-                        receiver == Some(Type::ManagedArray),
-                        dictionary,
-                    )?;
-                    if string
-                        && key.as_slice() != [108, 101, 110, 103, 116, 104]
-                        && binding_patterns::string_index(&key).is_none()
-                    {
-                        return Err(unsupported(
-                            node,
-                            "String object assignment keys require length or canonical numeric indices",
-                        ));
-                    }
-                    excluded.push(ir::ManagedKey::Literal(key.clone()));
+                    let selection = match key {
+                        iteration::PropertyKey::Literal(key) => {
+                            let key = managed::member_key(
+                                property,
+                                key,
+                                receiver == Some(Type::ManagedArray),
+                                dictionary,
+                            )?;
+                            if string
+                                && key.as_slice() != [108, 101, 110, 103, 116, 104]
+                                && binding_patterns::string_index(&key).is_none()
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "String object assignment keys require length or canonical numeric indices",
+                                ));
+                            }
+                            excluded.push(ir::ManagedKey::Literal(key.clone()));
+                            Selection::Field(key)
+                        }
+                        iteration::PropertyKey::Runtime(key) => {
+                            let uint32 = property_delete::uint32_key(key, depth + 1);
+                            if string
+                                || (!uint32 && !(dictionary && self.stored.string(key.node_id())))
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "computed assignment source keys require unsigned syntax or a dictionary String",
+                                ));
+                            }
+                            if pattern.rest.is_some() {
+                                return Err(unsupported(
+                                    node,
+                                    "computed assignment source keys with object rest are not yet admitted",
+                                ));
+                            }
+                            Selection::Computed(key, uint32)
+                        }
+                    };
                     writes.push(Write {
-                        selection: Selection::Field(key),
+                        selection,
                         destination,
                         default,
                     });
@@ -416,6 +458,7 @@ impl Lowering<'_, '_> {
                 Box::new(State {
                     node: plan.node,
                     writes: plan.writes.into_iter(),
+                    ready: None,
                     input,
                     receiver,
                     mode: plan.mode,
@@ -480,6 +523,25 @@ impl Lowering<'_, '_> {
                     Some((selection, SavedDestination::Member { object, key }, default));
                 state
             }
+            Task::SourceKey {
+                mut state,
+                destination,
+                uint32,
+                default,
+            } => {
+                let key = values.pop().expect("assignment source property key").id();
+                let key = if uint32 {
+                    ir::ManagedKey::Uint32(key)
+                } else {
+                    ir::ManagedKey::String(key)
+                };
+                state.ready = Some(Write {
+                    selection: Selection::SavedField(key),
+                    destination,
+                    default,
+                });
+                state
+            }
             Task::Default {
                 state,
                 destination,
@@ -515,10 +577,25 @@ impl Lowering<'_, '_> {
                     selection,
                     destination,
                     default,
-                }) = state.writes.next()
+                }) = state.ready.take().or_else(|| state.writes.next())
                 else {
                     break;
                 };
+                if let Selection::Computed(key, uint32) = selection {
+                    let depth = state.depth;
+                    work.push(Work::Destructure(Task::SourceKey {
+                        state,
+                        destination,
+                        uint32,
+                        default,
+                    }));
+                    work.push(Work::Eval(
+                        key,
+                        depth,
+                        if uint32 { Mode::Number } else { Mode::Managed },
+                    ));
+                    return Ok(());
+                }
                 match destination {
                     Destination::Slot(slot) => (selection, SavedDestination::Slot(slot), default),
                     Destination::Member { object, key, ty } => {
@@ -623,6 +700,20 @@ impl Lowering<'_, '_> {
                         }
                     };
                     Self::push(regions.current(), node, op);
+                    result
+                }
+                Selection::Computed(..) => unreachable!("source key resolved before destination"),
+                Selection::SavedField(key) => {
+                    let result = self.value(Type::ManagedValue);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::ManagedGetOwnDynamic {
+                            result,
+                            object: receiver,
+                            key,
+                        },
+                    );
                     result
                 }
                 Selection::ArrayRest(start) => {
@@ -1175,5 +1266,67 @@ mod member_rest_tests {
                 }
             }
         }).unwrap().join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod computed_selection_tests {
+    #[test]
+    fn computed_source_keys_require_proven_reads_and_keep_alias_guards() {
+        for (body, admitted) in [
+            ("let x;({[a>>>0]:x}=[b]);return +x;", true),
+            (
+                "const d=Object.create(null);d.k=a;const k='k';let x;({[k]:x}=d);return +x;",
+                true,
+            ),
+            (
+                "const d=Object.create(null);d.k='text';const k='k';let x='';({[k]:x='fallback'}=d);return x.length;",
+                true,
+            ),
+            ("let x;({[a]:x}=[b]);return a;", false),
+            ("const k='x';let x;({[k]:x}={x:b});return a;", false),
+            (
+                "const d=Object.create(null);let x;({[a]:x}=d);return a;",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';let x,rest;({[k]:x,...rest}=d);return a;",
+                false,
+            ),
+            ("let x;({[a>>>0]:x}='text');return a;", false),
+            (
+                "const o={x:'safe'};const alias=o;({[a>>>0]:alias.x}=[b]);return o.x.length;",
+                false,
+            ),
+            ("({[a>>>0]:b}=[undefined]);return b;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(crate::compile("export function run(a,b){const d=Object.create(null);let x;({[a as string]:x}=d);return a;}",true).is_err());
+    }
+    #[test]
+    fn computed_source_key_depth_is_bounded_on_a_small_native_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (wraps, admitted) in [(125, true), (126, false)] {
+                    let source = format!(
+                        "export function run(a,b){{let x;({{[{}a>>>0{}]:x}}=[b]);return +x;}}",
+                        "(".repeat(wraps),
+                        ")".repeat(wraps)
+                    );
+                    for typed in [false, true] {
+                        let r = crate::compile(&source, typed);
+                        assert_eq!(r.is_ok(), admitted, "{wraps}: {:?}", r.err());
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

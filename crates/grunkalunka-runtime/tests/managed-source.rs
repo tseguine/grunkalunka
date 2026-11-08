@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn computed_pattern_selections_preserve_source_key_reference_and_read_order() {
+    for body in [
+        "const d=Object.create(null);d.k=a;const k=\"k\";let x;({[k]:x}=d);return +x;",
+        "let x;({[a>>>0]:x}={0:b});return +x;",
+        "let x;({[a>>>0]:x}=[b]);return +x;",
+        "({[a>>>0]:b=3}=[7]);return b;",
+        "const d=Object.create(null);d.k=a;const o={x:0};let n=0;const key=()=>{n=n*10+1;return \"k\";};const get=()=>{n=n*10+2;d.k=b;return o;};({[key()]:get().x}=d);return n===12&&o.x===b?1:0;",
+        "const d=Object.create(null);d.k=a;let n=0,x;const rhs=()=>{n=1;return d;};const key=()=>{n=n*10+2;return \"k\";};({[key()]:x}=rhs());return n;",
+        "const d=Object.create(null);let k=\"old\";const o={x:0};({[k]:o.x=(k=\"new\",b)}=d);return +o.x;",
+        "const d=Object.create(null);let k=\"first\";let x,y;({[k]:x=(k=\"second\",d.second=b,1),[k]:y}=d);return +y;",
+        "const d=Object.create(null);d[\"__proto__\"]=a;const k=\"__proto__\";let x;({[k]:x}=d);return +x;",
+        "const d=Object.create(null);d.k=\"text\";const k=\"k\";let x=\"\";({[k]:x=\"fallback\"}=d);return x.length;",
+        "const d=Object.create(null);d.k=a;const k=\"k\";let x;return ({[k]:x}=d)===d?1:0;",
+        "const d=Object.create(null);d.k=b;const target=Object.create(null);const k=\"k\",out=\"out\";({[k]:target[out]}=d);return +(target[out]);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn member_rest_targets_preserve_selection_order_and_rest_identity() {
     for body in [
         "const o={};[...o.x]=[b];return a;",

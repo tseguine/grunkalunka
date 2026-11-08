@@ -1505,3 +1505,12 @@ collecting the fresh rest container. Array elisions retain sticky exhaustion;
 object exclusions and shallow reference identity use the existing rest operations.
 Source facts track the new allocation and its possible contents through aliases.
 String Array rest uses code points; String object rest remains guarded.
+
+
+Object assignment patterns accept computed source keys with the ordinary owned-read
+proofs: unsigned numeric syntax on proven objects/Arrays, or source-proven Strings
+on null-prototype dictionaries. Each key is saved before the original destination
+reference executes, followed by GetV and its lazy default; awaits retain that order.
+Selected-value facts use the same conservative own-value/missing alternatives as
+ordinary computed reads. Runtime source keys combined with object rest, runtime
+String source properties and coercing/unproven keys remain guarded.

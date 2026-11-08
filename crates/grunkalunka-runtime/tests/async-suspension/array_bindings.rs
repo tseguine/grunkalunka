@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn computed_pattern_selections_preserve_awaited_source_keys_and_lazy_defaults() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);d.k=a;const o={x:0};({[(await b,\"k\")]: (await a,d.k=b,o).x}=d);await a;return +o.x;",
+            "const d=Object.create(null);let k=\"old\";let x;({[(await a,k)]:x=(await b,k=\"new\",b)}=d);await a;return +x;",
+            "const d=Object.create(null);let calls=0;const get=()=>{calls++;return {x:0};};try{({[(await Promise.reject(b),\"k\")]:get().x=(calls++,1)}=d);}catch(e){await a;return calls;}return 99;",
+            "let x;const rows=[a];({[(await b,rows[0]=b,0)>>>0]:x}=rows);await a;return +x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn member_rest_targets_preserve_awaited_references_and_exhaustion() {
     compare_promises(
         &[
