@@ -1638,6 +1638,16 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 key,
                             );
                         }
+                        has_own::Membership::Uint32 => {
+                            let key = values.pop().expect("unsigned in key").id();
+                            self.finish_property_presence(
+                                node,
+                                regions.current(),
+                                values,
+                                input,
+                                ir::ManagedKey::Uint32(key),
+                            );
+                        }
                         has_own::Membership::Prototype => {
                             let key = values.pop().expect("in key").id();
                             let result = self.value(Type::Predicate);

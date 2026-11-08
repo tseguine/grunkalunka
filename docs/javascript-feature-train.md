@@ -506,3 +506,12 @@ names Array length, including at the 4294967294 index/4294967295 named-key bound
 Receiver/key snapshots, ordered effects, conservative alias proofs and supported
 awaits are retained. Broader runtime keys and non-configurable deletion remain
 guarded. Corpus 160 adds twelve differential pairs and retains all 796 negatives.
+
+
+The in operator now accepts runtime unsigned numeric keys proven by >>> through
+the same bounded source forms as delete. Captured key values precede receiver
+effects and supported awaits. Own Undefined entries differ from holes; numeric
+keys remain valid for mixed ordinary/null-prototype objects because pristine
+intrinsic prototypes have no uint32-named properties. Existing literal/String
+prototype behavior and unsupported-key/receiver guards remain. Corpus 161 adds
+twelve differential pairs with all 796 compatibility negatives retained.

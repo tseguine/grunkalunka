@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn unsigned_in_keys_save_the_key_before_receiver_awaits_and_effects() {
+    compare_promises(
+        &[
+            "let key=a;const xs=[b];const found=(await a,key>>>0) in (await b,key=1,xs);await b;return found?1:0;",
+            "let n=0;try{const found=(n=1,await Promise.reject(a),0>>>0) in (n=2,[b]);return found?1:0;}catch(e){await b;return n;}",
+            "let n=0;try{const found=(n=1,0>>>0) in (await Promise.reject(b),n=2,[a]);return found?1:0;}catch(e){await a;return n;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn uint32_delete_keys_keep_receiver_and_effect_snapshots_across_await() {
     compare_promises(
         &[

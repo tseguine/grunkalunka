@@ -1,3 +1,4 @@
+import { uint32InKeyPrograms } from './uint32-in-keys.mjs';
 import { uint32DeleteKeyPrograms } from './uint32-delete-keys.mjs';
 import { debuggerStatementPrograms } from './debugger-statements.mjs';
 import { mixedLiteralArraySpreadOriginal, mixedLiteralArraySpreadPrograms } from './mixed-literal-array-spreads.mjs';
@@ -1238,6 +1239,17 @@ test('uint32 delete corpus retains original key, boundary and effect observation
  assert.equal(uint32DeleteKeyPrograms.length,12);
  for(const id of ['array','max-named','last-index','snapshot','operand-effects']) {
   const row=uint32DeleteKeyPrograms.find(row=>row[0]==='uint32-delete-key-'+id);
+  assert.equal(row[1],row[2]);
+  assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+
+test('unsigned in corpus retains source order, presence and boundary observations',()=>{
+ assert.equal(uint32InKeyPrograms.length,12);
+ for(const id of ['object-undefined','mixed-prototype','max-named','last-index','snapshot','after-delete']) {
+  const row=uint32InKeyPrograms.find(row=>row[0]==='uint32-in-key-'+id);
   assert.equal(row[1],row[2]);
   assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));

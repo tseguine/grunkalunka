@@ -1,6 +1,14 @@
 use super::*;
 
 #[test]
+fn unsigned_in_keys_return_boolean_completions() {
+    compare_helpers(&[
+        "export function run(a,b){const xs=[a,,b];return (a>>>0) in xs;}",
+        "export function run(a,b){const o={0:undefined};return (a>>>0) in o;}",
+    ]);
+}
+
+#[test]
 fn uint32_delete_keys_return_boolean_completions() {
     compare_helpers(&[
         "export function run(a,b){const xs=[a,b];return delete xs[a>>>0];}",
