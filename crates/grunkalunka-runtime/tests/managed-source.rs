@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn scalar_pattern_parameters_preserve_defaults_captures_and_rhs_snapshots() {
+    for body in [
+        "[a]=[b];return a;",
+        "({x:a}={x:b});return a;",
+        "[a,b]=[b,a];return a-b;",
+        "[a=b,b=a]=[];return a===b?1:0;",
+        "({x:a=b}={});return a;",
+        "const read=()=>a;[a]=[b];return read();",
+        "let n=0;const values=()=>{n++;return [b];};[a]=values();return n;",
+        "[a=2,b=a+1]=[];return b;",
+        "[a,b]=[b,(a=1,2)];return a+b;",
+        "const values=[b];const result=([a]=values);return result===values&&a===b?1:0;",
+        "const row={x:undefined,y:b};({x:a=(row.y=7,1),y:b}=row);return a+b;",
+        "({a}={a:b});return a;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn optional_delete_preserves_reference_mutation_and_lazy_operand_order() {
     for body in [
         "const o={x:a};return delete o?.x?1:0;",

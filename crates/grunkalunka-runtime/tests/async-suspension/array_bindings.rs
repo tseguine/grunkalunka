@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn scalar_pattern_parameters_preserve_awaited_defaults_and_rejection_order() {
+    compare_promises(
+        &[
+            "[a=(await b,b)]=[];await a;return +a;",
+            "({x:a=(await b,b)}={});await a;return +a;",
+            "try{[a=(await Promise.reject(b),b)]=[];}catch(e){await b;return +a;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn nullable_for_in_preserves_await_order_and_rejected_rhs() {
     compare_promises(
         &[
