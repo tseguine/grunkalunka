@@ -133,7 +133,9 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
                 let in_source=format!("export function run(a,b){{var {loop_names};for(var item in {{x:a}}){{}}return a;}}");
                 let pattern_source=format!("export function run(a,b){{var [{names}]=[];return a;}}");
                 let pattern_loop_source=format!("export function run(a,b){{var {loop_names};for(var [item] of [[a]]){{}}return a;}}");
-                for source in [source, loop_source, in_source, pattern_source, pattern_loop_source] {
+                let fields = (0..count).map(|i|format!("length:x{i}")).collect::<Vec<_>>().join(",");
+                let in_pattern_source=format!("export function run(a,b){{for(var {{{fields}}} in {{a:1}}){{}}return a;}}");
+                for source in [source, loop_source, in_source, pattern_source, pattern_loop_source, in_pattern_source] {
                     for ts in [false, true] {
                         let result = crate::compile_value(&source, ts);
                         if count == 128 {
@@ -365,6 +367,51 @@ fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
     }
     let js = "export function run(a,b){const {length:n}='abc';return n;}";
     let ts = "export function run(a:string,b:boolean):never{const {length:n}:never=('abc' as unknown);return n as string;}";
+    assert_eq!(
+        crate::compile(js, false).unwrap().wasm,
+        crate::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
+    for body in [
+        "let n=0;for(const {length:l} in {a:1,abc:2})n+=l;return n;",
+        "let n=0;for(let {0:x='?'} in {'':1,abc:2})n+=x.charCodeAt(0);return n;",
+        "const get=()=>n;for(var {length:n} in {a:1,abc:2}){}return +get();",
+        "let n=0;for(const {0:{length:l}='z'} in {'':1,abc:2})n+=l;return n;",
+        "for(var {} in 17){}return a;",
+        "var n=3;for(var {length:n} in {}){}return n===3?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let result = crate::compile(&source, ts);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+    for body in [
+        "for(var [x] in {a:1}){}return a;",
+        "for(const {...rest} in {a:1}){}return a;",
+        "for(let {slice:x} in {a:1}){}return a;",
+        "const key='length';for(const {[key]:x} in {a:1}){}return a;",
+        "for(let {'01':x} in {a:1}){}return a;",
+        "for(const {length:n} in ((a?'abc':null) as object)){}return a;",
+        "let n=3;for(const {length:n} in {a:n}){}return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(crate::compile_value(&source, true).is_err(), "{source}");
+    }
+    for body in [
+        "var x=3;for(var {0:x='?'} in {a:1}){}return x;",
+        "const get=()=>x;var x=3;for(var {0:x='?'} in {a:1}){}return get();",
+    ] {
+        assert!(
+            crate::compile(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    let js = "export function run(a,b){let n=0;for(let {length:l} in {abc:a})n+=l;return n;}";
+    let ts = "export function run(a:string,b:boolean):never{let n:boolean=0;for(let {length:l} in ({abc:a} as never))n+=(l as string);return n as boolean;}";
     assert_eq!(
         crate::compile(js, false).unwrap().wasm,
         crate::compile(ts, true).unwrap().wasm

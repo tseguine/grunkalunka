@@ -141,7 +141,7 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
             if matches!(
                 semantic.nodes().parent_kind(node.id()),
                 AstKind::ForInStatement(_)
-            ) && !matches!(local.id, BindingPattern::BindingIdentifier(_))
+            ) && matches!(local.id, BindingPattern::ArrayPattern(_))
             {
                 return Err(unsupported(
                     local,

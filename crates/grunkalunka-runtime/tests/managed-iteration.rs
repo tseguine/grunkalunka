@@ -682,3 +682,24 @@ fn var_for_of_patterns_keep_order_defaults_and_shared_captures() {
         compare(body);
     }
 }
+
+#[test]
+fn for_in_object_patterns_destructure_keys_after_presence_checks() {
+    for body in [
+        "let n=0;for(const {length:l} in {a:1,abc:2})n=n*10+l;return n;",
+        "let n=0;for(let {0:x='?'} in {'':1,abc:2})n+=x.charCodeAt(0);return n;",
+        "let n=0;for(const {0:{length:l}='z'} in {'':1,abc:2})n+=l;return n;",
+        "let n=0;for(const {length:l} in [a,b])n+=l;return n;",
+        "let n=0;for(const {length:l} in 'ab')n+=l;return n;",
+        "const before=n;var n=3;for(var {length:n} in {}){}return (before===undefined?10:0)+(+n);",
+        "const get=()=>n;for(var {length:n} in {a:1,abc:2}){}return +get();",
+        "let first=()=>0,last=()=>0,i=0;for(let {length:n} in {a:1,abc:2}){const get=()=>n;if(i++===0)first=get;last=get;}return first()*10+last();",
+        "let count=0;const obj={a:1,zz:2};for(var {'99':x=(count++,'?')} in obj){delete obj.zz;}return count;",
+        "let count=0;for(const {0:x=(count++,'?'),length:n} in {'':1,a:2}){count+=n;}return count;",
+        "let n=0;for(const {length:l} in {a:1,zz:2,abc:3}){if(l===1)continue;if(l===3)break;n+=l;}return n;",
+        r"let n=0;for(const {0:x='?',1:y='?',length:l} in {'\u{1f600}':1})n=l+x.charCodeAt(0)+y.charCodeAt(0);return n;",
+        "for(var {} in 17){}return a;",
+    ] {
+        compare(body);
+    }
+}
