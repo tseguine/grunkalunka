@@ -209,7 +209,14 @@ fn seed_for_of_binding(
 ) {
     // An iteration variable has no source initializer of its own. Its runtime
     // selection uses the managed lane, including Numbers and sparse holes.
-    if let Some(pattern) = iteration::for_of_pattern(source) {
+    if let Some(identifier) = iteration::var_iteration_binding(&source.left) {
+        if let Some(symbol) = identifier.symbol_id.get() {
+            bindings
+                .entry(symbol)
+                .or_default()
+                .extend(managed_value_kinds());
+        }
+    } else if let Some(pattern) = iteration::for_of_pattern(source) {
         if let BindingPattern::BindingIdentifier(identifier) = pattern {
             if let Some(symbol) = identifier.symbol_id.get() {
                 bindings

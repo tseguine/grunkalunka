@@ -1,3 +1,4 @@
+import { varForOfPromotion, varForOfPrograms } from './var-for-of.mjs';
 import { varPrograms, varPromotions } from './var-bindings.mjs';
 import { resolveNumericOrigin, primitiveProfileCounts } from './numeric-origins.mjs';
 import { optionalParameterPrograms, optionalParameterPromotions } from './optional-parameters.mjs';
@@ -320,7 +321,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 799);
+  assert.equal(inventory.records.size, 798);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -1029,4 +1030,16 @@ test('var declarations and hoisting preserve four exact former rejection sources
     assert.equal(createHash('sha256').update(source).digest('hex'),hash);
     assert.ok(!rejected.some(row=>row[0]===id));assert.ok(!catalog.records.some(row=>row.id===id));
   }
+});
+
+
+test('var for-of retains its exact original guarded source and hash',()=>{
+  assert.equal(varForOfPromotion.sha256,'f0758a441b4b3dcc4a409905cdeaffdfaa02cbb83deb8ab5b61a7e100d166fad');
+  const pair=programSources(varForOfPrograms.find(row=>row[0]===varForOfPromotion.id));
+  for(const source of [pair.sourceJS,pair.sourceTS,pair.oracleSource]) {
+    assert.equal(source,varForOfPromotion.source);
+    assert.equal(createHash('sha256').update(source).digest('hex'),varForOfPromotion.sha256);
+  }
+  assert.ok(!rejected.some(row=>row[0]===varForOfPromotion.id));
+  assert.ok(!catalog.records.some(row=>row.id===varForOfPromotion.id));
 });

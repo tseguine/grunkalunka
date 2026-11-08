@@ -19,6 +19,12 @@ fn compare_vars(sources: Vec<String>) {
 fn hoisted_var_cells_preserve_values_scope_and_shared_captures() {
     compare_vars([
         "var x;return x;",
+        "for(var item of [null,b]){}return item;",
+        "var item=3;for(var item of [null]){}return item;",
+        "const f=()=>item;var item=3;for(var item of [null]){}return f();",
+        "for(var item of [a,b]){}var item;return item;",
+        "const before=item;for(var item of []){}return before;",
+        "const o={v:a};for(var item of [o]){}return item===o?1:0;",
         "const before=x;var x=a;return before;",
         "const before=x===undefined?1:0;var x=a;return before;",
         "x=a;var x;return x;",
@@ -71,6 +77,10 @@ fn var_activations_and_parameter_aliases_stay_independent() {
         "function f(x){var n=0;n++;return +n+x;}export function run(a,b){return f(a)+f(b);}",
         "function f(n){var x=0;if(n<=0)return x;x++;return x+f(n-1);}export function run(a,b){return f(3);}",
         "function f(x){var x;return x;}export function run(a,b){return f(a);}",
+        "function f(x){const get=()=>x;for(var x of [null]){}return get();}export function run(a,b){return f(a);}",
+        "function f(x=3){for(var x of [null]){}return x;}export function run(a,b){return f();}",
+        "export function run(a,b){const f=(x=3)=>{for(var x of [null]){}return x;};return f();}",
+        "export function run(a,b){const o={f:(x=3)=>{for(var x of [null]){}return x;}};return o.f();}",
         "function f(x=3){var x;return x;}export function run(a,b){return f();}",
         "function f(x=3){var x=4;return x;}export function run(a,b){return f();}",
         "function f(x='abc'){var x;return x.length;}export function run(a,b){return f();}",

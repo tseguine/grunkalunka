@@ -668,7 +668,7 @@
     {
       "id": "var-bindings",
       "kind": "open-requirement",
-      "assessment": "Function-scoped identifier var bindings, hoisting and redeclarations now execute in synchronous profiles. Pattern declarations, function-valued initializers, var for-in/of declarations and catch-name collisions remain explicit requirements.",
+      "assessment": "Function-scoped identifier var bindings, hoisting and redeclarations now execute in synchronous profiles. Pattern declarations, function-valued initializers, var for-in declarations and catch-name collisions remain explicit requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-variable-statement",
@@ -682,7 +682,7 @@
         "value-representation"
       ],
       "observableDone": [
-        "Admit the remaining var pattern, callable, iteration-head and catch-name sources with native-JS comparisons while preserving function-scoped cells and lexical shadowing."
+        "Admit the remaining var pattern, callable, for-in-head and catch-name sources with native-JS comparisons while preserving function-scoped cells and lexical shadowing."
       ]
     },
     {
@@ -6631,13 +6631,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "bfb2edfdf1365476de247e2a05f4caec375373c0524483ac2f0c4a0e52f7b245",
-      "group": "var-bindings"
-    },
-    {
-      "id": "var-guard-for-of",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f0758a441b4b3dcc4a409905cdeaffdfaa02cbb83deb8ab5b61a7e100d166fad",
       "group": "var-bindings"
     },
     {

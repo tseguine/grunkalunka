@@ -28,6 +28,29 @@ pub(super) fn lexical_iteration_pattern<'n, 'a>(
     Some(&local.id)
 }
 
+/// A var head assigns its already hoisted function cell on every visit.
+pub(super) fn var_iteration_binding<'n, 'a>(
+    left: &'n ForStatementLeft<'a>,
+) -> Option<&'n BindingIdentifier<'a>> {
+    let ForStatementLeft::VariableDeclaration(declaration) = left else {
+        return None;
+    };
+    if declaration.declare
+        || declaration.kind != VariableDeclarationKind::Var
+        || declaration.declarations.len() != 1
+    {
+        return None;
+    }
+    let local = &declaration.declarations[0];
+    if local.definite || local.init.is_some() {
+        return None;
+    }
+    match &local.id {
+        BindingPattern::BindingIdentifier(id) => Some(id),
+        _ => None,
+    }
+}
+
 pub(super) fn for_of_pattern<'n, 'a>(
     source: &'n ForOfStatement<'a>,
 ) -> Option<&'n BindingPattern<'a>> {

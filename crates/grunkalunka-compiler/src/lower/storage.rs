@@ -974,6 +974,7 @@ pub(crate) fn general_mutable_bindings(
         .collect();
     // Hoisted locals may be read as Undefined before their initializer runs.
     // Point-specific source facts, not a module-wide Number cell, refine them.
+    invalid.extend(var_bindings::iteration_symbols(semantic));
     invalid.extend(
         var_bindings::symbols(semantic)
             .difference(&parameters)
