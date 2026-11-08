@@ -1,5 +1,6 @@
-import { unsignedHasOwnPrograms } from './unsigned-has-own.mjs';
+import { primitiveObjectAssignmentPrograms } from './primitive-object-assignments.mjs';
 import { primitiveObjectBindingPrograms } from './primitive-object-bindings.mjs';
+import { unsignedHasOwnPrograms } from './unsigned-has-own.mjs';
 import { unsignedBindingPrograms } from './unsigned-binding-keys.mjs';
 import { stringRestBindingPrograms } from './string-rest-bindings.mjs';
 import { stringObjectRestPrograms } from './string-object-rest.mjs';
@@ -1427,8 +1428,6 @@ test('String object-rest bindings retain original source programs',()=>{assert.e
 
 test('unsigned binding keys retain original reference expressions',()=>{assert.equal(unsignedBindingPrograms.length,12);for(const row of unsignedBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
-test('primitive object bindings retain original Number and Boolean sources',()=>{assert.equal(primitiveObjectBindingPrograms.length,12);for(const row of primitiveObjectBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
-
 test('unsigned Object.hasOwn fixtures retain native reference and compiler sources', () => {
   assert.equal(unsignedHasOwnPrograms.length, 12);
   for (const row of unsignedHasOwnPrograms) {
@@ -1436,3 +1435,7 @@ test('unsigned Object.hasOwn fixtures retain native reference and compiler sourc
     assert.ok(programs.some(program => program[0] === row[0]));
   }
 });
+
+test('primitive object bindings retain original Number and Boolean sources',()=>{assert.equal(primitiveObjectBindingPrograms.length,12);for(const row of primitiveObjectBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('primitive object assignments retain original RHS and result expressions',()=>{assert.equal(primitiveObjectAssignmentPrograms.length,12);for(const row of primitiveObjectAssignmentPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
