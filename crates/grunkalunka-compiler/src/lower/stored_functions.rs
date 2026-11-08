@@ -1204,7 +1204,9 @@ impl Fields {
                                 Property::AssignmentTargetPropertyIdentifier(p) => (
                                     Some(&p.binding),
                                     None,
-                                    Some(p.binding.name.encode_utf16().collect()),
+                                    Some(iteration::PropertyKey::Literal(
+                                        p.binding.name.encode_utf16().collect(),
+                                    )),
                                     p.init.as_ref(),
                                 ),
                                 Property::AssignmentTargetPropertyProperty(p) => {
@@ -1217,17 +1219,36 @@ impl Fields {
                                         assignment_patterns::property_target(target, 0).map(
                                             |(receiver, key)| (receiver, key, target.node_id()),
                                         ),
-                                        static_keys::property(&p.name, p.computed, 0),
+                                        static_keys::property(&p.name, p.computed, 0)
+                                            .map(iteration::PropertyKey::Literal)
+                                            .or_else(|| {
+                                                p.name
+                                                    .as_expression()
+                                                    .map(iteration::PropertyKey::Runtime)
+                                            }),
                                         default,
                                     )
                                 }
                             };
                             if let Some(key) = key {
-                                excluded.insert(key.clone());
+                                let selection = match key {
+                                    iteration::PropertyKey::Literal(key) => {
+                                        excluded.insert(key.clone());
+                                        Rule::Member(a.right.node_id(), key)
+                                    }
+                                    iteration::PropertyKey::Runtime(key)
+                                        if evaluate::property_delete::uint32_key(key, 0) =>
+                                    {
+                                        Rule::UnsignedMember(a.right.node_id())
+                                    }
+                                    iteration::PropertyKey::Runtime(key) => {
+                                        Rule::DictionaryMember(a.right.node_id(), key.node_id())
+                                    }
+                                };
                                 if let Some(identifier) = identifier {
                                     assignment_definition(
                                         identifier,
-                                        Rule::Member(a.right.node_id(), key),
+                                        selection,
                                         property.node_id(),
                                         default,
                                         semantic,
@@ -1235,7 +1256,6 @@ impl Fields {
                                         &mut pattern_rules,
                                     );
                                 } else if let Some((receiver, member_key, id)) = member {
-                                    let selection = Rule::Member(a.right.node_id(), key);
                                     if let Some(default) = default {
                                         pattern_rules.push((property.node_id(), selection));
                                         pattern_rules.push((

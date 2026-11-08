@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod module_helpers;
 
 #[test]
+fn computed_pattern_selections_preserve_selected_primitive_tags_and_bits() {
+    compare_primitive_sources(
+        [
+            "const d=Object.create(null);d.k=false;const k=\"k\";let x;({[k]:x}=d);return x;",
+            "const d=Object.create(null);d.k=null;const k=\"k\";let x;({[k]:x}=d);return x;",
+            "const d=Object.create(null);const k=\"missing\";let x;({[k]:x}=d);return x;",
+            "let x;({[a>>>0]:x}=[-0]);return x;",
+        ]
+        .into_iter()
+        .map(|body| {
+            (
+                format!("export function run(a,b){{{body}}}"),
+                format!("export function run(a:number,b:number):unknown{{{body}}}"),
+            )
+        })
+        .collect(),
+    );
+}
+
+#[test]
 fn normal_final_switch_arms_keep_primitive_suffix_values() {
     compare_primitive_sources(
         [
