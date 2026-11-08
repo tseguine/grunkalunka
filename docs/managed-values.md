@@ -51,6 +51,14 @@ Unknown receivers, inherited fields, other runtime keys, optional calls and
 unparenthesized multi-step chains remain guarded. Type assertions establish no
 receiver or selected-value proof.
 
+Existing mutable numeric/primitive locals and parameters can also receive
+`for...of` selections when source facts prove that they fit the existing cell.
+Number cells require exclusively Number alternatives; tagged primitive cells
+retain Number, Boolean, Null and Undefined tags. The selection is projected once
+without user-defined coercion, and captured readers observe the same updated
+cell. Empty loops leave it unchanged. Const/unbound targets, incompatible value
+kinds and annotation-only proofs remain guarded.
+
 `for...of` and `for...in` can assign each selection directly to a member target.
 Static/literal own properties work on source-proven objects and Arrays;
 `>>>`-proven unsigned runtime keys also work, and null-prototype dictionaries

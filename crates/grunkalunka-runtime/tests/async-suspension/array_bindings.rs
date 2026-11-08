@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn scalar_iteration_assignments_preserve_cells_across_awaits_and_rejections() {
+    compare_promises(
+        &[
+            "let x=0;for(x of [a,b]){await x;}return +x;",
+            "let x=0;const read=()=>x;for(x of [a,b]){await a;}return +read();",
+            "let x=0;try{for(x of [a,b]){await Promise.reject(x);}}catch(e){await b;return +x;}return 9;",
+            "let x=0;try{for(x of [a,b]){await b;break;}}finally{await a;x+=1;}return +x;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn member_iteration_heads_save_selections_and_targets_across_awaits() {
     compare_promises(
         &[
