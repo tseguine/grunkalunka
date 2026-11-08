@@ -96,6 +96,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 {
                     evaluate::Mode::Managed
                 }
+                _ if self
+                    .stored
+                    .optional_receiver(source.right().node_id())
+                    .is_some() =>
+                {
+                    evaluate::Mode::Managed
+                }
                 _ if self.numeric_result_shape(source.right(), 0) => evaluate::Mode::Number,
                 _ if self.stored.primitive(source.right().node_id()) => {
                     // The four scalar kinds have no enumerable own fields in
@@ -153,15 +160,63 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             // The source domain has immutable intrinsic prototypes and own data
             // entries, so enumeration begins with the original own-key order.
             let keys = self.value(Type::ManagedArray);
-            Self::push(
-                &mut frame.header,
-                &source,
-                Op::ManagedEnumerateOwn {
-                    kind: ir::OwnEnumeration::Keys,
-                    result: keys,
-                    input: iterable,
-                },
-            );
+            let nullable = self.values[iterable.0] == Type::ManagedValue
+                && !self.stored.string(source.right().node_id())
+                && self.stored.container(source.right().node_id()).is_none();
+            if nullable {
+                let condition = self.value(Type::Predicate);
+                Self::push(
+                    &mut frame.header,
+                    &source,
+                    Op::ManagedIsNullish {
+                        result: condition,
+                        input: iterable,
+                    },
+                );
+                let mut skipped = self.region(&source);
+                let empty = self.value(Type::ManagedArray);
+                Self::push(
+                    &mut skipped,
+                    &source,
+                    Op::ManagedArrayNew {
+                        result: empty,
+                        length: 0,
+                    },
+                );
+                skipped.exit = Exit::Yield(empty);
+                let mut present = self.region(&source);
+                let nonnull_keys = self.value(Type::ManagedArray);
+                Self::push(
+                    &mut present,
+                    &source,
+                    Op::ManagedEnumerateOwn {
+                        kind: ir::OwnEnumeration::Keys,
+                        result: nonnull_keys,
+                        input: iterable,
+                    },
+                );
+                present.exit = Exit::Yield(nonnull_keys);
+                Self::push(
+                    &mut frame.header,
+                    &source,
+                    Op::If {
+                        result: Some(keys),
+                        condition,
+                        consequent: skipped,
+                        alternate: present,
+                    },
+                );
+            } else {
+                Self::push(
+                    &mut frame.header,
+                    &source,
+                    Op::ManagedEnumerateOwn {
+                        kind: ir::OwnEnumeration::Keys,
+                        result: keys,
+                        input: iterable,
+                    },
+                );
+            }
             // Represented closures have no mutable own-property table. Their
             // enumeration is empty, so no per-key object presence check applies.
             if !matches!(self.values[iterable.0], Type::Closure(_)) {
@@ -310,6 +365,33 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             },
         );
         if let Some(original) = frame.enumerated {
+            let original = if self.values[original.0] == Type::ManagedValue {
+                match self.stored.optional_receiver(source.right().node_id()) {
+                    Some(ty @ (Type::ManagedObject | Type::ManagedArray)) => {
+                        // A yielded key proves the saved receiver was non-nullish.
+                        let projected = self.value(ty);
+                        Self::push(
+                            &mut body,
+                            &source,
+                            if ty == Type::ManagedArray {
+                                Op::ManagedToArray {
+                                    result: projected,
+                                    input: original,
+                                }
+                            } else {
+                                Op::ManagedToObject {
+                                    result: projected,
+                                    input: original,
+                                }
+                            },
+                        );
+                        projected
+                    }
+                    _ => original,
+                }
+            } else {
+                original
+            };
             // Unlike a plain Object.keys loop, for-in skips a key removed
             // before its visit. New keys do not join the initial enumeration.
             let present = self.value(Type::Predicate);
@@ -624,7 +706,7 @@ mod tests {
             ("let n=0;for(const {} in null)n++;return n;", true),
             ("let n=0;for(const k of null)n++;return n;", false),
             ("let n=0;for(const k in 1n)n++;return n;", false),
-            ("let n=0;for(const k in (a?{}:null))n++;return n;", false),
+            ("let n=0;for(const k in (a?{}:null))n++;return n;", true),
         ] {
             let s = format!("export function run(a,b){{{body}}}");
             for ts in [false, true] {
@@ -638,5 +720,68 @@ mod tests {
             crate::compile(js, false).unwrap().wasm,
             crate::compile(ts, true).unwrap().wasm
         );
+    }
+}
+
+#[cfg(test)]
+mod nullable_tests {
+    #[test]
+    fn nullable_for_in_requires_proven_homogeneous_receivers() {
+        for (body, ok) in [
+            (
+                "const o=a?{x:b}:null;let n=0;for(const k in o)n++;return n;",
+                true,
+            ),
+            (
+                "const o=a?[b]:undefined;let n=0;for(const k in o)n++;return n;",
+                true,
+            ),
+            (
+                "const o=a?'ab':null;let n=0;for(const k in o)n++;return n;",
+                true,
+            ),
+            ("const o=a?{}:[];for(const k in o){}return a;", false),
+            ("const o=a?{}:b;for(const k in o){}return a;", false),
+            ("const o=a?{x:b}:null;for(const k of o){}return a;", false),
+            ("for(const k in (a?{x:1}:1n)){}return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){for(const k in ((a?{}:b) as object)){}return b;}",
+                true
+            )
+            .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod nullable_depth_tests {
+    #[test]
+    fn nullable_for_in_keeps_statement_depth_limits_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (depth, ok) in [(64, true), (65, false)] {
+                    let mut body = String::from("break;");
+                    for i in 0..depth {
+                        body = format!("for(const k{i} in (a?{{x:b}}:null)){body}");
+                    }
+                    let source = format!("export function run(a,b){{{body}return a;}}");
+                    for typed in [false, true] {
+                        let r = crate::compile(&source, typed);
+                        assert_eq!(r.is_ok(), ok, "{depth}: {:?}", r.err());
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

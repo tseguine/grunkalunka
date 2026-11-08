@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn nullable_for_in_preserves_await_order_and_rejected_rhs() {
+    compare_promises(
+        &[
+            "const row={x:a,y:b};let o=a?row:null;let n=0;for(const k in (await b,o)){await a;n++;o=null;delete row.y;}return n;",
+            "let n=0;try{for(const k in (await Promise.reject(a),n++,a?{x:b}:null))n+=10;}catch(e){await b;return n;}return 99;",
+            "let key='old';const o=a?{x:b}:null;for(key in (await b,o)){await a;}return key==='old'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn scalar_iteration_assignments_preserve_cells_across_awaits_and_rejections() {
     compare_promises(
         &[

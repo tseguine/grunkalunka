@@ -4,6 +4,31 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn nullable_for_in_preserves_rhs_snapshots_empty_heads_and_live_presence() {
+    for body in [
+        "const source=a?{x:b}:null;for(var key in source){}return a;",
+        "const o=a?{x:b,yy:a}:null;let n=0;for(const k in o)n+=k.length;return n;",
+        "const xs=a?[b,,a]:undefined;let n=0;for(const k in xs)n+=k.length;return n;",
+        "const s=a?'A💠':null;let n=0;for(const k in s)n++;return n;",
+        "let n=0;const get=()=>{n++;return a?{x:b}:null;};for(const k in get())n+=10;return n;",
+        "let o=a?{x:b,y:a}:null;let n=0;for(const k in o){n++;o=null;}return n;",
+        "const row={x:a,y:b,z:a};const o=a?row:null;let n=0;for(const k in o){n++;delete row.y;}return n;",
+        "const xs=[a,b,b];const o=a?xs:null;let n=0;for(const k in o){n++;xs.length=1;}return n;",
+        "let k='old';const o=a?{x:b}:null;for(k in o){}return k==='old'?1:0;",
+        "const d=Object.create(null);d.x=b;const o=a?d:null;let n=0;for(const k in o)n++;return n;",
+        "const count=o=>{let n=0;for(const k in o)n++;return n;};return count(a?{x:b}:undefined);",
+        "const dest={k:'old'};const o=a?{x:b}:null;for(dest.k in o){}return dest.k==='old'?1:0;",
+        "const o=a?{x:b}:(b?null:undefined);let n=0;for(const k in o)n++;return n;",
+    ] {
+        compare(body);
+    }
+    common::compare_sources(
+        "export function run(a,b){for(const {length:n} in (a?'abc':null)){}return a;}",
+        "export function run(a,b){for(const {length:n} in ((a?'abc':null) as object)){}return a;}",
+    );
+}
+
+#[test]
 fn scalar_iteration_assignments_preserve_cells_effects_and_numeric_bits() {
     for body in [
         "let item=a;for(item of [b]){}return a;",

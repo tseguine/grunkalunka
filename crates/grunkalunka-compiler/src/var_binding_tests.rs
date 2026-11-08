@@ -195,6 +195,7 @@ fn var_for_of_reuses_function_cells_and_preserves_kind_boundaries() {
 #[test]
 fn var_for_in_reuses_hoisted_cells_and_accounts_for_key_writes() {
     for body in [
+        "const source=a?{x:b}:null;for(var key in source){}return a;",
         "for(var key in {x:a}){}return key==='x'?1:0;",
         "const before=key;for(var key in {}){}return before===undefined?1:0;",
         "var key=3;for(var key in {}){}return key===3?1:0;",
@@ -220,7 +221,6 @@ fn var_for_in_reuses_hoisted_cells_and_accounts_for_key_writes() {
     for body in [
         "for(var {x} in {x:a}){}return a;",
         "try{throw a;}catch(e){for(var e in {x:b}){}}return a;",
-        "const source=a?{x:b}:null;for(var key in source){}return a;",
     ] {
         assert!(
             crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
@@ -373,6 +373,7 @@ fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
 
 #[test]
 fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
+    assert!(crate::compile_value("export function run(a,b){for(const {length:n} in ((a?'abc':null) as object)){}return a;}",true).is_ok());
     for body in [
         "let n=0;for(const {length:l} in {a:1,abc:2})n+=l;return n;",
         "let n=0;for(let {0:x='?'} in {'':1,abc:2})n+=x.charCodeAt(0);return n;",
@@ -392,7 +393,6 @@ fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
         "for(let {slice:x} in {a:1}){}return a;",
         "const key='length';for(const {[key]:x} in {a:1}){}return a;",
         "for(let {'01':x} in {a:1}){}return a;",
-        "for(const {length:n} in ((a?'abc':null) as object)){}return a;",
         "let n=3;for(const {length:n} in {a:n}){}return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

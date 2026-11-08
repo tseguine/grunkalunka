@@ -1,3 +1,4 @@
+import { nullableForInPrograms } from './nullable-for-in.mjs';
 import { scalarIterationPrograms } from './scalar-iteration-heads.mjs';
 import { memberIterationPrograms } from './member-iteration-heads.mjs';
 import { optionalDeletePrograms } from './optional-delete.mjs';
@@ -1384,4 +1385,10 @@ test('scalar iteration heads retain original bindings, captures and primitive se
  assert.equal(scalarIterationPrograms.length,15);
  assert.equal(programSources(scalarIterationPrograms.find(row=>row[0]==='scalar-iteration-former-guard')).sourceJS,"export function run(a,b){let item=a;for(item of [b]){}return a;}");
  for(const row of scalarIterationPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('nullable for-in retains original RHS sources and nullish observations',()=>{
+ assert.equal(nullableForInPrograms.length,14);
+ for(const row of nullableForInPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });
