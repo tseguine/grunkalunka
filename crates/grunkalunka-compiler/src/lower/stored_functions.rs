@@ -802,30 +802,27 @@ impl Fields {
                     None
                 }
                 AstKind::ArrayExpression(array) => {
-                    if array.elements.iter().any(|element| {
-                        matches!(
-                            element,
-                            oxc_ast::ast::ArrayExpressionElement::SpreadElement(_)
-                        )
-                    }) {
-                        // Mixed literals with spread are still opaque. Do not let their
-                        // unknown width masquerade as fixed holes or positions.
+                    if let Some(elements) = iteration::literal_elements(array) {
+                        fields.insert(
+                            id,
+                            elements
+                                .iter()
+                                .enumerate()
+                                .map(|(index, element)| {
+                                    let value = match element {
+                                        iteration::LiteralElement::Value(value, _) => {
+                                            Some(value.node_id())
+                                        }
+                                        _ => None,
+                                    };
+                                    (index.to_string().encode_utf16().collect(), value)
+                                })
+                                .collect(),
+                        );
+                    } else {
+                        // Unknown spread width cannot prove any fixed position.
                         open_fields.insert(id);
                     }
-                    fields.insert(
-                        id,
-                        array
-                            .elements
-                            .iter()
-                            .enumerate()
-                            .map(|(index, value)| {
-                                (
-                                    index.to_string().encode_utf16().collect(),
-                                    value.as_expression().map(GetNodeId::node_id),
-                                )
-                            })
-                            .collect(),
-                    );
                     values.insert(id, BTreeSet::from([Origin::Array(id)]));
                     None
                 }

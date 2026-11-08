@@ -108,6 +108,55 @@ pub(super) fn single_spread<'n, 'a>(
     Some(&spread.argument)
 }
 
+/// A fixed literal projection borrows source expressions. Holes in a spread
+/// become explicit Undefined entries; holes in the containing literal stay holes.
+#[derive(Clone, Copy)]
+pub(super) enum LiteralElement<'n, 'a> {
+    Value(&'n Expression<'a>, usize),
+    Hole,
+    Undefined,
+}
+
+pub(super) fn literal_elements<'n, 'a>(
+    literal: &'n ArrayExpression<'a>,
+) -> Option<Vec<LiteralElement<'n, 'a>>> {
+    let mut pending = literal
+        .elements
+        .iter()
+        .rev()
+        .map(|element| (element, 1usize, false))
+        .collect::<Vec<_>>();
+    let mut result = Vec::new();
+    while let Some((element, depth, iterated)) = pending.pop() {
+        match element {
+            ArrayExpressionElement::SpreadElement(spread) => {
+                let (Expression::ArrayExpression(array), next) =
+                    closures::unwrapped_at(&spread.argument, depth)?
+                else {
+                    return None;
+                };
+                if next >= 128 {
+                    return None;
+                }
+                pending.extend(
+                    array
+                        .elements
+                        .iter()
+                        .rev()
+                        .map(|element| (element, next + 1, true)),
+                );
+            }
+            ArrayExpressionElement::Elision(_) => result.push(if iterated {
+                LiteralElement::Undefined
+            } else {
+                LiteralElement::Hole
+            }),
+            _ => result.push(LiteralElement::Value(element.as_expression()?, depth)),
+        }
+    }
+    Some(result)
+}
+
 impl Lowering<'_, '_> {
     pub(super) fn intrinsic_iterable_mode(
         &self,

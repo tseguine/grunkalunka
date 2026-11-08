@@ -2743,3 +2743,21 @@ API calls retain their existing raw argument admission. Tests cover bounds on a
 2 MiB native stack, reference identity, callback inputs, effects and suspension.
 Corpus 157 adds sixteen JS/TS differential pairs and freezes the two exact former
 compiler spread guards as executed positives; all 796 inventory negatives remain.
+
+
+Mixed Array literals now accept fixed Array-literal spread operands through
+parentheses and erased wrappers. A bounded heap worklist projects original source
+elements into final positions, without AST rewriting or new IR operations.
+Multiple, nested and empty literal spreads preserve evaluation order and shallow
+reference identity. Elisions in the outer literal stay holes; elisions consumed by
+a spread create explicit own Undefined entries, as Array iteration requires.
+Saved construction state survives supported awaits and abrupt completion.
+
+Representation and stored-member origin planning consume the same fixed-position
+projection, so Number/String/function facts follow expanded positions and remain
+subject to later mutations. Unknown mixed spread width never proves a position.
+Existing source depth/size limits still apply and depth rejection is exercised on
+a 2 MiB native stack. Mixed dynamic Array/String/other iterable operands retain
+guards; the existing single-spread Array/String copy path is unchanged. Corpus
+158 adds thirteen JS/TS pairs, including the exact former runtime rejection
+source with a frozen hash; all 796 compatibility negatives remain.

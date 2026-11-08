@@ -2,6 +2,28 @@
 mod common;
 
 #[test]
+fn mixed_literal_spreads_preserve_holes_order_identity_and_element_proofs() {
+    for body in [
+        "const x=[a,...[b]];return a;",
+        "const xs=[a,...[b,3],4];return xs[0]+xs[1]+xs[2]+xs[3];",
+        "const xs=[a,...[],b];return xs.length===2&&xs[0]===a&&xs[1]===b?1:0;",
+        "const xs=[,...[,undefined,a],,b];return xs.length===6&&!Object.hasOwn(xs,0)&&Object.hasOwn(xs,1)&&xs[1]===undefined&&Object.hasOwn(xs,2)&&!Object.hasOwn(xs,4)&&xs[5]===b?1:0;",
+        "const xs=[a,...[...[b],3],4];return xs[2];",
+        "const xs=[a,...[b,b],x=>x+1];return xs[3](a);",
+        "const xs=[a,...['x',' y '],b];return xs[2].trim().length;",
+        "const child={v:a};const xs=[b,...[child,child],a];xs[1].v=b;return xs[1]===xs[2]&&child.v===b?1:0;",
+        "let n=0;const xs=[(n=1,a),...[(n=n*10+2,b),(n=n*10+3,a)],(n=n*10+4,b)];return n;",
+        "const xs=[a,...[b,...[]],...[3],4];return xs.length*10+xs[2];",
+        "const xs=[a,...[,],b];const [x,y=9,z]=xs;return y+xs.length;",
+        "const xs=[,...[,undefined]];return Object.keys(xs).length;",
+        "const xs=[a,...[b]];const ys=[a,...[b]];return xs!==ys?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn array_pop_removes_current_elements_holes_and_sparse_extremes() {
     for source in [
         "export function run(a,b){const x=[];return x.pop()===undefined&&x.length===0?1:0;}",
@@ -339,7 +361,6 @@ fn unsupported_array_semantics_reject_before_ir_validation() {
         "const x=[];x.length='2';return a;",
         "const x=[];x.length+=1;return a;",
         "const x=[];x.length++;return a;",
-        "const x=[a,...[b]];return a;",
         "const x=[...a];return a;",
         "const x=[...{length:1,0:b}];return a;",
         "const x=[a];return x;",

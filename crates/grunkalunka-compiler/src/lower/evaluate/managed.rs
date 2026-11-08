@@ -1134,7 +1134,13 @@ impl Lowering<'_, '_> {
                     work.push(Work::Eval(source, depth + 1, mode));
                     return Ok(true);
                 }
-                let length = u32::try_from(literal.elements.len())
+                let elements = iteration::literal_elements(literal).ok_or_else(|| {
+                    unsupported(
+                        node,
+                        "mixed array spread requires fixed Array-literal operands",
+                    )
+                })?;
+                let length = u32::try_from(elements.len())
                     .map_err(|_| unsupported(node, "array length exceeds the supported range"))?;
                 let array = self.value(Type::ManagedArray);
                 Self::push(
@@ -1147,7 +1153,7 @@ impl Lowering<'_, '_> {
                 );
                 work.push(Work::Managed(ManagedWork::Array(arrays::ArrayWork {
                     node,
-                    literal,
+                    elements,
                     array,
                     index: 0,
                     depth,

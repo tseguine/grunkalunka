@@ -327,7 +327,7 @@
     {
       "id": "array-values",
       "kind": "open-requirement",
-      "assessment": "Local arrays, static own properties, identity, length and source-proven Number element projection are implemented through WasmGC. The exact numeric-element gap executes unchanged. General element coercion and public reference results remain separate requirements.",
+      "assessment": "Local arrays, static own properties, identity, length and source-proven Number element projection are implemented through WasmGC. The exact numeric-element gap executes unchanged. Mixed Array literals now expand fixed Array-literal spread operands with nested/empty spreads, ordered effects and correct positional value proofs. Outer holes remain absent; spread holes become own Undefined entries. Mixed dynamic Array/String operands remain guarded; existing single-spread copy support is unchanged. General element coercion and public reference results remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-array-initializer",

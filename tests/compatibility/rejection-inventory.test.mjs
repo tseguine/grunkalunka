@@ -1,3 +1,4 @@
+import { mixedLiteralArraySpreadOriginal, mixedLiteralArraySpreadPrograms } from './mixed-literal-array-spreads.mjs';
 import { literalCallSpreadOriginals, literalCallSpreadPrograms } from './literal-call-spreads.mjs';
 import { unaryDefaultOriginal, unaryDefaultPrograms } from './unary-parameter-defaults.mjs';
 import { arithmeticDefaultOriginals, arithmeticDefaultPrograms } from './arithmetic-parameter-defaults.mjs';
@@ -1201,5 +1202,19 @@ test('literal call spreads retain exact former helper and runtime compiler guard
   const pair=programSources(literalCallSpreadPrograms.find(row=>row[0]==='literal-call-spread-'+id));
   assert.equal(createHash('sha256').update(source).digest('hex'),hashes[index]);
   for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,source);
+ }
+});
+
+
+test('mixed literal Array spreads keep original hole, ordering and position observations',()=>{
+ assert.equal(mixedLiteralArraySpreadPrograms.length,13);
+ assert.equal(createHash('sha256').update(mixedLiteralArraySpreadOriginal).digest('hex'),"f189513775d8a9c66fbe017bbb7b8890130f531fa9af614072027df3fd32954e");
+ const pair=programSources(mixedLiteralArraySpreadPrograms.find(row=>row[0]==='mixed-literal-array-spread-original'));
+ for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,mixedLiteralArraySpreadOriginal);
+ for(const id of ['holes','effects','function-position','string-position','reference']) {
+  const row=mixedLiteralArraySpreadPrograms.find(row=>row[0]==='mixed-literal-array-spread-'+id);
+  assert.equal(row[1],row[2]);
+  assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
  }
 });

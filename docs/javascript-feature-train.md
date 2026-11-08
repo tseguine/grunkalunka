@@ -482,3 +482,12 @@ Array/String iterables, elisions, a spread thisArg to .call and unsupported call
 lanes remain guarded. No intrinsic/standard-library spread support is added.
 Corpus 157 adds sixteen pairs and retains two exact former compiler guards as
 executed positives, with all 796 compatibility negatives retained.
+
+
+Mixed Array initializers now expand fixed Array-literal spread operands, including
+multiple, nested and empty spreads. The heap projection preserves original
+element expressions, effects, references, functions, String/Number position facts
+and supported awaits. Outer elisions remain holes; spread elisions become own
+Undefined slots. Dynamic Array/String operands in mixed initializers retain
+guards; existing single-spread copy support stays available. Corpus 158 adds
+thirteen differential pairs with all 796 compatibility negatives retained.
