@@ -448,3 +448,45 @@ fn earlier_parameter_logical_defaults_keep_scope_purity_and_arity_guards() {
         .is_err()
     );
 }
+
+#[test]
+fn earlier_parameter_conditional_defaults_admit_pure_branch_values() {
+    for expression in [
+        "x?'enabled':'disabled'",
+        "x?1:0",
+        "x?(1+2):(-3)",
+        "x?(true&&'on'):(null??'off')",
+        "x?null:undefined",
+        "x?'\\u{1F600}':'plain'",
+    ] {
+        for source in [
+            format!(
+                "function f(x,y={expression}){{return y;}}export function run(a,b){{return f(a);}}"
+            ),
+            format!("export function run(a,b){{const f=(x,y={expression})=>y;return f(a);}}"),
+            format!(
+                "export function run(a,b){{const o={{f:(x,y={expression})=>y}};return o.f(a);}}"
+            ),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn earlier_parameter_conditional_defaults_reject_scope_reads_and_branch_effects() {
+    for source in [
+        "function f(x=x?'a':'b'){return x;}export function run(a,b){return f();}",
+        "function f(x,y=y?'a':'b'){return y;}export function run(a,b){return f();}",
+        "function f(x,y=z?'a':'b',z=3){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x?g():3){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x?3:a){return y;}export function run(a,b){return f();}",
+        "function f(x,y=(x+1)?3:4){return y;}export function run(a,b){return f();}",
+        "export function run(a,b){const f=(x,y=a?'a':'b')=>y;return f(a);}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+}

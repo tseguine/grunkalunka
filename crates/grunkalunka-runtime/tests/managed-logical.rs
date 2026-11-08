@@ -949,3 +949,21 @@ fn earlier_parameter_logical_fallbacks_preserve_tags_and_supplied_values() {
     let ts = "export function run(a:number,b:number){const f=(x:unknown,y:unknown=(x as never)??'ready')=>y;return f(null)==='ready'?a:b;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn earlier_parameter_conditional_defaults_match_native_source_oracles() {
+    for body in [
+        "function f(x,y=x?'enabled':'disabled'){return y;}return f(a)===(a?'enabled':'disabled')?a:b;",
+        "const f=(x,y=x?1:0)=>y;return f(0)===0?a:b;",
+        "const f=(x,y=x?1:0)=>y;return f(-7)===1?a:b;",
+        "const o={f:(x,y=x?'first':'second')=>y};return o.f('')==='second'?a:b;",
+        "function f(x,y=x?'yes':'no'){return y;}return f(true,'supplied')==='supplied'?a:b;",
+        "const f=(x,y=x?(null??'yes'):(false||'no'))=>y;return f(null)==='no'?a:b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const f=(x,y=x?'enabled':'disabled')=>y;return f(a)===(a?'enabled':'disabled')?a:b;}";
+    let ts = "export function run(a:number,b:number){const f=(x:unknown,y:unknown=(x as never)?'enabled':'disabled')=>y;return f(a)===(a?'enabled':'disabled')?a:b;}";
+    common::compare_sources(js, ts);
+}

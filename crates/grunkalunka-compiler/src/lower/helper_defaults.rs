@@ -108,6 +108,51 @@ fn earlier_logical<'n, 'a>(
     Some((identifier, logical.operator, constant(&logical.right, semantic)?))
 }
 
+// A conditional test can refer to an earlier parameter while both chosen
+// values remain pure defaults. The parameter identity check is deliberately
+// identical to the logical-fallback check.
+fn earlier_conditional<'n, 'a>(
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<(&'n IdentifierReference<'a>, Constant, Constant)> {
+    let (node, depth) = closures::unwrapped_at(expression, 0)?;
+    let Expression::ConditionalExpression(conditional) = node else {
+        return None;
+    };
+    let (test, _) = closures::unwrapped_at(&conditional.test, depth + 1)?;
+    let Expression::Identifier(identifier) = test else {
+        return None;
+    };
+    let identifier = identifier.as_ref();
+    let symbol = semantic
+        .scoping()
+        .get_reference(identifier.reference_id.get()?)
+        .symbol_id()?;
+    let parameters = semantic
+        .nodes()
+        .ancestor_kinds(expression.node_id())
+        .find_map(|kind| match kind {
+            AstKind::FormalParameters(parameters) => Some(parameters),
+            _ => None,
+        })?;
+    let index = parameters.items.iter().position(|parameter| {
+        parameter
+            .initializer
+            .as_ref()
+            .is_some_and(|value| value.node_id() == expression.node_id())
+    })?;
+    if !parameters.items[..index].iter().any(|parameter| {
+        matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
+    }) {
+        return None;
+    }
+    Some((
+        identifier,
+        constant(&conditional.consequent, semantic)?,
+        constant(&conditional.alternate, semantic)?,
+    ))
+}
+
 impl Constant {
     fn truthy(&self) -> bool {
         match self {
@@ -282,6 +327,7 @@ pub(crate) fn validate(
             if constant(initializer, semantic).is_none()
                 && earlier_parameter(initializer, semantic).is_none()
                 && earlier_logical(initializer, semantic).is_none()
+                && earlier_conditional(initializer, semantic).is_none()
             {
                 return Err(unsupported(
                     initializer,
@@ -303,7 +349,8 @@ pub(crate) fn validate_arrow(
             && (!allowed
                 || (constant(initializer.as_ref(), semantic).is_none()
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
-                    && earlier_logical(initializer.as_ref(), semantic).is_none()))
+                    && earlier_logical(initializer.as_ref(), semantic).is_none()
+                    && earlier_conditional(initializer.as_ref(), semantic).is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -407,57 +454,44 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
-        if let Some((identifier, operator, fallback)) =
-            earlier_logical(initializer, self.semantic)
+        if let Some((identifier, when_true, when_false)) =
+            earlier_conditional(initializer, self.semantic)
         {
-            let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
-            let ty = self.slots[slot.0].ty;
-            let input = self.value(ty);
+            let source = self.load_earlier_value(identifier, initializer, &mut consequent)?;
+            let condition = self.value(Type::Predicate);
             Self::push(
                 &mut consequent,
                 initializer,
-                Op::Load {
-                    result: input,
-                    slot,
+                Op::ManagedTruthy {
+                    result: condition,
+                    input: source,
                 },
             );
-            let original = if ty == Type::ManagedValue {
-                input
-            } else {
-                let result = self.value(Type::ManagedValue);
-                let op = match ty {
-                    Type::ManagedArray => Op::ManagedFromArray { result, input },
-                    Type::ManagedObject => Op::ManagedFromObject { result, input },
-                    Type::Number | Type::Predicate | Type::General => {
-                        let primitive = if ty == Type::General {
-                            input
-                        } else {
-                            let packed = self.value(Type::General);
-                            Self::push(
-                                &mut consequent,
-                                initializer,
-                                Op::Pack {
-                                    result: packed,
-                                    input,
-                                },
-                            );
-                            packed
-                        };
-                        Op::ManagedPrimitive {
-                            result,
-                            input: primitive,
-                        }
-                    }
-                    _ => {
-                        return Err(unsupported(
-                            initializer,
-                            "earlier logical default requires a represented parameter",
-                        ));
-                    }
-                };
-                Self::push(&mut consequent, initializer, op);
-                result
-            };
+            let mut true_region = self.region(initializer);
+            let true_value = self.emit_constant_default(initializer, &mut true_region, when_true);
+            true_region.exit = Exit::Yield(true_value);
+            let mut false_region = self.region(initializer);
+            let false_value =
+                self.emit_constant_default(initializer, &mut false_region, when_false);
+            false_region.exit = Exit::Yield(false_value);
+            let result = self.value(Type::ManagedValue);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::If {
+                    result: Some(result),
+                    condition,
+                    consequent: true_region,
+                    alternate: false_region,
+                },
+            );
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, result));
+        }
+        if let Some((identifier, operator, fallback)) =
+            earlier_logical(initializer, self.semantic)
+        {
+            let original =
+                self.load_earlier_value(identifier, initializer, &mut consequent)?;
             let condition = self.value(Type::Predicate);
             Self::push(
                 &mut consequent,
@@ -641,6 +675,64 @@ impl Lowering<'_, '_> {
         })?;
         let value = self.emit_constant_default(initializer, &mut consequent, folded);
         Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
+    }
+
+
+    fn load_earlier_value(
+        &mut self,
+        identifier: &IdentifierReference<'_>,
+        node: &Expression<'_>,
+        region: &mut Region,
+    ) -> Result<ValueId, String> {
+        let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
+        let ty = self.slots[slot.0].ty;
+        let input = self.value(ty);
+        Self::push(
+            region,
+            node,
+            Op::Load {
+                result: input,
+                slot,
+            },
+        );
+        let original = if ty == Type::ManagedValue {
+            input
+        } else {
+            let result = self.value(Type::ManagedValue);
+            let op = match ty {
+                Type::ManagedArray => Op::ManagedFromArray { result, input },
+                Type::ManagedObject => Op::ManagedFromObject { result, input },
+                Type::Number | Type::Predicate | Type::General => {
+                    let primitive = if ty == Type::General {
+                        input
+                    } else {
+                        let packed = self.value(Type::General);
+                        Self::push(
+                            region,
+                            node,
+                            Op::Pack {
+                                result: packed,
+                                input,
+                            },
+                        );
+                        packed
+                    };
+                    Op::ManagedPrimitive {
+                        result,
+                        input: primitive,
+                    }
+                }
+                _ => {
+                    return Err(unsupported(
+                        node,
+                        "earlier parameter default requires a represented value",
+                    ));
+                }
+            };
+            Self::push(region, node, op);
+            result
+        };
+        Ok(original)
     }
 
     fn emit_constant_default(
