@@ -1423,3 +1423,16 @@ fn helper_loop_switch_and_finalizer_results_survive_suspension() {
         "function f(x){try{throw x;}catch(e){if(e)return e;}}export async function run(a,b){await b;return +f(a);}".to_owned(),
     ],&[(0.0,2.0),(1.0,3.0),(f64::NAN,f64::INFINITY)]);
 }
+
+#[test]
+fn primitive_object_bindings_preserve_suspension_and_fresh_rest_objects() {
+    compare_promises(
+        &[
+            "const {...rest}=await a;return Object.keys(rest).length+await b;",
+            "const {...rest}=await (a>b);await b;return Object.keys(rest).length;",
+            "const {value:{...rest}}={value:await a};return Object.keys(rest).length+await b;",
+            "let n=0;for(const {...rest} of [a,false]){await b;n+=Object.keys(rest).length;}return n;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}

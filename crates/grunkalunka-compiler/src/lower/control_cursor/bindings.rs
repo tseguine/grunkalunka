@@ -107,6 +107,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     let selected = state.selected.take().expect("selected object binding");
                     let value = if self.values[selected.0] == receiver {
                         selected
+                    } else if receiver == Type::General {
+                        let result = self.value(Type::General);
+                        Self::push(
+                            &mut output,
+                            source,
+                            Op::ManagedToPrimitive {
+                                result,
+                                input: selected,
+                            },
+                        );
+                        result
                     } else {
                         let result = self.value(receiver);
                         let op = match receiver {
@@ -286,7 +297,47 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     else {
                         unreachable!("object rest has an object receiver");
                     };
-                    let object = if self.values[object.0] == Type::ManagedValue {
+                    let object = if matches!(
+                        self.values[object.0],
+                        Type::ManagedValue | Type::General | Type::Number | Type::Predicate
+                    ) {
+                        let primitive = match self.values[object.0] {
+                            Type::ManagedValue => *object,
+                            Type::General => {
+                                let boxed = self.value(Type::ManagedValue);
+                                Self::push(
+                                    &mut output,
+                                    source,
+                                    Op::ManagedPrimitive {
+                                        result: boxed,
+                                        input: *object,
+                                    },
+                                );
+                                boxed
+                            }
+                            Type::Number | Type::Predicate => {
+                                let packed = self.value(Type::General);
+                                Self::push(
+                                    &mut output,
+                                    source,
+                                    Op::Pack {
+                                        result: packed,
+                                        input: *object,
+                                    },
+                                );
+                                let boxed = self.value(Type::ManagedValue);
+                                Self::push(
+                                    &mut output,
+                                    source,
+                                    Op::ManagedPrimitive {
+                                        result: boxed,
+                                        input: packed,
+                                    },
+                                );
+                                boxed
+                            }
+                            _ => unreachable!("validated primitive object binding"),
+                        };
                         let target = self.value(Type::ManagedObject);
                         Self::push(&mut output, source, Op::ManagedObjectNew { result: target });
                         Self::push(
@@ -294,7 +345,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             source,
                             Op::ManagedObjectSpread {
                                 object: target,
-                                input: *object,
+                                input: primitive,
                             },
                         );
                         target
