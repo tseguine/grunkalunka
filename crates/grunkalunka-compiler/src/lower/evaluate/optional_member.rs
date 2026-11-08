@@ -6,6 +6,7 @@ use oxc_ast::ast::{ChainElement, ChainExpression};
 pub(in crate::lower) enum Key<'e, 'a> {
     Literal(Vec<u16>),
     Uint32(&'e Expression<'a>),
+    Number(&'e Expression<'a>),
 }
 
 pub(in crate::lower) fn parts<'e, 'a>(
@@ -27,7 +28,7 @@ pub(in crate::lower) fn parts<'e, 'a>(
             } else if property_delete::uint32_key(&member.expression, depth + 2) {
                 Some((&member.object, Key::Uint32(&member.expression)))
             } else {
-                None
+                Some((&member.object, Key::Number(&member.expression)))
             }
         }
         _ => None,
@@ -69,6 +70,11 @@ impl Lowering<'_, '_> {
         }
         let array = receiver == Some(Type::ManagedArray);
         let string = receiver == Some(Type::ManagedValue);
+        if let Key::Number(key) = &key
+            && (!string || !self.stored.number(key.node_id()))
+        {
+            return Ok(false);
+        }
         if string
             && let Key::Literal(key) = &key
             && key.as_slice() != [108, 101, 110, 103, 116, 104]
@@ -222,7 +228,7 @@ impl Lowering<'_, '_> {
             object
         });
         match key {
-            Key::Uint32(key) => {
+            Key::Uint32(key) | Key::Number(key) => {
                 regions.children.push(selected);
                 work.push(Work::Managed(ManagedWork::OptionalRead(Read::Key {
                     node,
@@ -382,6 +388,34 @@ impl Lowering<'_, '_> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn optional_number_string_keys_require_actual_number_and_string_proofs() {
+        for (body, ok) in [
+            ("const s=a?'ab':null;return s?.[b]===undefined?1:0;", true),
+            ("const s='ab';return s?.[a/2]===undefined?1:0;", true),
+            ("const s='ab';const k='0';return s?.[k]==='a'?1:0;", false),
+            (
+                "const s='ab';const k={};return s?.[k]===undefined?1:0;",
+                false,
+            ),
+            ("const xs=[a];return xs?.[b]===undefined?1:0;", false),
+            ("const o={0:a};return o?.[b]===undefined?1:0;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){const s='ab';const k='0';return s?.[(k as number)]==='a'?1:0;}",
+                true
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn optional_string_reads_require_own_keys_and_actual_string_alternatives() {
         for (body, ok) in [
             ("const s='ab';return s?.length;", true),
@@ -391,7 +425,7 @@ mod tests {
             ("const s='ab';return s?.trim===undefined?1:0;", false),
             ("const s='ab';return s?.[-1]===undefined?1:0;", false),
             ("const s=a?'ab':{};return s?.length;", false),
-            ("const s='ab';return s?.[a]==='a'?1:0;", false),
+            ("const s='ab';return s?.[a]==='a'?1:0;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {

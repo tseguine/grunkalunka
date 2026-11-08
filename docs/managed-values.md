@@ -29,7 +29,12 @@ undergo validation, including in a branch that never executes.
 String receivers expose their own length and canonical UTF-16 index properties,
 using the same lazy unsigned-key path. Index reads preserve individual UTF-16
 units, including isolated surrogate units; missing indices return Undefined.
-Other String properties and String/object receiver unions remain guarded.
+Optional String runtime index expressions also accept source-proven Number values,
+including ordinary loop variables. Fractional, negative, non-finite and out-of-range
+indices return Undefined rather than undergoing integer truncation; negative zero
+selects index zero. The key still executes only for a non-nullish saved String.
+Other String properties, coercing keys and String/object receiver unions remain
+guarded.
 
 Numeric projections still need a Number proof or explicit primitive conversion.
 Unknown receivers, inherited fields, other runtime keys, optional calls and

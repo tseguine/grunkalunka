@@ -46,6 +46,24 @@ impl Members<'_, '_> {
         found
     }
 
+    pub(super) fn optional_number_string(&self, receiver: NodeId, key: NodeId) -> Alternatives {
+        let Some(keys) = self.values.get(&key).filter(|v| !v.is_empty()) else {
+            return Alternatives::new();
+        };
+        let Some(roots) = self.values.get(&receiver).filter(|v| !v.is_empty()) else {
+            return Alternatives::new();
+        };
+        if keys.iter().all(|origin| *origin == Origin::Number)
+            && roots
+                .iter()
+                .all(|origin| matches!(origin, Origin::String | Origin::Null | Origin::Undefined))
+        {
+            BTreeSet::from([Origin::String, Origin::Undefined])
+        } else {
+            BTreeSet::from([Origin::Other])
+        }
+    }
+
     pub(super) fn unsigned_value(&self, receiver: NodeId) -> Alternatives {
         self.unsigned_select(receiver, false)
     }

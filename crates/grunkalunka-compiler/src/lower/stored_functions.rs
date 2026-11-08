@@ -36,6 +36,7 @@ enum Rule {
     Member(NodeId, Key),
     OptionalMember(NodeId, Key),
     OptionalUnsignedMember(NodeId),
+    OptionalNumberStringMember(NodeId, NodeId),
     DictionaryMember(NodeId, NodeId),
     UnsignedMember(NodeId),
     Call(
@@ -1208,6 +1209,9 @@ impl Fields {
                             evaluate::optional_member::Key::Literal(key) => {
                                 Rule::OptionalMember(receiver.node_id(), key)
                             }
+                            evaluate::optional_member::Key::Number(key) => {
+                                Rule::OptionalNumberStringMember(receiver.node_id(), key.node_id())
+                            }
                             evaluate::optional_member::Key::Uint32(_) => {
                                 Rule::OptionalUnsignedMember(receiver.node_id())
                             }
@@ -1270,6 +1274,7 @@ impl Fields {
                     | Rule::UnsignedMember(..)
                     | Rule::OptionalMember(..)
                     | Rule::OptionalUnsignedMember(..)
+                    | Rule::OptionalNumberStringMember(..)
             )
         });
         let track_elements = has_iterations
@@ -1522,6 +1527,9 @@ impl Fields {
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
                     Rule::OptionalMember(receiver, key) => members.optional_select(*receiver, key),
+                    Rule::OptionalNumberStringMember(receiver, key) => {
+                        members.optional_number_string(*receiver, *key)
+                    }
                     Rule::OptionalUnsignedMember(receiver) => {
                         members.optional_unsigned_value(*receiver)
                     }
