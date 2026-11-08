@@ -1,3 +1,4 @@
+import { stringObjectAssignmentPrograms } from './string-object-assignments.mjs';
 import { stringAssignmentPrograms } from './string-array-assignments.mjs';
 import { earlierParameterPrograms } from './earlier-parameter-defaults.mjs';
 import { stringIteratorPromotions, stringIteratorPrograms } from './string-iterator-bindings.mjs';
@@ -1158,4 +1159,14 @@ test('String assignment fixtures retain both empty and nonempty original RHS pre
     assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
     assert.ok(programs.some(program=>program[0]===row[0]));
   }
+});
+
+
+test('String object assignment corpus covers UTF-16 and original RHS snapshots',()=>{
+ assert.equal(stringObjectAssignmentPrograms.length,10);
+ for(const id of ['utf16','snapshot','empty','nonempty']) {
+  const row=stringObjectAssignmentPrograms.find(row=>row[0]==='string-object-assignment-'+id);
+  assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
 });

@@ -20,7 +20,7 @@ pub(super) struct Plan<'e, 'a> {
     writes: Vec<Write<'e, 'a>>,
     mode: Mode,
     depth: usize,
-    string: bool,
+    string_array: bool,
 }
 
 pub(super) struct State<'e, 'a> {
@@ -90,8 +90,7 @@ impl Lowering<'_, '_> {
                 "assignment patterns require plain assignment",
             ));
         }
-        let string = self.stored.string(assignment.right.node_id())
-            && matches!(assignment.left, AssignmentTarget::ArrayAssignmentTarget(_));
+        let string = self.stored.string(assignment.right.node_id());
         let receiver = if string {
             Some(Type::ManagedValue)
         } else {
@@ -152,6 +151,12 @@ impl Lowering<'_, '_> {
                 }
             }
             AssignmentTarget::ObjectAssignmentTarget(pattern) => {
+                if string && pattern.rest.is_some() {
+                    return Err(unsupported(
+                        node,
+                        "String object assignment rest is not yet admitted",
+                    ));
+                }
                 let dictionary = self.stored.dictionary(assignment.right.node_id());
                 let mut excluded = Vec::new();
                 for property in &pattern.properties {
@@ -180,6 +185,15 @@ impl Lowering<'_, '_> {
                         receiver == Some(Type::ManagedArray),
                         dictionary,
                     )?;
+                    if string
+                        && key.as_slice() != [108, 101, 110, 103, 116, 104]
+                        && binding_patterns::string_index(&key).is_none()
+                    {
+                        return Err(unsupported(
+                            node,
+                            "String object assignment keys require length or canonical numeric indices",
+                        ));
+                    }
                     excluded.push(ir::ManagedKey::Literal(key.clone()));
                     writes.push(Write {
                         selection: Selection::Field(key),
@@ -202,7 +216,8 @@ impl Lowering<'_, '_> {
             writes,
             mode,
             depth: depth + 1,
-            string,
+            string_array: string
+                && matches!(assignment.left, AssignmentTarget::ArrayAssignmentTarget(_)),
         })));
         work.push(Work::Eval(&assignment.right, depth + 1, input_mode));
         Ok(true)
@@ -218,7 +233,7 @@ impl Lowering<'_, '_> {
         let mut state = match task {
             Task::Begin(plan) => {
                 let input = values.pop().expect("assignment RHS");
-                let receiver = if plan.string {
+                let receiver = if plan.string_array {
                     // Select code points from a private immutable-String snapshot,
                     // but keep the original String as the assignment result.
                     let array = self.value(Type::ManagedArray);
@@ -296,7 +311,50 @@ impl Lowering<'_, '_> {
                 }
                 Selection::Field(key) => {
                     let result = self.value(Type::ManagedValue);
-                    let op = if self.values[receiver.0] == Type::ManagedArray {
+                    let op = if self.values[receiver.0] == Type::ManagedValue {
+                        if key.as_slice() == [108, 101, 110, 103, 116, 104] {
+                            let number = self.value(Type::Number);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::ManagedStringLength {
+                                    result: number,
+                                    input: receiver,
+                                },
+                            );
+                            let packed = self.value(Type::General);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Pack {
+                                    result: packed,
+                                    input: number,
+                                },
+                            );
+                            Op::ManagedPrimitive {
+                                result,
+                                input: packed,
+                            }
+                        } else {
+                            let index = self.value(Type::Number);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Constant {
+                                    result: index,
+                                    value: f64::from(
+                                        binding_patterns::string_index(&key)
+                                            .expect("planned String assignment index"),
+                                    ),
+                                },
+                            );
+                            Op::ManagedStringGetIndex {
+                                result,
+                                input: receiver,
+                                index,
+                            }
+                        }
+                    } else if self.values[receiver.0] == Type::ManagedArray {
                         Op::ManagedArrayGetOwn {
                             result,
                             array: receiver,
@@ -433,6 +491,43 @@ impl Lowering<'_, '_> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn string_object_assignments_keep_property_result_and_kind_contracts() {
+        for body in [
+            "let n=0;({length:n}='abc');return n;",
+            "let x='';({0:x='?'}='abc');return x.charCodeAt(0);",
+            "let x;const result=({0:x}='abc');return result.length;",
+            "let x;return ({}='')?1:0;",
+            "let x;({length:x}='abc');return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let result = crate::compile(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+        for body in [
+            "let x;({length:x}=(a as string));return a;",
+            "let x;({length:x}=(a?'abc':null));return a;",
+            "let x;({...x}='abc');return a;",
+            "let x;({slice:x}='abc');return a;",
+            "let x;({'01':x}='abc');return a;",
+            "let x;const key='length';({[key]:x}='abc');return a;",
+            "const x=0;({length:x}='abc');return a;",
+            "let x=0;({0:x}='abc');return x;",
+        ] {
+            assert!(
+                crate::compile(&format!("export function run(a,b){{{body}}}"), true).is_err(),
+                "{body}"
+            );
+        }
+        let js = "export function run(a,b){let n=0;({length:n}='abc');return n;}";
+        let ts = "export function run(a:boolean,b:string):never{let n:string=0;({length:n}=('abc' as never));return n as boolean;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+    }
+    #[test]
     fn string_array_assignments_preserve_result_kinds_and_source_guards() {
         for body in [
             "let x;[x]='abc';return x==='a'?1:0;",
@@ -455,7 +550,6 @@ mod tests {
             "const x='';[x]='abc';return a;",
             "let x;[[x]]='abc';return a;",
             "[missing]='abc';return a;",
-            "let x;({length:x}='abc');return a;",
             "let x=3;[x]='abc';return x;",
             "let x=3;const read=()=>x;[x]='abc';return read();",
         ] {

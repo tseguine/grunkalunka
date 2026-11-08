@@ -2674,7 +2674,20 @@ Each source executes once. Default-side rebinding preserves the saved source,
 rest Arrays are fresh, and captures observe writes to the original cells. The
 existing suspension path retains both the source and copied selections across
 admitted awaits. Materialization has the same complete-String allocation cost as
-String binding patterns. Object patterns on Strings, nested/member assignment
+String binding patterns. String object rest, nested/member assignment
 targets, immutable/uninitialized targets, unproven/mixed RHS kinds and unsafe
 specialized projections remain guarded; annotations cannot supply the proof.
 Corpus 153 adds thirteen JS/TS pairs; all 796 negative fixtures remain retained.
+
+
+Flat object destructuring assignments now select static length and canonical
+unsigned numeric properties from proven Strings into mutable identifier cells.
+Length is Number; numeric indices select individual UTF-16 code units or Undefined.
+Defaults remain lazy and ordered, and the saved original String supplies later
+properties even if a default rebinds the source. The expression returns that String
+and uses its truthiness, including false for an empty String. No code-point Array
+is allocated for property selection. Captures and supported awaits keep the same
+saved-source contract. String object rest, dynamic/noncanonical/inherited keys,
+nested/member targets, immutable/uninitialized cells and unproven/mixed receivers
+retain guards; annotations cannot justify specialized loads. Corpus 154 adds ten
+JS/TS pairs while retaining all 796 negative sources.

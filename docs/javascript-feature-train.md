@@ -450,3 +450,10 @@ returns the saved original String and its actual truthiness, including empty
 Strings; private selection storage never becomes the result. Defaults, captures
 and supported awaits retain source snapshots. Object-String, nested/member and
 unproven-source assignment forms remain guarded. Corpus 153 adds thirteen pairs.
+
+
+String object destructuring assignments now support static length and canonical
+numeric keys, preserving UTF-16 selection, lazy defaults, captures and supported
+awaits. The result remains the original String with its actual truthiness. Rest,
+dynamic/inherited keys and unsupported targets remain guarded. Corpus 154 adds
+ten differential pairs; no standard-library or host API is expanded.

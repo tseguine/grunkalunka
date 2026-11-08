@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn string_object_assignments_keep_utf16_source_across_default_awaits() {
+    compare_promises(
+        &[
+            "let x,n=0;let source='';const result=({'99':x=(await a,source='abc','?'),length:n}=source);await b;return result===''&&n===0&&x==='?'&&source==='abc'?1:0;",
+            "let x,n=0;({0:x=(n++,await Promise.reject(a))}='abc');await b;return n===0&&x==='a'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_array_assignments_keep_saved_rhs_and_copies_across_await() {
     compare_promises(
         &[

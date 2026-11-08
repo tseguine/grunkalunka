@@ -30,6 +30,24 @@ fn object_assignment_defaults_are_lazy_ordered_and_keep_rhs_snapshots() {
 }
 
 #[test]
+fn string_object_assignments_preserve_utf16_defaults_and_original_rhs() {
+    for body in [
+        "let n=0;({length:n}='abc');return n;",
+        "let x;const result=({0:x}='abc');return result.length+(x==='a'?10:0);",
+        "let n=0,x='';({0:x=(n++,'?'),length:n}='abc');return n+(x==='a'?10:0);",
+        "let n=0,x='';({'99':x=(n++,'?')}='abc');return n+(x==='?'?10:0);",
+        "let x;return ({}='')?1:0;",
+        "let x;return ({0:x}='abc')?1:0;",
+        "let x,n=0;let source='';const result=({'99':x=(source='abc','?'),length:n}=source);return result===''&&n===0&&source==='abc'?1:0;",
+        r"let x,y,n=0;({0:x,1:y,length:n}='\u{1f600}');return n+(x==='\ud83d'?10:0)+(y==='\ude00'?100:0);",
+        "var n;const get=()=>n;({length:n}='abc');return +get();",
+        "let n=0,c=0;const make=()=>{c++;return 'abc';};({length:n}=make());return n+c;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn object_assignments_preserve_cells_static_keys_rest_and_rhs_identity() {
     for body in [
         "let x=a;({x}={x:b});return a;",
