@@ -36,7 +36,7 @@ enum Rule {
     Member(NodeId, Key),
     OptionalMember(NodeId, Key),
     OptionalUnsignedMember(NodeId),
-    OptionalNumberStringMember(NodeId, NodeId),
+    OptionalComputedMember(NodeId, NodeId),
     DictionaryMember(NodeId, NodeId),
     UnsignedMember(NodeId),
     Call(
@@ -264,6 +264,17 @@ impl Fields {
                 && values
                     .iter()
                     .all(|origin| matches!(origin, Origin::NullObject(_)))
+        })
+    }
+    pub(super) fn optional_dictionary(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::NullObject(_) | Origin::Null | Origin::Undefined
+                    )
+                })
         })
     }
     pub(super) fn string(&self, node: NodeId) -> bool {
@@ -1209,8 +1220,8 @@ impl Fields {
                             evaluate::optional_member::Key::Literal(key) => {
                                 Rule::OptionalMember(receiver.node_id(), key)
                             }
-                            evaluate::optional_member::Key::Number(key) => {
-                                Rule::OptionalNumberStringMember(receiver.node_id(), key.node_id())
+                            evaluate::optional_member::Key::Runtime(key) => {
+                                Rule::OptionalComputedMember(receiver.node_id(), key.node_id())
                             }
                             evaluate::optional_member::Key::Uint32(_) => {
                                 Rule::OptionalUnsignedMember(receiver.node_id())
@@ -1274,7 +1285,7 @@ impl Fields {
                     | Rule::UnsignedMember(..)
                     | Rule::OptionalMember(..)
                     | Rule::OptionalUnsignedMember(..)
-                    | Rule::OptionalNumberStringMember(..)
+                    | Rule::OptionalComputedMember(..)
             )
         });
         let track_elements = has_iterations
@@ -1527,8 +1538,8 @@ impl Fields {
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
                     Rule::OptionalMember(receiver, key) => members.optional_select(*receiver, key),
-                    Rule::OptionalNumberStringMember(receiver, key) => {
-                        members.optional_number_string(*receiver, *key)
+                    Rule::OptionalComputedMember(receiver, key) => {
+                        members.optional_computed(*receiver, *key)
                     }
                     Rule::OptionalUnsignedMember(receiver) => {
                         members.optional_unsigned_value(*receiver)

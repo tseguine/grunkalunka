@@ -46,7 +46,7 @@ impl Members<'_, '_> {
         found
     }
 
-    pub(super) fn optional_number_string(&self, receiver: NodeId, key: NodeId) -> Alternatives {
+    pub(super) fn optional_computed(&self, receiver: NodeId, key: NodeId) -> Alternatives {
         let Some(keys) = self.values.get(&key).filter(|v| !v.is_empty()) else {
             return Alternatives::new();
         };
@@ -59,6 +59,17 @@ impl Members<'_, '_> {
                 .all(|origin| matches!(origin, Origin::String | Origin::Null | Origin::Undefined))
         {
             BTreeSet::from([Origin::String, Origin::Undefined])
+        } else if keys.iter().all(|origin| *origin == Origin::String)
+            && roots.iter().all(|origin| {
+                matches!(
+                    origin,
+                    Origin::NullObject(_) | Origin::Null | Origin::Undefined
+                )
+            })
+        {
+            let mut found = self.enumerable_values_for(receiver, true);
+            found.insert(Origin::Undefined);
+            found
         } else {
             BTreeSet::from([Origin::Other])
         }

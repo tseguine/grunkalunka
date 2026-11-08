@@ -5,6 +5,25 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_dictionary_reads_preserve_lazy_keys_aliases_and_selected_identity() {
+    for body in [
+        "const d=Object.create(null);const key='x';return d?.[key]===undefined?a:b;",
+        "const d=Object.create(null);d.x=b;const o=a?d:null;const k='x';return +(o?.[k]);",
+        "const d=Object.create(null);d.x=b;const o=a?d:null;let calls=0;const get=()=>{calls++;return 'x';};const v=o?.[get()];return calls===(a?1:0)&&v===(a?b:undefined)?1:0;",
+        "let calls=0;const key=()=>{calls++;return 'constructor';};const v=null?.[key()];return calls===0&&v===undefined?1:0;",
+        "const d=Object.create(null);d.x=b;let calls=0;const get=()=>{calls++;return a?d:null;};const k='x';const v=get()?.[k];return calls*10+(v===undefined?1:0);",
+        "const d=Object.create(null);d.x=a;const v=d?.[(d.x=b,'x')];return v===b?1:0;",
+        "let d=Object.create(null);d.x=a;const old=d;const v=d?.[(d=Object.create(null),d.x=b,'x')];return old!==d&&v===a?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':'constructor';d[k]=b;const o=a?d:null;return +(o?.[k]);",
+        "const d=Object.create(null);d.constructor=b;const o=a?d:null;return +(o?.constructor);",
+        "const d=Object.create(null);const row={x:a};d.x=row;const k='x';return d?.[k]===row?1:0;",
+        "const read=(d,k)=>d?.[k]===undefined?1:0;const d=Object.create(null);d.x=b;return read(a?d:null,'x');",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn function_for_in_preserves_rhs_effects_without_calling_or_visiting() {
     common::compare_sources(
         "function f(x){return x+1;}export function run(a,b){let n=0;for(const k in f)n++;return n;}",
@@ -761,7 +780,6 @@ fn dictionary_reads_keep_unknown_values_and_receivers_unproven() {
         "const d=Object.create(null);const key=a?'x':b;return d[key]===undefined?a:b;",
         "const d=Object.create(null);const key=['x'].at(a);return d[key]===undefined?a:b;",
         "const d=a?Object.create(null):{};const key='x';return d[key]===undefined?a:b;",
-        "const d=Object.create(null);const key='x';return d?.[key]===undefined?a:b;",
         "const d=Object.create(null);d.x=a;const key='x';const s=b?'ok':d[key];return s.length;",
         "const d=Object.create(null);const key='x';const o=a?{}:d[key];return o.x===undefined?a:b;",
         "const d=Object.create(null);const key='x';const f=a?()=>a:d[key];return f();",

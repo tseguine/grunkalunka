@@ -36,6 +36,16 @@ selects index zero. The key still executes only for a non-nullish saved String.
 Other String properties, coercing keys and String/object receiver unions remain
 guarded.
 
+Optional computed reads also accept source-proven runtime String keys on
+null-prototype dictionaries, including nullable dictionary receivers. A nullish
+receiver skips key effects and yields Undefined; otherwise the saved dictionary
+is read after key evaluation, including supported suspension and intervening
+writes. Missing names yield Undefined, and names such as `constructor` and
+`__proto__` remain ordinary own data fields. Source facts retain selected tags
+and reference identity through aliases, helpers and captures. A nullish-only
+receiver can skip a validated String key as well. Ordinary objects/Arrays with
+runtime String keys and implicit key coercion remain guarded.
+
 Numeric projections still need a Number proof or explicit primitive conversion.
 Unknown receivers, inherited fields, other runtime keys, optional calls and
 unparenthesized multi-step chains remain guarded. Type assertions establish no

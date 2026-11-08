@@ -6,7 +6,7 @@ use oxc_ast::ast::{ChainElement, ChainExpression};
 pub(in crate::lower) enum Key<'e, 'a> {
     Literal(Vec<u16>),
     Uint32(&'e Expression<'a>),
-    Number(&'e Expression<'a>),
+    Runtime(&'e Expression<'a>),
 }
 
 pub(in crate::lower) fn parts<'e, 'a>(
@@ -28,7 +28,7 @@ pub(in crate::lower) fn parts<'e, 'a>(
             } else if property_delete::uint32_key(&member.expression, depth + 2) {
                 Some((&member.object, Key::Uint32(&member.expression)))
             } else {
-                Some((&member.object, Key::Number(&member.expression)))
+                Some((&member.object, Key::Runtime(&member.expression)))
             }
         }
         _ => None,
@@ -40,11 +40,13 @@ pub(super) enum Read<'e, 'a> {
         node: &'e Expression<'a>,
         key: Key<'e, 'a>,
         receiver: Option<Type>,
+        string_key: bool,
         depth: usize,
     },
     Key {
         node: &'e Expression<'a>,
         object: Option<ValueId>,
+        string_key: bool,
         condition: ValueId,
         skipped: Region,
     },
@@ -70,7 +72,11 @@ impl Lowering<'_, '_> {
         }
         let array = receiver == Some(Type::ManagedArray);
         let string = receiver == Some(Type::ManagedValue);
-        if let Key::Number(key) = &key
+        let dictionary = self.stored.optional_dictionary(object.node_id());
+        let string_key = matches!(&key, Key::Runtime(key)
+            if dictionary && self.stored.string(key.node_id()));
+        if let Key::Runtime(key) = &key
+            && !string_key
             && (!string || !self.stored.number(key.node_id()))
         {
             return Ok(false);
@@ -91,12 +97,7 @@ impl Lowering<'_, '_> {
                     && !string
                     && !(array && key.as_slice() == [108, 101, 110, 103, 116, 104]) =>
             {
-                Key::Literal(managed_member_key(
-                    node,
-                    key,
-                    array,
-                    self.stored.dictionary(object.node_id()),
-                )?)
+                Key::Literal(managed_member_key(node, key, array, dictionary)?)
             }
             key => key,
         };
@@ -127,6 +128,7 @@ impl Lowering<'_, '_> {
             node,
             key,
             receiver,
+            string_key,
             depth,
         })));
         // The original receiver executes once, before either branch. No AST
@@ -142,20 +144,23 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) {
-        let (node, key, receiver, depth) = match task {
+        let (node, key, receiver, string_key, depth) = match task {
             Read::Receiver {
                 node,
                 key,
                 receiver,
+                string_key,
                 depth,
-            } => (node, key, receiver, depth),
+            } => (node, key, receiver, string_key, depth),
             Read::Key {
                 node,
                 object,
+                string_key,
                 condition,
                 skipped,
             } => {
-                let key = values.pop().expect("optional unsigned key").number();
+                let key = values.pop().expect("optional computed key");
+                let key = if string_key { key.id() } else { key.number() };
                 let result = if let Some(object) = object {
                     let result = self.value(Type::ManagedValue);
                     Self::push(
@@ -171,7 +176,11 @@ impl Lowering<'_, '_> {
                             Op::ManagedGetOwnDynamic {
                                 result,
                                 object,
-                                key: ir::ManagedKey::Uint32(key),
+                                key: if string_key {
+                                    ir::ManagedKey::String(key)
+                                } else {
+                                    ir::ManagedKey::Uint32(key)
+                                },
                             }
                         },
                     );
@@ -228,15 +237,24 @@ impl Lowering<'_, '_> {
             object
         });
         match key {
-            Key::Uint32(key) | Key::Number(key) => {
+            Key::Uint32(key) | Key::Runtime(key) => {
                 regions.children.push(selected);
                 work.push(Work::Managed(ManagedWork::OptionalRead(Read::Key {
                     node,
                     object,
+                    string_key,
                     condition,
                     skipped,
                 })));
-                work.push(Work::Eval(key, depth + 2, Mode::Number));
+                work.push(Work::Eval(
+                    key,
+                    depth + 2,
+                    if string_key {
+                        Mode::Managed
+                    } else {
+                        Mode::Number
+                    },
+                ));
             }
             Key::Literal(key) => {
                 let result = self.optional_literal_get(
@@ -387,6 +405,82 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn optional_dictionary_reads_require_source_proven_keys_and_receivers() {
+        for (body, admitted) in [
+            (
+                "const d=Object.create(null);d.x=b;const o=a?d:null;const k='x';return +(o?.[k]);",
+                true,
+            ),
+            (
+                "const d=Object.create(null);d.constructor=b;const o=a?d:null;return +(o?.constructor);",
+                true,
+            ),
+            ("const k='x';return null?.[k]===undefined?1:0;", true),
+            ("const d={x:b};const k='x';return +(d?.[k]);", false),
+            (
+                "const d=a?Object.create(null):{};const k='x';return +(d?.[k]);",
+                false,
+            ),
+            ("const d=Object.create(null);return +(d?.[b]);", false),
+            (
+                "const d=Object.create(null);const k=a?'x':1;return +(d?.[k]);",
+                false,
+            ),
+            ("const k={};return null?.[k]===undefined?1:0;", false),
+            (
+                "const k=()=>{const bad=1n;return 'x';};return null?.[k()]===undefined?1:0;",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';return d?.[k];",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';return d?.[k]();",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';return d?.[k].x;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        for source in [
+            "export function run(a,b){const d={x:a};const k='x';return +((d as never)?.[k]);}",
+            "export function run(a,b){const d=Object.create(null);return +(d?.[(b as string)]);}",
+        ] {
+            assert!(crate::compile(source, true).is_err(), "{source}");
+        }
+    }
+
+    #[test]
+    fn optional_dictionary_key_depth_stays_bounded_on_a_small_native_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (wraps, admitted) in [(126, true), (127, false)] {
+                    let source = format!(
+                        "export function run(a,b){{const d=Object.create(null);d.x=b;const k='x';return d?.[{}k{}];}}",
+                        "(".repeat(wraps),
+                        ")".repeat(wraps)
+                    );
+                    for typed in [false, true] {
+                        let r = crate::compile_value(&source, typed);
+                        assert_eq!(r.is_ok(), admitted, "{wraps}: {:?}", r.err());
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     #[test]
     fn optional_number_string_keys_require_actual_number_and_string_proofs() {
         for (body, ok) in [

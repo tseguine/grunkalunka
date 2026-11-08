@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn optional_dictionary_reads_preserve_saved_receivers_and_lazy_key_awaits() {
+    compare_promises(
+        &[
+            "let d=Object.create(null);d.x=a;const v=d?.[(await b,d=Object.create(null),d.x=b,'x')];await a;return v===a?1:0;",
+            "const d=Object.create(null);d.x=a;const v=d?.[(await b,d.x=b,'x')];await a;return v===b?1:0;",
+            "const d=Object.create(null);d.x=b;const o=a?d:null;let n=0;const v=o?.[(await b,n++,'x')];await a;return n===(a?1:0)?1:0;",
+            "const d=Object.create(null);d.x=b;const o=a?d:null;try{const v=o?.[(await Promise.reject(b),'x')];await a;return 1;}catch(e){await a;return 2;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn function_for_in_preserves_await_order_and_rejected_rhs() {
     compare_promises(
         &[
