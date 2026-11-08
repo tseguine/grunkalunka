@@ -2633,7 +2633,7 @@ String-key patterns and for-of selected String patterns use the same planner.
 Receiver rebinding in a default cannot change the saved source. Lexical TDZ,
 source limits, var-cell aliases/captures, conservative kind proofs and primitive
 export restrictions remain enforced. String object rest, unknown/mixed receivers,
-custom iterables and destructuring assignment targets remain guarded. Corpus 151
+custom iterables and nested/member assignment targets remain guarded. Corpus 151
 preserves six exact former rejection sources, including var-guard-in-pattern,
 as executed positives; the other 796 rejection sources remain tracked.
 
@@ -2658,3 +2658,23 @@ and async defaults remain guarded. This does not add general default-expression
 execution. Wrapper depth 128/129 is checked on a 2 MiB native stack. Corpus 152
 adds eighteen JS/TS pairs, preserving three exact former compiler guard sources
 and their hashes; all 796 retained negative sources stay in the inventory.
+
+
+## Array destructuring assignment from Strings
+
+Flat Array assignment patterns with existing mutable identifier targets now admit
+source-proven Strings, including elisions, ordered lazy defaults and identifier
+rest. The selection cursor consumes a private code-point Array made from the
+saved String; the assignment expression separately retains the original String.
+Its value, identity-by-String-equality and truthiness therefore follow the RHS,
+including false for an empty String. It must not expose or test the truthiness of
+the temporary Array. Pair/lone surrogate selection matches intrinsic iteration.
+
+Each source executes once. Default-side rebinding preserves the saved source,
+rest Arrays are fresh, and captures observe writes to the original cells. The
+existing suspension path retains both the source and copied selections across
+admitted awaits. Materialization has the same complete-String allocation cost as
+String binding patterns. Object patterns on Strings, nested/member assignment
+targets, immutable/uninitialized targets, unproven/mixed RHS kinds and unsafe
+specialized projections remain guarded; annotations cannot supply the proof.
+Corpus 153 adds thirteen JS/TS pairs; all 796 negative fixtures remain retained.

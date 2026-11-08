@@ -442,3 +442,11 @@ order, argument snapshots, primitive tags, reference identity and later body-var
 separation. Resolved-symbol checks exclude self/later parameters, outer/body
 scope reads and effects; public/async and unsupported value-lane guards remain.
 Corpus 152 adds eighteen differential pairs and retains all 796 negative cases.
+
+
+String Array destructuring assignments now update existing mutable cells using
+code-point selection, elisions, defaults and fresh rest Arrays. The expression
+returns the saved original String and its actual truthiness, including empty
+Strings; private selection storage never becomes the result. Defaults, captures
+and supported awaits retain source snapshots. Object-String, nested/member and
+unproven-source assignment forms remain guarded. Corpus 153 adds thirteen pairs.

@@ -19,6 +19,9 @@ fn compare_vars(sources: Vec<String>) {
 fn hoisted_var_cells_preserve_values_scope_and_shared_captures() {
     compare_vars([
         "var x;return x;",
+        "let x;[x]='';return x===undefined;",
+        "let x;[x=null]='';return x===null;",
+        "var x;const read=()=>x;[x]='';return read()===undefined;",
         "const [x]='';return x===undefined;",
         "const get=()=>x;var [x]='';return get()===undefined;",
         "var [a]='';return a===undefined;",
