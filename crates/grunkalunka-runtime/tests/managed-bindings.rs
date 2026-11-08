@@ -729,3 +729,15 @@ fn string_object_bindings_preserve_utf16_missing_indices_defaults_and_snapshots(
         compare(body);
     }
 }
+
+#[test]
+fn primitive_object_numeric_fields_are_missing_and_run_defaults_once() {
+    for body in [
+        "const {0:x=(b=7)}=a;return b;",
+        "const {[b>>>0]:x=(b=9),...rest}=a;return b+Object.keys(rest).length;",
+        "let x={};({0:x=(b=3)}=a);return b;",
+        "let x={},rest={};({[b>>>0]:x=(b=5),...rest}=(a>b));return b+Object.keys(rest).length;",
+    ] {
+        compare(body);
+    }
+}

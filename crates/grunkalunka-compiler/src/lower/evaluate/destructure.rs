@@ -334,12 +334,6 @@ impl Lowering<'_, '_> {
                 }
             }
             AssignmentTarget::ObjectAssignmentTarget(pattern) => {
-                if receiver == Some(Type::General) && !pattern.properties.is_empty() {
-                    return Err(unsupported(
-                        node,
-                        "Number and Boolean object assignments require an empty property list",
-                    ));
-                }
                 let dictionary = self.stored.dictionary(assignment.right.node_id());
                 for property in &pattern.properties {
                     let (key, destination, default) = match property {
@@ -379,6 +373,14 @@ impl Lowering<'_, '_> {
                                 receiver == Some(Type::ManagedArray),
                                 dictionary,
                             )?;
+                            if receiver == Some(Type::General)
+                                && binding_patterns::string_index(&key).is_none()
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "Number and Boolean object assignment keys require canonical numeric indices",
+                                ));
+                            }
                             if string
                                 && key.as_slice() != [108, 101, 110, 103, 116, 104]
                                 && binding_patterns::string_index(&key).is_none()
@@ -659,90 +661,98 @@ impl Lowering<'_, '_> {
                     }
                 }
                 Selection::Field(key) => {
-                    let result = self.value(Type::ManagedValue);
-                    let op = if self.values[receiver.0] == Type::ManagedValue {
-                        if key.as_slice() == [108, 101, 110, 103, 116, 104] {
-                            let number = self.value(Type::Number);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::ManagedStringLength {
-                                    result: number,
-                                    input: receiver,
-                                },
-                            );
-                            let packed = self.value(Type::General);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Pack {
-                                    result: packed,
-                                    input: number,
-                                },
-                            );
-                            Op::ManagedPrimitive {
-                                result,
-                                input: packed,
-                            }
-                        } else {
-                            let index = self.value(Type::Number);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Constant {
-                                    result: index,
-                                    value: f64::from(
-                                        binding_patterns::string_index(&key)
-                                            .expect("planned String assignment index"),
-                                    ),
-                                },
-                            );
-                            Op::ManagedStringGetIndex {
-                                result,
-                                input: receiver,
-                                index,
-                            }
-                        }
-                    } else if self.values[receiver.0] == Type::ManagedArray {
-                        Op::ManagedArrayGetOwn {
-                            result,
-                            array: receiver,
-                            key,
-                        }
+                    if self.values[receiver.0] == Type::General {
+                        self.binding_undefined(node, regions.current())
                     } else {
-                        Op::ManagedGetOwn {
-                            result,
-                            object: receiver,
-                            key,
-                        }
-                    };
-                    Self::push(regions.current(), node, op);
-                    result
-                }
-                Selection::Computed(..) => unreachable!("source key resolved before destination"),
-                Selection::SavedField(key) => {
-                    let result = self.value(Type::ManagedValue);
-                    Self::push(
-                        regions.current(),
-                        node,
-                        if self.values[receiver.0] == Type::ManagedValue {
-                            let ir::ManagedKey::Uint32(index) = key else {
-                                unreachable!("validated String assignment index")
-                            };
-                            Op::ManagedStringGetIndex {
+                        let result = self.value(Type::ManagedValue);
+                        let op = if self.values[receiver.0] == Type::ManagedValue {
+                            if key.as_slice() == [108, 101, 110, 103, 116, 104] {
+                                let number = self.value(Type::Number);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::ManagedStringLength {
+                                        result: number,
+                                        input: receiver,
+                                    },
+                                );
+                                let packed = self.value(Type::General);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::Pack {
+                                        result: packed,
+                                        input: number,
+                                    },
+                                );
+                                Op::ManagedPrimitive {
+                                    result,
+                                    input: packed,
+                                }
+                            } else {
+                                let index = self.value(Type::Number);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::Constant {
+                                        result: index,
+                                        value: f64::from(
+                                            binding_patterns::string_index(&key)
+                                                .expect("planned String assignment index"),
+                                        ),
+                                    },
+                                );
+                                Op::ManagedStringGetIndex {
+                                    result,
+                                    input: receiver,
+                                    index,
+                                }
+                            }
+                        } else if self.values[receiver.0] == Type::ManagedArray {
+                            Op::ManagedArrayGetOwn {
                                 result,
-                                input: receiver,
-                                index,
+                                array: receiver,
+                                key,
                             }
                         } else {
-                            Op::ManagedGetOwnDynamic {
+                            Op::ManagedGetOwn {
                                 result,
                                 object: receiver,
                                 key,
                             }
-                        },
-                    );
-                    result
+                        };
+                        Self::push(regions.current(), node, op);
+                        result
+                    }
+                }
+                Selection::Computed(..) => unreachable!("source key resolved before destination"),
+                Selection::SavedField(key) => {
+                    if self.values[receiver.0] == Type::General {
+                        self.binding_undefined(node, regions.current())
+                    } else {
+                        let result = self.value(Type::ManagedValue);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            if self.values[receiver.0] == Type::ManagedValue {
+                                let ir::ManagedKey::Uint32(index) = key else {
+                                    unreachable!("validated String assignment index")
+                                };
+                                Op::ManagedStringGetIndex {
+                                    result,
+                                    input: receiver,
+                                    index,
+                                }
+                            } else {
+                                Op::ManagedGetOwnDynamic {
+                                    result,
+                                    object: receiver,
+                                    key,
+                                }
+                            },
+                        );
+                        result
+                    }
                 }
                 Selection::ArrayRest(start) => {
                     let rest = self.collect_array_binding_rest(
@@ -1546,7 +1556,7 @@ mod string_computed_selection_tests {
             ("let x;({[a]:x}='text');return a;", false),
             ("const k='0';let x;({[k]:x}='text');return a;", false),
             ("let x;({[a>>>0]:x}=(a?'text':null));return a;", false),
-            ("let x;({[a>>>0]:x}=a);return a;", false),
+            ("let x;({[a>>>0]:x}=a);return a;", true),
             ("const x='';({[a>>>0]:x}='text');return a;", false),
             ("({[a>>>0]:b}='text');return b;", false),
             ("let x,rest;({[a>>>0]:x,...rest}='text');return a;", true),
@@ -1559,7 +1569,7 @@ mod string_computed_selection_tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){let x;({[b>>>0]:x}=(a as string));return a;}",
+                "export function run(a,b){let x;({length:x}=(a as string));return a;}",
                 true
             )
             .is_err()
@@ -1608,6 +1618,13 @@ mod string_rest_tests {
             ("let rest={};({...rest}=(a?'abc':null));return a;", false),
             // Number entry parameters now use the primitive object-assignment path.
             ("let rest={};({...rest}=a);return a;", true),
+            ("let x={};({0:x=(b=7)}=a);return b;", true),
+            (
+                "let x={},rest={};({[b>>>0]:x=(b=7),...rest}=a);return b;",
+                true,
+            ),
+            ("let x;({valueOf:x}=a);return a;", false),
+            ("let x;({[b]:x}=a);return a;", false),
             ("const rest={};({...rest}='abc');return a;", false),
             (
                 "let rest={};const k='0';let x;({[k]:x,...rest}='abc');return a;",
@@ -1622,7 +1639,7 @@ mod string_rest_tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){let x,rest={};({0:x,...rest}=(a as string));return a;}",
+                "export function run(a,b){let x,rest={};({valueOf:x,...rest}=(a as string));return a;}",
                 true
             )
             .is_err()
