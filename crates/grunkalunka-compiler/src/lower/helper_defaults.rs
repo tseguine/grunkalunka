@@ -1,4 +1,4 @@
-//! Primitive constant defaults use the same lazy Undefined selection as patterns.
+//! Constant and earlier-parameter defaults share lazy Undefined selection.
 use super::*;
 use oxc_ast::{
     AstKind,
@@ -12,6 +12,37 @@ enum Constant {
     Null,
     Undefined,
     String(Vec<u16>),
+}
+
+// Compare resolved symbols in the same parameter list. Source names, body var
+// bindings and outer captures cannot establish this initialization-order proof.
+fn earlier_parameter<'n, 'a>(
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<&'n IdentifierReference<'a>> {
+    let (Expression::Identifier(identifier), _) = closures::unwrapped_at(expression, 0)? else {
+        return None;
+    };
+    let symbol = semantic
+        .scoping()
+        .get_reference(identifier.reference_id.get()?)
+        .symbol_id()?;
+    let parameters = semantic
+        .nodes()
+        .ancestor_kinds(expression.node_id())
+        .find_map(|kind| match kind {
+            AstKind::FormalParameters(parameters) => Some(parameters),
+            _ => None,
+        })?;
+    let index = parameters.items.iter().position(|parameter| {
+        parameter
+            .initializer
+            .as_ref()
+            .is_some_and(|value| value.node_id() == expression.node_id())
+    })?;
+    parameters.items[..index].iter().any(|parameter| {
+        matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
+    }).then_some(identifier)
 }
 fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Constant> {
     let mut node = expression;
@@ -87,7 +118,9 @@ pub(crate) fn validate(
                     "parameter modifiers, defaults and decorators are not admitted",
                 ));
             }
-            if constant(initializer, semantic).is_none() {
+            if constant(initializer, semantic).is_none()
+                && earlier_parameter(initializer, semantic).is_none()
+            {
                 return Err(unsupported(
                     initializer,
                     "helper defaults require primitive constants",
@@ -105,7 +138,9 @@ pub(crate) fn validate_arrow(
 ) -> Result<(), String> {
     for parameter in &arrow.params.items {
         if let Some(initializer) = &parameter.initializer
-            && (!allowed || constant(initializer.as_ref(), semantic).is_none())
+            && (!allowed
+                || (constant(initializer.as_ref(), semantic).is_none()
+                    && earlier_parameter(initializer.as_ref(), semantic).is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -209,6 +244,57 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
+        if let Some(identifier) = earlier_parameter(initializer, self.semantic) {
+            let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
+            let ty = self.slots[slot.0].ty;
+            let input = self.value(ty);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::Load {
+                    result: input,
+                    slot,
+                },
+            );
+            let value = if ty == Type::ManagedValue {
+                input
+            } else {
+                let result = self.value(Type::ManagedValue);
+                let op = match ty {
+                    Type::ManagedArray => Op::ManagedFromArray { result, input },
+                    Type::ManagedObject => Op::ManagedFromObject { result, input },
+                    Type::Number | Type::Predicate | Type::General => {
+                        let primitive = if ty == Type::General {
+                            input
+                        } else {
+                            let packed = self.value(Type::General);
+                            Self::push(
+                                &mut consequent,
+                                initializer,
+                                Op::Pack {
+                                    result: packed,
+                                    input,
+                                },
+                            );
+                            packed
+                        };
+                        Op::ManagedPrimitive {
+                            result,
+                            input: primitive,
+                        }
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            initializer,
+                            "earlier parameter default requires a represented value",
+                        ));
+                    }
+                };
+                Self::push(&mut consequent, initializer, op);
+                result
+            };
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
+        }
         let value = match constant(initializer, self.semantic).ok_or_else(|| {
             unsupported(initializer, "helper defaults require primitive constants")
         })? {

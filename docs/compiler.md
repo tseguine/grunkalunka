@@ -2485,7 +2485,7 @@ while calls keep the complete declared signature. TS optional markers and
 annotations still erase around the initializer.
 
 Async arrows and arrows in async-entry modules retain their default guards, as do
-nonliteral/effectful defaults, destructured/rest parameters, mixed reflected
+other expression/effectful defaults, destructured/rest parameters, mixed reflected
 lengths and the existing missing-input guard on typed callback calls. A checked
 callback can pass explicit Undefined to select a default. Existing runtime factory
 result-signature limits remain. Corpus 143 adds nine numeric arrow-default pairs;
@@ -2636,3 +2636,25 @@ export restrictions remain enforced. String object rest, unknown/mixed receivers
 custom iterables and destructuring assignment targets remain guarded. Corpus 151
 preserves six exact former rejection sources, including var-guard-in-pattern,
 as executed positives; the other 796 rejection sources remain tracked.
+
+
+## Defaults that copy earlier parameters
+
+Synchronous private helpers and local arrows also accept a bare identifier
+default that resolves to an earlier ordinary parameter in the same parameter
+list, including erased type/parenthesis wrappers. Initialization order follows
+parameter order: a chain such as `f(x=3,y=x,z=y)` reads the already-selected
+previous values. The load occurs only in the Undefined fallback branch, after
+all supplied/surplus call arguments have run. Inline and emitted callees share
+this selection; supported primitives preserve tags and Number bits, and managed
+Object/Array references preserve identity. Reflection still stops at the first
+default, and body var copies/redeclarations initialize afterward.
+
+Resolved symbols, not names or annotations, prove the earlier parameter. Names
+such as undefined, Infinity and NaN therefore refer to preceding parameters when
+shadowed there. Self/later parameters, body locals, outer captures, effectful or
+coercing expressions, unsupported function/promise lanes, public entry defaults
+and async defaults remain guarded. This does not add general default-expression
+execution. Wrapper depth 128/129 is checked on a 2 MiB native stack. Corpus 152
+adds eighteen JS/TS pairs, preserving three exact former compiler guard sources
+and their hashes; all 796 retained negative sources stay in the inventory.

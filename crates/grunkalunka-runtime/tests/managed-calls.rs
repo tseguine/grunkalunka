@@ -3,6 +3,22 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn earlier_parameter_defaults_copy_reference_identity_and_saved_values() {
+    for source in [
+        "function f(x,y=x){return x===y?1:0;}export function run(a,b){const o={a:a};return f(o);}",
+        "function f(x,y=x){return x===y?1:0;}export function run(a,b){const o=[a];return f(o);}",
+        "function f(x,y=x){y.v=bump(x.v);return x.v;}function bump(v){return v+1;}export function run(a,b){const o={v:a};return f(o);}",
+        "function f(x='abc',y=x){return y.length;}export function run(a,b){return f();}",
+        "function f(x,y=x){x={v:9};return y.v;}export function run(a,b){const o={v:a};return f(o);}",
+        "export function run(a,b){const f=(x,y=x)=>x===y?1:0;const o={a:a};return f(o);}",
+        "export function run(a,b){const o={f:(x,y=x)=>x===y?1:0};const xs=[a];return o.f(xs);}",
+        "export function run(a,b){const f=(x='abc',y=x)=>y.length;return f();}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
 fn helper_mutation_preserves_argument_and_result_identity() {
     let js = "function set(o,v){o.x=v;return o;} export function run(a,b){const o={x:a};const alias=set(o,b);return alias===o&&o.x===b?a:b;}";
     compare_sources(js, js);

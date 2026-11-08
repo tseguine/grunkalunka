@@ -1,3 +1,4 @@
+import { earlierParameterPrograms } from './earlier-parameter-defaults.mjs';
 import { stringIteratorPrograms } from './string-iterator-bindings.mjs';
 import { forInObjectPrograms } from './for-in-object-patterns.mjs';
 import { stringObjectPrograms } from './string-object-bindings.mjs';
@@ -132,7 +133,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 151;
+export const corpusVersion = 152;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -158,7 +159,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);

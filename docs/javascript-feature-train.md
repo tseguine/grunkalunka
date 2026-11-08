@@ -434,3 +434,11 @@ fresh rest Arrays. UTF-16 object-property selection remains distinct. A saved
 String is materialized using the existing intrinsic spread operation; var cells,
 lexical capture identity, source proofs and erased annotations stay unchanged.
 Corpus 151 executes six exact former rejection sources and retains 796 guards.
+
+
+Earlier-parameter defaults now copy initialized values in synchronous named
+helpers, local arrows and emitted closures. Chained defaults preserve parameter
+order, argument snapshots, primitive tags, reference identity and later body-var
+separation. Resolved-symbol checks exclude self/later parameters, outer/body
+scope reads and effects; public/async and unsupported value-lane guards remain.
+Corpus 152 adds eighteen differential pairs and retains all 796 negative cases.

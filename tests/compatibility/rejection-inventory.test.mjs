@@ -1,3 +1,4 @@
+import { earlierParameterPrograms } from './earlier-parameter-defaults.mjs';
 import { stringIteratorPromotions, stringIteratorPrograms } from './string-iterator-bindings.mjs';
 import { forInObjectPrograms } from './for-in-object-patterns.mjs';
 import { originalStringObjectBinding, stringObjectPrograms } from './string-object-bindings.mjs';
@@ -1125,5 +1126,21 @@ test('String iterator patterns execute the unchanged former rejection sources', 
     }
     assert.ok(!rejected.some(row=>row[0]===id));
     assert.ok(!catalog.records.some(row=>row.id===id));
+  }
+});
+
+
+test('earlier-parameter defaults keep original shadowed-global compiler guards as positives', () => {
+  const originals = [
+    ['shadow-undefined', 'function f(undefined,x=undefined){return x;}export function run(a,b){return f(a);}'],
+    ['shadow-infinity', 'function f(Infinity,x=Infinity){return x;}export function run(a,b){return f(a);}'],
+    ['shadow-nan', 'function f(NaN,x=NaN){return x;}export function run(a,b){return f(a);}'],
+  ];
+  assert.equal(earlierParameterPrograms.length,18);
+  const hashes=["12c12ce8b2dd2dd66c6dc2b4ee4823ef7962ec25a361587e4dca6831fe96826f", "c191257df585f1226b7853ba754745535e6b567d2300d693b65492b16e9382c9", "39a52fe038e94816e04221f1c7376c693d8ff8fc3a85e5ae41143a8db20f63f2"];
+  for(const [index,[id,source]] of originals.entries()) {
+    assert.equal(createHash("sha256").update(source).digest("hex"),hashes[index]);
+    const pair=programSources(earlierParameterPrograms.find(row=>row[0]==='earlier-parameter-'+id));
+    for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,source);
   }
 });
