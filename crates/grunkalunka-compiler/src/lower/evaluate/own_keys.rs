@@ -3,6 +3,7 @@ use super::*;
 pub(super) struct Task<'e, 'a> {
     pub node: &'e Expression<'a>,
     pub call: &'e CallExpression<'a>,
+    pub arguments: invocation::Arguments<'e, 'a>,
     pub kind: ir::OwnEnumeration,
     pub index: usize,
     pub input: Option<ValueId>,
@@ -23,7 +24,7 @@ impl Lowering<'_, '_> {
             task.input = Some(values.pop().expect("own-keys argument").id());
             task.awaiting = false;
         }
-        if task.index == task.call.arguments.len() {
+        if task.index == task.arguments.len() {
             // Taking keys happens after every argument, including ignored extras.
             // Retain the first value snapshot while their effects execute.
             let input = if let Some(input) = task.input {
@@ -99,7 +100,7 @@ impl Lowering<'_, '_> {
             values.push(Value::Array(result));
             return Ok(());
         }
-        if task.call.arguments.len() > 1000 {
+        if task.arguments.len() > 1000 {
             return Err(unsupported(
                 task.node,
                 &format!(
@@ -108,12 +109,17 @@ impl Lowering<'_, '_> {
                 ),
             ));
         }
-        let argument = task.call.arguments[task.index]
-            .as_expression()
-            .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
+        let actual = task.arguments.get(task.index).expect("own-keys argument");
+        let argument = actual.as_expression().ok_or_else(|| {
+            unsupported(
+                task.node,
+                "only fixed array-literal call spreads are admitted",
+            )
+        })?;
+        let depth = task.depth + 1 + actual.depth;
         let mode = if task.index == invocation::offset(task.call) {
             task.awaiting = true;
-            match self.managed_source_type(argument, task.depth + 1) {
+            match self.managed_source_type(argument, depth) {
                 Some(Type::ManagedObject) => {
                     task.known = true;
                     Mode::Object
@@ -131,16 +137,16 @@ impl Lowering<'_, '_> {
                     task.known = true;
                     Mode::Managed
                 }
-                _ if self.numeric_result_shape(argument, task.depth + 1) => {
+                _ if self.numeric_result_shape(argument, depth) => {
                     task.known = true;
                     Mode::Number
                 }
                 _ => {
-                    if let Some(arity) = self.function_arity(argument, task.depth + 1) {
+                    if let Some(arity) = self.function_arity(argument, depth) {
                         task.known = true;
                         Mode::Function(arity)
                     } else {
-                        task.known = match closures::unwrapped_at(argument, task.depth + 1) {
+                        task.known = match closures::unwrapped_at(argument, depth) {
                             Some((
                                 Expression::StringLiteral(_) | Expression::BooleanLiteral(_),
                                 _,
@@ -157,10 +163,60 @@ impl Lowering<'_, '_> {
         } else {
             Mode::Discard
         };
-        let depth = task.depth + 1;
         task.index += 1;
         work.push(Work::OwnKeys(task));
         work.push(Work::Eval(argument, depth, mode));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod fixed_own_keys_spread_tests {
+    #[test]
+    fn object_enumerations_admit_bounded_literal_spreads() {
+        for (body, admitted) in [
+            ("return Object.keys(...[{x:a}]).length;", true),
+            ("return Object.values(...[{x:a}]).length;", true),
+            ("return Object.entries(...[{x:a}]).length;", true),
+            ("return Object.keys(...[[a,,b]]).length;", true),
+            ("return Object.keys(...[...'abc']).length;", false),
+            ("return Object.keys(...[...[{x:a}]]).length;", true),
+            ("return Object.keys(...[{}],b).length;", true),
+            ("return Object.keys(...[{x:a},...[]]).length;", true),
+            ("return Object.keys(...[a]).length;", true),
+            ("return Object.keys(...[true]).length;", true),
+            (
+                "const o={x:a};return Object.keys(...[o],delete o.x).length;",
+                true,
+            ),
+            ("const xs=[{x:a}];return Object.keys(...xs).length;", false),
+            ("return Object.values(...[{},,a]).length;", false),
+            ("return Object.entries(...[null]).length;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn object_enumeration_spread_depth_remains_bounded_on_small_stacks() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (depth, admitted) in [(16, true), (129, false)] {
+                    let source_array = (0..depth).fold("{x:a}".to_owned(), |s, _| format!("[{s}]"));
+                    let source = format!(
+                        "export function run(a,b){{return Object.keys(...{source_array}).length;}}"
+                    );
+                    let result = crate::compile(&source, false);
+                    assert_eq!(result.is_ok(), admitted, "{depth}: {:?}", result.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

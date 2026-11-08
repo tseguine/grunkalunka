@@ -3,6 +3,29 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn object_enumeration_literal_spreads_observe_sources_after_extra_effects() {
+    for source in [
+        "export function run(a,b){return Object.keys(...[{x:a,y:b}]).length;}",
+        "export function run(a,b){return Object.values(...[{x:a,y:b}]).length;}",
+        "export function run(a,b){return Object.entries(...[{x:a,y:b}]).length;}",
+        "export function run(a,b){return Object.keys(...[[a,,b]]).length;}",
+        "export function run(a,b){return Object.values(...[[a,,b]]).length;}",
+        "export function run(a,b){return Object.entries(...[[a,,b]]).length;}",
+        "export function run(a,b){const obj={x:a};return Object.keys(...[obj],delete obj.x).length;}",
+        "export function run(a,b){const obj={x:a};obj.y=b;return Object.keys(...[obj],delete obj.x).length;}",
+        "export function run(a,b){const o={x:a};let n=0;const keys=Object.keys(...[(n++,o)],n++);return n*10+keys.length;}",
+        "export function run(a,b){const o={x:a};return Object.keys(...[...[o]]).length;}",
+        "export function run(a,b){return Object.keys(...[...'💠']).length;}",
+        "export function run(a,b){return Object.keys(...['💠']).length;}",
+        "export function run(a,b){return Object.entries(...[true]).length;}",
+        "export function run(a,b){return Object.values(...[a]).length;}",
+        "export function run(a,b){const o={x:a};return Object.values(...[o],o.x=b).length;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
 fn fixed_array_literal_has_own_spreads_preserve_keys_receivers_and_effects() {
     for source in [
         "export function run(a,b){const xs=[a];return Object.hasOwn(...[xs,0>>>0])?1:0;}",
