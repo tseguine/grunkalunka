@@ -1,3 +1,4 @@
+import { varPrograms, varPromotions } from './var-bindings.mjs';
 import { resolveNumericOrigin, primitiveProfileCounts } from './numeric-origins.mjs';
 import { optionalParameterPrograms, optionalParameterPromotions } from './optional-parameters.mjs';
 import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
@@ -319,7 +320,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 798);
+  assert.equal(inventory.records.size, 799);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -1012,4 +1013,20 @@ test('private literal helper defaults retain their exact former rejection source
   assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), helperDefaultPromotion.sha256);
   assert.ok(!rejected.some(p => p[0] === helperDefaultPromotion.id));
   assert.ok(!catalog.records.some(p => p.id === helperDefaultPromotion.id));
+});
+
+
+test('var declarations and hoisting preserve four exact former rejection sources',()=>{
+  assert.deepEqual(varPromotions.map(([id,,hash])=>[id,hash]),[
+    ['gap-var','1cb57d3c74e3fb1b2b0314edb65c84f07971621077d965fa3b2f1a0cb63f1485'],
+    ['gap-var-hoisting','ac1fe3ad1d6d4dd5c28604560eafd117cadd8dd3c17430ca0f1c9172cb23abae'],
+    ['for-var','a6620ba9393f1dca83875cf50d0b77505c345a480fe4e010dd3b39cb0580918f'],
+    ['var-local','be922e9aeb7a9bad2063d8daef59581ace5be470049563dc3a74db5cd3efffa3'],
+  ]);
+  for(const[id,source,hash]of varPromotions){
+    const pair=programSources(varPrograms.find(row=>row[0]===id));
+    assert.equal(pair.sourceJS,source);assert.equal(pair.sourceTS,source);assert.equal(pair.oracleSource,source);
+    assert.equal(createHash('sha256').update(source).digest('hex'),hash);
+    assert.ok(!rejected.some(row=>row[0]===id));assert.ok(!catalog.records.some(row=>row.id===id));
+  }
 });

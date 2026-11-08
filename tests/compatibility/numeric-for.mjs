@@ -46,7 +46,6 @@ const declaration = 'const or let local declarations are required';
 const assignmentConst = 'assignment to a const binding is not admitted';
 const returns = 'every structural path must return a numeric value';
 const negatives = [
-  ['for-var', 'for(var i=0;0;i++) {} return a;', declaration],
   ['for-destructure', 'for(const [i]=a;0;) {} return a;', 'array bindings require a source-proven managed array'],
   ['for-self-initializer', 'for(let i=i;0;i++) {} return a;', reference],
   ['for-self-write', 'for(let i=(i=0);0;i++) {} return a;', reference],

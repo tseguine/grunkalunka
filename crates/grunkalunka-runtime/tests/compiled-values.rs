@@ -623,3 +623,6 @@ fn implicit_returns_preserve_undefined_after_loops_catches_and_finalizers() {
         .collect(),
     );
 }
+
+#[path = "compiled-values/var_bindings.rs"]
+mod var_bindings;

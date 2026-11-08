@@ -280,6 +280,7 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
 
 #[test]
 fn implicit_let_keeps_tdz_const_and_source_contracts() {
+    assert!(compile_value("export function run(a,b) {var x; return a;}", true).is_ok());
     for source in [
         "export function run(a,b) {value; let value; return a;}",
         "export function run(a,b) {let value=value; return a;}",
@@ -287,7 +288,7 @@ fn implicit_let_keeps_tdz_const_and_source_contracts() {
         "export function run(a,b) {let x; {let x=x;} return a;}",
         "export function run(a,b) {let x; {x; let x;} return a;}",
         "export function run(a,b) {const x; return a;}",
-        "export function run(a,b) {var x; return a;}",
+        "export function run(a,b) {var f=()=>a; return a;}",
         "export function run(a,b) {let {x}; return a;}",
         "export function run(a,b) {let x!:number; return a;}",
         "export function run(a,b) {let x; x=\"bad\"; return a;}",

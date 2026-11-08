@@ -34,11 +34,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         while let Some(local) = sequence.source.declarations.get(sequence.index) {
-            let prepared = self.prepare_declaration_initializer(
-                local,
-                sequence.source.kind == VariableDeclarationKind::Let,
-                &mut output,
-            )?;
+            let prepared = if sequence.source.kind == VariableDeclarationKind::Var {
+                self.prepare_var_initializer(local, &mut output)?
+            } else {
+                self.prepare_declaration_initializer(
+                    local,
+                    sequence.source.kind == VariableDeclarationKind::Let,
+                    &mut output,
+                )?
+            };
             match prepared {
                 declarations::DeclarationInitializer::Complete => sequence.index += 1,
                 request => {
