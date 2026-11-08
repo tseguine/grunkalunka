@@ -337,7 +337,7 @@ impl Fields {
             })
             .then_some(ty)
     }
-    pub(super) fn optional_container(&self, node: NodeId) -> Option<Type> {
+    pub(super) fn optional_receiver(&self, node: NodeId) -> Option<Type> {
         let mut roots = self
             .values
             .get(&node)?
@@ -346,6 +346,7 @@ impl Fields {
         let ty = match roots.next()? {
             Origin::Object(_) | Origin::NullObject(_) => Type::ManagedObject,
             Origin::Array(_) => Type::ManagedArray,
+            Origin::String => Type::ManagedValue,
             _ => return None,
         };
         roots
@@ -356,6 +357,7 @@ impl Fields {
                         Type::ManagedObject,
                         Origin::Object(_) | Origin::NullObject(_)
                     ) | (Type::ManagedArray, Origin::Array(_))
+                        | (Type::ManagedValue, Origin::String)
                 )
             })
             .then_some(ty)

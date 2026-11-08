@@ -63,14 +63,26 @@ impl Lowering<'_, '_> {
         let Some((object, key)) = parts(chain, depth) else {
             return Ok(false);
         };
-        let receiver = self.stored.optional_container(object.node_id());
+        let receiver = self.stored.optional_receiver(object.node_id());
         if receiver.is_none() && !self.stored.nullish(object.node_id()) {
             return Ok(false);
         }
         let array = receiver == Some(Type::ManagedArray);
+        let string = receiver == Some(Type::ManagedValue);
+        if string
+            && let Key::Literal(key) = &key
+            && key.as_slice() != [108, 101, 110, 103, 116, 104]
+            && binding_patterns::string_index(key).is_none()
+        {
+            return Err(unsupported(
+                node,
+                "optional String reads require length or a canonical index",
+            ));
+        }
         let key = match key {
             Key::Literal(key)
                 if receiver.is_some()
+                    && !string
                     && !(array && key.as_slice() == [108, 101, 110, 103, 116, 104]) =>
             {
                 Key::Literal(managed_member_key(
@@ -143,10 +155,18 @@ impl Lowering<'_, '_> {
                     Self::push(
                         regions.current(),
                         node,
-                        Op::ManagedGetOwnDynamic {
-                            result,
-                            object,
-                            key: ir::ManagedKey::Uint32(key),
+                        if self.values[object.0] == Type::ManagedValue {
+                            Op::ManagedStringGetIndex {
+                                result,
+                                input: object,
+                                index: key,
+                            }
+                        } else {
+                            Op::ManagedGetOwnDynamic {
+                                result,
+                                object,
+                                key: ir::ManagedKey::Uint32(key),
+                            }
                         },
                     );
                     result
@@ -180,6 +200,9 @@ impl Lowering<'_, '_> {
         );
         let mut selected = self.region(node);
         let object = receiver.map(|ty| {
+            if ty == Type::ManagedValue {
+                return input;
+            }
             let object = self.value(ty);
             Self::push(
                 &mut selected,
@@ -254,14 +277,22 @@ impl Lowering<'_, '_> {
     ) -> ValueId {
         let result = self.value(Type::ManagedValue);
         let array = self.values[object.0] == Type::ManagedArray;
-        if array && key.as_slice() == [108, 101, 110, 103, 116, 104] {
+        let string = self.values[object.0] == Type::ManagedValue;
+        if (array || string) && key.as_slice() == [108, 101, 110, 103, 116, 104] {
             let length = self.value(Type::Number);
             Self::push(
                 region,
                 node,
-                Op::ManagedArrayLength {
-                    result: length,
-                    array: object,
+                if string {
+                    Op::ManagedStringLength {
+                        result: length,
+                        input: object,
+                    }
+                } else {
+                    Op::ManagedArrayLength {
+                        result: length,
+                        array: object,
+                    }
                 },
             );
             let primitive = self.value(Type::General);
@@ -279,6 +310,28 @@ impl Lowering<'_, '_> {
                 Op::ManagedPrimitive {
                     result,
                     input: primitive,
+                },
+            );
+        } else if string {
+            let index = self.value(Type::Number);
+            Self::push(
+                region,
+                node,
+                Op::Constant {
+                    result: index,
+                    value: f64::from(
+                        binding_patterns::string_index(&key)
+                            .expect("validated optional String index"),
+                    ),
+                },
+            );
+            Self::push(
+                region,
+                node,
+                Op::ManagedStringGetIndex {
+                    result,
+                    input: object,
+                    index,
                 },
             );
         } else {
@@ -328,6 +381,39 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn optional_string_reads_require_own_keys_and_actual_string_alternatives() {
+        for (body, ok) in [
+            ("const s='ab';return s?.length;", true),
+            ("const s=a?'ab':null;return +(s?.length);", true),
+            ("const s=a?'ab':undefined;return s?.[0]==='a'?1:0;", true),
+            ("const s=a?'ab':null;return s?.[a>>>0]==='a'?1:0;", true),
+            ("const s='ab';return s?.trim===undefined?1:0;", false),
+            ("const s='ab';return s?.[-1]===undefined?1:0;", false),
+            ("const s=a?'ab':{};return s?.length;", false),
+            ("const s='ab';return s?.[a]==='a'?1:0;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        let js = "export function run(a,b){const s=a?'ab':null;return +(s?.length);}";
+        let ts = "export function run(a:string,b:boolean):never{const s=a?'ab':null;return +((s as never)?.length);}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+        assert!(
+            crate::compile(
+                "export function run(a,b){return (a as string)?.length;}",
+                true
+            )
+            .is_err()
+        );
+    }
+
     #[test]
     fn optional_unsigned_key_depth_is_charged_on_a_small_native_stack() {
         std::thread::Builder::new()
