@@ -120,10 +120,12 @@ fn array_rest_bindings_keep_original_sources_and_permanent_exhaustion() {
 
 #[test]
 fn array_rest_bindings_keep_receiver_and_leaf_proofs_conservative() {
+    let original = "export function run(a,b){const [...rest]='abc';return a;}";
+    common::compare_sources(original, original);
     for body in [
         "const [...rest]=a;return a;",
         "const [...rest]=null;return a;",
-        "const [...rest]='abc';return a;",
+        "const [...rest]=(a?'abc':b);return a;",
         "const {items:[...rest]}={items:a};return a;",
         "const [x=rest,...rest]=[];return a;",
         "const [...rest]=rest;return a;",
@@ -401,6 +403,12 @@ fn array_binding_annotations_are_erased_without_proving_values() {
 
 #[test]
 fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
+    for original in [
+        "export function run(a,b){const [x]='abc';return a;}",
+        "export function run(a,b){for(var [x] in {x:a}){}return a;}",
+    ] {
+        common::compare_sources(original, original);
+    }
     let original = "export function run(a,b){for(var [x] of [[a]]){}return a;}";
     common::compare_sources(original, original);
     let original = "export function run(a,b){var [x]=[a];return a;}";
@@ -408,11 +416,10 @@ fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
     for body in [
         "const [x]=a;return a;",
         "const [x]={0:a,length:1};return a;",
-        "const [x]='abc';return a;",
+        "const [x]=(a?'abc':b);return a;",
         "const []=null;return a;",
         "const [,]=undefined;return a;",
         "const source=a?[a]:null;const [x]=source;return a;",
-        "for(var [x] in {x:a}){}return a;",
         "const [x]=[a];x=b;return a;",
         "const x=a;{const [x]=[x];return x===a?1:0;}",
         "const source=['ready'];source[0]=a;const [text]=source;return text.length;",
@@ -436,6 +443,30 @@ fn array_bindings_keep_pattern_tdz_and_value_proof_boundaries() {
             .unwrap_or_else(|| panic!("admitted {source}"));
         assert!(error.contains("unsupported"), "{source}: {error}");
         assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
+fn string_iterator_bindings_preserve_code_points_elisions_rest_and_defaults() {
+    let original = "export function run(a,b){const [...rest]='text';return a;}";
+    common::compare_sources(original, original);
+    let original = "export function run(a,b){for(var [x] of 'ab'){}return a;}";
+    common::compare_sources(original, original);
+    for body in [
+        r"const [x='?',y='?',z='?',...rest]='\u{1f600}\ud800a\udc00';return x.length*1000+y.charCodeAt(0)+z.charCodeAt(0)+rest.length;",
+        r"const [,x='?',...rest]='\u{1f600}ab';return x.charCodeAt(0)+rest.length;",
+        "let n=0;const [x=(n++,'?'),y=(n++,'!'),...tail]='a';return n*100+x.charCodeAt(0)+y.charCodeAt(0)+tail.length;",
+        "let source='';const [x=(source='abc','?'),y='!',...tail]=source;return x.length+y.charCodeAt(0)+tail.length;",
+        "const {s:[x='?',...tail]}={s:'abc'};return x.charCodeAt(0)+tail.length;",
+        "const [[x='?']='z']='a';return x.charCodeAt(0);",
+        "const [...a1]='ab';const [...a2]='ab';a1[0]='z';return a1!==a2&&a2[0]==='a'?1:0;",
+        "const get=()=>x;var [x='?']='abc';return get()==='a'?1:0;",
+        "let n=0;for(const [x='?',...tail] of ['abc',''])n+=x.charCodeAt(0)+tail.length;return n;",
+        r"let n=0;for(const {length:l} of '\u{1f600}a')n=n*10+l;return n;",
+        "let n=0;for(const [x='?'] in {'':a,abc:b})n+=x.charCodeAt(0);return n;",
+        "const get=()=>x;for(var [x='?'] in {abc:a,def:b}){}return get()==='d'?1:0;",
+    ] {
+        compare(body);
     }
 }
 

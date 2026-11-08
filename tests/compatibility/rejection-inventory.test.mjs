@@ -1,3 +1,4 @@
+import { stringIteratorPromotions, stringIteratorPrograms } from './string-iterator-bindings.mjs';
 import { forInObjectPrograms } from './for-in-object-patterns.mjs';
 import { originalStringObjectBinding, stringObjectPrograms } from './string-object-bindings.mjs';
 import { varLoopPatternPromotion, varLoopPatternPrograms } from './var-pattern-for-of.mjs';
@@ -326,7 +327,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 797);
+  assert.equal(inventory.records.size, 796);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -1103,5 +1104,26 @@ test('for-in object patterns retain shared executable bodies and the native orac
     assert.equal(row[1], row[2]);
     assert.equal(pair.sourceTS, `export function run(a: number, b: number): number { ${row[2]} }\n`);
     assert.equal(pair.sourceJS, pair.oracleSource);
+  }
+});
+
+test('String iterator patterns execute the unchanged former rejection sources', () => {
+  assert.equal(stringIteratorPrograms.length,18);
+  assert.equal(stringIteratorPromotions.length,6);
+  const expected=[
+    'c3d9a13011b88148ef06e3494a808941381271eaebc6a113ea19128248680d2f',
+    '764890cd0dd48daabde7d87d7d116a3e1119081536b5059b722c466cbbed3ab8', 'f661ae2c96bc21d61efcf9191692f56096d82b28f3bec467393b6fbd7dfb8cd8', '9f339d81ebad82b1dec1d01e97880bb0054488ee2ec4e18799a660c36b36dd6c',
+    '5b64b5606dd6adc9c74ea58f9404e7b02cea14c694bd27ce57cd6ec4c88c61be',
+    'dcf9fc1608368e4e9099ae8a01ffbf957ccd7871dd9043a308ce6699222e9879',
+  ];
+  for(let i=0;i<stringIteratorPromotions.length;i++) {
+    const [id,original]=stringIteratorPromotions[i];
+    const pair=programSources(stringIteratorPrograms.find(row=>row[0]===id));
+    for(const source of [pair.sourceJS,pair.sourceTS,pair.oracleSource]) {
+      assert.equal(source,original);
+      assert.equal(createHash('sha256').update(source).digest('hex'),expected[i]);
+    }
+    assert.ok(!rejected.some(row=>row[0]===id));
+    assert.ok(!catalog.records.some(row=>row.id===id));
   }
 });

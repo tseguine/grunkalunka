@@ -135,7 +135,8 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
                 let pattern_loop_source=format!("export function run(a,b){{var {loop_names};for(var [item] of [[a]]){{}}return a;}}");
                 let fields = (0..count).map(|i|format!("length:x{i}")).collect::<Vec<_>>().join(",");
                 let in_pattern_source=format!("export function run(a,b){{for(var {{{fields}}} in {{a:1}}){{}}return a;}}");
-                for source in [source, loop_source, in_source, pattern_source, pattern_loop_source, in_pattern_source] {
+                let string_pattern_source=format!("export function run(a,b){{var [{names}]='abc';return a;}}");
+                for source in [source, loop_source, in_source, pattern_source, pattern_loop_source, in_pattern_source, string_pattern_source] {
                     for ts in [false, true] {
                         let result = crate::compile_value(&source, ts);
                         if count == 128 {
@@ -324,16 +325,13 @@ fn var_for_of_patterns_share_cells_and_preserve_iteration_origins() {
             "{body}"
         );
     }
-    for body in [
-        "for(var [x] of 'ab'){}return a;",
-        "for(var [x] of [a]){}return a;",
-        "for(var [x] in {x:a}){}return a;",
-    ] {
-        assert!(
-            crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
-            "{body}"
-        );
-    }
+    assert!(
+        crate::compile_value(
+            "export function run(a,b){for(var [x] of [a]){}return a;}",
+            false
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -390,7 +388,6 @@ fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
         }
     }
     for body in [
-        "for(var [x] in {a:1}){}return a;",
         "for(const {...rest} in {a:1}){}return a;",
         "for(let {slice:x} in {a:1}){}return a;",
         "const key='length';for(const {[key]:x} in {a:1}){}return a;",
@@ -412,6 +409,46 @@ fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
     }
     let js = "export function run(a,b){let n=0;for(let {length:l} in {abc:a})n+=l;return n;}";
     let ts = "export function run(a:string,b:boolean):never{let n:boolean=0;for(let {length:l} in ({abc:a} as never))n+=(l as string);return n as boolean;}";
+    assert_eq!(
+        crate::compile(js, false).unwrap().wasm,
+        crate::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_iterator_patterns_select_code_points_and_preserve_source_proofs() {
+    for body in [
+        "const [x='?']='abc';return x.charCodeAt(0);",
+        "const [...rest]='abc';return rest.length;",
+        "const {s:[x='?']}={s:'abc'};return x.length;",
+        "const [[x='?']='z']='a';return x.length;",
+        "let n=0;for(const [x='?'] of ['abc',''])n+=x.length;return n;",
+        "let n=0;for(const {length:l} of 'abc')n+=l;return n;",
+        "for(var [x='?'] in {abc:a}){}return x==='a'?1:0;",
+        "const get=()=>x;var [x='?']='abc';return get()==='a'?1:0;",
+        "for(var [x] of 'ab'){}return a;",
+        "for(var [x] in {x:a}){}return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let result = crate::compile(&source, ts);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+    for body in [
+        "const [x]=(a as string);return a;",
+        "const [x]=(a?'abc':null);return a;",
+        "const [[x]]='abc';return a;",
+        "const [x=x]='';return a;",
+        "const [x=rest,...rest]='';return a;",
+        "const [x]='abc';x=b;return a;",
+        "let [x='?']='abc';const get=()=>x.length;x=a;return get();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(crate::compile_value(&source, true).is_err(), "{source}");
+    }
+    let js = "export function run(a,b){const [x='?',...tail]='abc';return x.length+tail.length;}";
+    let ts = "export function run(a:string,b:boolean):never{const [x='?',...tail]:never=('abc' as unknown);return (x as number).length+(tail as boolean).length;}";
     assert_eq!(
         crate::compile(js, false).unwrap().wasm,
         crate::compile(ts, true).unwrap().wasm

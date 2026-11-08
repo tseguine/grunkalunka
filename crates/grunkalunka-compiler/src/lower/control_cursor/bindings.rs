@@ -128,20 +128,30 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         excluded: source.rest.as_ref().map(|_| Vec::new()),
                     });
                 }
-                BindingStep::Array { source, live } => {
+                BindingStep::Array {
+                    source,
+                    live,
+                    string,
+                } => {
                     let selected = state.selected.take().expect("selected array binding");
                     let array = if self.values[selected.0] == Type::ManagedArray {
                         selected
                     } else {
                         let result = self.value(Type::ManagedArray);
-                        Self::push(
-                            &mut output,
-                            source,
+                        let op = if string {
+                            // Primitive Strings have immutable intrinsic iterators.
+                            // Materialize the saved RHS as code points, not UTF-16 indices.
+                            Op::ManagedStringToArray {
+                                result,
+                                input: selected,
+                            }
+                        } else {
                             Op::ManagedToArray {
                                 result,
                                 input: selected,
-                            },
-                        );
+                            }
+                        };
+                        Self::push(&mut output, source, op);
                         result
                     };
                     let iterator =

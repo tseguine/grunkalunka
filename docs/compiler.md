@@ -2571,7 +2571,7 @@ observe Undefined; lexical TDZ checks remain unchanged. Post-declaration proofs
 use selected leaf origins, including every duplicate binding occurrence, rather
 than the complete source object. Unknown writes disable refinement.
 
-Var for-in Array pattern heads, async var, callable initializers and catch-name
+Unproven var pattern receivers, async var, callable initializers and catch-name
 collisions remain guarded. Source limits count all pattern names, with the same
 128/129 small-stack boundary. Corpus 147 preserves the exact former pattern
 rejection as a positive and retains a source-bound iteration-pattern guard. No
@@ -2587,9 +2587,9 @@ Zero visits preserve the previous values or initial Undefined. Loop writes widen
 all aliases and suppress initializer-only Number refinements.
 
 The iterable and selected container kinds must remain source-proven. Async var,
-for-in Array patterns, general iterables and unproven selected receivers stay guarded.
+general iterables and unproven selected receivers stay guarded.
 Corpus 148 executes the exact former var iteration-pattern rejection with its hash
-and retains a separate for-in Array pattern guard. No API or host import is added.
+and retains a separate for-in Array pattern guard until corpus 151 promotes it. No API or host import is added.
 
 
 Object binding declarations now accept source-proven primitive Strings for static
@@ -2602,7 +2602,7 @@ Member-origin analysis records Number for length and String-or-Undefined for an
 index; specialized projections and primitive exports still need their usual proof.
 
 String object rest, dynamic/noncanonical keys, inherited members, mixed/nullish
-receivers and String array-iterator destructuring retain guards. This is language
+receivers retain guards. This is language
 binding support; no standard-library API or host import is added. Corpus 149
 retains the exact former empty-String runtime rejection as an executed positive.
 
@@ -2614,6 +2614,25 @@ its defaults and cell assignments. Const/let patterns allocate fresh lexical
 cells per visit; var patterns assign their hoisted shared cells, including
 parameter aliases and captures. Zero visits preserve initial values or Undefined.
 Key origins are String independently of the enumerated values, and every var
-pattern leaf participates in iteration-write widening. Array patterns, String
+pattern leaf participates in iteration-write widening. String object
 rest, dynamic/inherited keys and unsupported receiver kinds retain guards.
 Number receivers still enumerate no keys, regardless of erased TS annotations.
+
+
+Array binding patterns now consume source-proven primitive Strings through the
+existing intrinsic code-point-to-Array operation. A saved String is immutable and
+has no user iterator hooks in this admitted domain, so materializing its complete
+code-point sequence before the ordered binding plan preserves selection/default
+behavior. This creates a private temporary Array proportional to the String's
+code-point count. Elisions consume code points, unmatched positions select
+Undefined, and rest makes a fresh Array; paired and lone surrogates match String
+iteration. Object patterns continue to select UTF-16 properties instead.
+
+Const/let/var declarations, nested patterns with proven String receivers, for-in
+String-key patterns and for-of selected String patterns use the same planner.
+Receiver rebinding in a default cannot change the saved source. Lexical TDZ,
+source limits, var-cell aliases/captures, conservative kind proofs and primitive
+export restrictions remain enforced. String object rest, unknown/mixed receivers,
+custom iterables and destructuring assignment targets remain guarded. Corpus 151
+preserves six exact former rejection sources, including var-guard-in-pattern,
+as executed positives; the other 796 rejection sources remain tracked.

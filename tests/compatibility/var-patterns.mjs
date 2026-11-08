@@ -16,4 +16,3 @@ for(const[id,body]of[
  ['parameter','var [a]=[null];return +a;'],
  ['header','for(var [x]=[a];0;){}return +x;'],
 ])varPatternPrograms.push(['var-pattern-'+id,body,body]);
-export const varPatternGuard=['var-guard-in-pattern','export function run(a,b){for(var [x] in {x:a}){}return a;}','js','var iteration heads require ordinary identifier bindings'];

@@ -1,7 +1,8 @@
+import { stringIteratorPrograms } from './string-iterator-bindings.mjs';
 import { forInObjectPrograms } from './for-in-object-patterns.mjs';
 import { stringObjectPrograms } from './string-object-bindings.mjs';
 import { varLoopPatternPrograms } from './var-pattern-for-of.mjs';
-import { varPatternPrograms, varPatternGuard } from './var-patterns.mjs';
+import { varPatternPrograms } from './var-patterns.mjs';
 import { varForInPrograms } from './var-for-in.mjs';
 import { varForOfPrograms } from './var-for-of.mjs';
 import { varPrograms, varRejected } from './var-bindings.mjs';
@@ -131,7 +132,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 150;
+export const corpusVersion = 151;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -157,7 +158,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);
@@ -353,7 +354,6 @@ programs.push(
 
 
 export const rejected = [
-  varPatternGuard,
   ...varRejected,
   ...loweringGaps,
   ...typescriptErasureRejected,
