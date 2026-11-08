@@ -476,6 +476,8 @@ fn destructuring_for_of_allocates_fresh_leaf_cells_and_preserves_loop_control() 
 
 #[test]
 fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
+    let original = "export function run(a,b){for(var {value} of [{value:a}]){}return a;}";
+    common::compare_sources(original, original);
     let js = "export function run(a,b){let n=0;for(const {row:{label},values:[value]} of [{row:{label:' x '},values:[a]}])n+=label.trim().length+(value===a?1:0);return n;}";
     let ts = "type Rows=never;export function run(a:string,b:boolean):void{let n:number=0;for(const {row:{label},values:[value]} of ([{row:{label:' x '},values:[a]}] as Rows))n+=(label as number).trim().length+((value as string)===a?1:0);return n;}";
     common::compare_sources(js, ts);
@@ -494,7 +496,7 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(const {first=next,next=a} of [{}]){}return a;",
         "for(const [value] of [[a]]){}return value;",
         "for(const {value} of [{value:a}])value=b;return a;",
-        "for(var {value} of [{value:a}]){}return a;",
+        "for(var [x] in {x:a}){}return a;",
         "for(const [...rest] of [[a],null]){}return a;",
         "for(const [...rest] of [[a]])rest=[];return a;",
         "for(const [head=rest,...rest] of [[]]){}return a;",
@@ -660,6 +662,22 @@ fn var_for_in_shares_cells_and_skips_deleted_keys_before_assignment() {
         "for(var key in {x:a,y:b})break;return key==='x'?1:0;",
         "var key=3;for(var key in 17){}return key===3?1:0;",
         "const f={a:()=>key,b:()=>key};let n=0;for(var key in {x:a,y:b}){if(n++===0)f.a=()=>key;else f.b=()=>key;}return f.a()===f.b()?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn var_for_of_patterns_keep_order_defaults_and_shared_captures() {
+    for body in [
+        "let n=0;for(var [x] of [[a],[b]])n+=+x;return n;",
+        "for(var {x} of [{x:a},{x:b}]){}return +x;",
+        "for(var {row:[x]} of [{row:[a]}]){}return +x;",
+        "for(var [x=3,y=x] of [[]]){}return +y;",
+        "let n=0;for(var [x] of [[a],[b]]){if(x===a)continue;n++;}return n;",
+        "for(var [x] of [[a],[b]])break;return +x;",
+        "const f={a:()=>x,b:()=>x};let n=0;for(var [x] of [[1],[2]]){if(n++===0)f.a=()=>x;else f.b=()=>x;}return +f.a()+(+f.b());",
+        "var previous=null;for(var [...tail] of [[a],[b]]){if(tail===previous)return 0;previous=tail;}return 1;",
     ] {
         compare(body);
     }

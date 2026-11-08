@@ -1,3 +1,4 @@
+import { varLoopPatternPromotion, varLoopPatternPrograms } from './var-pattern-for-of.mjs';
 import { varPatternPromotion, varPatternPrograms } from './var-patterns.mjs';
 import { varForInPromotion, varForInPrograms } from './var-for-in.mjs';
 import { varForOfPromotion, varForOfPrograms } from './var-for-of.mjs';
@@ -1068,4 +1069,16 @@ test('var patterns preserve the exact former rejection and source hash',()=>{
  }
  assert.ok(!rejected.some(row=>row[0]===varPatternPromotion.id));
  assert.ok(!catalog.records.some(row=>row.id===varPatternPromotion.id));
+});
+
+
+test('var for-of patterns preserve the exact guarded source and hash',()=>{
+ const pair=programSources(varLoopPatternPrograms.find(p=>p[0]===varLoopPatternPromotion.id));
+ assert.equal(varLoopPatternPromotion.sha256,"764cd5824ece2d7265a1e85d7cbf5c2a1641efc086b9e1305e067b46ccbd8008");
+ for(const source of [pair.sourceJS,pair.sourceTS,pair.oracleSource]) {
+  assert.equal(source,varLoopPatternPromotion.source);
+  assert.equal(createHash('sha256').update(source).digest('hex'),varLoopPatternPromotion.sha256);
+ }
+ assert.ok(!rejected.some(row=>row[0]===varLoopPatternPromotion.id));
+ assert.ok(!catalog.records.some(row=>row.id===varLoopPatternPromotion.id));
 });

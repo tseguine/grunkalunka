@@ -132,7 +132,8 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
                 );
                 let in_source=format!("export function run(a,b){{var {loop_names};for(var item in {{x:a}}){{}}return a;}}");
                 let pattern_source=format!("export function run(a,b){{var [{names}]=[];return a;}}");
-                for source in [source, loop_source, in_source, pattern_source] {
+                let pattern_loop_source=format!("export function run(a,b){{var {loop_names};for(var [item] of [[a]]){{}}return a;}}");
+                for source in [source, loop_source, in_source, pattern_source, pattern_loop_source] {
                     for ts in [false, true] {
                         let result = crate::compile_value(&source, ts);
                         if count == 128 {
@@ -179,15 +180,13 @@ fn var_for_of_reuses_function_cells_and_preserves_kind_boundaries() {
             "{body}"
         );
     }
-    for body in [
-        "for(var {x} of [{x:a}]){}return a;",
-        "for(var x of a){}return a;",
-    ] {
-        assert!(
-            crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
-            "{body}"
-        );
-    }
+    assert!(
+        crate::compile_value(
+            "export function run(a,b){for(var x of a){}return a;}",
+            false
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -248,11 +247,7 @@ fn var_patterns_preserve_function_cells_and_selected_leaf_origins() {
             assert!(r.is_ok(), "{source}: {:?}", r.err());
         }
     }
-    for body in [
-        "var {x}=a;return a;",
-        "for(var [x] of [[a]]){}return a;",
-        "var {x}={x:a};let x=b;return x;",
-    ] {
+    for body in ["var {x}=a;return a;", "var {x}={x:a};let x=b;return x;"] {
         assert!(
             crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
             "{body}"
@@ -276,6 +271,12 @@ fn var_patterns_preserve_function_cells_and_selected_leaf_origins() {
 
 #[test]
 fn var_pattern_types_erase_and_lexical_bindings_keep_tdz() {
+    let loop_js = "export function run(a,b){let n=0;for(var [x] of [[a],[b]])n+=+x;return n;}";
+    let loop_ts = "export function run(a:string,b:boolean):never{let n:boolean=0;for(var [x] of ([[a],[b]] as never))n+=+(x as string);return n;}";
+    assert_eq!(
+        crate::compile(loop_js, false).unwrap().wasm,
+        crate::compile(loop_ts, true).unwrap().wasm
+    );
     let js = "export function run(a,b){var [x,y]=[a,b];return +x+(+y);}";
     let ts = "export function run(a:string,b:boolean):void{var [x,y]:never=([a,b] as unknown);return +(x as string)+(+(y as boolean));}";
     assert_eq!(
@@ -292,4 +293,43 @@ fn var_pattern_types_erase_and_lexical_bindings_keep_tdz() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn var_for_of_patterns_share_cells_and_preserve_iteration_origins() {
+    for body in [
+        "let n=0;for(var [x] of [[a],[b]])n+=+x;return n;",
+        "for(var {x} of [{x:a},{x:b}]){}return +x;",
+        "const before=x;for(var [x] of (a?[]:[[b]])){}return before;",
+        "var x=3;for(var [x] of (a?[]:[[b]])){}return +x;",
+        "const get=()=>x;for(var [x] of [[a],[b]]){}return get();",
+        "for(var [x=3,y=x] of [[]]){}return +y;",
+        "for(var {row:[x]} of [{row:[a]}]){}return +x;",
+        "for(var [a] of [[null]]){}return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let r = crate::compile_value(&source, ts);
+            assert!(r.is_ok(), "{source}: {:?}", r.err());
+        }
+    }
+    for body in [
+        "var x=3;for(var [x] of [[null]]){}return x;",
+        "const get=()=>x;var x=3;for(var [x] of [[null]]){}return get();",
+    ] {
+        assert!(
+            crate::compile(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    for body in [
+        "for(var [x] of 'ab'){}return a;",
+        "for(var [x] of [a]){}return a;",
+        "for(var [x] in {x:a}){}return a;",
+    ] {
+        assert!(
+            crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
 }

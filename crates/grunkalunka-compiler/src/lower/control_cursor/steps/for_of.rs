@@ -35,7 +35,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         {
             return Err(unsupported(&source, "for-await-of is not yet admitted"));
         }
-        if let Some(pattern) = iteration::lexical_iteration_pattern(source.left()) {
+        if let Some(pattern) = iteration::declaration_iteration_pattern(source.left()) {
             if source.is_in() && !matches!(pattern, BindingPattern::BindingIdentifier(_)) {
                 return Err(unsupported(
                     &source,
@@ -312,12 +312,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             frame.prefix = Some(body);
             body = self.region(source.body());
         }
-        if let Some(pattern) = iteration::lexical_iteration_pattern(source.left()) {
+        if let Some(pattern) = iteration::declaration_iteration_pattern(source.left()) {
             let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
                 unreachable!("checked lexical iteration binding");
             };
-            // A lexical head allocates a fresh captured cell per iteration.
-            let mutable = declaration.kind == VariableDeclarationKind::Let;
+            // Lexical heads create fresh cells; var patterns write hoisted cells.
+            let mutable = declaration.kind != VariableDeclarationKind::Const;
             if let BindingPattern::BindingIdentifier(identifier) = pattern {
                 self.commit_binding_value(
                     identifier.as_ref(),

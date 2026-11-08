@@ -51,10 +51,32 @@ pub(super) fn var_iteration_binding<'n, 'a>(
     }
 }
 
+pub(super) fn declaration_iteration_pattern<'n, 'a>(
+    left: &'n ForStatementLeft<'a>,
+) -> Option<&'n BindingPattern<'a>> {
+    if let Some(pattern) = lexical_iteration_pattern(left) {
+        return Some(pattern);
+    }
+    let ForStatementLeft::VariableDeclaration(d) = left else {
+        return None;
+    };
+    if d.declare || d.kind != VariableDeclarationKind::Var || d.declarations.len() != 1 {
+        return None;
+    }
+    let local = &d.declarations[0];
+    if local.definite
+        || local.init.is_some()
+        || matches!(local.id, BindingPattern::BindingIdentifier(_))
+    {
+        return None;
+    }
+    Some(&local.id)
+}
+
 pub(super) fn for_of_pattern<'n, 'a>(
     source: &'n ForOfStatement<'a>,
 ) -> Option<&'n BindingPattern<'a>> {
-    lexical_iteration_pattern(&source.left)
+    declaration_iteration_pattern(&source.left)
 }
 
 /// An existing lexical binding is an assignable iteration head. Patterns,
@@ -71,7 +93,7 @@ pub(super) fn assignment_iteration_identifier<'n, 'a>(
 pub(super) fn for_of_binding<'n, 'a>(
     source: &'n ForOfStatement<'a>,
 ) -> Option<&'n BindingIdentifier<'a>> {
-    match for_of_pattern(source)? {
+    match lexical_iteration_pattern(&source.left)? {
         BindingPattern::BindingIdentifier(identifier) => Some(identifier),
         _ => None,
     }
