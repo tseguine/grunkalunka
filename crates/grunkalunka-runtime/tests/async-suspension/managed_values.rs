@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn unsigned_has_own_keys_preserve_suspended_expression_order_and_errors() {
+    compare_promises(
+        &[
+            "const xs=[a];return Object.hasOwn(xs,(await b,0)>>>0)?1:0;",
+            "const xs=[a];return Object.hasOwn(xs,(await b,1)>>>0)?1:0;",
+            "const xs=[a];return Object.hasOwn(xs,(await b,xs.pop(),0)>>>0)?1:0;",
+            "return Object.hasOwn('💠',(await a,1)>>>0)?1:0;",
+            "const d=Object.create(null);d[0]=b;return Object.hasOwn(d,(await a,0)>>>0)?1:0;",
+            "const xs=[a];return Object.hasOwn(xs,(await a,0)>>>0,xs.pop())?xs.length:0;",
+            "let n=0;try{Object.hasOwn([a],(await Promise.reject(b),0)>>>0,n++);}catch(e){await a;return n;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn final_switch_arms_keep_selected_awaits_rejection_and_suffix_order() {
     compare_promises(
         &[
