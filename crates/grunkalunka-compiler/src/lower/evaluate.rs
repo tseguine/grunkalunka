@@ -758,7 +758,10 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             _ => None,
         };
         if let Some(function) = declaration {
-            work.push(Work::FunctionLength(node, function.parameter_count));
+            work.push(Work::FunctionLength(
+                node,
+                self.default_function_length(object, function.parameter_count)?,
+            ));
         } else {
             let signature = self.function_arity(object, depth).ok_or_else(|| {
                 unsupported(node, "length requires an admitted function receiver")
@@ -768,7 +771,10 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 .borrow()
                 .parameter_count(signature)
                 .ok_or("missing callable parameter count")?;
-            work.push(Work::FunctionLength(node, count));
+            work.push(Work::FunctionLength(
+                node,
+                self.default_function_length(object, count)?,
+            ));
             work.push(Work::Forget);
             work.push(Work::Eval(object, depth, Mode::Function(signature)));
         }

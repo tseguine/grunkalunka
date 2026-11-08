@@ -526,7 +526,9 @@ fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) ->
 }
 
 fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
-    if !stored_functions::undefined_return_bodies(semantic).is_empty() {
+    if helper_defaults::present(semantic)
+        || !stored_functions::undefined_return_bodies(semantic).is_empty()
+    {
         return true;
     }
     semantic.nodes().iter().any(|node| {
@@ -631,6 +633,19 @@ pub(crate) fn infer(
                     Kinds::new()
                 },
             );
+        }
+    }
+    for function in declarations.iter().skip(1).filter(|f| !f.r#async) {
+        for parameter in &function.params.items {
+            if parameter.initializer.is_some()
+                && let BindingPattern::BindingIdentifier(id) = &parameter.pattern
+                && let Some(symbol) = id.symbol_id.get()
+            {
+                bindings
+                    .entry(symbol)
+                    .or_default()
+                    .insert(Kind::BoxedPrimitive);
+            }
         }
     }
     let mut definitions = Vec::new();

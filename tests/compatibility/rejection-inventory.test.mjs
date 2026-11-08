@@ -11,7 +11,7 @@ import { numericBitNot } from './numeric-bit-not.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
 import { numericMathUnary } from './numeric-math-unary.mjs';
-import { numericCalls, unusedNoReturnPromotion } from './numeric-calls.mjs';
+import { numericCalls, unusedNoReturnPromotion, helperDefaultPromotion } from './numeric-calls.mjs';
 import { numericForPrograms } from './numeric-for.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
@@ -319,7 +319,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 799);
+  assert.equal(inventory.records.size, 798);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -1000,4 +1000,16 @@ test('primitive checker profile totals match the actual catalog and promoted num
     numericSupportedOriginCases:supported,rejections:valueRejected.length*2,
     comparisons:valuePrograms.length*2*2*14+supported*2*14,
   });
+});
+
+
+test('private literal helper defaults retain their exact former rejection source', () => {
+  assert.equal(helperDefaultPromotion.sha256, 'f9a383c6e80f314053876a82f76948c2f6fc576aa2223b245ce7431dc9d4564a');
+  const source = programSources(numericCalls.find(p => p[0] === helperDefaultPromotion.id));
+  assert.equal(source.sourceJS, helperDefaultPromotion.source);
+  assert.equal(source.sourceTS, helperDefaultPromotion.source);
+  assert.equal(source.oracleSource, helperDefaultPromotion.source);
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), helperDefaultPromotion.sha256);
+  assert.ok(!rejected.some(p => p[0] === helperDefaultPromotion.id));
+  assert.ok(!catalog.records.some(p => p.id === helperDefaultPromotion.id));
 });

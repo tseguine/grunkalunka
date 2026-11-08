@@ -11,6 +11,8 @@ mod emit;
 mod evaluator_tests;
 mod heap;
 #[cfg(test)]
+mod helper_default_tests;
+#[cfg(test)]
 mod implicit_return_tests;
 mod ir;
 #[path = "ir/iterative_drop.rs"]
@@ -353,6 +355,13 @@ fn lower_source_profile_with_identities(
             module_value: None,
         });
     }
+    for (index, function) in declarations.iter().enumerate() {
+        lower::helper_defaults::validate(
+            function,
+            &built.semantic,
+            index != 0 && !async_entry && !function.r#async,
+        )?;
+    }
     let stored = lower::stored_functions::Fields::collect(&built.semantic, signatures[0].symbol);
     lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures, &stored);
     let promise_parameters =
@@ -469,8 +478,7 @@ fn lower_source_profile_with_identities(
         let mut bindings = Vec::new();
         let mut slots = Vec::new();
         for parameter in &function.params.items {
-            if parameter.initializer.is_some()
-                || !parameter.decorators.is_empty()
+            if !parameter.decorators.is_empty()
                 || parameter.accessibility.is_some()
                 || parameter.readonly
                 || parameter.r#override
@@ -575,6 +583,7 @@ fn lower_source_profile_with_identities(
             });
         }
         lowering.initialize_general_parameters(&mut region);
+        lowering.initialize_helper_defaults(function, &mut region)?;
         let mut completion = lowering.sequence(&body.statements, &mut region, 0)?;
         if completion.normal
             && (lowering.allow_await

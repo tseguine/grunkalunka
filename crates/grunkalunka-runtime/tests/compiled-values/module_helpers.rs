@@ -211,3 +211,41 @@ fn helper_control_flow_preserves_normal_and_abrupt_completions() {
         "function helper(x){try{return x;}finally{if(x)return;}}export function run(a,b){return helper(a);}",
     ]);
 }
+
+#[test]
+fn primitive_helper_defaults_select_only_undefined() {
+    compare_helpers(&[
+        "function f(x=3){return x;}export function run(a,b){return f();}",
+        "function f(x=3){return x;}export function run(a,b){return f(undefined);}",
+        "function f(x=3){return x;}export function run(a,b){return f(a);}",
+        "function f(x=3){return x;}export function run(a,b){return f(null);}",
+        "function f(x=3){return x;}export function run(a,b){return f(false);}",
+        "function f(x=-0){return x;}export function run(a,b){return f();}",
+        "function f(x=true){return x;}export function run(a,b){return f();}",
+        "function f(x=null){return x;}export function run(a,b){return f();}",
+        "function f(x=undefined){return x;}export function run(a,b){return f();}",
+        "function f(x='abc'){return x.length;}export function run(a,b){return f();}",
+        "function f(x='abc'){return x.length;}export function run(a,b){return f('hello');}",
+        r"function f(x='\u{1f600}\ud800'){return x.charCodeAt(2)+x.length;}export function run(a,b){return f();}",
+        "function f(x=3,y){return y;}export function run(a,b){return f();}",
+        "function f(x=3,y=4){return x*10+y;}export function run(a,b){return f();}",
+        "function f(x=3,y=4){return x*10+y;}export function run(a,b){return f(undefined,a);}",
+        "function f(x=3){x++;return x;}export function run(a,b){return f();}",
+        "function f(x=3){const g=()=>x;return g();}export function run(a,b){return f();}",
+        "function f(x=3){if(x>0)return f(x-1);return x;}export function run(a,b){return f();}",
+        "function f(x=3){return x;}export function run(a,b){const g=f;return g();}",
+        "function f(x=3){return x;}export function run(a,b){return f(a,a=b)+a;}",
+        "function f(x=3){return x;}export function run(a,b){return f(undefined,a=b)+a;}",
+    ]);
+}
+
+#[test]
+fn default_parameter_reflection_uses_first_default_position() {
+    compare_helpers(&[
+        "function f(x=3){return x;}export function run(a,b){return f.length;}",
+        "function f(x,y=3,z){return y;}export function run(a,b){return f.length;}",
+        "function f(x=3){return x;}export function run(a,b){const g=f;return g.length;}",
+        "function f(x=3){return x;}function g(x=4){return x;}export function run(a,b){const h=a?f:g;return h.length;}",
+        "function f(x=3){return x;}function g(x){return x;}export function run(a,b){return g.length;}",
+    ]);
+}
