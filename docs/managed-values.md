@@ -1504,7 +1504,7 @@ The original reference (including supported computed keys/awaits) executes befor
 collecting the fresh rest container. Array elisions retain sticky exhaustion;
 object exclusions and shallow reference identity use the existing rest operations.
 Source facts track the new allocation and its possible contents through aliases.
-String Array rest uses code points; String object rest remains guarded.
+String Array rest uses code points; String object rest copies enumerable UTF-16 indices.
 
 
 Object assignment patterns accept computed source keys with the ordinary owned-read
@@ -1526,7 +1526,7 @@ Computed source indices in object assignment patterns also accept source-proven
 Strings with unsigned numeric syntax. They select UTF-16 code units (including
 individual surrogate halves), with Undefined outside the string. Lazy defaults
 and saved RHS/key/reference ordering use the same cursor as object/Array sources.
-String object-rest copying and runtime String/coercing keys remain guarded.
+String object-rest copying preserves those saved exclusions; runtime String/coercing keys remain guarded.
 The existing projections still require a proven String before String-only operations;
 numeric conversion of boxed Strings is outside this admission change.
 
