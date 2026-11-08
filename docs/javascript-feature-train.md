@@ -497,3 +497,12 @@ Debugger statements now complete normally in generated execution with no debugge
 facility attached. They retain normal source charging and existing control,
 helper/arrow, exception and async behavior. Corpus 159 adds eight differential
 pairs; all 796 compatibility negatives remain.
+
+
+Runtime unsigned numeric delete keys now work on represented objects, dictionaries
+and Arrays. Original >>> results prove the range through supported wrappers,
+sequence/assignment tails and conditional arms. The normalized decimal key never
+names Array length, including at the 4294967294 index/4294967295 named-key boundary.
+Receiver/key snapshots, ordered effects, conservative alias proofs and supported
+awaits are retained. Broader runtime keys and non-configurable deletion remain
+guarded. Corpus 160 adds twelve differential pairs and retains all 796 negatives.

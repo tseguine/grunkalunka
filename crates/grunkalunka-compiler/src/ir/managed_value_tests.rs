@@ -1685,3 +1685,35 @@ fn logical_result_origins_keep_unknown_truthiness_and_unselected_source_guards()
         }
     }
 }
+
+#[test]
+fn uint32_delete_key_requires_a_visible_number_snapshot() {
+    let source = "export function run(a,b){const xs=[a];return delete xs[b>>>0]?1:0;}";
+    for invalid in 0..4 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (result, input, key) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let Op::ManagedDeleteOwn { result, input, key } = &mut operation.kind {
+                    Some((result, input, key))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let ManagedKey::Uint32(value) = key else {
+            panic!("numeric key");
+        };
+        match invalid {
+            0 => *value = ValueId(usize::MAX),
+            1 => *value = *result,
+            2 => *value = *input,
+            _ => function.values[value.0] = Type::ManagedValue,
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+}
