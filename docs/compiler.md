@@ -586,8 +586,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   runtime statements following a guaranteed return, break or continue (including
   mixed abrupt branches) are rejected, even if valid JavaScript. Recognized type
   declarations may follow them while retaining the same completion alternatives.
-  Each numeric variable declaration has one or more initialized identifiers, evaluated left to right;
-  each binding becomes available only after its own initializer. References resolve
+  Initialized lexical identifiers are evaluated left to right; each lexical binding
+  becomes available only after its own initializer. Bare `let` and function-scoped
+  `var` follow their dedicated initialization contracts below. References resolve
   through semantic symbol identities.
   The [managed binding and iteration path](#managed-bindings-and-iteration)
   separately admits nested object/array declarations and intrinsic-array
@@ -1663,8 +1664,9 @@ execute in source order, and declarations inside loops initialize on each execut
 Existing explicit-initializer Number/Predicate/General routes retain their operations.
 
 Pre-declaration reads, initializer self-reference, shadowed TDZ references, missing
-const initializers, var, destructuring and TS definite-assignment assertions remain
-outside admission. Scope and local/statement limits are preserved. No IR, ABI,
+const initializers and TS definite-assignment assertions remain outside this
+implicit-let slice. Later managed binding and function-scoped var sections describe
+their separate admission. Scope and local/statement limits are preserved. No IR, ABI,
 capability, dependency or storage-planning change is introduced.
 
 Corpus 61 promotes four exact original sources (three JS, one TS) and adds sixteen
@@ -2488,3 +2490,31 @@ lengths and the existing missing-input guard on typed callback calls. A checked
 callback can pass explicit Undefined to select a default. Existing runtime factory
 result-signature limits remain. Corpus 143 adds nine numeric arrow-default pairs;
 all 798 retained rejection cases still require their original diagnostics.
+
+
+## Function-scoped identifier var bindings
+
+Synchronous entries, private helpers and local arrows accept ordinary identifier
+`var` declarations. Each activation creates its function-owned mutable cells before
+body execution and initializes new cells to canonical Undefined. Initializers write
+those cells in source order; bare declarations and redeclarations do not reset them.
+Block declarations retain function scope. Traditional `for (var ...)` heads share
+the same cell across iterations and closures. Existing assignment iteration heads
+can write an already hoisted cell.
+
+A same-symbol parameter redeclaration reuses the parameter cell. With non-simple
+literal-default parameters, a distinct body binding starts with a copy of the
+selected parameter value. New cells retain primitive/String, object and array
+identity and value snapshots. Primitive numeric updates preserve postfix values
+and perform existing primitive numeric conversion. Type annotations remain erased.
+Numeric exports require a positive Number proof: source-dominating initialization
+may remove the initial Undefined alternative, while all represented writes,
+including captures, contribute to the result. Unknown write forms disable that
+refinement.
+
+Async modules/functions, pattern declarations, function-valued var initializers,
+`for-of`/`for-in` declaration heads and catch-parameter name collisions retain
+explicit guards. Lexical TDZ/collision checks, unreachable-tail rejection and
+source/local/stack budgets remain in force. This does not add general callable
+storage or dynamic property access. Corpus 144 preserves the four exact former
+var rejection sources as positives, with 799 source-bound rejections remaining.

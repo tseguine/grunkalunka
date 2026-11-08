@@ -32,6 +32,8 @@ mod prototype_keys;
 #[cfg(test)]
 mod source_cursor_tests;
 #[cfg(test)]
+mod var_binding_tests;
+#[cfg(test)]
 mod void_helper_tests;
 
 use lower::{Lowering, NumericBinding, NumericFunction};
@@ -371,6 +373,7 @@ fn lower_source_profile_with_identities(
             )?;
         }
     }
+    lower::var_bindings::validate(&built.semantic, async_entry)?;
     let stored = lower::stored_functions::Fields::collect(&built.semantic, signatures[0].symbol);
     lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures, &stored);
     let promise_parameters =
@@ -593,6 +596,7 @@ fn lower_source_profile_with_identities(
         }
         lowering.initialize_general_parameters(&mut region);
         lowering.initialize_helper_defaults(function, &mut region)?;
+        lowering.initialize_var_bindings(function.node_id.get(), &function.params, &mut region)?;
         let mut completion = lowering.sequence(&body.statements, &mut region, 0)?;
         if completion.normal
             && (lowering.allow_await

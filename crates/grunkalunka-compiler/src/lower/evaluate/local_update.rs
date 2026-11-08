@@ -60,6 +60,11 @@ impl Lowering<'_, '_> {
         };
         let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
         let slot = binding.slot;
+        let primitive_var = self.stored.var_symbol(binding.symbol);
+        if primitive_var && !self.stored.primitive(identifier.node_id()) {
+            return Ok(false);
+        }
+
         if self.slots[slot.0].ty != Type::ManagedValue
             || !self.stored.number_update(identifier.node_id())
             || (matches!(operator, Binary::Add) && !self.stored.number(node.node_id()))
@@ -93,11 +98,31 @@ impl Lowering<'_, '_> {
             },
         );
         let old = self.value(Type::Number);
-        Self::push(
-            regions.current(),
-            node,
-            Op::ManagedToNumber { result: old, input },
-        );
+        if primitive_var && !self.stored.number(identifier.node_id()) {
+            let primitive = self.value(Type::General);
+            Self::push(
+                regions.current(),
+                node,
+                Op::ManagedToPrimitive {
+                    result: primitive,
+                    input,
+                },
+            );
+            Self::push(
+                regions.current(),
+                node,
+                Op::NumberFromGeneral {
+                    result: old,
+                    input: primitive,
+                },
+            );
+        } else {
+            Self::push(
+                regions.current(),
+                node,
+                Op::ManagedToNumber { result: old, input },
+            );
+        }
         work.push(Work::LocalUpdate(Task {
             node,
             slot,

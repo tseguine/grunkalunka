@@ -356,6 +356,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 mutable: true,
             });
         }
+        self.initialize_var_bindings(arrow.node_id.get(), &arrow.params, region)?;
         Ok(())
     }
 

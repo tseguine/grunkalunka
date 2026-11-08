@@ -55,6 +55,7 @@ pub(super) struct DeclarationValue<'n, 'a> {
     ty: Type,
     mode: evaluate::Mode,
     mutable: bool,
+    existing: Option<SlotId>,
 }
 
 // Every selected mode produces exactly one ValueId. Discard, the evaluator's
@@ -78,7 +79,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     ) -> Result<(), String> {
         if !matches!(
             declaration.kind,
-            VariableDeclarationKind::Const | VariableDeclarationKind::Let
+            VariableDeclarationKind::Const
+                | VariableDeclarationKind::Let
+                | VariableDeclarationKind::Var
         ) || declaration.declare
             || declaration.declarations.is_empty()
         {
@@ -140,6 +143,64 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         self.prepare_declaration_value_initializer(local, mutable, region)
     }
 
+    pub(super) fn prepare_var_initializer<'n, 'a>(
+        &mut self,
+        local: &'n VariableDeclarator<'a>,
+        _region: &mut Region,
+    ) -> Result<DeclarationInitializer<'n, 'a>, String> {
+        if local.definite {
+            return Err(unsupported(
+                local,
+                "definite-assignment assertions are not admitted",
+            ));
+        }
+        let BindingPattern::BindingIdentifier(id) = &local.id else {
+            return Err(unsupported(
+                local,
+                "var requires ordinary identifier bindings",
+            ));
+        };
+        self.charge_declaration_bindings(local, 1)?;
+        let symbol = id.symbol_id.get().ok_or("missing var symbol")?;
+        let slot = self
+            .bindings
+            .iter()
+            .find(|b| b.symbol == symbol)
+            .ok_or("var binding was not hoisted")?
+            .slot;
+        let Some(source) = local.init.as_ref() else {
+            return Ok(DeclarationInitializer::Complete);
+        };
+        if self.function_arity(source, 0).is_some() {
+            return Err(unsupported(
+                local,
+                "function-valued var initializers are not yet admitted",
+            ));
+        }
+        let ty = self.slots[slot.0].ty;
+        let mode = match ty {
+            Type::ManagedValue => evaluate::Mode::Managed,
+            Type::ManagedObject => evaluate::Mode::Object,
+            Type::ManagedArray => evaluate::Mode::Array,
+            Type::Number => evaluate::Mode::Number,
+            Type::General => evaluate::Mode::General,
+            _ => {
+                return Err(unsupported(
+                    local,
+                    "var initializer requires primitive or managed storage",
+                ));
+            }
+        };
+        Ok(DeclarationInitializer::Value(DeclarationValue {
+            local,
+            source,
+            ty,
+            mode,
+            mutable: true,
+            existing: Some(slot),
+        }))
+    }
+
     pub(super) fn charge_declaration_bindings(
         &mut self,
         node: &impl GetSpan,
@@ -172,6 +233,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 ty,
                 mode,
                 mutable,
+                existing: None,
             }))
         };
         if let Some(initializer) = local.init.as_ref()
@@ -333,8 +395,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         value: ValueId,
     ) -> Result<(), String> {
         let DeclarationValue {
-            local, ty, mutable, ..
+            local,
+            ty,
+            mutable,
+            existing,
+            ..
         } = active.0;
+        if let Some(slot) = existing {
+            Self::push(region, local, Op::Store { slot, value });
+            return Ok(());
+        }
         if matches!(ty, Type::Closure(_)) {
             self.leave_function_value();
             self.commit_function_local(local, region, ty, value, mutable)

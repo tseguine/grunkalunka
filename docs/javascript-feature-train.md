@@ -375,3 +375,12 @@ aliases, typed callback calls with supplied inputs and emitted own-field closure
 Defaulted creator parameters can be captured by returned functions. Public/async
 entry, effectful/default-scope, complete callback signature and factory-result
 limits remain explicit; reflection counts the position before the first default.
+
+
+Function-scoped identifier `var` now hoists activation cells before synchronous
+entry/helper/arrow bodies, preserves bare redeclarations, aliases parameters and
+shares traditional-loop captures. Non-simple parameter environments copy selected
+values into distinct body cells. Numeric proofs account for Undefined and all
+writes; annotations erase. Pattern/callable-initializer, async, iteration-declaration
+and catch-name guards remain bounded language gaps. The compiler contract and
+compiled-values / managed-logical differential suites record the admitted slice.

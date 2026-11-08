@@ -45,6 +45,7 @@ enum Rule {
     PropertyAddition(NodeId, NodeId),
 }
 enum Definition {
+    Symbol(SymbolId, SymbolId),
     Value(SymbolId, NodeId),
     Iterated(SymbolId, NodeId),
     ForIn(SymbolId),
@@ -60,6 +61,7 @@ struct FunctionFlow {
 pub(crate) struct Fields {
     values: BTreeMap<NodeId, Alternatives>,
     number_updates: BTreeSet<NodeId>,
+    var_symbols: BTreeSet<SymbolId>,
 }
 fn symbol(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
     id.reference_id
@@ -218,6 +220,9 @@ pub(super) fn has_omitted_arguments(semantic: &Semantic<'_>, entry: SymbolId) ->
 }
 
 impl Fields {
+    pub(super) fn var_symbol(&self, symbol: SymbolId) -> bool {
+        self.var_symbols.contains(&symbol)
+    }
     /// Strict tag/identity observations accept any proven represented alternative.
     pub(super) fn represented(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
@@ -354,7 +359,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
-        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !semantic.nodes().iter().any(|node| {
+        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
@@ -371,6 +376,19 @@ impl Fields {
         }
         let mut values = BTreeMap::new();
         let mut bindings: BTreeMap<SymbolId, Alternatives> = BTreeMap::new();
+        let var_symbols = var_bindings::symbols(semantic);
+        let var_parameters = var_bindings::parameters(semantic);
+        let var_aliases = var_bindings::aliases(semantic);
+        let var_reads = var_bindings::reads(semantic);
+        for symbol in &var_symbols {
+            if !var_parameters.contains(symbol) && !var_aliases.contains_key(symbol) {
+                bindings
+                    .entry(*symbol)
+                    .or_default()
+                    .insert(Origin::Undefined);
+            }
+        }
+
         // Only lexical iteration *declarations* start initialized by their
         // iteration step. Assignment heads must retain any earlier undefined
         // origin of their preexisting binding, even before the first step.
@@ -415,6 +433,12 @@ impl Fields {
             .iter()
             .map(|(symbol, receiver)| Definition::Iterated(*symbol, *receiver))
             .collect::<Vec<_>>();
+        definitions.extend(
+            var_aliases
+                .into_iter()
+                .map(|(target, source)| Definition::Symbol(target, source)),
+        );
+
         // Unlike for-of, for-in always binds a String key, independently of
         // the receiver's property value types. Later assignments still widen it.
         for node in semantic.nodes().iter() {
@@ -890,7 +914,9 @@ impl Fields {
                     {
                         if let Some(initializer) = &declaration.init {
                             definitions.push(Definition::Value(symbol, initializer.node_id()));
-                        } else if !lexical_iteration_symbols.contains(&symbol) {
+                        } else if !var_symbols.contains(&symbol)
+                            && !lexical_iteration_symbols.contains(&symbol)
+                        {
                             bindings
                                 .entry(symbol)
                                 .or_default()
@@ -909,7 +935,11 @@ impl Fields {
                 }
                 AstKind::IdentifierReference(identifier) => {
                     if let Some(symbol) = symbol(identifier, semantic) {
-                        Some(Rule::Symbol(symbol))
+                        Some(
+                            var_reads
+                                .get(&id)
+                                .map_or(Rule::Symbol(symbol), |reads| Rule::Copy(reads.clone())),
+                        )
                     } else {
                         let origin = match identifier.name.as_str() {
                             "undefined" => Origin::Undefined,
@@ -1216,6 +1246,9 @@ impl Fields {
             let mut symbol_additions = definitions
                 .iter()
                 .map(|definition| match definition {
+                    Definition::Symbol(target, source) => {
+                        (*target, bindings.get(source).cloned().unwrap_or_default())
+                    }
                     Definition::Value(symbol, id) => (*symbol, get(id)),
                     Definition::Iterated(symbol, receiver) => (
                         *symbol,
@@ -1643,7 +1676,24 @@ impl Fields {
                                     })
                             })
                         });
-                    if binding_is_number && targets_are_number {
+                    let primitive_var = var_symbols.contains(&symbol)
+                        && bindings.get(&symbol).is_some_and(|origins| {
+                            !origins.is_empty()
+                                && origins.iter().all(|origin| {
+                                    matches!(
+                                        origin,
+                                        Origin::Number
+                                            | Origin::Boolean
+                                            | Origin::Null
+                                            | Origin::Undefined
+                                    )
+                                })
+                        });
+                    if (binding_is_number || primitive_var) && targets_are_number {
+                        if primitive_var {
+                            changed |=
+                                extend(&mut bindings, symbol, BTreeSet::from([Origin::Number]));
+                        }
                         number_updates.extend(
                             numeric_targets
                                 .iter()
@@ -1662,6 +1712,7 @@ impl Fields {
         Self {
             values,
             number_updates,
+            var_symbols,
         }
     }
 }

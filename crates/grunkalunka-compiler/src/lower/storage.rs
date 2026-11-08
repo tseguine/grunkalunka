@@ -464,15 +464,20 @@ pub(crate) fn general_mutable_bindings(
             AstKind::VariableDeclaration(declaration)
                 if matches!(
                     declaration.kind,
-                    VariableDeclarationKind::Let | VariableDeclarationKind::Const
+                    VariableDeclarationKind::Let
+                        | VariableDeclarationKind::Const
+                        | VariableDeclarationKind::Var
                 ) =>
             {
                 for local in &declaration.declarations {
                     if let BindingPattern::BindingIdentifier(identifier) = &local.id
                         && let Some(symbol) = identifier.symbol_id.get()
                     {
-                        definitions.insert(symbol, local.init.as_ref());
-                        if declaration.kind == VariableDeclarationKind::Let {
+                        if declaration.kind != VariableDeclarationKind::Var || local.init.is_some()
+                        {
+                            definitions.insert(symbol, local.init.as_ref());
+                        }
+                        if declaration.kind != VariableDeclarationKind::Const {
                             mutable.insert(symbol);
                         }
                     }
@@ -538,6 +543,15 @@ pub(crate) fn general_mutable_bindings(
             && mutable.contains(&symbol)
         {
             writes.entry(symbol).or_default().push(&assignment.right);
+        }
+    }
+    // A var initializer writes an existing (possibly parameter) cell. Bare
+    // redeclarations write nothing; initialized redeclarations still widen it.
+    for (symbol, site, _) in var_bindings::locals(semantic) {
+        if let AstKind::VariableDeclarator(local) = semantic.nodes().kind(site)
+            && let Some(initializer) = &local.init
+        {
+            writes.entry(symbol).or_default().push(initializer);
         }
     }
     // Resolve the constructors of a function value separately from the result
@@ -958,6 +972,13 @@ pub(crate) fn general_mutable_bindings(
         .filter(|symbol| !numeric_callbacks.contains(symbol))
         .copied()
         .collect();
+    // Hoisted locals may be read as Undefined before their initializer runs.
+    // Point-specific source facts, not a module-wide Number cell, refine them.
+    invalid.extend(
+        var_bindings::symbols(semantic)
+            .difference(&parameters)
+            .copied(),
+    );
     for symbol in &candidates {
         let required = std::cell::RefCell::new(BTreeSet::new());
         let shape = |expression| {

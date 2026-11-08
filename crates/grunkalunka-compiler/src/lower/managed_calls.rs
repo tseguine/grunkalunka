@@ -49,6 +49,7 @@ pub(super) fn has_omitted_arrow_arguments(semantic: &Semantic<'_>) -> bool {
             AstKind::VariableDeclarator(v) => {
                 if let BindingPattern::BindingIdentifier(identifier) = &v.id
                     && let Some(symbol) = identifier.symbol_id.get()
+                    && (v.init.is_some() || !var_bindings::symbols(semantic).contains(&symbol))
                 {
                     definitions.push((symbol, v.init.as_ref()));
                 }
@@ -526,7 +527,8 @@ fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) ->
 }
 
 fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
-    if helper_defaults::present(semantic)
+    if var_bindings::present(semantic)
+        || helper_defaults::present(semantic)
         || !stored_functions::undefined_return_bodies(semantic).is_empty()
     {
         return true;
@@ -634,6 +636,12 @@ pub(crate) fn infer(
                 },
             );
         }
+    }
+    for symbol in var_bindings::symbols(semantic).difference(&var_bindings::parameters(semantic)) {
+        bindings
+            .entry(*symbol)
+            .or_default()
+            .insert(Kind::BoxedPrimitive);
     }
     for function in declarations.iter().skip(1).filter(|f| !f.r#async) {
         for parameter in &function.params.items {
@@ -908,6 +916,12 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     };
     // Known unresolved formals and calls start at bottom, never an invented Number.
     let mut bindings: BTreeMap<_, Kinds> = parameters.iter().map(|s| (*s, Kinds::new())).collect();
+    for symbol in var_bindings::symbols(semantic).difference(&var_bindings::parameters(semantic)) {
+        bindings
+            .entry(*symbol)
+            .or_default()
+            .insert(Kind::BoxedPrimitive);
+    }
     let assignment_bindings = assignment_patterns::local_symbols(semantic);
     for symbol in &assignment_bindings {
         bindings

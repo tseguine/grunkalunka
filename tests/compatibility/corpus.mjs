@@ -1,3 +1,4 @@
+import { varPrograms, varRejected } from './var-bindings.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { localArrows } from './local-arrows.mjs';
 import { voidPrograms } from './void.mjs';
@@ -124,7 +125,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 143;
+export const corpusVersion = 144;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -150,6 +151,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
+programs.push(...varPrograms);
 programs.push(...localArrows);
 programs.push(...voidPrograms);
 programs.push(...syncCatchPrograms);
@@ -343,6 +345,7 @@ programs.push(
 
 
 export const rejected = [
+  ...varRejected,
   ...loweringGaps,
   ...typescriptErasureRejected,
   ...numericForRejected,
@@ -489,7 +492,6 @@ export const rejected = [
   ['dead-branch-const-write', 'export function run(a,b) { const x=a; return a===a?a:(x=b); }'],
   ['dead-branch-forward-write', 'export function run(a,b) { const x=a===a?a:(y=b); let y=a; return x+y; }'],
   ['assignment-forward-statement', 'export function run(a,b) { x=a; let x=b; return x; }'],
-  ['var-local', 'export function run(a,b) { var x=a; return x; }'],
   ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
   ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }', 'js', 'ERROR: unsupported at bytes 47..48: Boolean bindings are not admitted in numeric value positions'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],

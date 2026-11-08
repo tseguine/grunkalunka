@@ -668,7 +668,7 @@
     {
       "id": "var-bindings",
       "kind": "open-requirement",
-      "assessment": "var declarations and hoisting need function-scoped initialization semantics.",
+      "assessment": "Function-scoped identifier var bindings, hoisting and redeclarations now execute in synchronous profiles. Pattern declarations, function-valued initializers, var for-in/of declarations and catch-name collisions remain explicit requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-variable-statement",
@@ -682,7 +682,7 @@
         "value-representation"
       ],
       "observableDone": [
-        "Admit var declaration/hoisting and shadowing with before-declaration read tests."
+        "Admit the remaining var pattern, callable, iteration-head and catch-name sources with native-JS comparisons while preserving function-scoped cells and lexical shadowing."
       ]
     },
     {
@@ -1125,20 +1125,6 @@
       "group": "modules"
     },
     {
-      "id": "gap-var",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1cb57d3c74e3fb1b2b0314edb65c84f07971621077d965fa3b2f1a0cb63f1485",
-      "group": "var-bindings"
-    },
-    {
-      "id": "gap-var-hoisting",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ac1fe3ad1d6d4dd5c28604560eafd117cadd8dd3c17430ca0f1c9172cb23abae",
-      "group": "var-bindings"
-    },
-    {
       "id": "gap-uninitialized-let",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1368,13 +1354,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "84dd55257d6949cbf97a79bd4ab50a1e5e25db0b9b07b81a4048a3a54743215a",
       "group": "boolean-values"
-    },
-    {
-      "id": "for-var",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a6620ba9393f1dca83875cf50d0b77505c345a480fe4e010dd3b39cb0580918f",
-      "group": "var-bindings"
     },
     {
       "id": "for-destructure",
@@ -4380,13 +4359,6 @@
       "group": "binding-errors"
     },
     {
-      "id": "var-local",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "be922e9aeb7a9bad2063d8daef59581ace5be470049563dc3a74db5cd3efffa3",
-      "group": "var-bindings"
-    },
-    {
       "id": "statement-limit",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6646,6 +6618,41 @@
       "sourceMode": "module-strict",
       "sourceSha256": "c6eddebe3840462664f1969d7a5bd66c610b1fbc4a95635acc2246482f04bb7a",
       "group": "expression-depth"
+    },
+    {
+      "id": "var-guard-function-init",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "594c07cd39a3aeb1b1072429ebe2d83597059c43651fc6131ad2b8edc73aa31f",
+      "group": "var-bindings"
+    },
+    {
+      "id": "var-guard-pattern",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bfb2edfdf1365476de247e2a05f4caec375373c0524483ac2f0c4a0e52f7b245",
+      "group": "var-bindings"
+    },
+    {
+      "id": "var-guard-for-of",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f0758a441b4b3dcc4a409905cdeaffdfaa02cbb83deb8ab5b61a7e100d166fad",
+      "group": "var-bindings"
+    },
+    {
+      "id": "var-guard-for-in",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cdd7ce8eabb12ca1bfc922e43389c909d743d29be475ee773b308e825e5b70ec",
+      "group": "var-bindings"
+    },
+    {
+      "id": "var-guard-catch-name",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "16be9c1b536731829cd7f1393ba515ded370d7c1198bf249cfede4f1b528b352",
+      "group": "var-bindings"
     }
   ]
 }

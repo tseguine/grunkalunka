@@ -839,3 +839,41 @@ fn literal_arrow_defaults_keep_numeric_projection_and_erased_metadata() {
         "export function run(a?:number,b?:number){const f=(x:number=1)=>x;return f(a);}",
     );
 }
+
+#[test]
+fn var_numeric_reads_execute_original_promotions_and_preserve_goldens() {
+    for (source, expected) in [
+        ("export function run(a,b) { var x=a; return x+b; }", 6),
+        (
+            "export function run(a,b) { const before = x === undefined ? 1 : 0; var x=a; return before; }",
+            1,
+        ),
+        (
+            "export function run(a,b) { for(var i=0;0;i++) {} return a; }",
+            4,
+        ),
+        ("export function run(a,b) { var x=a; return x; }", 4),
+    ] {
+        common::compare_sources_with_fuel_and_goldens(source, source, None, &[[4, 2, expected]]);
+    }
+    for body in [
+        "x=a;var x;return x;",
+        "var x=a;var x;return x;",
+        "var x=1;var x=2;return x;",
+        "var x=a;var before=x;x=b;return before;",
+        "for(var i=0;i<3;i++){}return i;",
+        "var x;x++;return x;",
+        "var x=null;return ++x;",
+        "var x=true;return ++x;",
+        "{var x=a;}return x;",
+        "var x='abc';var x;return x.length;",
+        "var x={v:a};var y=x;y.v=b;return x.v;",
+        "var x=a;{var x=b;}return x;",
+        "var x=a;{let x=b;}return x;",
+        "var x=null;var old=x++;return +old;",
+        "var a;return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
