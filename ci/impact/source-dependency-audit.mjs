@@ -8,7 +8,10 @@ const imports = /\bimport\s+(?:[\s\S]{0,150}?\s+from\s*)?(['"])([^'"]+)\1/g;
 // contains no ordinary import declaration. Include named, star, namespace and
 // TypeScript type-only re-export sources in the same dependency graph.
 const reexports = /\bexport\s+(?:type\s+)?(?:\*\s*(?:as\s+[$\w]+\s*)?|\{[^}]*\})\s+from\s*(['"])([^'"]+)\1/g;
-const importCalls = /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
+// Keep the input edge even when import() includes import attributes/options.
+// A suffix expression after a quoted prefix remains computed and must fail closed.
+const importCalls = /\bimport\s*\(\s*(['"])([^'"]+)\1\s*(?=[,)])/g;
+const bareImportCalls = /\bimport\s*\(/g;
 // CommonJS modules and fixtures are also source inputs. Restrict this to
 // bare require() calls rather than unrelated object.require() methods.
 const requires = /(?<![.\w$])require\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
@@ -48,7 +51,11 @@ export function discoverLiteralSourceInputs(source, text) {
   if (js.test(source)) {
     for (const match of text.matchAll(imports)) add(match[2]);
     for (const match of text.matchAll(reexports)) add(match[2]);
-    for (const match of text.matchAll(importCalls)) add(match[2]);
+    const literalImportCalls = [...text.matchAll(importCalls)];
+    for (const match of literalImportCalls) add(match[2]);
+    if ([...text.matchAll(bareImportCalls)].length !== literalImportCalls.length) {
+      unresolved.push('computed import expression: ' + source);
+    }
     const literalRequires = [...text.matchAll(requires)];
     for (const match of literalRequires) add(match[2]);
     if ([...text.matchAll(bareRequires)].length !== literalRequires.length) {
@@ -61,9 +68,6 @@ export function discoverLiteralSourceInputs(source, text) {
       if (name.startsWith('../../target/')) continue;
       if (name.includes('$' + '{')) unresolved.push('computed source URL: ' + source);
       else add(name);
-    }
-    if (/\bimport\s*\(\s*(?!['"])/.test(text)) {
-      unresolved.push('computed import expression: ' + source);
     }
     for (const match of text.matchAll(/\bnew\s+URL\s*\(\s*([^\s])/g)) {
       if (['\'', '"', String.fromCharCode(96)].includes(match[1])) continue;

@@ -60,6 +60,53 @@ test('literal Node imports, dynamic imports and source URLs resolve independentl
   assert.deepEqual(discovered.unresolved, []);
 });
 
+
+test('import attributes retain literal input edges and computed suffixes fail closed', () => {
+  const source = [
+    "const json = await import('./settings.json', { with: { type: 'json' } });",
+    "const local = import('../shared/keys.mjs', attributes);",
+    "const builtin = await import('node:fs', { with: { type: 'json' } });",
+  ].join('\n');
+  const discovered = discoverLiteralSourceInputs('tools/bench/loader.mjs', source);
+  assert.deepEqual(discovered.inputs, [
+    'tools/bench/settings.json',
+    'tools/shared/keys.mjs',
+  ]);
+  assert.deepEqual(discovered.unresolved, []);
+
+  const concatenated = discoverLiteralSourceInputs('tools/bench/loader.mjs',
+    "const result = import('./prefix/' + suffix);");
+  assert.deepEqual(concatenated.inputs, []);
+  assert.deepEqual(concatenated.unresolved, [
+    'computed import expression: tools/bench/loader.mjs',
+  ]);
+});
+
+test('an import with attributes contributes to the independent impact audit', () => {
+  const options = {
+    specs: [{ source: 'tools/bench/loader.mjs',
+      requiredChecks: ['check:benchmark-tests'] }],
+    readSource: () => "await import('./settings.json', { with: { type: 'json' } });",
+    exists: () => true,
+  };
+  const omitted = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: [] }),
+  });
+  assert.equal(omitted.valid, false);
+  assert.deepEqual(omitted.edges, [{
+    consumer: 'tools/bench/loader.mjs',
+    dependency: 'tools/bench/settings.json',
+    outcome: 'under-selected',
+  }]);
+  assert.match(omitted.errors.join('\n'), /missing check:benchmark-tests/);
+  const covered = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: ['check:benchmark-tests'] }),
+  });
+  assert.equal(covered.valid, true, covered.errors.join('\n'));
+});
+
 test('literal Rust includes and path attributes resolve independently', () => {
   const source = [
     'const B: &[u8] = include_bytes!("../../../examples/numeric-workflow/gcd.js");',
