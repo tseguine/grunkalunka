@@ -1057,6 +1057,7 @@ impl Lowering<'_, '_> {
                 kind,
                 node,
                 call,
+                arguments: invocation::all_arguments(call),
                 index: 0,
                 input: None,
                 awaiting: false,
