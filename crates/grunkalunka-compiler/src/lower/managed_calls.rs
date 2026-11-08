@@ -203,6 +203,20 @@ fn seed_pattern_bindings(pattern: &BindingPattern<'_>, bindings: &mut BTreeMap<S
     }
 }
 
+fn seed_var_for_in_binding(
+    source: &oxc_ast::ast::ForInStatement<'_>,
+    bindings: &mut BTreeMap<SymbolId, Kinds>,
+) {
+    if let Some(id) = iteration::var_iteration_binding(&source.left)
+        && let Some(symbol) = id.symbol_id.get()
+    {
+        bindings
+            .entry(symbol)
+            .or_default()
+            .extend(managed_value_kinds());
+    }
+}
+
 fn seed_for_of_binding(
     source: &oxc_ast::ast::ForOfStatement<'_>,
     bindings: &mut BTreeMap<SymbolId, Kinds>,
@@ -677,6 +691,9 @@ pub(crate) fn infer(
             AstKind::ForOfStatement(source) => {
                 seed_for_of_binding(source, &mut bindings);
             }
+            AstKind::ForInStatement(source) => {
+                seed_var_for_in_binding(source, &mut bindings);
+            }
             AstKind::VariableDeclarator(v) => {
                 if let BindingPattern::BindingIdentifier(i) = &v.id
                     && let Some(symbol) = i.symbol_id.get()
@@ -940,8 +957,10 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         bindings.entry(*symbol).or_default();
     }
     for node in semantic.nodes().iter() {
-        if let AstKind::ForOfStatement(source) = node.kind() {
-            seed_for_of_binding(source, &mut bindings);
+        match node.kind() {
+            AstKind::ForOfStatement(source) => seed_for_of_binding(source, &mut bindings),
+            AstKind::ForInStatement(source) => seed_var_for_in_binding(source, &mut bindings),
+            _ => (),
         }
         if let AstKind::VariableDeclarator(declaration) = node.kind() {
             seed_pattern_bindings(&declaration.id, &mut bindings);

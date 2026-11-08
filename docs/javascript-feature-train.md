@@ -381,7 +381,7 @@ Function-scoped identifier `var` now hoists activation cells before synchronous
 entry/helper/arrow bodies, preserves bare redeclarations, aliases parameters and
 shares traditional-loop captures. Non-simple parameter environments copy selected
 values into distinct body cells. Numeric proofs account for Undefined and all
-writes; annotations erase. Pattern/callable-initializer, async, iteration-declaration
+writes; annotations erase. Pattern/callable-initializer, async
 and catch-name guards remain bounded language gaps. The compiler contract and
 compiled-values / managed-logical differential suites record the admitted slice.
 
@@ -389,5 +389,11 @@ compiled-values / managed-logical differential suites record the admitted slice.
 Identifier var-for-of heads now reuse the function cell across intrinsic Array and
 String visits, preserving pre-loop reads, empty-loop values, shared captures and
 parameter aliases. Iteration writes widen source-kind analysis, including through
-captures; no stale Number initializer may justify a later projection. Pattern,
-async, general-iterable and var-for-in heads remain separate language work.
+captures; no stale Number initializer may justify a later projection. Var pattern,
+async and general-iterable heads remain separate language work.
+
+
+Identifier var-for-in heads now share the function cell across existing own-key
+enumeration. Empty sources preserve values, deleted keys do not assign the head,
+and captures retain parameter aliases and final keys. String loop writes widen
+kind analysis; pattern/async var and unproven receivers remain explicit guards.

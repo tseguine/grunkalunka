@@ -340,7 +340,6 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "for(const item of [a]){}return item;",
         "for(const item of [a])item=b;return a;",
         "outer:for(const item of [a]){break outer;}return a;",
-        "for(var key in {item:a}){}return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -639,6 +638,28 @@ fn var_for_of_assigns_one_hoisted_cell_and_retains_zero_visit_values() {
         "let n=0;for(var item of [a,b]){for(var item of [1,2])n+=+item;}return n+(+item);",
         "let n=0;for(var item of 'a\u{1f600}b')n+=item==='a'?1:item==='b'?2:3;return n;",
         "const f={a:()=>item,b:()=>item};let n=0;for(var item of [1,2]){if(n++===0)f.a=()=>item;else f.b=()=>item;}return +f.a()+(+f.b());",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn var_for_in_shares_cells_and_skips_deleted_keys_before_assignment() {
+    let original = "export function run(a,b){for(var key in {item:a}){}return a;}";
+    common::compare_sources(original, original);
+    for body in [
+        "let n=0;for(var key in {b:a,'1':b,a:3,'0':a})n=n*10+(key==='0'?1:key==='1'?2:key==='b'?3:4);return n;",
+        "const before=key;for(var key in {}){}return before===undefined?1:0;",
+        "var key=3;for(var key in {}){}return key===3?1:0;",
+        "const get=()=>a;for(var a in {x:b}){}return get()==='x'?1:0;",
+        "for(var key in {x:a,y:b}){}var key;return key==='y'?1:0;",
+        "let n=0;for(var key in [a,b])n+=key==='0'?1:2;return n;",
+        "let n=0;for(var key in 'ab')n+=key==='0'?1:2;return n;",
+        "const get=()=>key;const obj={x:a,y:b};for(var key in obj){delete obj.y;}return get()==='x'?1:0;",
+        "let n=0;for(var key in {x:a,y:b}){if(key==='x')continue;n++;}return n;",
+        "for(var key in {x:a,y:b})break;return key==='x'?1:0;",
+        "var key=3;for(var key in 17){}return key===3?1:0;",
+        "const f={a:()=>key,b:()=>key};let n=0;for(var key in {x:a,y:b}){if(n++===0)f.a=()=>key;else f.b=()=>key;}return f.a()===f.b()?1:0;",
     ] {
         compare(body);
     }
