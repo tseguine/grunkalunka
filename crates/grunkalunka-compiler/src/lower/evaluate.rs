@@ -862,7 +862,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         if call.optional {
             return Err(unsupported(node, "optional calls are not admitted"));
         }
-        if call.arguments.len() > 1000 {
+        if invocation::all_arguments(call).len() > 1000 {
             return Err(unsupported(
                 node,
                 "at most 1000 ordinary direct call arguments are admitted",
@@ -929,7 +929,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         if actual_index != 0 && actual_index <= parameter_count {
             arguments.push(values.pop().expect("call argument").id());
         }
-        if index == call.arguments.len() {
+        if index == invocation::all_arguments(call).len() {
             while arguments.len() < parameter_count {
                 let value = self.value(Type::General);
                 Self::push(
@@ -971,9 +971,17 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             });
         } else {
             // Validate a later spread only after earlier arguments finish.
-            let Some(argument) = call.arguments[index].as_expression() else {
+            let Some(argument) = invocation::all_arguments(call)
+                .get(index)
+                .and_then(|argument| argument.as_expression())
+            else {
                 return Err(unsupported(node, "spread call arguments are not admitted"));
             };
+            let argument_depth = depth
+                + invocation::all_arguments(call)
+                    .get(index)
+                    .expect("checked argument")
+                    .depth;
             work.push(Work::Call {
                 node,
                 call,
@@ -984,7 +992,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             });
             work.push(Work::Eval(
                 argument,
-                depth,
+                argument_depth,
                 if index >= offset && actual_index < parameter_count {
                     match self.functions[function.0].parameter_type(actual_index) {
                         Type::ManagedObject => Mode::Object,
@@ -2072,10 +2080,18 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     if actual_index <= parameter_count && arguments.len() < actual_index {
                         arguments.push(values.pop().expect("local call argument").id());
                     }
-                    if index < call.arguments.len() {
-                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
-                            unsupported(node, "spread call arguments are not admitted")
-                        })?;
+                    if index < invocation::all_arguments(call).len() {
+                        let argument = invocation::all_arguments(call)
+                            .get(index)
+                            .and_then(|argument| argument.as_expression())
+                            .ok_or_else(|| {
+                                unsupported(node, "spread call arguments are not admitted")
+                            })?;
+                        let argument_depth = depth
+                            + invocation::all_arguments(call)
+                                .get(index)
+                                .expect("checked argument")
+                                .depth;
                         if index < offset || actual_index >= parameter_count {
                             work.push(Work::LocalCall {
                                 node,
@@ -2086,14 +2102,14 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 depth,
                                 site,
                             });
-                            work.push(Work::Eval(argument, depth, Mode::Discard));
+                            work.push(Work::Eval(argument, argument_depth, Mode::Discard));
                             continue;
                         }
                         let scalar_mode = self.local_arrow_argument_mode(
                             closure.arrow,
                             actual_index,
                             argument,
-                            depth,
+                            argument_depth,
                         );
                         let function = self.function_arity(argument, depth);
                         work.push(Work::LocalCall {
@@ -2116,7 +2132,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 region_depth: regions.children.len(),
                             });
                         }
-                        work.push(Work::Eval(argument, depth, scalar_mode));
+                        work.push(Work::Eval(argument, argument_depth, scalar_mode));
                     } else {
                         self.charge_closure_expansion(node)?;
                         self.active_local_calls += 1;
@@ -2231,10 +2247,18 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     if actual_index <= parameter_count && arguments.len() < actual_index {
                         arguments.push(values.pop().expect("runtime closure argument").id());
                     }
-                    if index < call.arguments.len() {
-                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
-                            unsupported(node, "spread call arguments are not admitted")
-                        })?;
+                    if index < invocation::all_arguments(call).len() {
+                        let argument = invocation::all_arguments(call)
+                            .get(index)
+                            .and_then(|argument| argument.as_expression())
+                            .ok_or_else(|| {
+                                unsupported(node, "spread call arguments are not admitted")
+                            })?;
+                        let argument_depth = depth
+                            + invocation::all_arguments(call)
+                                .get(index)
+                                .expect("checked argument")
+                                .depth;
                         if index < offset || actual_index >= parameter_count {
                             work.push(Work::ClosureCall {
                                 node,
@@ -2246,7 +2270,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 depth,
                                 site,
                             });
-                            work.push(Work::Eval(argument, depth, Mode::Discard));
+                            work.push(Work::Eval(argument, argument_depth, Mode::Discard));
                             continue;
                         }
                         let parameter = self
@@ -2291,7 +2315,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         } else {
                             Mode::Number
                         };
-                        work.push(Work::Eval(argument, depth, mode));
+                        work.push(Work::Eval(argument, argument_depth, mode));
                     } else {
                         while arguments.len() < parameter_count {
                             let parameter = self
@@ -4654,7 +4678,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 "optional runtime closure calls are not admitted",
             ));
         }
-        if call.arguments.len() > 1000 {
+        if invocation::all_arguments(call).len() > 1000 {
             return Err(unsupported(
                 node,
                 "at most 1000 ordinary runtime closure arguments are admitted",

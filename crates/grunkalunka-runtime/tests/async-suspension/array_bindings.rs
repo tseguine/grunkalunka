@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn literal_call_spreads_preserve_argument_snapshots_across_await() {
+    compare_promises(
+        &[
+            "const f=(x,y)=>x+y;let n=0;return f(...[(n=1,await a),(n=n*10+2,await b)])+n;",
+            "let f=x=>x;return f(...[(await a,a),(f=x=>b,await b)]);",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_object_assignments_keep_utf16_source_across_default_awaits() {
     compare_promises(
         &[

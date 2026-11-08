@@ -597,7 +597,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if call.optional {
             return Err(unsupported(call, "optional local calls are not admitted"));
         }
-        if call.arguments.len() > 1000 {
+        if invocation::all_arguments(call).len() > 1000 {
             return Err(unsupported(
                 call,
                 "at most 1000 ordinary local call arguments are admitted",

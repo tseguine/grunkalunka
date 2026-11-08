@@ -1251,7 +1251,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             };
             if call.optional
                 || invocation::arguments(call).len() < parameter_count
-                || call.arguments.len() > 1000
+                || invocation::all_arguments(call).len() > 1000
             {
                 return Err(unsupported(
                     call,

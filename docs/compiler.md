@@ -2722,3 +2722,24 @@ laziness. Self/later parameters, outer/body scope reads, effects, unsupported va
 lanes and public/async defaults retain guards. Unary depth 128/129 is exercised on
 a 2 MiB native stack. Corpus 156 adds fifteen differential pairs and freezes the
 exact former unary-plus compiler guard as a positive; all 796 negatives remain.
+
+
+Ordinary call arguments now support spread of a hole-free Array literal through
+parentheses and erased TypeScript wrappers, including nested literal spreads,
+empty spreads and mixed ordinary arguments. A heap worklist borrows each original
+element expression in source order without rewriting the AST. The admitted fresh
+literal iterator has no user hooks; its temporary allocation can be elided. Kind,
+callback, default/omission and signature planning use the same expanded view as
+evaluation. Callee snapshots precede argument effects, surplus arguments still
+execute, and supported awaits retain saved inputs. Existing primitive/reference
+and callback calling-lane restrictions still apply.
+
+The expanded argument limit is 1000; traversal and expression evaluation retain
+source depth budgets. Synchronous named helpers, local/emitted arrows, represented
+stored functions and .call with an ordinary explicit thisArg use this view.
+Opaque Array/String spreads, elisions, spread thisArg, general iterators and
+unsupported callable forms remain guarded. Intrinsic, standard-library and host
+API calls retain their existing raw argument admission. Tests cover bounds on a
+2 MiB native stack, reference identity, callback inputs, effects and suspension.
+Corpus 157 adds sixteen JS/TS differential pairs and freezes the two exact former
+compiler spread guards as executed positives; all 796 inventory negatives remain.
