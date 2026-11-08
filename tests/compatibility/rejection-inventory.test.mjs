@@ -1,3 +1,4 @@
+import { functionForInPrograms } from './function-for-in.mjs';
 import { optionalNumberStringPrograms } from './optional-number-string-keys.mjs';
 import { optionalStringReadPrograms } from './optional-string-reads.mjs';
 import { optionalUint32ReadPrograms } from './optional-uint32-reads.mjs';
@@ -1348,4 +1349,10 @@ test('optional String reads retain original length, UTF-16 and lazy index observ
 test('optional Number String indices retain original fractions, laziness and source snapshots',()=>{
  assert.equal(optionalNumberStringPrograms.length,13);
  for(const row of optionalNumberStringPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('function for-in retains original callable, RHS and zero-visit observations',()=>{
+ assert.equal(functionForInPrograms.length,12);
+ for(const row of functionForInPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });

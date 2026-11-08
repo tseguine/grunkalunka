@@ -406,8 +406,10 @@ impl Emitter<'_> {
                 let ty = self.function.values[input.0];
                 if matches!(ty, Type::Number | Type::Closure(_)) {
                     self.get(*input);
-                    self.output
-                        .push_str("drop\ni32.const 0\ncall $gc_array_new\n");
+                    for _ in self.value_layout(ty).parts {
+                        self.output.push_str("drop\n");
+                    }
+                    self.output.push_str("i32.const 0\ncall $gc_array_new\n");
                 } else {
                     if matches!(ty, Type::ManagedObject | Type::ManagedArray) {
                         self.output.push_str("i32.const 4\nf64.const 0\n");

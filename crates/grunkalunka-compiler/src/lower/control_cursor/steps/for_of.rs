@@ -97,10 +97,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     evaluate::Mode::Numeric
                 }
                 _ => {
-                    return Err(unsupported(
-                        source.right(),
-                        "for-in requires a source-proven object, array, String or Number/Boolean/nullish primitive",
-                    ));
+                    if let Some(signature) = self.function_arity(source.right(), 0) {
+                        evaluate::Mode::Function(signature)
+                    } else {
+                        return Err(unsupported(
+                            source.right(),
+                            "for-in requires a source-proven object, array, String or Number/Boolean/nullish primitive, or represented function",
+                        ));
+                    }
                 }
             }
         } else {
@@ -150,7 +154,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     input: iterable,
                 },
             );
-            frame.enumerated = Some(iterable);
+            // Represented closures have no mutable own-property table. Their
+            // enumeration is empty, so no per-key object presence check applies.
+            if !matches!(self.values[iterable.0], Type::Closure(_)) {
+                frame.enumerated = Some(iterable);
+            }
             iterable = keys;
         }
         let string = !source.is_in() && self.values[iterable.0] == Type::ManagedValue;
@@ -465,6 +473,37 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn function_for_in_requires_proven_callable_values_and_validates_bodies() {
+        assert!(crate::compile("function f(x){return x+1;}export function run(a,b){let n=0;for(const k in f)n++;return n;}",false).is_ok());
+        for (body, ok) in [
+            (
+                "const f=x=>x+a;let n=0;for(const k in f)n++;return n;",
+                true,
+            ),
+            ("let n=0;for(const k in (x=>x+a))n++;return n;", true),
+            (
+                "const f=x=>x+a;const g=x=>x+b;let n=0;for(const k in (a?f:g))n++;return n;",
+                true,
+            ),
+            ("let n=0;for(const k in (x=>1n))n++;return n;", false),
+            (
+                "const f=x=>x+a;let n=0;for(const k in (a?f:null))n++;return n;",
+                false,
+            ),
+            (
+                "const f=x=>x+a;let n=0;for(const k of f)n++;return n;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+    }
+
     #[test]
     fn for_in_scalar_sources_keep_effects_and_reject_opaque_values() {
         for (body, admitted) in [

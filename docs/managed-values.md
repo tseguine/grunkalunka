@@ -60,6 +60,15 @@ language loop contract, independent of the nullish behavior of existing object
 enumeration intrinsics. Loop-head facts remain conservative; subsequent primitive
 projections still require the ordinary source-kind proof.
 
+`for...in` accepts source-proven represented function values as well. The current
+function representation has no mutable own-property table or enumerable intrinsic
+properties, so enumeration is empty. Constructing/evaluating the function RHS
+still executes once and validates its body; the loop does not call that body.
+Lexical/var/assignment heads and pattern defaults remain unvisited. Function
+property mutation, opaque callable values and nullable function unions retain
+their existing guards.
+
+
 Primitive projection requires a nonempty set containing only those four origins;
 type annotations, String/reference alternatives, unknown writes and unresolved
 helper results do not satisfy it. Its verified IR checks a visible managed input
