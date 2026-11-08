@@ -1015,3 +1015,19 @@ fn logical_result_origins_keep_strings_other_values_and_mutations_conservative()
         assert_eq!(observe(body), UNKNOWN, "{body}");
     }
 }
+
+#[test]
+fn member_iteration_writes_retain_selected_origins_and_widen_aliases() {
+    assert_eq!(
+        observe("const o={x:''};for(o.x in {a:1}){}const observed=o.x;return a;"),
+        STRING
+    );
+    let observed =
+        observe("const o={x:'safe'},alias=o;for(alias.x of [a]){}const observed=o.x;return a;");
+    assert!(!observed.string && observed.other, "{observed:?}");
+    let observed =
+        observe("const xs=['safe'];for(xs[a>>>0] of [b]){}const observed=xs[0];return a;");
+    assert!(!observed.string && observed.other, "{observed:?}");
+    let observed = observe("const o={x:{}};for(o.x of [[]]){}const observed=o.x;return a;");
+    assert_eq!(observed.container, None);
+}

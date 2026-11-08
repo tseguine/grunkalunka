@@ -63,6 +63,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             }
             self.charge_statement(source.left())?;
             self.charge_declaration_bindings(identifier, 1)?;
+        } else if let Some((object, key)) = iteration::property_iteration_target(source.left()) {
+            self.check_iteration_member(source, object, key)?;
         } else if let Some(identifier) = iteration::assignment_iteration_identifier(source.left())?
         {
             let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
@@ -382,6 +384,23 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 },
             );
             self.begin_for_of_body(frame, body, cursor);
+        } else if let Some((object, _)) = iteration::property_iteration_target(source.left()) {
+            let ty = self
+                .receiver_type(object, 1)
+                .expect("validated iteration target");
+            cursor
+                .pending
+                .push(Frame::ForOfMemberReceiver { frame, selected });
+            cursor.next = Some(Next::Expression {
+                source: object,
+                output: body,
+                depth: 1,
+                mode: if ty == Type::ManagedArray {
+                    evaluate::Mode::Array
+                } else {
+                    evaluate::Mode::Object
+                },
+            });
         } else {
             let identifier = iteration::assignment_iteration_identifier(source.left())?
                 .expect("validated existing iteration binding");

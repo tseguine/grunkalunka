@@ -518,6 +518,16 @@ enum Frame<'n, 'a> {
         outer: usize,
     },
     ForOf(Box<ForOfFrame<'n, 'a>>),
+    ForOfMemberReceiver {
+        frame: Box<ForOfFrame<'n, 'a>>,
+        selected: ValueId,
+    },
+    ForOfMemberKey {
+        frame: Box<ForOfFrame<'n, 'a>>,
+        selected: ValueId,
+        object: ValueId,
+        uint32: bool,
+    },
     /// The loop body has finished; an update expression must run before
     /// captured let-header renewal and final loop IR assembly.
     ForUpdate {
@@ -671,7 +681,9 @@ impl Frame<'_, '_> {
             Self::CheckedDeclarationFactory { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
-            Self::ForOf(frame) => frame.depth,
+            Self::ForOf(frame)
+            | Self::ForOfMemberReceiver { frame, .. }
+            | Self::ForOfMemberKey { frame, .. } => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
             Self::SwitchTest(state)
             | Self::SwitchDefault(state)

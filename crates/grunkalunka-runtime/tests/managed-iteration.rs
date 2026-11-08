@@ -4,6 +4,36 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn member_iteration_heads_preserve_assignment_targets_and_selected_values() {
+    for body in [
+        "const fill=(o,values)=>{for(o.x of values){}return o.x;};const o={x:a};return fill(o,[b]);",
+        "const o={f:()=>a};for(o.f of [()=>b]){}return o.f();",
+        "const row={value:a};for(row.value of [b]){}return a;",
+        "const o={x:a};for(o.x of [a,b]){}return o.x;",
+        "const o={x:a};for(o['x'] of [a,b]){}return o.x;",
+        "const xs=[];for(xs[0] of [a,b]){}return xs.length===1&&xs[0]===b?1:0;",
+        "const xs=[];let i=0;for(xs[i++>>>0] of [a,b]){}return xs.length===2&&xs[0]===a&&xs[1]===b?1:0;",
+        "const d=Object.create(null);let n=0;for(d[(n++,'x')] of [a,b]){}return n*10+(d.x===b?1:0);",
+        "let n=0;const o={x:a};const get=()=>{n++;return o;};for(get().x of [])n+=10;return n;",
+        "let n=0;const o={x:a};const get=()=>{n++;return o;};for(get().x of [a,b]){}return n;",
+        "let n=0;const o={x:a};const get=()=>{n=n*10+2;return o;};for(get().x of (n=n*10+1,[a,b])){}return n;",
+        "const xs=[a,b];const o={x:0};const get=()=>{xs[0]=b;return o;};let n=0;for(get().x of xs)n=n*10+(o.x===a?1:2);return n;",
+        "let o={x:a};const old=o;for(o[(o={x:b},0>>>0)] of [a]){}return old[0]===a&&o.x===b?1:0;",
+        "const o={key:''};let n=0;for(o.key in {x:a,yy:b})n=n*10+o.key.length;return n;",
+        "const source={x:a,y:b,z:a};const o={key:''};let n=0;const get=()=>{n++;return o;};for(get().key in source)delete source.y;return n;",
+        "let n=0;const o={key:''};const get=()=>{n++;return o;};for(get().key in false)n+=10;return n;",
+        "const o={key:''};let n=0;for(o.key of 'A💠B')n+=o.key.length;return n;",
+        "const o={x:a};const read=()=>o.x;let n=0;for(o.x of [a,b])n=n*10+(read()===a?1:2);return n;",
+        "const o={x:0};let n=0;for(o.x of [1,2,3,4]){if(o.x===1)continue;n+=o.x;if(o.x===3)break;}return n;",
+        "const o={x:null};const row={value:a};for(o.x of [row]){}return o.x===row?1:0;",
+        "const o={x:0},p={x:0};let n=0;for(o.x of [a,b])for(p.x of [a,b])n++;return n;",
+        "const xs=[];for(xs[(-1)>>>0] of [a]){}return xs.length===0&&xs[4294967295]===a?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn numeric_for_of_result_executes_the_exact_former_guard_source() {
     let source = "export function run(a,b){for(const item of [a])return item+1;return a;}";
     common::compare_sources(source, source);
@@ -344,7 +374,6 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
     common::compare_sources(original, original);
     for body in [
         "let item=a;for(item of [b]){}return a;",
-        "const row={value:a};for(row.value of [b]){}return a;",
         "for(const item of a){}return a;",
         "const source=a?'abc':[b];for(const item of source){}return a;",
         "for(let item of 'abc'){item=a;return item.trim().length;}return 0;",

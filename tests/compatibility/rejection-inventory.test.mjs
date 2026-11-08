@@ -1,3 +1,4 @@
+import { memberIterationPrograms } from './member-iteration-heads.mjs';
 import { optionalDeletePrograms } from './optional-delete.mjs';
 import { optionalDictionaryReadPrograms } from './optional-dictionary-reads.mjs';
 import { functionForInPrograms } from './function-for-in.mjs';
@@ -1369,4 +1370,10 @@ test('optional dictionary reads retain original lazy String keys and receiver sn
 test('optional delete retains original reference operands and lazy key observations',()=>{
  assert.equal(optionalDeletePrograms.length,17);
  for(const row of optionalDeletePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('delete'));assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('member iteration heads retain original references and RHS/step ordering',()=>{
+ assert.equal(memberIterationPrograms.length,22);
+ for(const row of memberIterationPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });
