@@ -21,6 +21,7 @@ pub(in crate::lower) fn compound(operator: AssignmentOperator) -> Option<Binary>
 pub(super) enum Key<'e, 'a> {
     Literal(Vec<u16>),
     Uint32(&'e Expression<'a>),
+    String(&'e Expression<'a>),
 }
 
 pub(super) enum Task<'e, 'a> {
@@ -33,6 +34,7 @@ pub(super) enum Task<'e, 'a> {
         depth: usize,
     },
     Key {
+        uint32: bool,
         node: &'e Expression<'a>,
         object: ValueId,
         operator: Binary,
@@ -95,19 +97,22 @@ impl Lowering<'_, '_> {
             }
             _ => return Ok(false),
         };
-        let (object, key, dynamic) = match target {
+        let (object, key) = match target {
             SimpleAssignmentTarget::StaticMemberExpression(member) if !member.optional => (
                 &member.object,
-                Some(member.property.name.encode_utf16().collect()),
-                None,
+                Key::Literal(member.property.name.encode_utf16().collect()),
             ),
             SimpleAssignmentTarget::ComputedMemberExpression(member) if !member.optional => {
                 let key = closures::unwrapped_at(&member.expression, depth + 2)
                     .and_then(|(key, _)| static_keys::literal(key));
                 if let Some(key) = key {
-                    (&member.object, Some(key), None)
+                    (&member.object, Key::Literal(key))
                 } else if property_delete::uint32_key(&member.expression, depth + 2) {
-                    (&member.object, None, Some(&member.expression))
+                    (&member.object, Key::Uint32(&member.expression))
+                } else if self.stored.dictionary(member.object.node_id())
+                    && self.stored.string(member.expression.node_id())
+                {
+                    (&member.object, Key::String(&member.expression))
                 } else {
                     return Ok(false);
                 }
@@ -116,7 +121,7 @@ impl Lowering<'_, '_> {
         };
         let receiver = self.receiver_type(object, depth + 2);
         if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))
-            || !(if dynamic.is_some() {
+            || !(if !matches!(key, Key::Literal(_)) {
                 self.stored.primitive(target.node_id())
             } else {
                 self.stored.number(target.node_id())
@@ -126,15 +131,14 @@ impl Lowering<'_, '_> {
             return Ok(false);
         }
         let array = receiver == Some(Type::ManagedArray);
-        let key = if let Some(key) = dynamic {
-            Key::Uint32(key)
-        } else {
-            Key::Literal(managed_member_key(
+        let key = match key {
+            Key::Literal(key) => Key::Literal(managed_member_key(
                 node,
-                key.expect("literal property key"),
+                key,
                 array,
                 self.stored.dictionary(object.node_id()),
-            )?)
+            )?),
+            key => key,
         };
         if matches!(mode, Mode::Discard) {
             work.push(Work::Forget);
@@ -175,8 +179,10 @@ impl Lowering<'_, '_> {
             } => {
                 let object = values.pop().expect("numeric write receiver").id();
                 match key {
-                    Key::Uint32(key) => {
+                    Key::Uint32(key) | Key::String(key) => {
+                        let uint32 = property_delete::uint32_key(key, depth + 1);
                         work.push(Work::PropertyUpdate(Task::Key {
+                            uint32,
                             node,
                             object,
                             operator,
@@ -184,7 +190,11 @@ impl Lowering<'_, '_> {
                             postfix,
                             depth,
                         }));
-                        work.push(Work::Eval(key, depth + 1, Mode::Number));
+                        work.push(Work::Eval(
+                            key,
+                            depth + 1,
+                            if uint32 { Mode::Number } else { Mode::Managed },
+                        ));
                     }
                     Key::Literal(key) => work.push(Work::PropertyUpdate(Task::Read {
                         node,
@@ -198,6 +208,7 @@ impl Lowering<'_, '_> {
                 }
             }
             Task::Key {
+                uint32,
                 node,
                 object,
                 operator,
@@ -205,11 +216,15 @@ impl Lowering<'_, '_> {
                 postfix,
                 depth,
             } => {
-                let key = values.pop().expect("numeric write key").number();
+                let key = values.pop().expect("numeric write key").id();
                 work.push(Work::PropertyUpdate(Task::Read {
                     node,
                     object,
-                    key: ir::ManagedKey::Uint32(key),
+                    key: if uint32 {
+                        ir::ManagedKey::Uint32(key)
+                    } else {
+                        ir::ManagedKey::String(key)
+                    },
                     operator,
                     right,
                     postfix,
@@ -252,7 +267,7 @@ impl Lowering<'_, '_> {
                     },
                 );
                 let old = self.value(Type::Number);
-                if matches!(key, ir::ManagedKey::Uint32(_)) {
+                if !matches!(key, ir::ManagedKey::Literal(_)) {
                     // The source planner proves Number/Boolean/Null/Undefined only.
                     let primitive = self.value(Type::General);
                     Self::push(
@@ -360,6 +375,53 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dictionary_numeric_updates_require_runtime_string_and_primitive_proofs() {
+        for (body, admitted) in [
+            (
+                "const d=Object.create(null);const k='x';return d[k]++;",
+                true,
+            ),
+            (
+                "const d=Object.create(null);const k='x';d.x=false;return ++d[k];",
+                true,
+            ),
+            (
+                "const d=Object.create(null);const k='x';d.x=null;return d[k]+=b;",
+                true,
+            ),
+            (
+                "const d=Object.create(null);const k='x';d.x=a;return d[k]>>>=b;",
+                true,
+            ),
+            ("const d={x:a};const k='x';return d[k]++;", false),
+            ("const d=[a];const k='0';return d[k]++;", false),
+            ("const d=Object.create(null);return d[a]++;", false),
+            (
+                "const d=Object.create(null);const k='x';d.x='text';return d[k]++;",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';d.x={};return d[k]-=b;",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';d.x=a;return d[k]+='text';",
+                false,
+            ),
+            (
+                "const d=Object.create(null);const k='x';d.x=a;return d[k]-=1n;",
+                false,
+            ),
+        ] {
+            let s = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&s, ts);
+                assert_eq!(r.is_ok(), admitted, "{s}: {:?}", r.err());
+            }
+        }
+    }
+
     #[test]
     fn unsigned_numeric_updates_require_primitive_fields_and_range_proofs() {
         for (body, admitted) in [

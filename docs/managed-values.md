@@ -176,8 +176,19 @@ write stores a newly boxed Number back into that original receiver; postfix
 returns the old snapshot, while prefix and compound assignment return the new
 Number. Rejection during RHS evaluation leaves the property unchanged. Ordinary
 read and write operations share the existing managed storage and numeric IR.
-Runtime keys, array length, missing or mixed-kind fields, coercion from other
-stored kinds and accessors remain separate work.
+Runtime unsigned keys proven by original `>>>` source also support these updates
+on represented objects, Arrays and null-prototype dictionaries. Null-prototype
+dictionaries additionally accept source-proven runtime String keys. Dynamic-key
+updates require stored alternatives from Number, Boolean, Null and Undefined;
+missing fields and holes contribute Undefined. Existing primitive numeric
+conversion supplies the old Number before arithmetic. Receiver, key and old value
+are captured once in source order, including across supported awaits; a rejected
+key or RHS performs no final store. Array growth and the uint32 maximum named key
+retain the ordinary sparse-storage rules. Type annotations supply no proof.
+
+Static-key updates still require known Number fields. Array length, unproven keys,
+String/reference stored values, effectful object coercions and accessors retain
+their guards.
 
 Source-proven own Number properties also support `&&=`, `||=` and `??=`. The
 receiver and old Number are saved before selection, and the RHS plus boxed store
