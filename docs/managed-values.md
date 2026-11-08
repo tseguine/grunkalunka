@@ -1467,3 +1467,11 @@ Iteration retains copied value origins, with independent result-slot writes and
 shared-child field writes tracked separately. Direct indexed reads may miss;
 unknown receivers, overrides, borrowed/optional calls and spread arguments remain
 outside admission. Unlike sparse `reverse`, allocation is proportional to length.
+
+
+`for...in` also accepts source-proven object, Array or String receivers mixed
+with Null/Undefined. Nullish alternatives enumerate nothing. The original RHS
+executes once, and the saved receiver supplies later presence checks even after
+rebinding or suspension. Removed keys are skipped before assigning the head.
+Heterogeneous container kinds and opaque receivers remain guarded; this does
+not widen ordinary property reads or prototype mutation support.
