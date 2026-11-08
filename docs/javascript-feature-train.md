@@ -549,3 +549,19 @@ all possible own initializers/writes and an absent-value alternative, preserving
 alias mutation guards. Arbitrary runtime keys, unsupported receivers/coercions and
 unproven narrow projections remain guarded; annotations cannot prove unsigned
 range. Corpus 164 adds twelve JS/TS pairs and retains all 796 negative sources.
+
+
+Logical property assignments &&=, ||= and ??= now accept original source-proven
+unsigned >>> runtime keys on represented objects, dictionaries and Arrays. The
+receiver, key and old value are captured once, before the conditional RHS.
+Short-circuiting skips both RHS effects and the store, preserving exact old/RHS
+primitive tags, Number bits and references. A skipped missing Array slot remains
+a hole; selected index writes use existing length growth and uint32 boundary
+semantics. Supported awaits preserve targets/keys and abrupt completion performs
+no final assignment. Existing String dictionary behavior stays unchanged.
+
+The existing source cursor, structured If and dynamic own-read/write operations
+supply the behavior without new IR operations or host APIs. Arbitrary keys,
+unsupported receivers/coercions and invalidated narrow field projections remain
+guarded. Annotations cannot prove unsigned range. Corpus 165 adds twelve JS/TS
+pairs; all 796 retained compatibility negatives remain.
