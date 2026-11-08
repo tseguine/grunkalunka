@@ -256,7 +256,7 @@ mod uint32_write_tests {
             ),
             ("const xs=[];xs[a]=b;return a;", false),
             ("const xs=[];xs[a>>0]=b;return a;", false),
-            ("const xs=[];xs[a>>>0]+=b;return a;", false),
+            ("const xs=[];xs[a>>>0]+=b;return a;", true),
             ("const xs=[];const key='length';xs[key]=b;return a;", false),
             (
                 "const xs=['text'];const alias=xs;alias[a>>>0]=b;return xs.length;",

@@ -543,7 +543,7 @@ impl OwnEnumeration {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum ManagedKey {
     Literal(Vec<u16>),
     String(ValueId),

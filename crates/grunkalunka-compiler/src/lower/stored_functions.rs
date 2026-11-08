@@ -1350,9 +1350,17 @@ impl Fields {
                         let right = get(right);
                         if matches!(rule, Rule::PropertyAddition(_, _))
                             && !left.is_empty()
-                            && left.iter().all(|origin| *origin == Origin::Number)
+                            && left.iter().all(|origin| {
+                                matches!(
+                                    origin,
+                                    Origin::Number
+                                        | Origin::Boolean
+                                        | Origin::Null
+                                        | Origin::Undefined
+                                )
+                            })
                         {
-                            // Preserve the numeric property path: its RHS is
+                            // Preserve the primitive numeric property path: its RHS is
                             // independently checked for admitted primitive
                             // ToNumber conversion (e.g. += undefined). This is
                             // not a proof that a mixed/string RHS is numeric.

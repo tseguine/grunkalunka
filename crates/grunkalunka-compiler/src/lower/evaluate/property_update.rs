@@ -18,10 +18,32 @@ pub(in crate::lower) fn compound(operator: AssignmentOperator) -> Option<Binary>
     })
 }
 
+pub(super) enum Key<'e, 'a> {
+    Literal(Vec<u16>),
+    Uint32(&'e Expression<'a>),
+}
+
 pub(super) enum Task<'e, 'a> {
     Receiver {
         node: &'e Expression<'a>,
-        key: Vec<u16>,
+        key: Key<'e, 'a>,
+        operator: Binary,
+        right: Option<&'e Expression<'a>>,
+        postfix: bool,
+        depth: usize,
+    },
+    Key {
+        node: &'e Expression<'a>,
+        object: ValueId,
+        operator: Binary,
+        right: Option<&'e Expression<'a>>,
+        postfix: bool,
+        depth: usize,
+    },
+    Read {
+        node: &'e Expression<'a>,
+        object: ValueId,
+        key: ir::ManagedKey,
         operator: Binary,
         right: Option<&'e Expression<'a>>,
         postfix: bool,
@@ -30,7 +52,7 @@ pub(super) enum Task<'e, 'a> {
     Write {
         node: &'e Expression<'a>,
         object: ValueId,
-        key: Vec<u16>,
+        key: ir::ManagedKey,
         old: ValueId,
         operator: Binary,
         postfix: bool,
@@ -73,30 +95,47 @@ impl Lowering<'_, '_> {
             }
             _ => return Ok(false),
         };
-        let (object, key) = match target {
+        let (object, key, dynamic) = match target {
             SimpleAssignmentTarget::StaticMemberExpression(member) if !member.optional => (
                 &member.object,
-                member.property.name.encode_utf16().collect(),
+                Some(member.property.name.encode_utf16().collect()),
+                None,
             ),
             SimpleAssignmentTarget::ComputedMemberExpression(member) if !member.optional => {
-                let Some(key) = closures::unwrapped_at(&member.expression, depth + 2)
-                    .and_then(|(key, _)| static_keys::literal(key))
-                else {
+                let key = closures::unwrapped_at(&member.expression, depth + 2)
+                    .and_then(|(key, _)| static_keys::literal(key));
+                if let Some(key) = key {
+                    (&member.object, Some(key), None)
+                } else if property_delete::uint32_key(&member.expression, depth + 2) {
+                    (&member.object, None, Some(&member.expression))
+                } else {
                     return Ok(false);
-                };
-                (&member.object, key)
+                }
             }
             _ => return Ok(false),
         };
         let receiver = self.receiver_type(object, depth + 2);
         if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))
-            || !self.stored.number(target.node_id())
+            || !(if dynamic.is_some() {
+                self.stored.primitive(target.node_id())
+            } else {
+                self.stored.number(target.node_id())
+            })
         {
             // Keep existing validation/first diagnostics for unsupported writes.
             return Ok(false);
         }
         let array = receiver == Some(Type::ManagedArray);
-        let key = managed_member_key(node, key, array, self.stored.dictionary(object.node_id()))?;
+        let key = if let Some(key) = dynamic {
+            Key::Uint32(key)
+        } else {
+            Key::Literal(managed_member_key(
+                node,
+                key.expect("literal property key"),
+                array,
+                self.stored.dictionary(object.node_id()),
+            )?)
+        };
         if matches!(mode, Mode::Discard) {
             work.push(Work::Forget);
         } else {
@@ -135,30 +174,110 @@ impl Lowering<'_, '_> {
                 depth,
             } => {
                 let object = values.pop().expect("numeric write receiver").id();
+                match key {
+                    Key::Uint32(key) => {
+                        work.push(Work::PropertyUpdate(Task::Key {
+                            node,
+                            object,
+                            operator,
+                            right,
+                            postfix,
+                            depth,
+                        }));
+                        work.push(Work::Eval(key, depth + 1, Mode::Number));
+                    }
+                    Key::Literal(key) => work.push(Work::PropertyUpdate(Task::Read {
+                        node,
+                        object,
+                        key: ir::ManagedKey::Literal(key),
+                        operator,
+                        right,
+                        postfix,
+                        depth,
+                    })),
+                }
+            }
+            Task::Key {
+                node,
+                object,
+                operator,
+                right,
+                postfix,
+                depth,
+            } => {
+                let key = values.pop().expect("numeric write key").number();
+                work.push(Work::PropertyUpdate(Task::Read {
+                    node,
+                    object,
+                    key: ir::ManagedKey::Uint32(key),
+                    operator,
+                    right,
+                    postfix,
+                    depth,
+                }));
+            }
+            Task::Read {
+                node,
+                object,
+                key,
+                operator,
+                right,
+                postfix,
+                depth,
+            } => {
                 let input = self.value(Type::ManagedValue);
                 Self::push(
                     regions.current(),
                     node,
-                    if self.values[object.0] == Type::ManagedArray {
-                        Op::ManagedArrayGetOwn {
-                            result: input,
-                            array: object,
-                            key: key.clone(),
+                    match &key {
+                        ir::ManagedKey::Literal(key)
+                            if self.values[object.0] == Type::ManagedArray =>
+                        {
+                            Op::ManagedArrayGetOwn {
+                                result: input,
+                                array: object,
+                                key: key.clone(),
+                            }
                         }
-                    } else {
-                        Op::ManagedGetOwn {
+                        ir::ManagedKey::Literal(key) => Op::ManagedGetOwn {
                             result: input,
                             object,
                             key: key.clone(),
-                        }
+                        },
+                        _ => Op::ManagedGetOwnDynamic {
+                            result: input,
+                            object,
+                            key: key.clone(),
+                        },
                     },
                 );
                 let old = self.value(Type::Number);
-                Self::push(
-                    regions.current(),
-                    node,
-                    Op::ManagedToNumber { result: old, input },
-                );
+                if matches!(key, ir::ManagedKey::Uint32(_)) {
+                    // The source planner proves Number/Boolean/Null/Undefined only.
+                    let primitive = self.value(Type::General);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::ManagedToPrimitive {
+                            result: primitive,
+                            input,
+                        },
+                    );
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::NumberFromGeneral {
+                            result: old,
+                            input: primitive,
+                        },
+                    );
+                } else {
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::ManagedToNumber { result: old, input },
+                    );
+                }
                 work.push(Work::PropertyUpdate(Task::Write {
                     node,
                     object,
@@ -231,15 +350,7 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     node,
-                    if self.values[object.0] == Type::ManagedArray {
-                        Op::ManagedArraySetOwn {
-                            array: object,
-                            key,
-                            value,
-                        }
-                    } else {
-                        Op::ManagedSetOwn { object, key, value }
-                    },
+                    Op::ManagedSetOwnDynamic { object, key, value },
                 );
                 values.push(Value::Number(if postfix { old } else { result }));
             }
@@ -249,6 +360,42 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unsigned_numeric_updates_require_primitive_fields_and_range_proofs() {
+        for (body, admitted) in [
+            ("const xs=[a];return xs[0>>>0]++;", true),
+            ("const xs=[a];return --xs[0>>>0];", true),
+            ("const xs=[];return xs[a>>>0]++;", true),
+            ("const o={0:a};return o[0>>>0]-=b;", true),
+            ("const xs=[false,null];return xs[a>>>0]+=b;", true),
+            ("const xs=[a];return xs[0>>>0]>>>=b;", true),
+            ("const d=Object.create(null);return ++d[a>>>0];", true),
+            ("const xs=[a];return xs[a]++;", false),
+            ("const xs=[a];return xs[a>>0]++;", false),
+            ("const xs=['text'];return xs[0>>>0]++;", false),
+            ("const xs=[{}];return xs[0>>>0]-=b;", false),
+            ("const xs=[a];return xs[0>>>0]+='text';", false),
+            ("const xs=[a];return xs[0>>>0]-=1n;", false),
+            ("return a[0>>>0]++;", false),
+            (
+                "const xs=[a];xs[0>>>0]++;return xs[0].trim().length;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        let js = "export function run(a,b){const xs=[a];return xs[0>>>0]-=b;}";
+        let ts = "export function run(a:string,b:boolean):never{const xs=[a];return xs[(0>>>0) as never]-=b;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+    }
+
     #[test]
     fn member_update_receivers_keep_source_depth_charges() {
         for (wraps, admitted) in [(126, true), (127, false)] {

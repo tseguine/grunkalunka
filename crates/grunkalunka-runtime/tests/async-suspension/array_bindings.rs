@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn unsigned_numeric_updates_preserve_targets_keys_and_old_values_across_awaits() {
+    compare_promises(
+        &[
+            "let xs=[a];const old=xs;let key=0;const v=xs[key>>>0]-=(await a,key=1,xs=[b],b);await b;return old!==xs&&!Object.hasOwn(old,1)?v:99;",
+            "const xs=[a];const v=xs[(await b,0>>>0)]++;await a;return v;",
+            "const xs=[a];try{xs[0>>>0]-=await Promise.reject(b);}catch(e){await a;return +xs[0>>>0];}return 99;",
+            "const xs=[];let n=0;try{xs[(await Promise.reject(a),0>>>0)]-=(n=1,b);}catch(e){await b;return n+xs.length;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_logical_writes_preserve_lazy_rhs_and_await_snapshots() {
     compare_promises(
         &[
