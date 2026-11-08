@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn mixed_literal_spreads_preserve_prefixes_and_effects_across_await() {
+    compare_promises(
+        &[
+            "let n=0;const xs=[(n=1,await a),...[(n=n*10+2,await b)],(n=n*10+3,await a)];return xs.length+n;",
+            "const child={v:a};const xs=[await a,...[child],await b];await a;return xs[1]===child?xs.length:0;",
+            "let n=0;try{const xs=[(n=1,await a),...[(n=2,await Promise.reject(b))],(n=3,a)];return xs.length;}catch(e){await a;return n===2&&e===b?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn literal_call_spreads_preserve_argument_snapshots_across_await() {
     compare_promises(
         &[

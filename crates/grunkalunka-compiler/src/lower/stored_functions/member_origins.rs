@@ -77,16 +77,20 @@ impl Members<'_, '_> {
                     }
                 }
                 AstKind::ArrayExpression(array) => {
-                    for element in &array.elements {
-                        if let Some(expr) = element.as_expression() {
-                            found.extend(origins(expr.node_id()));
-                        } else if matches!(
-                            element,
-                            oxc_ast::ast::ArrayExpressionElement::SpreadElement(_)
-                        ) {
-                            found.insert(Origin::Other);
+                    if let Some(elements) = iteration::literal_elements(array) {
+                        for element in elements {
+                            match element {
+                                iteration::LiteralElement::Value(expr, _) => {
+                                    found.extend(origins(expr.node_id()))
+                                }
+                                iteration::LiteralElement::Undefined => {
+                                    found.insert(Origin::Undefined);
+                                }
+                                iteration::LiteralElement::Hole => (),
+                            }
                         }
-                        // Holes have no own enumerable entry.
+                    } else {
+                        found.insert(Origin::Other);
                     }
                 }
                 _ if matches!(origin, Origin::NullObject(_)) => (),
