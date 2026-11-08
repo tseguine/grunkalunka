@@ -108,3 +108,19 @@ pub(super) fn local_symbols(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
     }
     assigned
 }
+
+pub(super) fn member_target<'n, 'a>(
+    target: &'n AssignmentTarget<'a>,
+    depth: usize,
+) -> Option<(&'n Expression<'a>, Vec<u16>)> {
+    match target.as_simple_assignment_target()? {
+        SimpleAssignmentTarget::StaticMemberExpression(m) if !m.optional => {
+            Some((&m.object, m.property.name.encode_utf16().collect()))
+        }
+        SimpleAssignmentTarget::ComputedMemberExpression(m) if !m.optional => {
+            let (key, _) = closures::unwrapped_at(&m.expression, depth)?;
+            Some((&m.object, static_keys::literal(key)?))
+        }
+        _ => None,
+    }
+}

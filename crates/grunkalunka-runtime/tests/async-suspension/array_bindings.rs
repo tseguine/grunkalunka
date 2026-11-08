@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn member_pattern_targets_save_references_across_awaited_defaults() {
+    compare_promises(
+        &[
+            "let o={x:a};const old=o;[o.x=(await b,o={x:b},1)]=[];await a;return old.x===1&&o.x===b?1:0;",
+            "const o={x:a};try{[o.x=(await Promise.reject(b),1)]=[];}catch(e){await a;return o.x===a?1:0;}return 99;",
+            "const rows=[a];const o={x:0};[(await b,rows[0]=b,o).x]=rows;await a;return +(o.x);",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn scalar_pattern_parameters_preserve_awaited_defaults_and_rejection_order() {
     compare_promises(
         &[
