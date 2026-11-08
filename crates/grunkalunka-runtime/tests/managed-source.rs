@@ -5,6 +5,36 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn member_pattern_elisions_finish_before_destination_effects() {
+    for body in [
+        "const rows=[];const o={x:undefined};const grow=()=>{rows[1]=a;return o;};[,grow().x]=rows;return o.x===undefined?1:0;",
+        "const rows=[];const xs=[];const key=()=>{rows[1]=a;return 0;};[,xs[key()>>>0]]=rows;return xs[0]===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn computed_pattern_targets_preserve_keys_references_and_selection_order() {
+    for body in [
+        "const xs=[];[xs[(a>>>0)%3>>>0]]=[b];return xs.length;",
+        "const o={};({x:o[a>>>0]}={x:b});return +(o[a>>>0]);",
+        "const d=Object.create(null);const k=a?\"left\":\"right\";[d[k]]=[b];return +(d[k]);",
+        "const d=Object.create(null);const k=a?\"__proto__\":\"constructor\";({x:d[k]}={x:b});return +(d[k]);",
+        "const xs=[];const rows=[a];const key=()=>{rows[0]=b;return 0;};[xs[key()>>>0]]=rows;return +(xs[0]);",
+        "const xs=[];const row={x:a};const key=()=>{row.x=b;return 0;};({x:xs[key()>>>0]}=row);return +(xs[0]);",
+        "let xs=[];const old=xs;const other=[];[xs[(xs=other,0)>>>0]]=[a];return old.length===1&&other.length===0?1:0;",
+        "const d=Object.create(null);let k=\"old\";[d[k]=(k=\"new\",b)]=[];return +(d.old);",
+        "const d=Object.create(null);let k=\"first\";[d[k]=(k=\"second\",a),d[k]]= [undefined,b];return +(d.second);",
+        "const rows=[];const xs=[];const key=()=>{rows[1]=a;return 1;};[xs[0],xs[key()>>>0]]=rows;return xs[1]===undefined?1:0;",
+        "const d=Object.create(null);const k=\"value\";[d[k]]=\"💠\";return d[k]===\"💠\"?1:0;",
+        "const xs=[];const rows=[a];return ([xs[b>>>0]]=rows)===rows?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn member_pattern_targets_preserve_reference_order_and_live_selections() {
     for body in [
         "const o={x:a};[o.x]=[b];return o.x;",
