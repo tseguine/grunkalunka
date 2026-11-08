@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn string_computed_pattern_selections_preserve_utf16_and_saved_rhs() {
+    for body in [
+        "let x=\"\";({[a>>>0]:x=\"?\"}=\"123\");return x.charCodeAt(0);",
+        "let x=\"\";({[a>>>0]:x=\"?\"}=\"abc\");return x.charCodeAt(0);",
+        "let x=\"\";({[a>>>0]:x=\"?\"}=\"💠\");return x.charCodeAt(0);",
+        "let x=\"\";({[(a>>>0)%2>>>0]:x=\"?\"}=\"💠\");return x.charCodeAt(0);",
+        "let n=0,x=\"\";({[a>>>0]:x=(n++,\"fallback\")}=\"\");return n;",
+        "const o={x:\"\"};({[a>>>0]:o.x=\"?\"}=\"abc\");return o.x.length;",
+        "let text=\"ab\",x=\"\";({[(text=\"xy\",a>>>0)]:x=\"?\"}=text);return x.charCodeAt(0);",
+        "const text=\"ab\";let x;return ({[a>>>0]:x}=text)===text?1:0;",
+        "let x=\"\",y=\"\";({[0>>>0]:x=\"?\",[1>>>0]:y=\"?\"}=\"💠\");return x.charCodeAt(0)+y.charCodeAt(0);",
+        "let x;({[a>>>0]:x}=\"\");return x===undefined?1:0;",
+        "let x=\"\";({[a>>>0]:x=\"?\"}=\"\\x00a\");return x.charCodeAt(0);",
+        "const text=()=>a?\"ab\":\"\";let x=\"\";({[b>>>0]:x=\"?\"}=text());return x.length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn computed_pattern_rest_saves_exclusions_and_copies_the_original_receiver() {
     for body in [
         "const d=Object.create(null);d.first=a;d.keep=b;const k=\"first\";let rest={};let x;({[k]:x,...rest}=d);return \"first\" in rest?0:1;",

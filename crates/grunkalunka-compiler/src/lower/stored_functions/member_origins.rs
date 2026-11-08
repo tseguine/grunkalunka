@@ -76,6 +76,15 @@ impl Members<'_, '_> {
         }
     }
 
+    pub(super) fn pattern_unsigned_value(&self, receiver: NodeId) -> Alternatives {
+        if self.values.get(&receiver).is_some_and(|roots| {
+            !roots.is_empty() && roots.iter().all(|origin| *origin == Origin::String)
+        }) {
+            return BTreeSet::from([Origin::String, Origin::Undefined]);
+        }
+        self.unsigned_value(receiver)
+    }
+
     pub(super) fn unsigned_value(&self, receiver: NodeId) -> Alternatives {
         self.unsigned_select(receiver, false)
     }

@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn string_computed_pattern_selections_preserve_awaited_keys_and_defaults() {
+    compare_promises(
+        &[
+            "let text=\"ab\",x=\"\";({[(await a,text=\"xy\",0)>>>0]:x=\"?\"}=text);await b;return x.charCodeAt(0);",
+            "const o={x:\"\"};({[(await a,0)>>>0]:(await b,o).x=\"?\"}=\"💠\");await a;return o.x.charCodeAt(0);",
+            "let x=\"\";({[(await a,0)>>>0]:x=(await b,\"?\")}=\"\");await a;return x.charCodeAt(0);",
+            "let n=0;const o={x:\"\"};try{({[(await Promise.reject(b),0)>>>0]:(n++,o).x=\"?\"}=\"abc\");}catch(e){await a;return n;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn computed_pattern_rest_preserves_exclusions_across_awaits_and_rejections() {
     compare_promises(
         &[
