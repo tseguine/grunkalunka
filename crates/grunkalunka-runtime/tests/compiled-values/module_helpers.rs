@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn scalar_iteration_assignments_preserve_selected_primitive_tags() {
+    compare_helpers(&[
+        "export function run(a,b){let x=0;for(x of [a,b]){}return x;}",
+        "export function run(a,b){let x=undefined;for(x of [null]){}return x;}",
+        "export function run(a,b){let x=undefined;for(x of [false]){}return x;}",
+        "export function run(a,b){let x;for(x of []){}return x;}",
+        "export function run(a,b){let x=0;for(x of [a])x=false;return x;}",
+    ]);
+}
+
+#[test]
 fn member_iteration_heads_preserve_primitive_tags_and_number_bits() {
     compare_helpers(&[
         "export function run(a,b){const o={x:undefined};for(o.x of [a,b]){}return o.x;}",

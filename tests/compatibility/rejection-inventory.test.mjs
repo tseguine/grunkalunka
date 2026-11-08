@@ -1,3 +1,4 @@
+import { scalarIterationPrograms } from './scalar-iteration-heads.mjs';
 import { memberIterationPrograms } from './member-iteration-heads.mjs';
 import { optionalDeletePrograms } from './optional-delete.mjs';
 import { optionalDictionaryReadPrograms } from './optional-dictionary-reads.mjs';
@@ -1376,4 +1377,11 @@ test('optional delete retains original reference operands and lazy key observati
 test('member iteration heads retain original references and RHS/step ordering',()=>{
  assert.equal(memberIterationPrograms.length,22);
  for(const row of memberIterationPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('scalar iteration heads retain original bindings, captures and primitive selections',()=>{
+ assert.equal(scalarIterationPrograms.length,15);
+ assert.equal(programSources(scalarIterationPrograms.find(row=>row[0]==='scalar-iteration-former-guard')).sourceJS,"export function run(a,b){let item=a;for(item of [b]){}return a;}");
+ for(const row of scalarIterationPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });

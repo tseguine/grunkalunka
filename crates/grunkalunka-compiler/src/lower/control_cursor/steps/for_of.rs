@@ -68,7 +68,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         } else if let Some(identifier) = iteration::assignment_iteration_identifier(source.left())?
         {
             let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
-            if !binding.mutable || self.slots[binding.slot.0].ty != Type::ManagedValue {
+            let compatible = match self.slots[binding.slot.0].ty {
+                Type::ManagedValue => true,
+                Type::Number => self.stored.number(identifier.node_id()),
+                Type::General => self.stored.primitive(identifier.node_id()),
+                _ => false,
+            };
+            if !binding.mutable || !compatible {
                 return Err(unsupported(
                     identifier,
                     "iteration assignment requires an initialized mutable managed-value binding",
@@ -408,6 +414,37 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             let slot = binding.slot;
             // Unlike a declaration, the existing cell is assigned on every step.
             // Captures of that cell observe subsequent iterations.
+            let selected = match self.slots[slot.0].ty {
+                Type::ManagedValue => selected,
+                ty @ (Type::Number | Type::General) => {
+                    // Admission proved the selection's kind, so these existing
+                    // projections preserve its tag/bits without user coercion.
+                    let primitive = self.value(Type::General);
+                    Self::push(
+                        &mut body,
+                        &source,
+                        Op::ManagedToPrimitive {
+                            result: primitive,
+                            input: selected,
+                        },
+                    );
+                    if ty == Type::Number {
+                        let number = self.value(Type::Number);
+                        Self::push(
+                            &mut body,
+                            &source,
+                            Op::NumberFromGeneral {
+                                result: number,
+                                input: primitive,
+                            },
+                        );
+                        number
+                    } else {
+                        primitive
+                    }
+                }
+                _ => unreachable!("validated iteration assignment storage"),
+            };
             Self::push(
                 &mut body,
                 &source,
@@ -492,6 +529,59 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn scalar_iteration_assignments_require_matching_storage_proofs() {
+        for (body, admitted) in [
+            ("let x=0;for(x of [a,b]){}return x;", true),
+            ("for(a of [b]){}return a;", true),
+            ("let x=0;for(x of []){}return x;", true),
+            ("let x=null;for(x of [a,false,undefined]){}return +x;", true),
+            ("let x=0;for(x of ['x']){}return x;", false),
+            ("let x=undefined;for(x of [a,,b]){}return +x;", false),
+            ("let x=0;for(x of [a,null]){}return x;", false),
+            ("let x=0;for(x of [a])x=false;return +x;", true),
+            ("let x=null;for(x of [{}]){}return +x;", false),
+            ("let x=0;for(x in {a:1}){}return x;", false),
+            ("const x=0;for(x of [a]){}return x;", false),
+            ("for(x of [a]){}return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){let x:number=0;for(x of ['x'] as number[]){}return x;}",
+                true
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn scalar_iteration_heads_keep_statement_depth_limits_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (depth, admitted) in [(64, true), (65, false)] {
+                    let mut body = String::from("break;");
+                    for _ in 0..depth {
+                        body = format!("for(x of [a]){body}");
+                    }
+                    let source = format!("export function run(a,b){{let x=0;{body}return x;}}");
+                    for typed in [false, true] {
+                        let r = crate::compile(&source, typed);
+                        assert_eq!(r.is_ok(), admitted, "{depth}: {:?}", r.err());
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     #[test]
     fn function_for_in_requires_proven_callable_values_and_validates_bodies() {
         assert!(crate::compile("function f(x){return x+1;}export function run(a,b){let n=0;for(const k in f)n++;return n;}",false).is_ok());
