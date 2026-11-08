@@ -16,6 +16,7 @@ pub(super) struct Task<'e, 'a> {
     index: usize,
     input: Option<ValueId>,
     key: Option<ir::ManagedKey>,
+    uint32_key: bool,
 }
 
 impl Lowering<'_, '_> {
@@ -132,6 +133,7 @@ impl Lowering<'_, '_> {
             index: 0,
             input: None,
             key: None,
+            uint32_key: false,
         }));
         Ok(())
     }
@@ -147,9 +149,12 @@ impl Lowering<'_, '_> {
         if task.index == offset + 1 {
             task.input = Some(values.pop().expect("has-own receiver").id());
         } else if task.index == offset + 2 && task.key.is_none() {
-            task.key = Some(ir::ManagedKey::String(
-                values.pop().expect("has-own key").id(),
-            ));
+            let key = values.pop().expect("has-own key").id();
+            task.key = Some(if task.uint32_key {
+                ir::ManagedKey::Uint32(key)
+            } else {
+                ir::ManagedKey::String(key)
+            });
         }
         let Some(arg) = task.call.arguments.get(task.index) else {
             let input = task.input.ok_or_else(|| {
@@ -187,6 +192,9 @@ impl Lowering<'_, '_> {
                 task.key = Some(ir::ManagedKey::Literal(units));
                 // In particular, void's operand still runs at the key's position.
                 Mode::Discard
+            } else if property_delete::uint32_key(arg, depth) {
+                task.uint32_key = true;
+                Mode::Number
             } else if self.stored.string(arg.node_id()) {
                 Mode::Managed
             } else {
@@ -264,5 +272,62 @@ mod uint32_membership_tests {
             crate::compile(ts, true).unwrap().wasm
         );
         assert!(crate::compile("export function run(a:number,b:number){const xs=[a];return (a as number) in xs?1:0;}",true).is_err());
+    }
+}
+
+#[cfg(test)]
+mod uint32_has_own_tests {
+    #[test]
+    fn has_own_unsigned_keys_require_syntax_and_receiver_proofs() {
+        for (body, admitted) in [
+            ("const xs=[a,,b];return Object.hasOwn(xs,a>>>0)?1:0;", true),
+            ("const o={0:a};return Object.hasOwn(o,a>>>b)?1:0;", true),
+            (
+                "const d=Object.create(null);return Object.hasOwn(d,a>>>0)?1:0;",
+                true,
+            ),
+            ("return Object.hasOwn('abc',a>>>0)?1:0;", true),
+            ("return Object.hasOwn(a,b>>>0)?1:0;", true),
+            ("const xs=[a];return Object['hasOwn'](xs,a>>>0)?1:0;", true),
+            ("const xs=[a];return Object.hasOwn(xs,a)?1:0;", false),
+            ("const xs=[a];return Object.hasOwn(xs,a>>0)?1:0;", false),
+            (
+                "const xs=[a];return Object.hasOwn(xs,a?(0>>>0):b)?1:0;",
+                false,
+            ),
+            ("return Object.hasOwn(null,a>>>0)?1:0;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            }
+        }
+        let js = "export function run(a,b){const xs=[a];return Object.hasOwn(xs,a>>>0)?1:0;}";
+        let ts = "export function run(a:string,b:boolean):never{const xs=[a];return Object.hasOwn(xs,(a>>>0) as never)?1:0;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+    }
+
+    #[test]
+    fn has_own_unsigned_keys_respect_small_stack_depth_limits() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (depth, admitted) in [(16, true), (129, false)] {
+                    let source = format!(
+                        "export function run(a,b){{const xs=[a];return Object.hasOwn(xs,{}a>>>0{})?1:0;}}",
+                        "(".repeat(depth),
+                        ")".repeat(depth)
+                    );
+                    let result = crate::compile(&source, false);
+                    assert_eq!(result.is_ok(), admitted, "{depth}: {:?}", result.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }
