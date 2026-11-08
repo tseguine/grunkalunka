@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn string_object_rest_preserves_awaited_destinations_and_rejected_defaults() {
+    compare_promises(
+        &[
+            "let text='abc';const o={rest:{}};({... (await a,text='',o).rest}=text);await b;return Object.keys(o.rest).length;",
+            "let x,rest={};({[(await a,0)>>>0]:x,...rest}='💠');await b;return Object.keys(rest).length;",
+            "let x,rest={};try{({9:x=(await Promise.reject(b),1),...rest}='abc');}catch(e){await a;return Object.keys(rest).length;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_computed_pattern_selections_preserve_awaited_keys_and_defaults() {
     compare_promises(
         &[

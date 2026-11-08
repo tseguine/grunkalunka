@@ -318,12 +318,6 @@ impl Lowering<'_, '_> {
                 }
             }
             AssignmentTarget::ObjectAssignmentTarget(pattern) => {
-                if string && pattern.rest.is_some() {
-                    return Err(unsupported(
-                        node,
-                        "String object assignment rest is not yet admitted",
-                    ));
-                }
                 let dictionary = self.stored.dictionary(assignment.right.node_id());
                 for property in &pattern.properties {
                     let (key, destination, default) = match property {
@@ -748,13 +742,34 @@ impl Lowering<'_, '_> {
                     result
                 }
                 Selection::ObjectRest => {
+                    // String own indices are enumerable UTF-16 data properties.
+                    // Materialize them only after the saved destination executes.
+                    let object = if self.values[receiver.0] == Type::ManagedValue {
+                        let object = self.value(Type::ManagedObject);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::ManagedObjectNew { result: object },
+                        );
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::ManagedObjectSpread {
+                                object,
+                                input: receiver,
+                            },
+                        );
+                        object
+                    } else {
+                        receiver
+                    };
                     let rest = self.value(Type::ManagedObject);
                     Self::push(
                         regions.current(),
                         node,
                         Op::ManagedObjectRest {
                             result: rest,
-                            object: receiver,
+                            object,
                             excluded: std::mem::take(&mut state.excluded),
                         },
                     );
@@ -866,7 +881,6 @@ mod tests {
         for body in [
             "let x;({length:x}=(a as string));return a;",
             "let x;({length:x}=(a?'abc':null));return a;",
-            "let x;({...x}='abc');return a;",
             "let x;({slice:x}='abc');return a;",
             "let x;({'01':x}='abc');return a;",
             "let x;const key='length';({[key]:x}='abc');return a;",
@@ -1374,7 +1388,7 @@ mod computed_rest_tests {
             ),
             (
                 "let rest={};let x;({[a>>>0]:x,...rest}='text');return a;",
-                false,
+                true,
             ),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -1420,7 +1434,7 @@ mod string_computed_selection_tests {
             ("let x;({[a>>>0]:x}=a);return a;", false),
             ("const x='';({[a>>>0]:x}='text');return a;", false),
             ("({[a>>>0]:b}='text');return b;", false),
-            ("let x,rest;({[a>>>0]:x,...rest}='text');return a;", false),
+            ("let x,rest;({[a>>>0]:x,...rest}='text');return a;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
@@ -1456,5 +1470,59 @@ mod string_computed_selection_tests {
             .unwrap()
             .join()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod string_rest_tests {
+    #[test]
+    fn string_object_rest_keeps_own_enumerable_and_source_proof_guards() {
+        for (body, ok) in [
+            (
+                "let rest={};({...rest}='abc');return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "let rest={};let x;({[a>>>0]:x,...rest}='abc');return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "let {...rest}={length:1};({...rest}='abc');return rest.length;",
+                false,
+            ),
+            ("let rest={};({...rest}=(a?'abc':null));return a;", false),
+            ("let rest={};({...rest}=a);return a;", false),
+            ("const rest={};({...rest}='abc');return a;", false),
+            (
+                "let rest={};const k='0';let x;({[k]:x,...rest}='abc');return a;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){let rest={};({...rest}=(a as string));return a;}",
+                true
+            )
+            .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod string_rest_depth_tests {
+    #[test]
+    fn string_rest_source_keys_keep_small_stack_depth_boundaries() {
+        std::thread::Builder::new().stack_size(2*1024*1024).spawn(|| {
+for (n,ok) in [(125,true),(126,false)] {
+let source=format!("export function run(a,b){{let x,rest={{}};({{[{}a>>>0{}]:x,...rest}}='abc');return Object.keys(rest).length;}}","(".repeat(n),")".repeat(n));
+for ts in [false,true] {let r=crate::compile(&source,ts);assert_eq!(r.is_ok(),ok,"{n}: {:?}",r.err());}
+}
+}).unwrap().join().unwrap();
     }
 }
