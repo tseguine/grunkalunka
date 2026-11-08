@@ -457,3 +457,10 @@ numeric keys, preserving UTF-16 selection, lazy defaults, captures and supported
 awaits. The result remains the original String with its actual truthiness. Rest,
 dynamic/inherited keys and unsupported targets remain guarded. Corpus 154 adds
 ten differential pairs; no standard-library or host API is expanded.
+
+
+Constant arithmetic defaults now support Number-only +, -, *, / and % in private
+synchronous helpers/arrows, including nested constants, IEEE edge values, captured
+results and emitted closures. Heap traversal retains source depth limits and does
+not suppress operand admission beneath void. Scope, effects, coercion, async and
+public-entry guards remain. Corpus 155 adds fourteen differential pairs.

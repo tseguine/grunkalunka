@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn arithmetic_parameter_defaults_keep_number_bits_and_supplied_tags() {
+    compare_helpers(&[
+        "function f(x=1+2){return x;}export function run(a,b){return f();}",
+        "export function run(a,b){const f=(x=1+2)=>x;return f();}",
+        "function f(x=2*(3+4)){return x;}export function run(a,b){return f();}",
+        "function f(x=-0/3){return x;}export function run(a,b){return f();}",
+        "function f(x=-4%2){return x;}export function run(a,b){return f();}",
+        "function f(x=1/0){return x;}export function run(a,b){return f();}",
+        "function f(x=0/0){return x;}export function run(a,b){return f();}",
+        "function f(x=Infinity-Infinity){return x;}export function run(a,b){return f();}",
+        "function f(x=void (1+2)){return x;}export function run(a,b){return f();}",
+        "function f(x=1+2){return x;}export function run(a,b){return f(a);}",
+        "function f(x=1+2){return x;}export function run(a,b){return f(null);}",
+        "function f(x=1+2){return x;}export function run(a,b){return f(false);}",
+        "export function run(a,b){const o={f:(x=2*(3+4))=>x};return o.f();}",
+        "export function run(a,b){const f=(x=1+2,y=x)=>()=>y;const g=f();return g();}",
+    ]);
+}
+
+#[test]
 fn earlier_parameter_defaults_preserve_tags_order_aliases_and_shared_calls() {
     compare_helpers(&[
         "function f(x,y=x){return y;}export function run(a,b){return f(a);}",

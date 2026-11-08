@@ -1,3 +1,4 @@
+import { arithmeticDefaultOriginals, arithmeticDefaultPrograms } from './arithmetic-parameter-defaults.mjs';
 import { stringObjectAssignmentPrograms } from './string-object-assignments.mjs';
 import { stringAssignmentPrograms } from './string-array-assignments.mjs';
 import { earlierParameterPrograms } from './earlier-parameter-defaults.mjs';
@@ -1168,5 +1169,16 @@ test('String object assignment corpus covers UTF-16 and original RHS snapshots',
   const row=stringObjectAssignmentPrograms.find(row=>row[0]==='string-object-assignment-'+id);
   assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+
+test('arithmetic defaults preserve exact former helper and arrow rejection sources',()=>{
+ const hashes=["533a39521a41e2646e82fb67f4ec9201859d5de0f8db5d3e80319f045d0da840", "f2ac1f9bf40bc5ba2c0e88e03e41b5891dd2185d64931beb70b8dad87fbb134e"];
+ assert.equal(arithmeticDefaultPrograms.length,14);
+ for(const [index,[id,source]]of arithmeticDefaultOriginals.entries()) {
+  const pair=programSources(arithmeticDefaultPrograms.find(row=>row[0]==='arithmetic-default-original-'+id));
+  assert.equal(createHash('sha256').update(source).digest('hex'),hashes[index]);
+  for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,source);
  }
 });
