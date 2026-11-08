@@ -1,3 +1,4 @@
+import { literalCallSpreadOriginals, literalCallSpreadPrograms } from './literal-call-spreads.mjs';
 import { unaryDefaultOriginal, unaryDefaultPrograms } from './unary-parameter-defaults.mjs';
 import { arithmeticDefaultOriginals, arithmeticDefaultPrograms } from './arithmetic-parameter-defaults.mjs';
 import { stringObjectAssignmentPrograms } from './string-object-assignments.mjs';
@@ -1190,4 +1191,15 @@ test('unary earlier defaults retain the exact former numeric compiler guard',()=
  assert.equal(createHash('sha256').update(unaryDefaultOriginal).digest('hex'),"4107b4428681c32ee0d3604fe8b57f568d4b05488284e4e102108a66e4217ca9");
  const pair=programSources(unaryDefaultPrograms.find(row=>row[0]==='unary-default-plus'));
  for(const source of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(source,unaryDefaultOriginal);
+});
+
+
+test('literal call spreads retain exact former helper and runtime compiler guards',()=>{
+ const hashes=["afd7ccddb732386dda2b269148a67fb67c7311726f86751e7a63822500e66ebe", "38f22449c74a1bff368ddab459108565f2d7e2c873144ab3bfeb7040337b6864"];
+ assert.equal(literalCallSpreadPrograms.length,16);
+ for(const [index,[id,source]]of literalCallSpreadOriginals.entries()) {
+  const pair=programSources(literalCallSpreadPrograms.find(row=>row[0]==='literal-call-spread-'+id));
+  assert.equal(createHash('sha256').update(source).digest('hex'),hashes[index]);
+  for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,source);
+ }
 });

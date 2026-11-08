@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn literal_call_spreads_preserve_argument_order_defaults_and_callee_snapshots() {
+    compare_helpers(&[
+        "function f(x){return x;}export function run(a,b){return f(...[a]);}",
+        "export function run(a,b){let f=x=>x;return f(...[a]);}",
+        "function f(x,y){return x+y;}export function run(a,b){return f(...[a,b]);}",
+        "export function run(a,b){const f=(x,y)=>x+y;return f(...[a],b);}",
+        "export function run(a,b){const o={f:(x,y)=>x+y};return o.f(...[a,b]);}",
+        "function f(x=3){return x;}export function run(a,b){return f(...[]);}",
+        "function f(x,y){return y;}export function run(a,b){return f(...[a]);}",
+        "function f(x){return x;}export function run(a,b){let n=0;const x=f(...[(n=1,a),(n=n*10+2,b)],n=n*10+3);return n;}",
+        "export function run(a,b){let f=x=>x;return f(...[a,f=x=>b]);}",
+        "function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}",
+        "function f(x,y){return x+y;}export function run(a,b){return f(...[...[a],b]);}",
+        "function f(x=0){return x;}export function run(a,b){return f(...[null]);}",
+        "function f(x=0){return x;}export function run(a,b){return f(...[false]);}",
+        "function f(x,y=x){return y;}export function run(a,b){return f(...[a,undefined]);}",
+    ]);
+}
+
+#[test]
 fn unary_parameter_defaults_preserve_tags_truthiness_and_saved_arguments() {
     compare_helpers(&[
         "function f(x,y=void x){return y;}export function run(a,b){return f(a);}",

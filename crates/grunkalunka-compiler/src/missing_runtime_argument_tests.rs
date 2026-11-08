@@ -51,7 +51,6 @@ fn omitted_runtime_inputs_keep_async_callback_promise_and_spread_guards() {
     }
     for source in [
         "export function run(a,b){let f=(fn,x)=>fn(x);return f();}",
-        "export function run(a,b){let f=x=>x;return f(...[a]);}",
         "export function run(a,b){let f=x=>x;return f(Math.random());}",
     ] {
         assert!(crate::compile(source, false).is_err(), "{source}");

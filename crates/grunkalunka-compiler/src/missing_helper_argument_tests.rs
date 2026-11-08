@@ -27,7 +27,6 @@ fn omitted_named_helper_arguments_use_undefined_without_numeric_laundering() {
 fn missing_argument_support_keeps_spread_async_and_numeric_return_guards() {
     for source in [
         "export function run(a,b){const f=(x)=>x;return f();}",
-        "function f(x){return x;}export function run(a,b){return f(...[a]);}",
         "function f(x,y){return x;}export function run(a,b){return f(Math.random());}",
         "async function f(x){return x;}export async function run(a,b){return await f();}",
     ] {

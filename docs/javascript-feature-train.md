@@ -471,3 +471,14 @@ lazy selection in helpers, arrows and emitted closures. Numeric signs require
 four-kind primitive proofs; truthiness and void also support represented
 references without invoking coercion hooks. Scope, source limits, unsupported
 value lanes and public/async guards remain. Corpus 156 adds fifteen pairs.
+
+
+Ordinary calls now accept fixed Array-literal argument spreads, including nested
+literals, empty spreads and mixed arguments. Named helpers, inline/emitted arrows,
+stored functions and callbacks share the borrowed source-argument view. Argument
+effects, callee snapshots, omission/default selection, supported value/reference
+lanes and supported await suspension retain their existing contracts. Dynamic
+Array/String iterables, elisions, a spread thisArg to .call and unsupported callable
+lanes remain guarded. No intrinsic/standard-library spread support is added.
+Corpus 157 adds sixteen pairs and retains two exact former compiler guards as
+executed positives, with all 796 compatibility negatives retained.

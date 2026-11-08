@@ -3,6 +3,17 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn literal_call_spreads_preserve_reference_and_callback_inputs() {
+    for source in [
+        "function f(x,y){x.v=y;return x;}export function run(a,b){const o={v:a};return f(...[o,b])===o&&o.v===b?1:0;}",
+        "export function run(a,b){const f=(x,y)=>x===y?1:0;const o={v:a};return f(...[o,o]);}",
+        "export function run(a,b){const invoke=(fn,x)=>fn(x);const f=x=>x+1;return invoke(...[f,a]);}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
 fn earlier_parameter_defaults_copy_reference_identity_and_saved_values() {
     for source in [
         "function f(x,y=x){return x===y?1:0;}export function run(a,b){const o={a:a};return f(o);}",
