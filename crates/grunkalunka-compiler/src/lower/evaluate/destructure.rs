@@ -20,12 +20,14 @@ pub(super) struct Plan<'e, 'a> {
     writes: Vec<Write<'e, 'a>>,
     mode: Mode,
     depth: usize,
+    string: bool,
 }
 
 pub(super) struct State<'e, 'a> {
     node: &'e Expression<'a>,
     writes: std::vec::IntoIter<Write<'e, 'a>>,
     input: Value,
+    receiver: ValueId,
     mode: Mode,
     depth: usize,
     iterator: Option<control_cursor::array_bindings::IteratorState>,
@@ -88,8 +90,15 @@ impl Lowering<'_, '_> {
                 "assignment patterns require plain assignment",
             ));
         }
-        let receiver = self.receiver_type(&assignment.right, depth + 1);
+        let string = self.stored.string(assignment.right.node_id())
+            && matches!(assignment.left, AssignmentTarget::ArrayAssignmentTarget(_));
+        let receiver = if string {
+            Some(Type::ManagedValue)
+        } else {
+            self.receiver_type(&assignment.right, depth + 1)
+        };
         let input_mode = match receiver {
+            Some(Type::ManagedValue) if string => Mode::Managed,
             Some(Type::ManagedArray) => Mode::Array,
             Some(Type::ManagedObject) => Mode::Object,
             _ => {
@@ -113,7 +122,7 @@ impl Lowering<'_, '_> {
         let mut writes = Vec::new();
         match &assignment.left {
             AssignmentTarget::ArrayAssignmentTarget(pattern) => {
-                if receiver != Some(Type::ManagedArray) {
+                if receiver != Some(Type::ManagedArray) && !string {
                     return Err(unsupported(
                         node,
                         "array assignments require a source-proven Array",
@@ -193,6 +202,7 @@ impl Lowering<'_, '_> {
             writes,
             mode,
             depth: depth + 1,
+            string,
         })));
         work.push(Work::Eval(&assignment.right, depth + 1, input_mode));
         Ok(true)
@@ -208,13 +218,30 @@ impl Lowering<'_, '_> {
         let mut state = match task {
             Task::Begin(plan) => {
                 let input = values.pop().expect("assignment RHS");
-                let iterator = (self.values[input.id().0] == Type::ManagedArray
+                let receiver = if plan.string {
+                    // Select code points from a private immutable-String snapshot,
+                    // but keep the original String as the assignment result.
+                    let array = self.value(Type::ManagedArray);
+                    Self::push(
+                        regions.current(),
+                        plan.node,
+                        Op::ManagedStringToArray {
+                            result: array,
+                            input: input.id(),
+                        },
+                    );
+                    array
+                } else {
+                    input.id()
+                };
+                let iterator = (self.values[receiver.0] == Type::ManagedArray
                     && plan.writes.iter().any(|write| write.default.is_some()))
                 .then(|| self.begin_array_binding_iterator(plan.node, regions.current()));
                 Box::new(State {
                     node: plan.node,
                     writes: plan.writes.into_iter(),
                     input,
+                    receiver,
                     mode: plan.mode,
                     depth: plan.depth,
                     iterator,
@@ -246,7 +273,7 @@ impl Lowering<'_, '_> {
             }
         };
         let node = state.node;
-        let receiver = state.input.id();
+        let receiver = state.receiver;
         while let Some(Write {
             selection,
             slot,
@@ -355,6 +382,9 @@ impl Lowering<'_, '_> {
         }
         match state.mode {
             Mode::Array | Mode::Object => values.push(state.input),
+            Mode::Managed if self.values[state.input.id().0] == Type::ManagedValue => {
+                values.push(state.input)
+            }
             Mode::Managed => {
                 let result = self.value(Type::ManagedValue);
                 Self::push(
@@ -379,9 +409,16 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     node,
-                    Op::Boolean {
-                        result,
-                        value: true,
+                    if self.values[state.input.id().0] == Type::ManagedValue {
+                        Op::ManagedTruthy {
+                            result,
+                            input: state.input.id(),
+                        }
+                    } else {
+                        Op::Boolean {
+                            result,
+                            value: true,
+                        }
                     },
                 );
                 values.push(Value::Predicate(result));
@@ -395,6 +432,44 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn string_array_assignments_preserve_result_kinds_and_source_guards() {
+        for body in [
+            "let x;[x]='abc';return x==='a'?1:0;",
+            "let x;return ([x]='')?1:0;",
+            "let x;return ([x]='abc')?1:0;",
+            "let x;const result=([x]='abc');return result.length;",
+            "let x,rest=[];[x,...rest]='abc';return rest.length;",
+            "let x;const read=()=>x;[x]='abc';return read()==='a'?1:0;",
+            "var x;[x]='abc';return x==='a'?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let result = crate::compile(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+        for body in [
+            "let x;[x]=(a as string);return a;",
+            "let x;[x]=(a?'abc':null);return a;",
+            "const x='';[x]='abc';return a;",
+            "let x;[[x]]='abc';return a;",
+            "[missing]='abc';return a;",
+            "let x;({length:x}='abc');return a;",
+            "let x=3;[x]='abc';return x;",
+            "let x=3;const read=()=>x;[x]='abc';return read();",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, true).is_err(), "{source}");
+        }
+        let js = "export function run(a,b){let x;const result=([x]='abc');return result.length;}";
+        let ts = "export function run(a:boolean,b:string):never{let x:number;const result:boolean=([x]=('abc' as never));return (result as number).length;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+    }
+
     #[test]
     fn assignment_defaults_keep_lazy_selection_and_source_kind_guards() {
         for (body, admitted) in [
@@ -417,10 +492,13 @@ mod tests {
 
     #[test]
     fn nested_assignment_defaults_keep_controlled_depth_limits() {
-        for depth in [6, 140] {
-            let mut expression = String::from("[]");
+        for (depth, root) in [6, 140]
+            .into_iter()
+            .flat_map(|depth| ["[]", "''"].into_iter().map(move |root| (depth, root)))
+        {
+            let mut expression = String::from(root);
             for _ in 0..depth {
-                expression = format!("[x=({expression})]=[]");
+                expression = format!("[x=({expression})]={root}");
             }
             let source = format!("export function run(a,b){{let x=0;{expression};return a;}}");
             let result = std::thread::Builder::new()

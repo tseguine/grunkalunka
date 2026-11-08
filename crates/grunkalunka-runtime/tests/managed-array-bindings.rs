@@ -471,6 +471,27 @@ fn string_iterator_bindings_preserve_code_points_elisions_rest_and_defaults() {
 }
 
 #[test]
+fn string_array_assignments_preserve_original_rhs_and_code_point_selection() {
+    for body in [
+        "let x;[x]='abc';return x==='a'?1:0;",
+        "let x;return ([x]='')?1:0;",
+        "let x;return ([x]='abc')?1:0;",
+        "let x;return !([x]='')?1:0;",
+        "let x;const result=([x]='abc');return result.length+(x==='a'?10:0);",
+        "let x,n=0;let source='';const result=([x=(n++,source='abc','?')]=source);return result===''&&source==='abc'&&x==='?'?n:0;",
+        "let x,y,n=0;[x=(n++,'?'),y=(n++,'!')]='a';return n+(x==='a'?10:0)+(y==='!'?100:0);",
+        r"let x,y;[x,y]='\u{1f600}\ud800';return x==='\u{1f600}'&&y==='\ud800'?1:0;",
+        r"let x,rest=[];[,x,...rest]='\u{1f600}ab';return (x==='a'?10:0)+rest.length;",
+        "let x,rest=[];[x,...rest]='abc';const saved=rest;[x,...rest]='abc';rest[0]='z';return saved!==rest&&saved[0]==='b'?1:0;",
+        "let x;const read=()=>x;[x]='abc';return read()==='a'?1:0;",
+        "var x;[x]='abc';return x==='a'?1:0;",
+        "let x,n=0;const make=()=>{n++;return 'abc';};[x]=make();return n+(x==='a'?10:0);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn array_binding_local_budget_counts_leaves_not_elisions_on_a_small_native_stack() {
     for count in [128, 129] {
         let leaves = (0..count)

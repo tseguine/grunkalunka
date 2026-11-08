@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn string_array_assignments_keep_saved_rhs_and_copies_across_await() {
+    compare_promises(
+        &[
+            "let x,y;let source='';const result=([x=(await a,source='ab','?'),y=(await b,'!')]=source);await a;return result===''&&source==='ab'&&x==='?'&&y==='!'?1:0;",
+            "let x,n=0;[x=(n++,await Promise.reject(a))]='abc';await b;return n===0&&x==='a'?1:0;",
+            r"let x,rest=[];const result=([x,...rest]='\u{1f600}ab');await a;return result.length===4&&x==='\u{1f600}'&&rest.length===2?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn assignment_defaults_preserve_waits_skips_and_abrupt_completion() {
     compare_promises(
         &[

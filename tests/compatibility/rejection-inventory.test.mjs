@@ -1,3 +1,4 @@
+import { stringAssignmentPrograms } from './string-array-assignments.mjs';
 import { earlierParameterPrograms } from './earlier-parameter-defaults.mjs';
 import { stringIteratorPromotions, stringIteratorPrograms } from './string-iterator-bindings.mjs';
 import { forInObjectPrograms } from './for-in-object-patterns.mjs';
@@ -1142,5 +1143,19 @@ test('earlier-parameter defaults keep original shadowed-global compiler guards a
     assert.equal(createHash("sha256").update(source).digest("hex"),hashes[index]);
     const pair=programSources(earlierParameterPrograms.find(row=>row[0]==='earlier-parameter-'+id));
     for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,source);
+  }
+});
+
+
+test('String assignment fixtures retain both empty and nonempty original RHS predicates', () => {
+  assert.equal(stringAssignmentPrograms.length,13);
+  for(const [id,body] of [
+    ['empty-predicate',"let x;return ([x]='')?1:0;"],
+    ['nonempty-predicate',"let x;return ([x]='abc')?1:0;"],
+  ]) {
+    const row=stringAssignmentPrograms.find(row=>row[0]==='string-assignment-'+id);
+    assert.equal(row[1],body);assert.equal(row[2],body);
+    assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+    assert.ok(programs.some(program=>program[0]===row[0]));
   }
 });
