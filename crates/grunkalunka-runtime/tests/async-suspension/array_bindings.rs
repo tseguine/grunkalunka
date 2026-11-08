@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn optional_delete_preserves_saved_targets_and_skipped_rejected_keys() {
+    compare_promises(
+        &[
+            "let o={x:a};const old=o;const ok=delete o?.[(await b,o={x:b},'x')];await a;return ok&&old.x===undefined&&o.x===b?1:0;",
+            "const o=a?{x:b}:null;let n=0;const ok=delete o?.[(await b,n++,'x')];await a;return ok&&n===(a?1:0)?1:0;",
+            "const o={x:a};const target=a?o:null;try{const ok=delete target?.[(await Promise.reject(b),'x')];await a;return ok&&o.x===a?1:0;}catch(e){await a;return o.x===a?2:0;}",
+            "const xs=[a,b];const ok=delete xs?.[(await b,0>>>0)];await a;return ok&&xs.length===2&&!(0 in xs)?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn optional_dictionary_reads_preserve_saved_receivers_and_lazy_key_awaits() {
     compare_promises(
         &[

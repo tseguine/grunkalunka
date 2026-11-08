@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) enum Task<'e, 'a> {
+    Optional(super::optional_delete::Task<'e, 'a>),
     Effect(&'e Expression<'a>),
     Literal {
         node: &'e Expression<'a>,
@@ -71,6 +72,9 @@ impl Lowering<'_, '_> {
             return Err(unsupported(node, "delete operand nesting exceeds 128"));
         };
         let (object, literal, dynamic) = match argument {
+            Expression::ChainExpression(chain) => {
+                return self.schedule_optional_delete(node, chain, member_depth, mode, work);
+            }
             Expression::StaticMemberExpression(member) if !member.optional => (
                 &member.object,
                 Some(member.property.name.encode_utf16().collect()),
@@ -82,7 +86,6 @@ impl Lowering<'_, '_> {
                 (&member.object, key, Some(&member.expression))
             }
             Expression::Identifier(_)
-            | Expression::ChainExpression(_)
             | Expression::PrivateFieldExpression(_)
             | Expression::StaticMemberExpression(_)
             | Expression::ComputedMemberExpression(_) => {
@@ -171,6 +174,10 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) {
         let (node, input, key) = match task {
+            Task::Optional(task) => {
+                self.resume_optional_delete(task, regions, values, work);
+                return;
+            }
             Task::Effect(node) => {
                 let result = self.value(Type::Predicate);
                 Self::push(
@@ -309,7 +316,7 @@ mod tests {
             ("return delete null.x?1:0;", false),
             ("return delete (void 0).x?1:0;", false),
             ("return delete a[{}]?1:0;", false),
-            ("const o={x:a};return delete o?.x?1:0;", false),
+            ("const o={x:a};return delete o?.x?1:0;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {

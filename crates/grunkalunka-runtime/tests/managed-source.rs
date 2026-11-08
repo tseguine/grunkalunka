@@ -5,6 +5,25 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_delete_preserves_reference_mutation_and_lazy_operand_order() {
+    for body in [
+        "const o={x:a};return delete o?.x?1:0;",
+        "const o={x:a};const ok=delete o?.x;return ok&&o.x===undefined?1:0;",
+        "const xs=[a,b];const ok=delete xs?.[0];return ok&&xs.length===2&&!(0 in xs)?1:0;",
+        "const xs=[];xs[4294967295]=b;delete xs?.[(-1)>>>0];return xs.length===0&&xs[4294967295]===undefined?1:0;",
+        "let n=0;const o=a?{x:b}:null;const ok=delete o?.[(n++,'x')];return ok&&n===(a?1:0)?1:0;",
+        "let n=0;const key=()=>{n++;return 'x';};const ok=delete null?.[key()];return ok&&n===0?1:0;",
+        "let o={x:a};const old=o;delete o?.[(o={x:b},'x')];return old.x===undefined&&o.x===b?1:0;",
+        "const o={x:b};let n=0;const get=()=>{n++;return a?o:null;};const ok=delete get()?.x;return ok&&n===1&&o.x===(a?undefined:b)?1:0;",
+        "const o={x:a,y:b};let n=0;for(const k in o){n++;delete o?.y;}return n;",
+        "const o={x:a};return delete (0,o?.x)&&o.x===a?1:0;",
+        "const o={x:a};delete (o?.x);return o.x===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn optional_dictionary_reads_preserve_lazy_keys_aliases_and_selected_identity() {
     for body in [
         "const d=Object.create(null);const key='x';return d?.[key]===undefined?a:b;",

@@ -1,3 +1,4 @@
+import { optionalDeletePrograms } from './optional-delete.mjs';
 import { optionalDictionaryReadPrograms } from './optional-dictionary-reads.mjs';
 import { functionForInPrograms } from './function-for-in.mjs';
 import { optionalNumberStringPrograms } from './optional-number-string-keys.mjs';
@@ -156,7 +157,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 175;
+export const corpusVersion = 176;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -182,7 +183,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...optionalDictionaryReadPrograms, ...functionForInPrograms, ...optionalNumberStringPrograms, ...optionalStringReadPrograms, ...optionalUint32ReadPrograms, ...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...optionalDeletePrograms, ...optionalDictionaryReadPrograms, ...functionForInPrograms, ...optionalNumberStringPrograms, ...optionalStringReadPrograms, ...optionalUint32ReadPrograms, ...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);

@@ -1,3 +1,4 @@
+import { optionalDeletePrograms } from './optional-delete.mjs';
 import { optionalDictionaryReadPrograms } from './optional-dictionary-reads.mjs';
 import { functionForInPrograms } from './function-for-in.mjs';
 import { optionalNumberStringPrograms } from './optional-number-string-keys.mjs';
@@ -1362,4 +1363,10 @@ test('function for-in retains original callable, RHS and zero-visit observations
 test('optional dictionary reads retain original lazy String keys and receiver snapshots',()=>{
  assert.equal(optionalDictionaryReadPrograms.length,17);
  for(const row of optionalDictionaryReadPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('?.'));assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('optional delete retains original reference operands and lazy key observations',()=>{
+ assert.equal(optionalDeletePrograms.length,17);
+ for(const row of optionalDeletePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('delete'));assert.ok(programs.some(program=>program[0]===row[0]));}
 });

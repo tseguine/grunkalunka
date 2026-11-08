@@ -22,6 +22,15 @@ pub(super) fn delete(unary: &oxc_ast::ast::UnaryExpression<'_>) -> Option<Mutati
             &member.object,
             closures::unwrapped(&member.expression, 0).and_then(static_keys::literal),
         ),
+        Expression::ChainExpression(chain) => {
+            let (receiver, key) = evaluate::optional_member::parts(chain, 0)?;
+            let key = match key {
+                evaluate::optional_member::Key::Literal(key) => Some(key),
+                evaluate::optional_member::Key::Uint32(_)
+                | evaluate::optional_member::Key::Runtime(_) => None,
+            };
+            (receiver, key)
+        }
         _ => return None,
     };
     Some(match key {
@@ -93,7 +102,9 @@ mod tests {
             .nodes()
             .iter()
             .find_map(|node| match node.kind() {
-                AstKind::StaticMemberExpression(member) if member.property.name == "field" => {
+                AstKind::StaticMemberExpression(member)
+                    if member.property.name == "field" && !member.optional =>
+                {
                     Some(node.id())
                 }
                 _ => None,
@@ -142,5 +153,23 @@ mod tests {
             ),
             (true, None, false),
         );
+    }
+
+    #[test]
+    fn optional_deletion_widens_field_proofs_through_aliases_and_helpers() {
+        for initial in ["'safe'", "[]", "{}", "()=>a"] {
+            assert_eq!(
+                field_proofs(&format!(
+                    "const holder={{field:{initial}}};const alias=holder;delete alias?.field;const observed=holder.field;return a;"
+                )),
+                (false, None, false),
+            );
+            assert_eq!(
+                field_proofs(&format!(
+                    "const holder={{field:{initial}}};const remove=target=>delete target?.field;remove(holder);const observed=holder.field;return a;"
+                )),
+                (false, None, false),
+            );
+        }
     }
 }
