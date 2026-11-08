@@ -5,6 +5,40 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn primitive_static_property_updates_preserve_conversions_missing_fields_and_aliases() {
+    for body in [
+        "const o={n:a?false:undefined};return o.n+=b;",
+        "const o={n:a?false:undefined};return o.n-=b;",
+        "const o={n:a?false:undefined};return o.n*=b;",
+        "const o={n:a?false:undefined};return o.n/=b;",
+        "const o={n:a?false:undefined};return o.n%=b;",
+        "const o={n:a?false:undefined};return o.n&=b;",
+        "const o={n:a?false:undefined};return o.n|=b;",
+        "const o={n:a?false:undefined};return o.n^=b;",
+        "const o={n:a?false:undefined};return o.n<<=b;",
+        "const o={n:a?false:undefined};return o.n>>=b;",
+        "const o={n:a?false:undefined};return o.n>>>=b;",
+        "const o={n:false};return o.n++;",
+        "const o={n:null};return ++o.n;",
+        "const o={n:undefined};return o.n--;",
+        "const o={};return o.n++;",
+        "const o={};o.n++;return Object.hasOwn(o,'n')?1:0;",
+        "const xs=[,];return xs[0]++;",
+        "const xs=[];xs[2]|=b;return xs.length===3&&!Object.hasOwn(xs,0)&&Object.hasOwn(xs,2)?1:0;",
+        "const o={n:a?true:null};return o.n++;",
+        "const o={n:false};return o.n+=(o.n=true,b);",
+        "let o={n:false};const old=o;const v=o.n-=(o={n:b},b);return old!==o?v:99;",
+        "const o={n:a};delete o.n;const v=o.n++;return Object.hasOwn(o,'n')?v:99;",
+        "const o={n:false};const alias=o;o.n++;return +alias.n;",
+        "const o={n:null};const update=()=>++o.n;return update();",
+        "const o={};o.n++;return a;",
+        "const o={n:a};delete o.n;o.n++;return a;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn dictionary_numeric_updates_preserve_primitive_conversions_and_key_snapshots() {
     for body in [
         "const d=Object.create(null);const key='x';d[key]++;return a;",

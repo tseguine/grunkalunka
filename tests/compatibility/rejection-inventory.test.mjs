@@ -1,3 +1,4 @@
+import { primitivePropertyUpdatePrograms } from './primitive-property-updates.mjs';
 import { dictionaryNumericUpdatePrograms } from './dictionary-numeric-updates.mjs';
 import { uint32NumericUpdatePrograms } from './uint32-numeric-updates.mjs';
 import { uint32LogicalWritePrograms } from './uint32-logical-writes.mjs';
@@ -1306,4 +1307,10 @@ test('unsigned numeric updates retain original conversion, boundary and snapshot
 test('dictionary numeric updates retain original key, conversion and snapshot observations',()=>{
  assert.equal(dictionaryNumericUpdatePrograms.length,25);
  for(const row of dictionaryNumericUpdatePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('primitive property updates retain missing, conversion and alias observations',()=>{
+ assert.equal(primitivePropertyUpdatePrograms.length,26);
+ for(const row of primitivePropertyUpdatePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });

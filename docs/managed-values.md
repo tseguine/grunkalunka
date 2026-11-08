@@ -169,26 +169,26 @@ destructuring assignment and `for-of` rejection sources now execute unchanged in
 the canonical corpus. Compiler admission/verifier tests and synchronous/async
 native-JavaScript, Node/Wasm and Wasmtime comparisons cover the source path.
 
-Known own Number data fields and static array elements also support prefix/postfix
-`++`/`--` and the eleven existing arithmetic/bitwise compound assignments. The
-receiver and old Number are saved before RHS effects or suspension. A successful
-write stores a newly boxed Number back into that original receiver; postfix
-returns the old snapshot, while prefix and compound assignment return the new
+Source-proven primitive data fields and static array elements support
+prefix/postfix `++`/`--` and the eleven existing arithmetic/bitwise compound assignments. The
+receiver and converted old Number are saved before RHS effects or suspension.
+A successful write stores a newly boxed Number back into that original receiver;
+postfix returns the old snapshot, while prefix and compound assignment return the new
 Number. Rejection during RHS evaluation leaves the property unchanged. Ordinary
 read and write operations share the existing managed storage and numeric IR.
 Runtime unsigned keys proven by original `>>>` source also support these updates
 on represented objects, Arrays and null-prototype dictionaries. Null-prototype
-dictionaries additionally accept source-proven runtime String keys. Dynamic-key
-updates require stored alternatives from Number, Boolean, Null and Undefined;
-missing fields and holes contribute Undefined. Existing primitive numeric
+dictionaries additionally accept source-proven runtime String keys. All numeric
+property updates require stored alternatives from Number, Boolean, Null and
+Undefined; missing fields and holes contribute Undefined. Existing primitive numeric
 conversion supplies the old Number before arithmetic. Receiver, key and old value
 are captured once in source order, including across supported awaits; a rejected
 key or RHS performs no final store. Array growth and the uint32 maximum named key
 retain the ordinary sparse-storage rules. Type annotations supply no proof.
 
-Static-key updates still require known Number fields. Array length, unproven keys,
-String/reference stored values, effectful object coercions and accessors retain
-their guards.
+Static-key updates admit missing/deleted own fields and holes with the same
+primitive conversion. Array length, unproven runtime keys, String/reference stored
+values, effectful object coercions and accessors retain their guards.
 
 Source-proven own Number properties also support `&&=`, `||=` and `??=`. The
 receiver and old Number are saved before selection, and the RHS plus boxed store

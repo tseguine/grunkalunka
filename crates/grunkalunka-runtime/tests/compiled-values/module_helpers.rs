@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn numeric_property_updates_return_number_tags_for_every_admitted_key_kind() {
+    compare_helpers(&[
+        "export function run(a,b){const o={n:false};return o.n++;}",
+        "export function run(a,b){const o={n:null};return ++o.n;}",
+        "export function run(a,b){const xs=[a];return xs[0>>>0]++;}",
+        "export function run(a,b){const d=Object.create(null);d.x=false;const k='x';return d[k]++;}",
+        "export function run(a,b){const o={};return o.n++;}",
+        "export function run(a,b){const o={n:a?false:null};return o.n-=b;}",
+    ]);
+}
+
+#[test]
 fn unsigned_logical_writes_preserve_tags_and_bits() {
     compare_helpers(&[
         "export function run(a,b){const xs=[a];return xs[0>>>0]||=b;}",

@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn primitive_static_updates_preserve_old_values_and_targets_across_awaits() {
+    compare_promises(
+        &[
+            "let o={n:false};const old=o;const v=o.n-=(await a,o={n:b},b);await b;return old!==o?v:99;",
+            "const xs=[,];xs[0]|=await b;await a;return +xs[0];",
+            "const o={n:null};try{o.n-=await Promise.reject(b);}catch(e){await a;return o.n===null?1:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn dictionary_numeric_updates_preserve_string_keys_and_old_values_across_awaits() {
     compare_promises(
         &[
