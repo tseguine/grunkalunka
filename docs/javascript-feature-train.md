@@ -577,3 +577,16 @@ String/Number conversions, effects, scope reads and async/public defaults remain
 guarded. Compiler admission tests and the managed-logical JS/TS differential
 suite cover named helpers, local arrows, stored calls, selected values and
 explicitly supplied arguments.
+
+
+Private synchronous helpers and arrows now admit a direct reference to an
+**earlier parameter** with a pure, statically folded right-hand fallback using
+`||`, `&&` or `??`. This enables A1 handlers to default labels and policy
+flags from an already-supplied action without requiring a separate declaration.
+The original argument is evaluated only once, and the fallback is selected only
+when the parameter default is entered and the operator requires it. Parameter
+symbol identity, reference boxing, nullish-vs-falsy semantics, supplied values
+and existing default length reflection are preserved. Unselected fallback
+branches must still be pure; effectful expressions, outside/later/self reads,
+nonliteral left operands and async/public defaults remain guarded. Compiler
+admission and JS/TS differential tests cover the source forms.

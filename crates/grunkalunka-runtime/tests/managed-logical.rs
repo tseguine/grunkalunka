@@ -929,3 +929,23 @@ fn pure_default_expressions_match_native_js_for_named_arrow_and_stored_calls() {
     let ts = "export function run(a:number,b:number):number{const f=(x=((false as never)||(true as unknown))?'active':'idle')=>x;return f()==='active'?a:b;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn earlier_parameter_logical_fallbacks_preserve_tags_and_supplied_values() {
+    for body in [
+        "function f(x,y=x||'missing'){return y;}return f(0)==='missing'?a:b;",
+        "function f(x,y=x||'missing'){return y;}return f('present')==='present'?a:b;",
+        "function f(x,y=x&&'yes'){return y;}return f(false)===false?a:b;",
+        "const f=(x,y=x&&'yes')=>y;return f(true)==='yes'?a:b;",
+        "const f=(x,y=x??42)=>y;return f(null)===42?a:b;",
+        "const f=(x,y=x??42)=>y;return f(0)===0?a:b;",
+        "const o={f:(x,y=x??('a'+'b'))=>y};return o.f(undefined)==='ab'?a:b;",
+        "function f(x,y=x||5){return y;}return f(a,b)===b?a:b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const f=(x,y=x??'ready')=>y;return f(null)==='ready'?a:b;}";
+    let ts = "export function run(a:number,b:number){const f=(x:unknown,y:unknown=(x as never)??'ready')=>y;return f(null)==='ready'?a:b;}";
+    common::compare_sources(js, ts);
+}
