@@ -4,6 +4,10 @@ import { posix as path } from 'node:path';
 const js = /\.(?:[cm]?js|[cm]?ts)$/;
 const rust = /\.rs$/;
 const imports = /\bimport\s+(?:[\s\S]{0,150}?\s+from\s*)?(['"])([^'"]+)\1/g;
+// A barrel module changes when the modules it re-exports change, even if it
+// contains no ordinary import declaration. Include named, star, namespace and
+// TypeScript type-only re-export sources in the same dependency graph.
+const reexports = /\bexport\s+(?:type\s+)?(?:\*\s*(?:as\s+[$\w]+\s*)?|\{[^}]*\})\s+from\s*(['"])([^'"]+)\1/g;
 const importCalls = /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
 const urls = /\bnew\s+URL\s*\(\s*(['"])([^'"]+)\1\s*,\s*import\.meta\.url\s*,?\s*\)/g;
 const urlTemplates = /\bnew\s+URL\s*\(\s*\x60([^\x60]*)\x60\s*,\s*import\.meta\.url\s*,?\s*\)/g;
@@ -36,6 +40,7 @@ export function discoverLiteralSourceInputs(source, text) {
   };
   if (js.test(source)) {
     for (const match of text.matchAll(imports)) add(match[2]);
+    for (const match of text.matchAll(reexports)) add(match[2]);
     for (const match of text.matchAll(importCalls)) add(match[2]);
     for (const match of text.matchAll(urls)) add(match[2]);
     for (const match of text.matchAll(urlTemplates)) {
