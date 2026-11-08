@@ -163,6 +163,60 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         excluded.push(ir::ManagedKey::Literal(key.clone()));
                     }
                     let selected = self.value(Type::ManagedValue);
+                    if self.values[object.0] == Type::ManagedValue {
+                        if key.as_slice() == [108, 101, 110, 103, 116, 104] {
+                            let number = self.value(Type::Number);
+                            Self::push(
+                                &mut output,
+                                source,
+                                Op::ManagedStringLength {
+                                    result: number,
+                                    input: *object,
+                                },
+                            );
+                            let general = self.value(Type::General);
+                            Self::push(
+                                &mut output,
+                                source,
+                                Op::Pack {
+                                    result: general,
+                                    input: number,
+                                },
+                            );
+                            Self::push(
+                                &mut output,
+                                source,
+                                Op::ManagedPrimitive {
+                                    result: selected,
+                                    input: general,
+                                },
+                            );
+                        } else {
+                            let index = self.value(Type::Number);
+                            Self::push(
+                                &mut output,
+                                source,
+                                Op::Constant {
+                                    result: index,
+                                    value: f64::from(
+                                        binding_patterns::string_index(&key)
+                                            .expect("planned String index"),
+                                    ),
+                                },
+                            );
+                            Self::push(
+                                &mut output,
+                                source,
+                                Op::ManagedStringGetIndex {
+                                    result: selected,
+                                    input: *object,
+                                    index,
+                                },
+                            );
+                        }
+                        state.selected = Some(selected);
+                        continue;
+                    }
                     let op = if self.values[object.0] == Type::ManagedArray {
                         Op::ManagedArrayGetOwn {
                             result: selected,

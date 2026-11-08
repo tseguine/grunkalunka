@@ -333,3 +333,40 @@ fn var_for_of_patterns_share_cells_and_preserve_iteration_origins() {
         );
     }
 }
+
+#[test]
+fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
+    for body in [
+        "const {length:n}='abc';return n;",
+        "let {0:x='?'}='abc';return x.charCodeAt(0);",
+        "var {length:n}='abc';return +n;",
+        "const {s:{length:n}}={s:'abc'};return n;",
+        "const {'99':x='z'}='abc';return x.charCodeAt(0);",
+        "let n=0;const {0:x=(n++, '?'),length:l}='ab';return n+l;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let r = crate::compile(&source, ts);
+            assert!(r.is_ok(), "{source}: {:?}", r.err());
+        }
+    }
+    for body in [
+        "const {...rest}='abc';return a;",
+        "const {slice}='abc';return a;",
+        "const {'01':x}='abc';return a;",
+        "const key='length';const {[key]:n}='abc';return a;",
+        "const {length:n}=(a as string);return a;",
+        "const source=a?'abc':null;const {length:n}=source;return a;",
+    ] {
+        assert!(
+            crate::compile_value(&format!("export function run(a,b){{{body}}}"), true).is_err(),
+            "{body}"
+        );
+    }
+    let js = "export function run(a,b){const {length:n}='abc';return n;}";
+    let ts = "export function run(a:string,b:boolean):never{const {length:n}:never=('abc' as unknown);return n as string;}";
+    assert_eq!(
+        crate::compile(js, false).unwrap().wasm,
+        crate::compile(ts, true).unwrap().wasm
+    );
+}

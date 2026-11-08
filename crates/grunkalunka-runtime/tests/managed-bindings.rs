@@ -505,6 +505,8 @@ fn object_binding_annotations_are_erased_without_proving_values() {
 
 #[test]
 fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
+    let original = "export function run(a,b){const {}='abc';return a;}";
+    common::compare_sources(original, original);
     let original = "export function run(a,b){for(var {x} of [{x:a}]){}return a;}";
     common::compare_sources(original, original);
     let original = "export function run(a,b){var {x}={x:a};return a;}";
@@ -519,7 +521,7 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {x}=null;return a;",
         "const {x}=undefined;return a;",
         "const {}=null;return a;",
-        "const {}='abc';return a;",
+        "const {...rest}='abc';return a;",
         "const source=a?{x:a}:null;const {x}=source;return a;",
         "const items=[{x:a}];const {x}=items.at(0);return a;",
         "const {constructor}={};return a;",
@@ -642,6 +644,24 @@ fn object_patterns_select_array_length_indices_and_remaining_enumerable_fields()
         "const source=[a];const {...rest}=source;const {length:label=' absent '}=rest;return label.trim()==='absent'&&rest[0]===a?1:0;",
         "const src=[undefined,b];const {0:first=(src.length=0,src[2]=a,1),length:n,...rest}=src;return first===1&&n===3&&Object.keys(rest).length===1&&rest[2]===a?1:0;",
         "for(const {0:first,length:n,...others} of [[' title ',a]])return first.trim().length+(n===2&&others[1]===a?10:0);return 0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn string_object_bindings_preserve_utf16_missing_indices_defaults_and_snapshots() {
+    for body in [
+        "const {length:n}='abc';return n;",
+        "let {0:x='?'}='abc';return x.charCodeAt(0);",
+        "var {length:n}='abc';return +n;",
+        "const {s:{length:n}}={s:'abc'};return n;",
+        "const {'99':x='z'}='abc';return x.charCodeAt(0);",
+        "let n=0;const {0:x=(n++, '?'),length:l}='ab';return n+l;",
+        "let n=0;const {'99':x=(n++, 'z'),length:l}='ab';return n+l+x.charCodeAt(0);",
+        "let s='abc';const {0:x='?',length:n}=s;s='z';return x.charCodeAt(0)+n;",
+        r"const {length:n,0:x='?',1:y='?',2:z='?'}='\u{1f600}\ud800';return n+x.charCodeAt(0)+y.charCodeAt(0)+z.charCodeAt(0);",
+        "const f=()=>'abc';const {length:n}=f();return n;",
     ] {
         compare(body);
     }
