@@ -121,12 +121,29 @@ fn iteration_assignment_heads_reject_const_unbound_or_incompatible_slots() {
         "for(item of ['a']){}return a;",
         "let item=a;for(item of ['a']){}return a;",
         "let key=0;for(key in {a:1}){}return a;",
-        "let key='';for(key in null){}return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
             assert_rejected(&source, typed);
         }
+    }
+}
+
+#[test]
+fn empty_scalar_for_in_assignment_executes_the_exact_former_guard_source() {
+    let source = "export function run(a,b){let key='';for(key in null){}return a;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn empty_for_in_assignment_preserves_cells_and_evaluates_rhs_once() {
+    for body in [
+        "let key='old';const read=()=>key;let calls=0;for(key in (calls++,undefined))key='changed';return calls*10+(read()==='old'?1:0);",
+        "let key='old';let calls=0;const source=()=>{calls++;return a?false:null;};for(key in source()){calls+=10;key='changed';}return calls*10+(key==='old'?1:0);",
+        "let key='old';let calls=0;for(key in (calls++,b))key='changed';return calls*10+(key==='old'?1:0);",
+        "let key='old';let calls=0;for(key in (calls++,()=>a))key='changed';return calls*10+(key==='old'?1:0);",
+    ] {
+        compare(body);
     }
 }
 
