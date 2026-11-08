@@ -30,7 +30,6 @@ fn helper_default_scope_and_source_guards_remain_explicit() {
         "function f({x}=null){return 1;}export function run(a,b){return f();}",
         "function f(x=a){return x;}export function run(a,b){return f();}",
         "function f(x=Math.random()){return x;}export function run(a,b){return f();}",
-        "function f(x=1+2){return x;}export function run(a,b){return f();}",
         "export function run(a,b){const f=(x=a)=>x;return f();}",
     ] {
         assert!(crate::compile_value(source, false).is_err(), "{source}");
@@ -87,7 +86,6 @@ fn arrow_defaults_keep_effect_scope_async_and_callback_arity_guards() {
         "export function run(a,b){const f=(x=a)=>x;return f();}",
         "export function run(a,b){const f=(x=Math.random())=>x;return f();}",
         "export function run(a,b){const f=(x=3)=>Math.noSuch(x);return a;}",
-        "export function run(a,b){const f=(x=1+2)=>x;return f();}",
         "export function run(a,b){const f=({x}=null)=>x;return f();}",
         "export function run(a,b){const f=(x=3)=>x;const invoke=g=>g();return invoke(f);}",
         "export function run(a,b){const f=(x=3)=>x;const g=x=>x;const h=a?f:g;return h.length;}",
@@ -215,6 +213,77 @@ fn earlier_parameter_defaults_keep_tdz_scope_and_effect_guards() {
                     crate::compile_value(&source, false).is_ok(),
                     depth == 128,
                     "depth {depth}"
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn arithmetic_parameter_defaults_preserve_number_semantics_and_source_limits() {
+    for value in [
+        "1+2",
+        "2*(3+4)",
+        "7-9",
+        "1/0",
+        "0/0",
+        "-0/3",
+        "-4%2",
+        "NaN+1",
+        "Infinity-Infinity",
+        "void (1+2)",
+    ] {
+        for source in [
+            format!("function f(x={value}){{return x;}}export function run(a,b){{return f();}}"),
+            format!("export function run(a,b){{const o={{f:(x={value})=>x}};return o.f();}}"),
+        ] {
+            for ts in [false, true] {
+                let r = crate::compile_value(&source, ts);
+                assert!(r.is_ok(), "{source}: {:?}", r.err());
+            }
+        }
+    }
+    for value in [
+        "'1'+2",
+        "true+2",
+        "null*3",
+        "a+1",
+        "missing+1",
+        "g()+1",
+        "void (missing+1)",
+        "1**2",
+    ] {
+        let source =
+            format!("function f(x={value}){{return x;}}export function run(a,b){{return f();}}");
+        assert!(crate::compile_value(&source, false).is_err(), "{source}");
+    }
+    assert!(
+        crate::compile_value(
+            "function f(Infinity,x=Infinity+1){return x;}export function run(a,b){return f(a);}",
+            false
+        )
+        .is_err()
+    );
+    let js = "function f(x=2*(3+4)){return x;}export function run(a,b){return f();}";
+    let ts = "function f(x:string=(2*((3 as boolean)+4) as never)):Wrong{return x as number;}export function run(a:string,b:boolean):never{return f();}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            for depth in [128, 129] {
+                let expression = (0..depth).fold("1".to_string(), |s, _| format!("1+{s}"));
+                let source = format!(
+                    "function f(x={expression}){{return x;}}export function run(a,b){{return f();}}"
+                );
+                assert_eq!(
+                    crate::compile_value(&source, false).is_ok(),
+                    depth == 128,
+                    "{depth}"
                 );
             }
         })

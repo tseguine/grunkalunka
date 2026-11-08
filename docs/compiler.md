@@ -2691,3 +2691,17 @@ saved-source contract. String object rest, dynamic/noncanonical/inherited keys,
 nested/member targets, immutable/uninitialized cells and unproven/mixed receivers
 retain guards; annotations cannot justify specialized loads. Corpus 154 adds ten
 JS/TS pairs while retaining all 796 negative sources.
+
+
+Private synchronous helper/arrow defaults now fold binary addition, subtraction,
+multiplication, division and remainder when both operands are proven Number
+constants. Nesting composes with signed constants, unshadowed Infinity/NaN, erased
+wrappers and pure void. The evaluator uses a bounded heap worklist and validates
+every operand, including beneath void. It preserves IEEE Number behavior for
+signed zero, infinities and NaN, without evaluating runtime effects. Only Undefined
+selects the result; supplied primitive tags and existing callable/capture rules
+remain unchanged. Self/later/outer reads, arithmetic on earlier parameters,
+shadowed globals, calls, String/Boolean/null coercions and exponentiation retain
+guards. Source depth 128/129 is exercised on a 2 MiB stack. Corpus 155 retains two
+exact former compiler rejection sources with their hashes as executed positives
+and adds fourteen pairs. All 796 retained negative sources stay in the inventory.

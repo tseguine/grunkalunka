@@ -45,63 +45,98 @@ fn earlier_parameter<'n, 'a>(
     }).then_some(identifier)
 }
 fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Constant> {
-    let mut node = expression;
-    let mut depth = 0;
-    let mut operators = Vec::new();
-    let mut value = loop {
-        let (inner, next) = closures::unwrapped_at(node, depth)?;
-        node = inner;
-        depth = next;
-        if depth > 128 {
-            return None;
-        }
-        match node {
-            Expression::UnaryExpression(unary)
-                if matches!(
-                    unary.operator,
-                    UnaryOperator::UnaryPlus | UnaryOperator::UnaryNegation | UnaryOperator::Void
-                ) =>
-            {
-                operators.push(unary.operator);
-                node = &unary.argument;
-                depth += 1;
-            }
-            Expression::NumericLiteral(number) => break Constant::Number(number.value),
-            Expression::BooleanLiteral(boolean) => break Constant::Boolean(boolean.value),
-            Expression::NullLiteral(_) => break Constant::Null,
-            Expression::StringLiteral(string) => {
-                break Constant::String(string.value.encode_utf16().collect());
-            }
-            Expression::Identifier(id)
-                if id.reference_id.get().is_some_and(|reference| {
-                    semantic
-                        .scoping()
-                        .get_reference(reference)
-                        .symbol_id()
-                        .is_none()
-                }) =>
-            {
-                break match id.name.as_str() {
-                    "undefined" => Constant::Undefined,
-                    "Infinity" => Constant::Number(f64::INFINITY),
-                    "NaN" => Constant::Number(f64::NAN),
+    enum Task<'n, 'a> {
+        Visit(&'n Expression<'a>, usize),
+        Unary(UnaryOperator),
+        Binary(BinaryOperator),
+    }
+    let mut work = vec![Task::Visit(expression, 0)];
+    let mut values = Vec::new();
+    while let Some(task) = work.pop() {
+        match task {
+            Task::Visit(expression, depth) => {
+                let (node, depth) = closures::unwrapped_at(expression, depth)?;
+                if depth > 128 {
+                    return None;
+                }
+                let value = match node {
+                    Expression::UnaryExpression(unary)
+                        if matches!(
+                            unary.operator,
+                            UnaryOperator::UnaryPlus
+                                | UnaryOperator::UnaryNegation
+                                | UnaryOperator::Void
+                        ) =>
+                    {
+                        work.push(Task::Unary(unary.operator));
+                        work.push(Task::Visit(&unary.argument, depth + 1));
+                        continue;
+                    }
+                    Expression::BinaryExpression(binary)
+                        if matches!(
+                            binary.operator,
+                            BinaryOperator::Addition
+                                | BinaryOperator::Subtraction
+                                | BinaryOperator::Multiplication
+                                | BinaryOperator::Division
+                                | BinaryOperator::Remainder
+                        ) =>
+                    {
+                        work.push(Task::Binary(binary.operator));
+                        work.push(Task::Visit(&binary.right, depth + 1));
+                        work.push(Task::Visit(&binary.left, depth + 1));
+                        continue;
+                    }
+                    Expression::NumericLiteral(n) => Constant::Number(n.value),
+                    Expression::BooleanLiteral(b) => Constant::Boolean(b.value),
+                    Expression::NullLiteral(_) => Constant::Null,
+                    Expression::StringLiteral(s) => {
+                        Constant::String(s.value.encode_utf16().collect())
+                    }
+                    Expression::Identifier(id)
+                        if id.reference_id.get().is_some_and(|r| {
+                            semantic.scoping().get_reference(r).symbol_id().is_none()
+                        }) =>
+                    {
+                        match id.name.as_str() {
+                            "undefined" => Constant::Undefined,
+                            "Infinity" => Constant::Number(f64::INFINITY),
+                            "NaN" => Constant::Number(f64::NAN),
+                            _ => return None,
+                        }
+                    }
                     _ => return None,
                 };
+                values.push(value);
             }
-            _ => return None,
+            Task::Unary(op) => {
+                let value = match (op, values.pop()?) {
+                    (UnaryOperator::Void, _) => Constant::Undefined,
+                    (UnaryOperator::UnaryPlus, Constant::Number(n)) => Constant::Number(n),
+                    (UnaryOperator::UnaryNegation, Constant::Number(n)) => Constant::Number(-n),
+                    _ => return None,
+                };
+                values.push(value);
+            }
+            Task::Binary(op) => {
+                let Constant::Number(right) = values.pop()? else {
+                    return None;
+                };
+                let Constant::Number(left) = values.pop()? else {
+                    return None;
+                };
+                values.push(Constant::Number(match op {
+                    BinaryOperator::Addition => left + right,
+                    BinaryOperator::Subtraction => left - right,
+                    BinaryOperator::Multiplication => left * right,
+                    BinaryOperator::Division => left / right,
+                    BinaryOperator::Remainder => left % right,
+                    _ => unreachable!("planned constant arithmetic"),
+                }));
+            }
         }
-    };
-    // Fold only proven constant operands. In particular void never suppresses
-    // admission of effects, unresolved reads, parameter TDZ or shadowed globals.
-    for operator in operators.into_iter().rev() {
-        value = match (operator, value) {
-            (UnaryOperator::Void, _) => Constant::Undefined,
-            (UnaryOperator::UnaryPlus, Constant::Number(n)) => Constant::Number(n),
-            (UnaryOperator::UnaryNegation, Constant::Number(n)) => Constant::Number(-n),
-            _ => return None,
-        };
     }
-    Some(value)
+    values.pop()
 }
 
 pub(crate) fn validate(
