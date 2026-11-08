@@ -650,84 +650,84 @@ impl Lowering<'_, '_> {
         constant: Constant,
     ) -> ValueId {
         match constant {
-    Constant::String(units) => {
-        let value = self.value(Type::ManagedValue);
-        Self::push(
-            region,
-            node,
-            Op::ManagedString {
-                result: value,
-                units,
-            },
-        );
-        value
-    }
-    constant => {
-        let primitive = self.value(Type::General);
-        match constant {
-            Constant::Number(value) => {
-                let scalar = self.value(Type::Number);
+            Constant::String(units) => {
+                let value = self.value(Type::ManagedValue);
                 Self::push(
                     region,
                     node,
-                    Op::Constant {
-                        result: scalar,
-                        value,
+                    Op::ManagedString {
+                        result: value,
+                        units,
                     },
                 );
-                Self::push(
-                    region,
-                    node,
-                    Op::Pack {
-                        result: primitive,
-                        input: scalar,
-                    },
-                );
+                value
             }
-            Constant::Boolean(value) => {
-                let scalar = self.value(Type::Predicate);
+            constant => {
+                let primitive = self.value(Type::General);
+                match constant {
+                    Constant::Number(value) => {
+                        let scalar = self.value(Type::Number);
+                        Self::push(
+                            region,
+                            node,
+                            Op::Constant {
+                                result: scalar,
+                                value,
+                            },
+                        );
+                        Self::push(
+                            region,
+                            node,
+                            Op::Pack {
+                                result: primitive,
+                                input: scalar,
+                            },
+                        );
+                    }
+                    Constant::Boolean(value) => {
+                        let scalar = self.value(Type::Predicate);
+                        Self::push(
+                            region,
+                            node,
+                            Op::Boolean {
+                                result: scalar,
+                                value,
+                            },
+                        );
+                        Self::push(
+                            region,
+                            node,
+                            Op::Pack {
+                                result: primitive,
+                                input: scalar,
+                            },
+                        );
+                    }
+                    Constant::Null | Constant::Undefined => Self::push(
+                        region,
+                        node,
+                        Op::Nullish {
+                            result: primitive,
+                            value: if matches!(constant, Constant::Null) {
+                                ir::Nullish::Null
+                            } else {
+                                ir::Nullish::Undefined
+                            },
+                        },
+                    ),
+                    Constant::String(_) => unreachable!(),
+                }
+                let value = self.value(Type::ManagedValue);
                 Self::push(
                     region,
                     node,
-                    Op::Boolean {
-                        result: scalar,
-                        value,
+                    Op::ManagedPrimitive {
+                        result: value,
+                        input: primitive,
                     },
                 );
-                Self::push(
-                    region,
-                    node,
-                    Op::Pack {
-                        result: primitive,
-                        input: scalar,
-                    },
-                );
+                value
             }
-            Constant::Null | Constant::Undefined => Self::push(
-                region,
-                node,
-                Op::Nullish {
-                    result: primitive,
-                    value: if matches!(constant, Constant::Null) {
-                        ir::Nullish::Null
-                    } else {
-                        ir::Nullish::Undefined
-                    },
-                },
-            ),
-            Constant::String(_) => unreachable!(),
-        }
-        let value = self.value(Type::ManagedValue);
-        Self::push(
-            region,
-            node,
-            Op::ManagedPrimitive {
-                result: value,
-                input: primitive,
-            },
-        );
-        value
-    }
 
         }
     }
