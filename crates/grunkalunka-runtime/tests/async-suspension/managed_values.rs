@@ -1452,3 +1452,16 @@ fn primitive_object_bindings_preserve_suspension_and_fresh_rest_objects() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn primitive_object_assignments_preserve_suspension_rhs_and_results() {
+    compare_promises(
+        &[
+            "let rest={};({...rest}=await a);return Object.keys(rest).length+await b;",
+            "let rest={};({...rest}=await (a>b));await b;return Object.keys(rest).length;",
+            "const value=({}=await a);return value+await b;",
+            "let rest={};const value=({...rest}=await a);await b;return value;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}

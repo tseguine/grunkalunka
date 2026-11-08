@@ -4,6 +4,26 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn primitive_object_assignments_preserve_rhs_and_fresh_rest_targets() {
+    for body in [
+        "({}=a);return b;",
+        "let rest={};({...rest}=a);return Object.keys(rest).length;",
+        "let rest={};({...rest}=false);return Object.keys(rest).length;",
+        "let rest={};({...rest}=a?b:false);return Object.keys(rest).length;",
+        "return ({}=a);",
+        "return ({}=a)?1:0;",
+        "return ({}=false)===false?1:0;",
+        "const box={value:({}=a)};return +box.value;",
+        "const box={};({...box.rest}=a);return Object.hasOwn(box,'rest')?1:0;",
+        "let n=0,rest={};({...rest}=(n++,a));return n+Object.keys(rest).length;",
+        "let rest={};({...rest}=a);const read=()=>rest;return read()===rest&&Object.keys(read()).length===0?1:0;",
+        "let left={},right={};({...left}=a);({...right}=false);return left!==right&&Object.keys(left).length===0&&Object.keys(right).length===0?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn primitive_object_bindings_box_empty_own_property_sets() {
     for body in [
         "const {}=a;return b;",

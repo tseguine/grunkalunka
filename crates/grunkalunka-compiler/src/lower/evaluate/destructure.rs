@@ -257,8 +257,13 @@ impl Lowering<'_, '_> {
             ));
         }
         let string = self.stored.string(assignment.right.node_id());
+        let object_primitive = self.stored.object_primitive(assignment.right.node_id())
+            || self.numeric_result_shape(&assignment.right, depth + 1)
+            || self.operand_boolean_shape(&assignment.right, depth + 1);
         let receiver = if string {
             Some(Type::ManagedValue)
+        } else if object_primitive {
+            Some(Type::General)
         } else {
             self.receiver_type(&assignment.right, depth + 1)
         };
@@ -266,19 +271,30 @@ impl Lowering<'_, '_> {
             Some(Type::ManagedValue) if string => Mode::Managed,
             Some(Type::ManagedArray) => Mode::Array,
             Some(Type::ManagedObject) => Mode::Object,
+            Some(Type::General) => Mode::General,
             _ => {
                 return Err(unsupported(
                     node,
-                    "assignment patterns require a source-proven Array or object",
+                    "assignment patterns require a source-proven Array, object, Number or Boolean",
                 ));
             }
         };
-        if !matches!(mode, Mode::Managed | Mode::Predicate | Mode::Discard)
-            && !matches!(
-                (mode, receiver),
-                (Mode::Array, Some(Type::ManagedArray)) | (Mode::Object, Some(Type::ManagedObject))
-            )
-        {
+        let compatible_result = if receiver == Some(Type::General) {
+            matches!(
+                mode,
+                Mode::General | Mode::Managed | Mode::Predicate | Mode::Discard
+            ) || (matches!(mode, Mode::Number)
+                && (self.stored.number(assignment.right.node_id())
+                    || self.numeric_result_shape(&assignment.right, depth + 1)))
+        } else {
+            matches!(mode, Mode::Managed | Mode::Predicate | Mode::Discard)
+                || matches!(
+                    (mode, receiver),
+                    (Mode::Array, Some(Type::ManagedArray))
+                        | (Mode::Object, Some(Type::ManagedObject))
+                )
+        };
+        if !compatible_result {
             return Err(unsupported(
                 node,
                 "assignment pattern results require a compatible managed position",
@@ -318,6 +334,12 @@ impl Lowering<'_, '_> {
                 }
             }
             AssignmentTarget::ObjectAssignmentTarget(pattern) => {
+                if receiver == Some(Type::General) && !pattern.properties.is_empty() {
+                    return Err(unsupported(
+                        node,
+                        "Number and Boolean object assignments require an empty property list",
+                    ));
+                }
                 let dictionary = self.stored.dictionary(assignment.right.node_id());
                 for property in &pattern.properties {
                     let (key, destination, default) = match property {
@@ -744,7 +766,47 @@ impl Lowering<'_, '_> {
                 Selection::ObjectRest => {
                     // String own indices are enumerable UTF-16 data properties.
                     // Materialize them only after the saved destination executes.
-                    let object = if self.values[receiver.0] == Type::ManagedValue {
+                    let object = if matches!(
+                        self.values[receiver.0],
+                        Type::ManagedValue | Type::General | Type::Number | Type::Predicate
+                    ) {
+                        let primitive = match self.values[receiver.0] {
+                            Type::ManagedValue => receiver,
+                            Type::General => {
+                                let boxed = self.value(Type::ManagedValue);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::ManagedPrimitive {
+                                        result: boxed,
+                                        input: receiver,
+                                    },
+                                );
+                                boxed
+                            }
+                            Type::Number | Type::Predicate => {
+                                let packed = self.value(Type::General);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::Pack {
+                                        result: packed,
+                                        input: receiver,
+                                    },
+                                );
+                                let boxed = self.value(Type::ManagedValue);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::ManagedPrimitive {
+                                        result: boxed,
+                                        input: packed,
+                                    },
+                                );
+                                boxed
+                            }
+                            _ => unreachable!("validated primitive object assignment"),
+                        };
                         let object = self.value(Type::ManagedObject);
                         Self::push(
                             regions.current(),
@@ -756,7 +818,7 @@ impl Lowering<'_, '_> {
                             node,
                             Op::ManagedObjectSpread {
                                 object,
-                                input: receiver,
+                                input: primitive,
                             },
                         );
                         object
@@ -813,26 +875,40 @@ impl Lowering<'_, '_> {
         }
         match state.mode {
             Mode::Array | Mode::Object => values.push(state.input),
+            Mode::General => values.push(state.input),
+            Mode::Number => {
+                let result = self.value(Type::Number);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::NumberFromGeneral {
+                        result,
+                        input: state.input.id(),
+                    },
+                );
+                values.push(Value::Number(result));
+            }
             Mode::Managed if self.values[state.input.id().0] == Type::ManagedValue => {
                 values.push(state.input)
             }
             Mode::Managed => {
                 let result = self.value(Type::ManagedValue);
-                Self::push(
-                    regions.current(),
-                    node,
-                    if self.values[receiver.0] == Type::ManagedArray {
-                        Op::ManagedFromArray {
-                            result,
-                            input: receiver,
-                        }
-                    } else {
-                        Op::ManagedFromObject {
-                            result,
-                            input: receiver,
-                        }
+                let op = match self.values[state.input.id().0] {
+                    Type::General => Op::ManagedPrimitive {
+                        result,
+                        input: state.input.id(),
                     },
-                );
+                    Type::ManagedArray => Op::ManagedFromArray {
+                        result,
+                        input: state.input.id(),
+                    },
+                    Type::ManagedObject => Op::ManagedFromObject {
+                        result,
+                        input: state.input.id(),
+                    },
+                    _ => unreachable!("validated managed assignment result"),
+                };
+                Self::push(regions.current(), node, op);
                 values.push(Value::Managed(result));
             }
             Mode::Predicate => {
@@ -840,16 +916,19 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     node,
-                    if self.values[state.input.id().0] == Type::ManagedValue {
-                        Op::ManagedTruthy {
+                    match self.values[state.input.id().0] {
+                        Type::ManagedValue => Op::ManagedTruthy {
                             result,
                             input: state.input.id(),
-                        }
-                    } else {
-                        Op::Boolean {
+                        },
+                        Type::General => Op::GeneralTruthy {
+                            result,
+                            input: state.input.id(),
+                        },
+                        _ => Op::Boolean {
                             result,
                             value: true,
-                        }
+                        },
                     },
                 );
                 values.push(Value::Predicate(result));
@@ -1051,6 +1130,42 @@ mod tests {
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
         }
+    }
+
+    #[test]
+    fn primitive_object_assignments_preserve_rhs_results_and_guard_fields() {
+        for (body, admitted) in [
+            ("({}=a);return b;", true),
+            (
+                "let rest={};({...rest}=a);return Object.keys(rest).length;",
+                true,
+            ),
+            ("return ({}=a);", true),
+            ("return ({}=a)?1:0;", true),
+            ("const box={value:({}=a)};return +box.value;", true),
+            ("return ({}=false)===false?1:0;", true),
+            (
+                "const box={};({...box.rest}=a);return Object.hasOwn(box,'rest')?1:0;",
+                true,
+            ),
+            ("let n=0;let rest={};({...rest}=(n++,a));return n;", true),
+            ("let x;({x}=a);return x;", false),
+            ("let rest={};({...rest}=null);return a;", false),
+            ("let rest={};({...rest}=(a?b:null));return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let result = crate::compile(&source, ts);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){let x;({x}=(a as object));return b;}",
+                true
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1491,7 +1606,8 @@ mod string_rest_tests {
                 false,
             ),
             ("let rest={};({...rest}=(a?'abc':null));return a;", false),
-            ("let rest={};({...rest}=a);return a;", false),
+            // Number entry parameters now use the primitive object-assignment path.
+            ("let rest={};({...rest}=a);return a;", true),
             ("const rest={};({...rest}='abc');return a;", false),
             (
                 "let rest={};const k='0';let x;({[k]:x,...rest}='abc');return a;",
@@ -1506,7 +1622,7 @@ mod string_rest_tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){let rest={};({...rest}=(a as string));return a;}",
+                "export function run(a,b){let x,rest={};({0:x,...rest}=(a as string));return a;}",
                 true
             )
             .is_err()
