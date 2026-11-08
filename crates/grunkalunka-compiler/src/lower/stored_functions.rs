@@ -116,6 +116,13 @@ fn pattern_definitions(
                 for property in object.properties.iter().rev() {
                     let rule = static_keys::property(&property.key, property.computed, 0)
                         .map(|key| Rule::Member(id, key))
+                        .or_else(|| {
+                            property
+                                .key
+                                .as_expression()
+                                .filter(|key| evaluate::property_delete::uint32_key(key, 0))
+                                .map(|_| Rule::PatternUnsignedMember(id))
+                        })
                         .unwrap_or(Rule::Known(Origin::Other));
                     pending.push((&property.value, rule));
                 }

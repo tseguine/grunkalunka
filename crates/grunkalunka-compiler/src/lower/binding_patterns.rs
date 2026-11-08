@@ -67,6 +67,7 @@ pub(super) enum BindingStep<'n, 'a> {
         key: Vec<u16>,
     },
     ComputedField {
+        uint32: bool,
         source: &'n BindingProperty<'a>,
         key: &'n Expression<'a>,
         depth: usize,
@@ -295,13 +296,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             source: property,
                             key,
                         });
-                    } else if dictionary
-                        && property.computed
+                    } else if property.computed
                         && let Some(key) = property.key.as_expression()
-                        && self.stored.string(key.node_id())
+                        && (evaluate::property_delete::uint32_key(key, depth)
+                            || (dictionary && self.stored.string(key.node_id())))
                     {
                         mark_live_arrays(&containers, &mut steps);
                         steps.push(BindingStep::ComputedField {
+                            uint32: evaluate::property_delete::uint32_key(key, depth),
                             source: property,
                             key,
                             depth,
@@ -383,5 +385,54 @@ mod string_rest_binding_tests {
             )
             .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod unsigned_binding_tests {
+    #[test]
+    fn unsigned_binding_keys_require_real_syntax_and_receiver_proofs() {
+        for (body, ok) in [
+            ("const {[a>>>0]:x=b}=[a];return x;", true),
+            ("const {[a>>>0]:x='?'}='abc';return x.length;", true),
+            ("const {[a]:x}=[b];return a;", false),
+            ("const {[a>>>0]:x}=b;return a;", false),
+            ("const k='0';const {[k]:x}=[b];return a;", false),
+            ("const {[a>>>0]:x}=[a?'text':b];return x.length;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&source, ts);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){const {[a as number]:x}=[b];return a;}",
+                true
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn unsigned_binding_keys_keep_small_native_stack_boundaries() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (n, ok) in [(126, true), (127, false)] {
+                    let source = format!(
+                        "export function run(a,b){{const {{[{}a>>>0{}]:x=b}}=[a];return x;}}",
+                        "(".repeat(n),
+                        ")".repeat(n)
+                    );
+                    for ts in [false, true] {
+                        let r = crate::compile(&source, ts);
+                        assert_eq!(r.is_ok(), ok, "{n}: {:?}", r.err());
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

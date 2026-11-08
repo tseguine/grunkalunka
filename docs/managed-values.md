@@ -1542,4 +1542,11 @@ sources and runtime String source keys keep their guards.
 Declaration, nested and iteration object bindings also accept String object rest.
 Their existing binding cursor copies UTF-16 own indices after preceding fields and
 lazy defaults, including supported suspension; each rest result is fresh. Source
-proofs and static binding-key restrictions remain unchanged.
+proofs and key-admission checks remain in force.
+
+
+Computed object binding keys also accept unsigned numeric syntax on proven
+objects, Arrays and Strings. Keys evaluate once before field selection and lazy
+defaults; object-rest exclusions retain the saved numeric key. Strings select
+UTF-16 code units. Existing dictionary String keys remain supported; coercing,
+annotation-only and unproven receivers/keys keep their guards.

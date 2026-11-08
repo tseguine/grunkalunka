@@ -1,3 +1,4 @@
+import { unsignedBindingPrograms } from './unsigned-binding-keys.mjs';
 import { stringRestBindingPrograms } from './string-rest-bindings.mjs';
 import { stringObjectRestPrograms } from './string-object-rest.mjs';
 import { stringComputedSelectionPrograms } from './string-computed-pattern-selections.mjs';
@@ -1421,3 +1422,5 @@ test('String computed selections retain original UTF-16 index sources',()=>{asse
 test('String object rest retains original enumerable copying sources',()=>{assert.equal(stringObjectRestPrograms.length,12);for(const row of stringObjectRestPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('String object-rest bindings retain original source programs',()=>{assert.equal(stringRestBindingPrograms.length,15);for(const row of stringRestBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('unsigned binding keys retain original reference expressions',()=>{assert.equal(unsignedBindingPrograms.length,12);for(const row of unsignedBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

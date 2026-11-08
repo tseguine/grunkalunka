@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn unsigned_binding_keys_preserve_selection_order_and_saved_sources() {
+    for body in [
+        "const {[a>>>0]:x}=[b];return +x;",
+        "const {[a>>>0]:x}={0:b};return +x;",
+        "const {[a>>>0]:x=b}=[];return x;",
+        "const {[a>>>0]:x='?'}='💠';return x.charCodeAt(0);",
+        "const {[a>>>0]:x,...rest}=[a,b];return Object.keys(rest).length;",
+        "const {[a>>>0]:x,...rest}='💠';return Object.keys(rest).length;",
+        "let xs=[a];const {[((xs=[b]),0)>>>0]:x}=xs;return +x;",
+        "const xs=[a];const {[((xs[0]=b),0)>>>0]:x}=xs;return +x;",
+        "const {row:{[a>>>0]:x=b}}={row:[a]};return x;",
+        "let n=0;for(const {[a>>>0]:x=b} of [[a],[b]])n+=x;return n;",
+        "const {[a>>>0]:x=b}=[a];const f=()=>x;return f();",
+        "var {[a>>>0]:x=b}=[a];return x;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn string_rest_bindings_preserve_utf16_exclusions_and_fresh_identity() {
     for body in [
         "const {...rest}='abc';return Object.keys(rest).length;",

@@ -243,7 +243,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     Self::push(&mut output, source, op);
                     state.selected = Some(selected);
                 }
-                BindingStep::ComputedField { source, key, depth } => {
+                BindingStep::ComputedField {
+                    source,
+                    key,
+                    depth,
+                    uint32,
+                } => {
                     cursor.pending.push(Frame::PatternBindingKey {
                         resume,
                         state: Box::new(state),
@@ -253,7 +258,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         source: key,
                         output,
                         depth,
-                        mode: evaluate::Mode::Managed,
+                        mode: if uint32 {
+                            evaluate::Mode::Number
+                        } else {
+                            evaluate::Mode::Managed
+                        },
                     });
                     return Ok(());
                 }
@@ -409,17 +418,30 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let Some(Container::Object { value, excluded }) = state.containers.last_mut() else {
             unreachable!("computed binding field has an object receiver");
         };
+        let saved_key = if self.values[key.0] == Type::Number {
+            ir::ManagedKey::Uint32(key)
+        } else {
+            ir::ManagedKey::String(key)
+        };
         if let Some(excluded) = excluded {
-            excluded.push(ir::ManagedKey::String(key));
+            excluded.push(saved_key.clone());
         }
         let selected = self.value(Type::ManagedValue);
         Self::push(
             &mut output,
             source,
-            Op::ManagedGetOwnDynamic {
-                result: selected,
-                object: *value,
-                key: ir::ManagedKey::String(key),
+            if self.values[value.0] == Type::ManagedValue {
+                Op::ManagedStringGetIndex {
+                    result: selected,
+                    input: *value,
+                    index: key,
+                }
+            } else {
+                Op::ManagedGetOwnDynamic {
+                    result: selected,
+                    object: *value,
+                    key: saved_key,
+                }
             },
         );
         state.selected = Some(selected);
