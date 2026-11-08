@@ -124,3 +124,22 @@ pub(super) fn member_target<'n, 'a>(
         _ => None,
     }
 }
+
+/// Original reference components; evaluation is owned by the expression cursor.
+pub(super) fn property_target<'n, 'a>(
+    target: &'n AssignmentTarget<'a>,
+    depth: usize,
+) -> Option<(&'n Expression<'a>, iteration::PropertyKey<'n, 'a>)> {
+    if let Some((object, key)) = member_target(target, depth) {
+        return Some((object, iteration::PropertyKey::Literal(key)));
+    }
+    let SimpleAssignmentTarget::ComputedMemberExpression(member) =
+        target.as_simple_assignment_target()?
+    else {
+        return None;
+    };
+    (!member.optional).then_some((
+        &member.object,
+        iteration::PropertyKey::Runtime(&member.expression),
+    ))
+}

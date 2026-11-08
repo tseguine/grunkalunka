@@ -1128,7 +1128,7 @@ impl Fields {
                                         &mut pattern_rules,
                                     );
                                 } else if let Some((receiver, key)) =
-                                    assignment_patterns::member_target(target, 0)
+                                    assignment_patterns::property_target(target, 0)
                                 {
                                     let id = target.node_id();
                                     let selection = Rule::Member(
@@ -1144,7 +1144,17 @@ impl Fields {
                                     } else {
                                         pattern_rules.push((id, selection));
                                     }
-                                    writes.push((receiver.node_id(), key, id));
+                                    match key {
+                                        iteration::PropertyKey::Literal(key) => {
+                                            writes.push((receiver.node_id(), key, id))
+                                        }
+                                        iteration::PropertyKey::Runtime(_) => {
+                                            mutations.push(mutations::Mutation::AnyKeyWrite {
+                                                receiver: receiver.node_id(),
+                                                value: id,
+                                            })
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1186,7 +1196,7 @@ impl Fields {
                                         target
                                             .as_simple_assignment_target()
                                             .and_then(|t| target_identifier(t, 0).ok().flatten()),
-                                        assignment_patterns::member_target(target, 0).map(
+                                        assignment_patterns::property_target(target, 0).map(
                                             |(receiver, key)| (receiver, key, target.node_id()),
                                         ),
                                         static_keys::property(&p.name, p.computed, 0),
@@ -1217,7 +1227,17 @@ impl Fields {
                                     } else {
                                         pattern_rules.push((id, selection));
                                     }
-                                    writes.push((receiver.node_id(), member_key, id));
+                                    match member_key {
+                                        iteration::PropertyKey::Literal(key) => {
+                                            writes.push((receiver.node_id(), key, id))
+                                        }
+                                        iteration::PropertyKey::Runtime(_) => {
+                                            mutations.push(mutations::Mutation::AnyKeyWrite {
+                                                receiver: receiver.node_id(),
+                                                value: id,
+                                            })
+                                        }
+                                    }
                                 }
                             }
                         }

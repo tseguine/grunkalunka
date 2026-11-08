@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn computed_pattern_targets_preserve_awaited_keys_and_saved_references() {
+    compare_promises(
+        &[
+            "const xs=[];const rows=[a];[xs[(await b,rows[0]=b,0)>>>0]]=rows;await a;return +(xs[0]);",
+            "let xs=[];const old=xs;const other=[];[xs[(await a,xs=other,0)>>>0]=(await b,b)]=[];await b;return old.length===1&&other.length===0?1:0;",
+            "const d=Object.create(null);let k=\"old\";[d[(await b,k)]]=(await a,[b]);await b;return +(d.old);",
+            "const xs=[];let calls=0;try{[xs[(await Promise.reject(b),0)>>>0]=(calls++,1)]=[];}catch(e){await a;return calls+xs.length;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn member_pattern_targets_save_references_across_awaited_defaults() {
     compare_promises(
         &[

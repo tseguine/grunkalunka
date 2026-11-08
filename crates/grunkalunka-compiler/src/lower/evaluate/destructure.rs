@@ -13,14 +13,17 @@ enum Destination<'e, 'a> {
     Slot(SlotId),
     Member {
         object: &'e Expression<'a>,
-        key: Vec<u16>,
+        key: iteration::PropertyKey<'e, 'a>,
         ty: Type,
     },
 }
 
 pub(super) enum SavedDestination {
     Slot(SlotId),
-    Member { object: ValueId, key: Vec<u16> },
+    Member {
+        object: ValueId,
+        key: ir::ManagedKey,
+    },
 }
 
 struct Write<'e, 'a> {
@@ -45,6 +48,7 @@ pub(super) struct State<'e, 'a> {
     mode: Mode,
     depth: usize,
     iterator: Option<control_cursor::array_bindings::IteratorState>,
+    next_index: u32,
     pending: Option<(Selection, SavedDestination, Option<&'e Expression<'a>>)>,
 }
 
@@ -53,7 +57,14 @@ pub(super) enum Task<'e, 'a> {
     Receiver {
         state: Box<State<'e, 'a>>,
         selection: Selection,
-        key: Vec<u16>,
+        key: iteration::PropertyKey<'e, 'a>,
+        default: Option<&'e Expression<'a>>,
+    },
+    Key {
+        state: Box<State<'e, 'a>>,
+        selection: Selection,
+        object: ValueId,
+        uint32: bool,
         default: Option<&'e Expression<'a>>,
     },
     Default {
@@ -70,7 +81,7 @@ impl Lowering<'_, '_> {
         target: &'e AssignmentTarget<'a>,
         depth: usize,
     ) -> Result<Destination<'e, 'a>, String> {
-        if let Some((object, key)) = assignment_patterns::member_target(target, depth) {
+        if let Some((object, key)) = assignment_patterns::property_target(target, depth) {
             let ty = self
                 .receiver_type(object, depth)
                 .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
@@ -80,18 +91,35 @@ impl Lowering<'_, '_> {
                         "assignment member requires a proven object or Array",
                     )
                 })?;
-            if ty == Type::ManagedArray && key.as_slice() == [108, 101, 110, 103, 116, 104] {
-                return Err(unsupported(
-                    target,
-                    "assignment patterns cannot set unchecked Array length",
-                ));
-            }
-            let key = managed::member_key(
-                target,
-                key,
-                ty == Type::ManagedArray,
-                self.stored.dictionary(object.node_id()),
-            )?;
+            let key = match key {
+                iteration::PropertyKey::Literal(key) => {
+                    if ty == Type::ManagedArray && key.as_slice() == [108, 101, 110, 103, 116, 104]
+                    {
+                        return Err(unsupported(
+                            target,
+                            "assignment patterns cannot set unchecked Array length",
+                        ));
+                    }
+                    iteration::PropertyKey::Literal(managed::member_key(
+                        target,
+                        key,
+                        ty == Type::ManagedArray,
+                        self.stored.dictionary(object.node_id()),
+                    )?)
+                }
+                iteration::PropertyKey::Runtime(key) => {
+                    if !property_delete::uint32_key(key, depth)
+                        && !(self.stored.dictionary(object.node_id())
+                            && self.stored.string(key.node_id()))
+                    {
+                        return Err(unsupported(
+                            target,
+                            "assignment member runtime keys require unsigned syntax or a dictionary String",
+                        ));
+                    }
+                    iteration::PropertyKey::Runtime(key)
+                }
+            };
             return Ok(Destination::Member { object, key, ty });
         }
         let identifier = target
@@ -190,14 +218,16 @@ impl Lowering<'_, '_> {
             SavedDestination::Member { object, key } => Self::push(
                 region,
                 node,
-                if self.values[object.0] == Type::ManagedArray {
-                    Op::ManagedArraySetOwn {
-                        array: object,
-                        key,
-                        value,
+                match key {
+                    ir::ManagedKey::Literal(key) if self.values[object.0] == Type::ManagedArray => {
+                        Op::ManagedArraySetOwn {
+                            array: object,
+                            key,
+                            value,
+                        }
                     }
-                } else {
-                    Op::ManagedSetOwn { object, key, value }
+                    ir::ManagedKey::Literal(key) => Op::ManagedSetOwn { object, key, value },
+                    key => Op::ManagedSetOwnDynamic { object, key, value },
                 },
             ),
         }
@@ -406,6 +436,7 @@ impl Lowering<'_, '_> {
                     mode: plan.mode,
                     depth: plan.depth,
                     iterator,
+                    next_index: 0,
                     pending: None,
                 })
             }
@@ -416,6 +447,50 @@ impl Lowering<'_, '_> {
                 default,
             } => {
                 let object = values.pop().expect("assignment member receiver").id();
+                match key {
+                    iteration::PropertyKey::Literal(key) => {
+                        state.pending = Some((
+                            selection,
+                            SavedDestination::Member {
+                                object,
+                                key: ir::ManagedKey::Literal(key),
+                            },
+                            default,
+                        ));
+                        state
+                    }
+                    iteration::PropertyKey::Runtime(key) => {
+                        let depth = state.depth;
+                        let uint32 = property_delete::uint32_key(key, depth);
+                        work.push(Work::Destructure(Task::Key {
+                            state,
+                            selection,
+                            object,
+                            uint32,
+                            default,
+                        }));
+                        work.push(Work::Eval(
+                            key,
+                            depth,
+                            if uint32 { Mode::Number } else { Mode::Managed },
+                        ));
+                        return Ok(());
+                    }
+                }
+            }
+            Task::Key {
+                mut state,
+                selection,
+                object,
+                uint32,
+                default,
+            } => {
+                let key = values.pop().expect("assignment member key").id();
+                let key = if uint32 {
+                    ir::ManagedKey::Uint32(key)
+                } else {
+                    ir::ManagedKey::String(key)
+                };
                 state.pending =
                     Some((selection, SavedDestination::Member { object, key }, default));
                 state
@@ -462,6 +537,21 @@ impl Lowering<'_, '_> {
                 match destination {
                     Destination::Slot(slot) => (selection, SavedDestination::Slot(slot), default),
                     Destination::Member { object, key, ty } => {
+                        // Elisions precede evaluation of the next original reference.
+                        // They can exhaust the iterator before that reference grows it.
+                        if let Selection::Index(index) | Selection::ArrayRest(index) = &selection
+                            && *index > state.next_index
+                            && let Some(iterator) = &mut state.iterator
+                        {
+                            self.select_array_binding_step(
+                                node,
+                                regions.current(),
+                                receiver,
+                                iterator,
+                                index - 1,
+                            );
+                            state.next_index = *index;
+                        }
                         let depth = state.depth;
                         work.push(Work::Destructure(Task::Receiver {
                             state,
@@ -476,6 +566,7 @@ impl Lowering<'_, '_> {
             };
             let value = match selection {
                 Selection::Index(index) => {
+                    state.next_index = index + 1;
                     if let Some(iterator) = &mut state.iterator {
                         self.select_array_binding_step(
                             node,
@@ -986,5 +1077,62 @@ mod member_depth_tests {
             .unwrap()
             .join()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod computed_member_tests {
+    #[test]
+    fn computed_pattern_targets_require_key_proofs_and_widen_alias_facts() {
+        for (body, admitted) in [
+            ("const xs=[];[xs[a>>>0]]=[b];return xs.length;", true),
+            ("const o={};({x:o[a>>>0]}={x:b});return a;", true),
+            (
+                "const d=Object.create(null);const k='x';[d[k]]=[b];return +(d[k]);",
+                true,
+            ),
+            (
+                "const d=Object.create(null);const k='__proto__';({x:d[k]}={x:b});return +(d[k]);",
+                true,
+            ),
+            ("const xs=[];[xs[a]]=[b];return a;", false),
+            ("const xs=[];const k='0';[xs[k]]=[b];return a;", false),
+            ("const d=Object.create(null);[d[a]]=[b];return a;", false),
+            ("const o={x:a};const k='x';[o[k]]=[b];return a;", false),
+            (
+                "const xs=['safe'];const alias=xs;[alias[a>>>0]]=[b];return xs[0].length;",
+                false,
+            ),
+            (
+                "const d=Object.create(null);d.x='safe';const k='x';[d[k]]=[b];return d.x.length;",
+                false,
+            ),
+            ("const xs=[[]];[xs[a>>>0]]=[b];return xs[0].length;", false),
+            ("const xs=[];[...xs[a>>>0]]=[b];return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        for source in [
+            "export function run(a,b){const xs=[];[xs[a as number]]=[b];return a;}",
+            "export function run(a,b){const d=Object.create(null);[d[a as string]]=[b];return a;}",
+        ] {
+            assert!(crate::compile(source, true).is_err(), "{source}");
+        }
+    }
+    #[test]
+    fn computed_pattern_key_depth_is_bounded_on_a_small_native_stack() {
+        std::thread::Builder::new().stack_size(2*1024*1024).spawn(|| {
+            for (wraps,admitted) in [(126,true),(127,false)] {
+                let source=format!("export function run(a,b){{const xs=[];[xs[{}a>>>0{}]]=[b];return xs.length;}}","(".repeat(wraps),")".repeat(wraps));
+                for typed in [false,true] {
+                    let r=crate::compile(&source,typed);
+                    assert_eq!(r.is_ok(),admitted,"{wraps}: {:?}",r.err());
+                }
+            }
+        }).unwrap().join().unwrap();
     }
 }

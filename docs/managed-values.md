@@ -1490,5 +1490,10 @@ on source-proven objects and Arrays. Each original destination reference execute
 before its value is selected and before its lazy default; supported awaits retain
 that address. Array patterns use a live, sticky-done iterator when target effects
 can change the source. Alias field facts include every assigned selection/default.
-Dynamic target keys, member rest targets, nested target patterns, nullable/unknown
+Computed destinations additionally admit unsigned numeric keys on owned objects/Arrays
+and source-proven String keys on null-prototype dictionaries. The receiver and key
+execute once, in that order, before source selection; both survive awaited keys and
+lazy defaults. Elisions finish before evaluating the next member reference, so an
+exhausted iterator cannot be revived by a destination effect. Dynamic writes widen all potentially aliased field/element facts.
+Member rest targets, nested target patterns, unproven/coercing keys, nullable/unknown
 receivers and unchecked Array length writes remain guarded.
