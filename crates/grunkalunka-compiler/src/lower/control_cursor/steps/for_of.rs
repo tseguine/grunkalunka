@@ -49,6 +49,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             if let BindingPattern::BindingIdentifier(identifier) = pattern {
                 self.charge_declaration_bindings(identifier.as_ref(), 1)?;
             }
+        } else if let Some(identifier) = iteration::var_iteration_binding(source.left()) {
+            let symbol = identifier
+                .symbol_id
+                .get()
+                .ok_or("missing var iteration symbol")?;
+            let binding = self
+                .bindings
+                .iter()
+                .find(|b| b.symbol == symbol)
+                .ok_or_else(|| {
+                    unsupported(identifier, "var iteration requires its hoisted cell")
+                })?;
+            if !binding.mutable || self.slots[binding.slot.0].ty != Type::ManagedValue {
+                return Err(unsupported(
+                    identifier,
+                    "var iteration requires mutable managed-value storage",
+                ));
+            }
+            self.charge_statement(source.left())?;
+            self.charge_declaration_bindings(identifier, 1)?;
         } else if let Some(identifier) = iteration::assignment_iteration_identifier(source.left())?
         {
             let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
@@ -328,6 +348,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     cursor,
                 )?;
             }
+        } else if let Some(identifier) = iteration::var_iteration_binding(source.left()) {
+            let symbol = identifier
+                .symbol_id
+                .get()
+                .ok_or("missing var iteration symbol")?;
+            let slot = self
+                .bindings
+                .iter()
+                .find(|b| b.symbol == symbol)
+                .ok_or("missing hoisted var iteration cell")?
+                .slot;
+            Self::push(
+                &mut body,
+                &source,
+                Op::Store {
+                    slot,
+                    value: selected,
+                },
+            );
+            self.begin_for_of_body(frame, body, cursor);
         } else {
             let identifier = iteration::assignment_iteration_identifier(source.left())?
                 .expect("validated existing iteration binding");

@@ -324,7 +324,6 @@ fn array_for_of_erases_annotations_without_proving_runtime_values() {
 #[test]
 fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
     for body in [
-        "for(var item of [a]){}return a;",
         "let item=a;for(item of [b]){}return a;",
         "const row={value:a};for(row.value of [b]){}return a;",
         "for(const item of a){}return a;",
@@ -619,5 +618,28 @@ fn string_for_of_yields_code_points_and_preserves_unpaired_surrogates() {
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn var_for_of_assigns_one_hoisted_cell_and_retains_zero_visit_values() {
+    common::compare_sources(
+        "export function run(a,b){for(var item of [a]){}return a;}",
+        "export function run(a,b){for(var item of [a]){}return a;}",
+    );
+    for body in [
+        "let n=0;for(var item of [a,b])n+=+item;return n;",
+        "const before=item;for(var item of []){}return before===undefined?1:0;",
+        "var item=3;for(var item of []){}return +item;",
+        "for(var item of [a,b]){}var item;return +item;",
+        "var a;for(var a of [null,b]){}return +a;",
+        "const f=()=>a;for(var a of [null,b]){}return +f();",
+        "let n=0;for(var item of [a,b]){if(item===a)continue;n++;}return n;",
+        "for(var item of [a,b])break;return +item;",
+        "let n=0;for(var item of [a,b]){for(var item of [1,2])n+=+item;}return n+(+item);",
+        "let n=0;for(var item of 'a\u{1f600}b')n+=item==='a'?1:item==='b'?2:3;return n;",
+        "const f={a:()=>item,b:()=>item};let n=0;for(var item of [1,2]){if(n++===0)f.a=()=>item;else f.b=()=>item;}return +f.a()+(+f.b());",
+    ] {
+        compare(body);
     }
 }

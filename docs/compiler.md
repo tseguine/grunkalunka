@@ -2513,8 +2513,23 @@ including captures, contribute to the result. Unknown write forms disable that
 refinement.
 
 Async modules/functions, pattern declarations, function-valued var initializers,
-`for-of`/`for-in` declaration heads and catch-parameter name collisions retain
+`for-in` declaration heads and catch-parameter name collisions retain
 explicit guards. Lexical TDZ/collision checks, unreachable-tail rejection and
 source/local/stack budgets remain in force. This does not add general callable
 storage or dynamic property access. Corpus 144 preserves the four exact former
 var rejection sources as positives, with 799 source-bound rejections remaining.
+
+
+Synchronous identifier `for (var item of source)` heads assign their function's
+hoisted cell, rather than creating a lexical cell per iteration. The RHS runs once
+before visits; empty sources preserve the prior value or initial Undefined. Array
+holes, live length, String code-point iteration and abrupt body control retain the
+existing intrinsic iteration behavior. Parameter aliases widen at activation entry
+before any body-created captures. Non-simple parameter body cells remain distinct.
+
+Origin analysis includes iteration writes and preserves the zero-visit alternative;
+an earlier Number initializer cannot hide later nullish/container values. Mixed or
+possibly Undefined results need the existing explicit projection/conversion proof.
+Var pattern heads, general iterables, async var and var for-in remain guarded. Corpus
+145 promotes the exact original var-for-of rejection with its source hash; 798
+source-bound rejections remain. No new APIs or host calls are introduced.

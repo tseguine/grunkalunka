@@ -74,7 +74,6 @@ fn var_keeps_unreachable_iteration_async_callable_and_lexical_guards() {
         "return x;var x=3;",
         "var f=x=>x;return f(a);",
         "var {x}={x:a};return x;",
-        "for(var x of [a]){}return a;",
         "for(var x in {x:a}){}return a;",
         "try{throw a;}catch(e){var e=3;}return 0;",
         "var x=1;let x=2;return x;",
@@ -91,6 +90,10 @@ fn var_keeps_unreachable_iteration_async_callable_and_lexical_guards() {
 #[test]
 fn var_annotations_erase_without_changing_hoisting_or_parameter_cells() {
     for (js, ts) in [
+        (
+            "export function run(a,b){let n=0;for(var item of [a,b])n+=+item;return n;}",
+            "export function run(a:string,b:boolean):number{let n:boolean=0;for(var item of ([a,b] as string[]))n+=+(item as number);return n;}",
+        ),
         (
             "export function run(a,b){const before=x;var x=a;return before;}",
             "export function run(a:number,b:number):unknown{const before=x;var x:string=a;return before;}",
@@ -118,12 +121,21 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
                     .collect::<Vec<_>>()
                     .join(",");
                 let source = format!("export function run(a,b){{var {names};return a;}}");
-                for ts in [false, true] {
-                    let result = crate::compile_value(&source, ts);
-                    if count == 128 {
-                        result.unwrap();
-                    } else {
-                        assert!(result.err().unwrap().contains("at most 128 source locals"));
+                let loop_names = (0..count - 1)
+                    .map(|i| format!("x{i}"))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let loop_source = format!(
+                    "export function run(a,b){{var {loop_names};for(var item of [a]){{}}return a;}}"
+                );
+                for source in [source, loop_source] {
+                    for ts in [false, true] {
+                        let result = crate::compile_value(&source, ts);
+                        if count == 128 {
+                            result.unwrap();
+                        } else {
+                            assert!(result.err().unwrap().contains("at most 128 source locals"));
+                        }
                     }
                 }
             }
@@ -131,4 +143,46 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+fn var_for_of_reuses_function_cells_and_preserves_kind_boundaries() {
+    for body in [
+        "for(var item of [a]){}return a;",
+        "for(var item of [a,b]){}return +item;",
+        "const before=item;for(var item of []){}return before;",
+        "var item=3;for(var item of []){}return item;",
+        "var a;for(var a of [null,b]){}return a;",
+        "let n=0;for(var item of [a,b])n+=+item;return n;",
+        "let n=0;for(var item of 'abc')n+=item==='a'?1:2;return n;",
+        "const f=()=>item;for(var item of [a,b]){}return f();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let result = crate::compile_value(&source, ts);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+    // A loop's writes must widen earlier Number origins, even for captures.
+    for body in [
+        "var item=3;for(var item of [null]){}return item;",
+        "const f=()=>item;var item=3;for(var item of [null]){}return f();",
+        "var item;for(var item of []){}return item;",
+        "for(var a of [null]){}return a;",
+    ] {
+        assert!(
+            crate::compile(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    for body in [
+        "for(var {x} of [{x:a}]){}return a;",
+        "for(var x in {x:a}){}return a;",
+        "for(var x of a){}return a;",
+    ] {
+        assert!(
+            crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
 }

@@ -384,3 +384,10 @@ values into distinct body cells. Numeric proofs account for Undefined and all
 writes; annotations erase. Pattern/callable-initializer, async, iteration-declaration
 and catch-name guards remain bounded language gaps. The compiler contract and
 compiled-values / managed-logical differential suites record the admitted slice.
+
+
+Identifier var-for-of heads now reuse the function cell across intrinsic Array and
+String visits, preserving pre-loop reads, empty-loop values, shared captures and
+parameter aliases. Iteration writes widen source-kind analysis, including through
+captures; no stale Number initializer may justify a later projection. Pattern,
+async, general-iterable and var-for-in heads remain separate language work.

@@ -25,7 +25,6 @@ for (const [id,body] of [
 export const varRejected = [
   ['function-init','var f=x=>x;return f(a);','function-valued var initializers'],
   ['pattern','var {x}={x:a};return x;','var requires ordinary identifier bindings'],
-  ['for-of','for(var x of [a]){}return a;','var iteration declarations are not yet admitted'],
   ['for-in','for(var x in {x:a}){}return a;','var iteration declarations are not yet admitted'],
   ['catch-name','try{throw a;}catch(e){var e=3;}return 0;','var cannot redeclare a catch binding'],
 ].map(([id,body,diagnostic])=>['var-guard-'+id,`export function run(a,b){${body}}`,'js',diagnostic]);

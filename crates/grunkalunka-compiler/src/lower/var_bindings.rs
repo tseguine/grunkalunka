@@ -59,6 +59,19 @@ pub(super) fn parameters(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
         .collect()
 }
 
+pub(super) fn iteration_symbols(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
+    semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            AstKind::ForOfStatement(source) => {
+                iteration::var_iteration_binding(&source.left).and_then(|id| id.symbol_id.get())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 pub(super) fn present(semantic: &Semantic<'_>) -> bool {
     !locals(semantic).is_empty()
 }
@@ -92,7 +105,7 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
         }
         if matches!(
             semantic.nodes().parent_kind(node.id()),
-            AstKind::ForOfStatement(_) | AstKind::ForInStatement(_)
+            AstKind::ForInStatement(_)
         ) {
             return Err(unsupported(
                 d,
@@ -199,7 +212,10 @@ pub(super) fn reads(semantic: &Semantic<'_>) -> BTreeMap<NodeId, Vec<NodeId>> {
             }
         }
     }
-    let mut invalid = BTreeSet::new();
+    // Iteration assignments can introduce a different kind even when the loop
+    // follows an ordinary initializer. Never discard their origins via a stale
+    // initializer-only refinement; zero visits preserve the prior value.
+    let mut invalid = iteration_symbols(semantic);
     for (&symbol, &body) in &owners {
         for reference in semantic
             .scoping()
@@ -278,6 +294,52 @@ pub(super) fn reads(semantic: &Semantic<'_>) -> BTreeMap<NodeId, Vec<NodeId>> {
 }
 
 impl Lowering<'_, '_> {
+    fn box_var_input(
+        &mut self,
+        node: &impl GetSpan,
+        input: ValueId,
+        region: &mut Region,
+    ) -> Result<ValueId, String> {
+        let ty = self.values[input.0];
+        if ty == Type::ManagedValue {
+            return Ok(input);
+        }
+        let result = self.value(Type::ManagedValue);
+        let op = match ty {
+            Type::ManagedObject => Op::ManagedFromObject { result, input },
+            Type::ManagedArray => Op::ManagedFromArray { result, input },
+            Type::Closure(_) => Op::ManagedFromClosure { result, input },
+            Type::Number | Type::Predicate | Type::General => {
+                let primitive = if ty == Type::General {
+                    input
+                } else {
+                    let primitive = self.value(Type::General);
+                    Self::push(
+                        region,
+                        node,
+                        Op::Pack {
+                            result: primitive,
+                            input,
+                        },
+                    );
+                    primitive
+                };
+                Op::ManagedPrimitive {
+                    result,
+                    input: primitive,
+                }
+            }
+            _ => {
+                return Err(unsupported(
+                    node,
+                    "var parameter aliases require primitive or managed inputs",
+                ));
+            }
+        };
+        Self::push(region, node, op);
+        Ok(result)
+    }
+
     pub(crate) fn initialize_var_bindings(
         &mut self,
         body: NodeId,
@@ -285,65 +347,54 @@ impl Lowering<'_, '_> {
         region: &mut Region,
     ) -> Result<(), String> {
         let semantic = self.semantic;
+        let iterated = iteration_symbols(semantic);
         let mut seen = BTreeSet::new();
         for (symbol, site, owner) in locals(semantic) {
-            if owner != body
-                || !seen.insert(symbol)
-                || self.bindings.iter().any(|b| b.symbol == symbol)
-            {
+            if owner != body || !seen.insert(symbol) {
                 continue;
             }
             let node = semantic.nodes().kind(site);
+            let existing = self.bindings.iter().position(|b| b.symbol == symbol);
             let mut copied = None;
-            for p in &params.items {
-                if let BindingPattern::BindingIdentifier(id) = &p.pattern
-                    && id.name.as_str() == semantic.scoping().symbol_name(symbol)
-                    && let Some(parameter) = id.symbol_id.get()
-                    && let Some(binding) = self.bindings.iter().find(|b| b.symbol == parameter)
-                {
-                    let slot = binding.slot;
-                    let ty = self.slots[slot.0].ty;
-                    let input = self.value(ty);
-                    Self::push(
-                        region,
-                        &node,
-                        Op::Load {
-                            result: input,
-                            slot,
-                        },
-                    );
-                    if ty == Type::ManagedValue {
-                        copied = Some(input);
+            if let Some(index) = existing {
+                let slot = self.bindings[index].slot;
+                let ty = self.slots[slot.0].ty;
+                if !iterated.contains(&symbol) || ty == Type::ManagedValue {
+                    continue;
+                }
+                // Widen parameter aliases before any body-created capture, rather
+                // than replacing their cell when the loop is first reached.
+                let input = self.value(ty);
+                Self::push(
+                    region,
+                    &node,
+                    Op::Load {
+                        result: input,
+                        slot,
+                    },
+                );
+                copied = Some(self.box_var_input(&node, input, region)?);
+            } else {
+                for p in &params.items {
+                    if let BindingPattern::BindingIdentifier(id) = &p.pattern
+                        && id.name.as_str() == semantic.scoping().symbol_name(symbol)
+                        && let Some(parameter) = id.symbol_id.get()
+                        && let Some(binding) = self.bindings.iter().find(|b| b.symbol == parameter)
+                    {
+                        let slot = binding.slot;
+                        let ty = self.slots[slot.0].ty;
+                        let input = self.value(ty);
+                        Self::push(
+                            region,
+                            &node,
+                            Op::Load {
+                                result: input,
+                                slot,
+                            },
+                        );
+                        copied = Some(self.box_var_input(&node, input, region)?);
                         break;
                     }
-                    let result = self.value(Type::ManagedValue);
-                    let op = match ty {
-                        Type::ManagedObject => Op::ManagedFromObject { result, input },
-                        Type::ManagedArray => Op::ManagedFromArray { result, input },
-                        Type::Closure(_) => Op::ManagedFromClosure { result, input },
-                        Type::Number | Type::Predicate | Type::General => {
-                            let primitive = if ty == Type::General {
-                                input
-                            } else {
-                                let p = self.value(Type::General);
-                                Self::push(region, &node, Op::Pack { result: p, input });
-                                p
-                            };
-                            Op::ManagedPrimitive {
-                                result,
-                                input: primitive,
-                            }
-                        }
-                        _ => {
-                            return Err(unsupported(
-                                &node,
-                                "var parameter aliases require primitive or managed inputs",
-                            ));
-                        }
-                    };
-                    Self::push(region, &node, op);
-                    copied = Some(result);
-                    break;
                 }
             }
             let value = copied.unwrap_or_else(|| self.binding_undefined(&node, region));
@@ -356,11 +407,15 @@ impl Lowering<'_, '_> {
                 span: node.span(),
             });
             Self::push(region, &node, Op::Initialize { slot, value });
-            self.bindings.push(NumericBinding {
-                symbol,
-                slot,
-                mutable: true,
-            });
+            if let Some(index) = existing {
+                self.bindings[index].slot = slot;
+            } else {
+                self.bindings.push(NumericBinding {
+                    symbol,
+                    slot,
+                    mutable: true,
+                });
+            }
         }
         Ok(())
     }
