@@ -897,7 +897,6 @@ fn string_length_requires_known_string_receivers_and_static_reads() {
         "function length(s){return s.length;}export function run(a,b){return length('x')+length(a);}",
         "export function run(a,b){const s='x';const key='length';return s[key];}",
         "export function run(a,b){const s='x';s.length=2;return s.length;}",
-        "export function run(a,b){const s='x';return s?.length;}",
         "function s(x){if(x)return 'x';}export function run(a,b){return s(a).length;}",
         "function s(x){return x?'x':null;}export function run(a,b){return s(a).length;}",
         "export function run(a,b){let s='x';const length=()=>s.length;s=a;return length();}",
@@ -914,6 +913,17 @@ fn string_length_requires_known_string_receivers_and_static_reads() {
         "export function run(a:number,b:object){const text:string=a;return (text as string).length;}",
         true,
     ).is_err());
+}
+
+#[test]
+fn optional_string_length_executes_the_exact_former_guard_source() {
+    for source in [
+        "export function run(a,b){const s='x';return s?.length;}",
+        "export function run(a,b){const s=a?'x':null;return +(s?.length);}",
+        "export function run(a,b){const s=a?'A💠':undefined;return +(s?.length);}",
+    ] {
+        compare_sources(source, source);
+    }
 }
 
 #[test]
