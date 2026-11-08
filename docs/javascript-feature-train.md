@@ -601,3 +601,14 @@ value lane. Non-prior or effectful tests, effectful or scope-dependent branches,
 public/async defaults and broader parameter expressions remain guarded.
 The existing compiler and JS/TS differential suites exercise named helpers,
 arrows, stored methods and explicit override arguments.
+
+Earlier-parameter logical and conditional defaults can now select **other already
+initialized parameters** as well as static constants. An A1 handler may write
+`function label(value, fallback, selected=value ?? fallback)` or
+`function choose(enabled, active, idle, selected=enabled ? active : idle)`
+without copying values into its body. Identity, nullish/falsy distinctions,
+source-order initialization, explicit supplied overrides and lazy branch choice
+are preserved. Symbol resolution excludes self/later/body/outer reads; nested
+expressions with effects remain guarded. Focused compiler admissions/negative
+cases and JS/TS differential source oracles live in the helper-default and
+managed-logical suites. No application or host API is changed.
