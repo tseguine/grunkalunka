@@ -1512,7 +1512,7 @@ proofs: unsigned numeric syntax on proven objects/Arrays, or source-proven Strin
 on null-prototype dictionaries. Each key is saved before the original destination
 reference executes, followed by GetV and its lazy default; awaits retain that order.
 Selected-value facts use the same conservative own-value/missing alternatives as
-ordinary computed reads. Runtime String source properties and coercing/unproven keys remain guarded.
+ordinary computed reads. Runtime String keys on primitive Strings and coercing/unproven keys remain guarded.
 
 
 Computed source keys also participate in object-rest exclusions. Each saved key is
@@ -1520,3 +1520,12 @@ retained through destination effects/default awaits and excluded from the fresh
 copy of the original RHS. Duplicate/static/runtime names share the existing key
 representation. Source facts conservatively include absence for every field that
 an unknown exclusion could remove, preserving kind and alias proof boundaries.
+
+
+Computed source indices in object assignment patterns also accept source-proven
+Strings with unsigned numeric syntax. They select UTF-16 code units (including
+individual surrogate halves), with Undefined outside the string. Lazy defaults
+and saved RHS/key/reference ordering use the same cursor as object/Array sources.
+String object-rest copying and runtime String/coercing keys remain guarded.
+The existing projections still require a proven String before String-only operations;
+numeric conversion of boxed Strings is outside this admission change.

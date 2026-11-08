@@ -39,6 +39,7 @@ enum Rule {
     OptionalComputedMember(NodeId, NodeId),
     DictionaryMember(NodeId, NodeId),
     UnsignedMember(NodeId),
+    PatternUnsignedMember(NodeId),
     Call(
         NodeId,
         Vec<NodeId>,
@@ -1242,7 +1243,7 @@ impl Fields {
                                         if evaluate::property_delete::uint32_key(key, 0) =>
                                     {
                                         dynamic_excluded = true;
-                                        Rule::UnsignedMember(a.right.node_id())
+                                        Rule::PatternUnsignedMember(a.right.node_id())
                                     }
                                     iteration::PropertyKey::Runtime(key) => {
                                         dynamic_excluded = true;
@@ -1437,6 +1438,7 @@ impl Fields {
                 rule,
                 Rule::DictionaryMember(..)
                     | Rule::UnsignedMember(..)
+                    | Rule::PatternUnsignedMember(..)
                     | Rule::OptionalMember(..)
                     | Rule::OptionalUnsignedMember(..)
                     | Rule::OptionalComputedMember(..)
@@ -1699,6 +1701,9 @@ impl Fields {
                         members.optional_unsigned_value(*receiver)
                     }
                     Rule::UnsignedMember(receiver) => members.unsigned_value(*receiver),
+                    Rule::PatternUnsignedMember(receiver) => {
+                        members.pattern_unsigned_value(*receiver)
+                    }
                     Rule::DictionaryMember(receiver, key) => {
                         members.dictionary_value(*receiver, *key)
                     }

@@ -1,3 +1,4 @@
+import { stringComputedSelectionPrograms } from './string-computed-pattern-selections.mjs';
 import { computedRestPrograms } from './computed-pattern-rest.mjs';
 import { computedSelectionPrograms } from './computed-pattern-selections.mjs';
 import { memberRestPrograms } from './member-rest-targets.mjs';
@@ -1412,3 +1413,5 @@ test('member rest targets retain original reference and copy operations',()=>{as
 test('computed source selections retain the original property-key expressions',()=>{assert.equal(computedSelectionPrograms.length,12);for(const row of computedSelectionPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('computed source exclusions retain original rest-copy operations',()=>{assert.equal(computedRestPrograms.length,12);for(const row of computedRestPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('String computed selections retain original UTF-16 index sources',()=>{assert.equal(stringComputedSelectionPrograms.length,12);for(const row of stringComputedSelectionPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

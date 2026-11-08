@@ -376,8 +376,8 @@ impl Lowering<'_, '_> {
                         }
                         iteration::PropertyKey::Runtime(key) => {
                             let uint32 = property_delete::uint32_key(key, depth + 1);
-                            if string
-                                || (!uint32 && !(dictionary && self.stored.string(key.node_id())))
+                            if !uint32
+                                && (string || !(dictionary && self.stored.string(key.node_id())))
                             {
                                 return Err(unsupported(
                                     node,
@@ -709,10 +709,21 @@ impl Lowering<'_, '_> {
                     Self::push(
                         regions.current(),
                         node,
-                        Op::ManagedGetOwnDynamic {
-                            result,
-                            object: receiver,
-                            key,
+                        if self.values[receiver.0] == Type::ManagedValue {
+                            let ir::ManagedKey::Uint32(index) = key else {
+                                unreachable!("validated String assignment index")
+                            };
+                            Op::ManagedStringGetIndex {
+                                result,
+                                input: receiver,
+                                index,
+                            }
+                        } else {
+                            Op::ManagedGetOwnDynamic {
+                                result,
+                                object: receiver,
+                                key,
+                            }
                         },
                     );
                     result
@@ -1294,7 +1305,7 @@ mod computed_selection_tests {
                 "const d=Object.create(null);const k='x';let x,rest;({[k]:x,...rest}=d);return a;",
                 true,
             ),
-            ("let x;({[a>>>0]:x}='text');return a;", false),
+            ("let x;({[a>>>0]:x}='text');return a;", true),
             (
                 "const o={x:'safe'};const alias=o;({[a>>>0]:alias.x}=[b]);return o.x.length;",
                 false,
@@ -1384,5 +1395,66 @@ mod computed_rest_tests {
                 }
             }
         }).unwrap().join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod string_computed_selection_tests {
+    #[test]
+    fn string_computed_selections_keep_source_and_key_proof_boundaries() {
+        for (body, admitted) in [
+            (
+                "let x='';({[a>>>0]:x='?'}='123');return x.charCodeAt(0);",
+                true,
+            ),
+            ("let x='';({[a>>>0]:x='?'}='text');return x.length;", true),
+            (
+                "const o={x:''};({[a>>>0]:o.x='?'}='text');return o.x.length;",
+                true,
+            ),
+            ("let x;({[a>>>0]:x}='123');return +x;", false),
+            ("let x='';({[a>>>0]:x}='text');return x.length;", false),
+            ("let x;({[a]:x}='text');return a;", false),
+            ("const k='0';let x;({[k]:x}='text');return a;", false),
+            ("let x;({[a>>>0]:x}=(a?'text':null));return a;", false),
+            ("let x;({[a>>>0]:x}=a);return a;", false),
+            ("const x='';({[a>>>0]:x}='text');return a;", false),
+            ("({[a>>>0]:b}='text');return b;", false),
+            ("let x,rest;({[a>>>0]:x,...rest}='text');return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){let x;({[b>>>0]:x}=(a as string));return a;}",
+                true
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn string_computed_source_depth_is_bounded_on_a_small_native_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (wraps, admitted) in [(125, true), (126, false)] {
+                    let source = format!(
+                        "export function run(a,b){{let x='';({{[{}a>>>0{}]:x='?'}}='123');return x.length;}}",
+                        "(".repeat(wraps),
+                        ")".repeat(wraps)
+                    );
+                    for typed in [false, true] {
+                        let r = crate::compile(&source, typed);
+                        assert_eq!(r.is_ok(), admitted, "{wraps}: {:?}", r.err());
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }
