@@ -1,3 +1,4 @@
+import { uint32ObjectKeyPrograms } from './uint32-object-keys.mjs';
 import { uint32InKeyPrograms } from './uint32-in-keys.mjs';
 import { uint32DeleteKeyPrograms } from './uint32-delete-keys.mjs';
 import { debuggerStatementPrograms } from './debugger-statements.mjs';
@@ -1250,6 +1251,17 @@ test('unsigned in corpus retains source order, presence and boundary observation
  assert.equal(uint32InKeyPrograms.length,12);
  for(const id of ['object-undefined','mixed-prototype','max-named','last-index','snapshot','after-delete']) {
   const row=uint32InKeyPrograms.find(row=>row[0]==='uint32-in-key-'+id);
+  assert.equal(row[1],row[2]);
+  assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+
+test('unsigned computed object key corpus retains collisions, ordering and source snapshots',()=>{
+ assert.equal(uint32ObjectKeyPrograms.length,12);
+ for(const id of ['collision','order','boundary','snapshot','reference','closure']) {
+  const row=uint32ObjectKeyPrograms.find(row=>row[0]==='uint32-object-key-'+id);
   assert.equal(row[1],row[2]);
   assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));

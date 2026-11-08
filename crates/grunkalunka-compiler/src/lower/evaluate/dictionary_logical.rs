@@ -160,7 +160,11 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     node,
-                    Op::ManagedSetOwnDynamic { object, key, value },
+                    Op::ManagedSetOwnDynamic {
+                        object,
+                        key: ir::ManagedKey::String(key),
+                        value,
+                    },
                 );
                 let selected = regions.finish(value);
                 let mut skipped = self.region(&assignment.left);

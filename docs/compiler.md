@@ -2809,3 +2809,20 @@ and formatter from unsigned delete are reused without new IR operations or host
 calls. Arbitrary numeric/coercive keys and non-object/prototype guards remain;
 type annotations cannot establish the range. Corpus 161 adds twelve JS/TS pairs;
 all 796 retained compatibility negatives remain.
+
+
+Computed object-literal data keys now accept original source-proven unsigned >>>
+results through the same wrappers, sequence/assignment tails and conditional
+forms as delete/in. Key expressions execute before their value expressions,
+with immutable Number snapshots retained across rebindings and supported awaits.
+The existing dynamic own-definition operation now uses the shared ManagedKey
+carrier, preserving String/dictionary definitions while adding Uint32 keys without
+new IR operations. Integer conversion and decimal formatting reuse the existing
+helpers; the generic literal carrier also retains bounded large-key emission.
+
+Definitions preserve final duplicate-key values, shallow reference identity and
+ECMAScript integer-index versus insertion ordering, including the 4294967294 /
+4294967295 boundary. Existing conservative unknown-key member proofs remain;
+ordinary Number aliases, signed/coercive keys, accessors/methods and unsupported
+operands retain guards. Annotations cannot establish unsigned range. Corpus 162
+adds twelve JS/TS differential pairs; all 796 compatibility negatives remain.

@@ -310,7 +310,7 @@ impl Emitter<'_> {
             }
             Op::ManagedSetOwnDynamic { object, key, value } => {
                 self.get(*object);
-                self.managed_key_value(*key);
+                self.property_key(key);
                 self.get(*value);
                 self.output.push_str("call $gc_set\n");
             }
@@ -1797,7 +1797,9 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     // All ManagedKey consumers may use the normalized numeric-key variant.
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| match op {
-            Op::ManagedDeleteOwn { key, .. } | Op::ManagedHasOwn { key, .. } => {
+            Op::ManagedDeleteOwn { key, .. }
+            | Op::ManagedHasOwn { key, .. }
+            | Op::ManagedSetOwnDynamic { key, .. } => {
                 matches!(key, ir::ManagedKey::Uint32(_))
             }
             Op::ManagedObjectRest { excluded, .. } => excluded
@@ -2075,6 +2077,7 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
             Op::ManagedObjectRest { excluded, .. } => {
                 excluded.iter().any(|key| matches!(key, ir::ManagedKey::Literal(text) if text.len() > MAX_FIXED_TEXT_UNITS))
             }
+            Op::ManagedSetOwnDynamic { key: ir::ManagedKey::Literal(key), .. } => key.len() > MAX_FIXED_TEXT_UNITS,
             Op::ManagedGetOwn { key, .. }
             | Op::ManagedSetOwn { key, .. }
             | Op::ManagedArrayGetOwn { key, .. }

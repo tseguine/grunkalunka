@@ -791,7 +791,7 @@ pub(crate) enum Op {
     },
     ManagedSetOwnDynamic {
         object: ValueId,
-        key: ValueId,
+        key: ManagedKey,
         value: ValueId,
     },
     ManagedPrimitive {
@@ -1573,7 +1573,7 @@ impl Verifier<'_> {
             }
             Op::ManagedSetOwnDynamic { object, key, value } => {
                 self.value(*object, Type::ManagedObject, visible, span)?;
-                self.value(*key, Type::ManagedValue, visible, span)?;
+                self.managed_key(key, visible, span)?;
                 self.value(*value, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedObjectRest {
