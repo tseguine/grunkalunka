@@ -5,6 +5,29 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn function_for_in_preserves_rhs_effects_without_calling_or_visiting() {
+    common::compare_sources(
+        "function f(x){return x+1;}export function run(a,b){let n=0;for(const k in f)n++;return n;}",
+        "function f(x){return x+1;}export function run(a,b){let n=0;for(const k in f)n++;return n;}",
+    );
+    for body in [
+        "const f=x=>x+a;let n=0;for(const k in f)n++;return n;",
+        "let n=0;for(const k in (x=>x+a))n++;return n;",
+        "const f=x=>x+a;const g=x=>x+b;let n=0;for(const k in (a?f:g))n++;return n;",
+        "let n=0;const f=x=>x+a;for(const k in (n++,f))n+=10;return n;",
+        "let n=0;const make=()=>{n++;return x=>x+a;};for(const k in make())n+=10;return n;",
+        "let n=0;const f=()=>{n++;return a;};for(const k in f)n+=10;return n;",
+        "let key='old';const f=x=>x+a;for(key in f)key='changed';return key==='old'?1:0;",
+        "var key;const f=x=>x+a;for(var key in f){}return key===undefined?1:0;",
+        "let n=0;const f=x=>x+a;for(const {0:k=(n++,'x')} in f)n+=10;return n;",
+        "let n=0;const f=x=>x+a;for(const x of [a,b])for(const k in (n++,f))n+=10;return n;",
+        "const f=x=>x+a;for(const k in f){}return f(b);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn optional_number_string_indices_preserve_numeric_names_and_lazy_keys() {
     for body in [
         "return 'abc'?.[a]===undefined?1:0;",

@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn function_for_in_preserves_await_order_and_rejected_rhs() {
+    compare_promises(
+        &[
+            "let n=0;const f=x=>x+a;for(const k in (await b,n++,f))n+=10;await a;return n;",
+            "let n=0;const f=x=>x+a;try{for(const k in (await Promise.reject(b),n++,f))n+=10;}catch(e){await a;return n;}return 99;",
+            "let key='old';const f=x=>x+a;for(key in (await b,f))key='changed';await a;return key==='old'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn optional_number_string_indices_preserve_text_across_key_awaits() {
     compare_promises(
         &[

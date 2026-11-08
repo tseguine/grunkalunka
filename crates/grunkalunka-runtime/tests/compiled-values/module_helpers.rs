@@ -1,6 +1,14 @@
 use super::*;
 
 #[test]
+fn function_for_in_keeps_primitive_tags_after_empty_enumeration() {
+    compare_helpers(&[
+        "export function run(a,b){let value=null;const f=x=>x+a;for(const k in f)value=a;return value;}",
+        "export function run(a,b){let value=false;const f=x=>x+a;for(const k in f)value=a;return value;}",
+    ]);
+}
+
+#[test]
 fn optional_number_string_indices_return_boolean_comparison_tags() {
     compare_helpers(&[
         "export function run(a,b){const s=a?'ab':null;return s?.[b]===undefined;}",
