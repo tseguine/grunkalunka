@@ -1580,13 +1580,19 @@ fn numeric_string_index_requires_number_and_keeps_missing_results() {
     }
     m.functions[0].values[index.0] = Type::ManagedValue;
     assert!(verify_module(&m).is_err());
+    assert!(
+        crate::lower_source(
+            "export function run(a,b){return 'abc'?.[a]===undefined?1:0;}",
+            false
+        )
+        .is_ok()
+    );
     for body in [
         "return 'abc'[a].length;",
         "return 'abc'[a].trim().length;",
         "return 'abc'[null]===undefined?1:0;",
         "return 'abc'[true]===undefined?1:0;",
         "const s=a?'abc':null;return s[0]===undefined?1:0;",
-        "return 'abc'?.[a]===undefined?1:0;",
     ] {
         assert!(
             crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err(),

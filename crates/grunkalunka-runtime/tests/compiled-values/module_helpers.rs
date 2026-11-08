@@ -1,6 +1,14 @@
 use super::*;
 
 #[test]
+fn optional_number_string_indices_return_boolean_comparison_tags() {
+    compare_helpers(&[
+        "export function run(a,b){const s=a?'ab':null;return s?.[b]===undefined;}",
+        "export function run(a,b){const s='ab';return s?.[a/2]==='a';}",
+    ]);
+}
+
+#[test]
 fn optional_string_length_and_comparisons_preserve_primitive_tags() {
     compare_helpers(&[
         "export function run(a,b){const s=a?'ab':null;return s?.length;}",

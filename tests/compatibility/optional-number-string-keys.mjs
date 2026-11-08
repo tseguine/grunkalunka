@@ -1,0 +1,15 @@
+export const optionalNumberStringPrograms=[
+ ["optional-number-string-plain", "const s='ab';return s?.[a]==='a'?1:0;", "const s='ab';return s?.[a]==='a'?1:0;"],
+ ["optional-number-string-nullable", "const s=a?'ab':null;return s?.[b]===undefined?1:0;", "const s=a?'ab':null;return s?.[b]===undefined?1:0;"],
+ ["optional-number-string-fraction", "const s='ab';return s?.[a/2]===undefined?1:0;", "const s='ab';return s?.[a/2]===undefined?1:0;"],
+ ["optional-number-string-fraction-fixed", "const s='ab';const k=0.5;return s?.[k]===undefined?1:0;", "const s='ab';const k=0.5;return s?.[k]===undefined?1:0;"],
+ ["optional-number-string-negative", "const s='ab';const k=-1;return s?.[k]===undefined?1:0;", "const s='ab';const k=-1;return s?.[k]===undefined?1:0;"],
+ ["optional-number-string-negative-zero", "const s='ab';const k=-0;return s?.[k]==='a'?1:0;", "const s='ab';const k=-0;return s?.[k]==='a'?1:0;"],
+ ["optional-number-string-large", "const s='ab';const k=4294967296;return s?.[k]===undefined?1:0;", "const s='ab';const k=4294967296;return s?.[k]===undefined?1:0;"],
+ ["optional-number-string-lazy", "let n=0;const s=a?'ab':null;const v=s?.[(n++,b)];return n===(a?1:0)?1:0;", "let n=0;const s=a?'ab':null;const v=s?.[(n++,b)];return n===(a?1:0)?1:0;"],
+ ["optional-number-string-snapshot", "let s='ab';const v=s?.[(s='bc',a)];return v===(a===0?'a':a===1?'b':undefined)?1:0;", "let s='ab';const v=s?.[(s='bc',a)];return v===(a===0?'a':a===1?'b':undefined)?1:0;"],
+ ["optional-number-string-loop", "const s='ab';let n=0;for(let i=0;i<2;i++)if(s?.[i]!==undefined)n++;return n;", "const s='ab';let n=0;for(let i=0;i<2;i++)if(s?.[i]!==undefined)n++;return n;"],
+ ["optional-number-string-utf16", "const s='\ud83d\ude00';let i=1;return s?.[i]==='\\ude00'?1:0;", "const s='\ud83d\ude00';let i=1;return s?.[i]==='\\ude00'?1:0;"],
+ ["optional-number-string-helper", "const read=(s,i)=>s?.[i]==='a'?1:0;return read('ab',a);", "const read=(s,i)=>s?.[i]==='a'?1:0;return read('ab',a);"],
+ ["optional-number-string-former-guard", "return 'abc'?.[a]===undefined?1:0;", "return 'abc'?.[a]===undefined?1:0;"],
+];

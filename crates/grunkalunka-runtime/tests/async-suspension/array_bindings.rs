@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn optional_number_string_indices_preserve_text_across_key_awaits() {
+    compare_promises(
+        &[
+            "let s='ab';const v=s?.[(await b,s='bc',a)];await a;return v===(a===0?'a':a===1?'b':undefined)?1:0;",
+            "let n=0;const s=a?'ab':null;const v=s?.[(await b,n++,b)];await a;return n===(a?1:0)?1:0;",
+            "const s=a?'ab':null;try{const v=s?.[(await Promise.reject(b),a)];return 1;}catch(e){await a;return 2;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn optional_string_reads_preserve_saved_text_across_key_awaits() {
     compare_promises(
         &[

@@ -1,3 +1,4 @@
+import { optionalNumberStringPrograms } from './optional-number-string-keys.mjs';
 import { optionalStringReadPrograms } from './optional-string-reads.mjs';
 import { optionalUint32ReadPrograms } from './optional-uint32-reads.mjs';
 import { optionalStaticReadPrograms } from './optional-static-reads.mjs';
@@ -1341,4 +1342,10 @@ test('unsigned optional reads retain original lazy key and saved receiver observ
 test('optional String reads retain original length, UTF-16 and lazy index observations',()=>{
  assert.equal(optionalStringReadPrograms.length,16);
  for(const row of optionalStringReadPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('?.'));assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('optional Number String indices retain original fractions, laziness and source snapshots',()=>{
+ assert.equal(optionalNumberStringPrograms.length,13);
+ for(const row of optionalNumberStringPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });

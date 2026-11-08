@@ -5,6 +5,27 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_number_string_indices_preserve_numeric_names_and_lazy_keys() {
+    for body in [
+        "return 'abc'?.[a]===undefined?1:0;",
+        "const s='ab';return s?.[a]==='a'?1:0;",
+        "const s=a?'ab':null;return s?.[b]===undefined?1:0;",
+        "const s='ab';return s?.[a/2]===undefined?1:0;",
+        "const s='ab';const k=0.5;return s?.[k]===undefined?1:0;",
+        "const s='ab';const k=-1;return s?.[k]===undefined?1:0;",
+        "const s='ab';const k=-0;return s?.[k]==='a'?1:0;",
+        "const s='ab';const k=4294967296;return s?.[k]===undefined?1:0;",
+        "let n=0;const s=a?'ab':null;const v=s?.[(n++,b)];return n===(a?1:0)?1:0;",
+        "let s='ab';const v=s?.[(s='bc',a)];return v===(a===0?'a':a===1?'b':undefined)?1:0;",
+        "const s='ab';let n=0;for(let i=0;i<2;i++)if(s?.[i]!==undefined)n++;return n;",
+        "const s='😀';let i=1;return s?.[i]==='\\ude00'?1:0;",
+        "const read=(s,i)=>s?.[i]==='a'?1:0;return read('ab',a);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn optional_string_reads_preserve_utf16_length_and_lazy_receiver_snapshots() {
     for body in [
         "const s='a😀';return s?.length;",
