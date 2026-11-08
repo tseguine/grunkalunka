@@ -1475,3 +1475,11 @@ executes once, and the saved receiver supplies later presence checks even after
 rebinding or suspension. Removed keys are skipped before assigning the head.
 Heterogeneous container kinds and opaque receivers remain guarded; this does
 not widen ordinary property reads or prototype mutation support.
+
+
+Assignment patterns can target existing scalar parameters when source facts prove
+that each selection/default fits the parameter's cell. Number parameters require
+Number-only alternatives, and tagged primitive cells retain their original tags.
+The RHS is still saved once, defaults remain lazy, and later selections/defaults
+observe preceding writes. Incompatible parameter kinds and annotation-only proofs
+remain guarded; this does not widen public result signatures.

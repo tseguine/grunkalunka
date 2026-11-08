@@ -59,13 +59,58 @@ impl Lowering<'_, '_> {
         identifier: &IdentifierReference<'_>,
     ) -> Result<SlotId, String> {
         let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
-        if !binding.mutable || self.slots[binding.slot.0].ty != Type::ManagedValue {
+        let compatible = match self.slots[binding.slot.0].ty {
+            Type::ManagedValue => true,
+            Type::Number => self.stored.number(identifier.node_id()),
+            Type::General => self.stored.primitive(identifier.node_id()),
+            _ => false,
+        };
+        if !binding.mutable || !compatible {
             return Err(unsupported(
                 identifier,
                 "assignment target must be an initialized identifier with mutable managed-value storage",
             ));
         }
         Ok(binding.slot)
+    }
+
+    fn store_assignment_selection(
+        &mut self,
+        node: &Expression<'_>,
+        slot: SlotId,
+        value: ValueId,
+        region: &mut Region,
+    ) {
+        let value = match self.slots[slot.0].ty {
+            Type::ManagedValue => value,
+            ty @ (Type::Number | Type::General) => {
+                let primitive = self.value(Type::General);
+                Self::push(
+                    region,
+                    node,
+                    Op::ManagedToPrimitive {
+                        result: primitive,
+                        input: value,
+                    },
+                );
+                if ty == Type::Number {
+                    let number = self.value(Type::Number);
+                    Self::push(
+                        region,
+                        node,
+                        Op::NumberFromGeneral {
+                            result: number,
+                            input: primitive,
+                        },
+                    );
+                    number
+                } else {
+                    primitive
+                }
+            }
+            _ => unreachable!("validated assignment cell"),
+        };
+        Self::push(region, node, Op::Store { slot, value });
     }
 
     pub(super) fn schedule_destructure<'e, 'a>(
@@ -283,7 +328,7 @@ impl Lowering<'_, '_> {
                         alternate,
                     },
                 );
-                Self::push(regions.current(), state.node, Op::Store { slot, value });
+                self.store_assignment_selection(state.node, slot, value, regions.current());
                 state
             }
         };
@@ -436,7 +481,7 @@ impl Lowering<'_, '_> {
                 work.push(Work::Eval(default, depth, Mode::Managed));
                 return Ok(());
             }
-            Self::push(regions.current(), node, Op::Store { slot, value });
+            self.store_assignment_selection(node, slot, value, regions.current());
         }
         match state.mode {
             Mode::Array | Mode::Object => values.push(state.input),
@@ -634,7 +679,7 @@ mod tests {
             ("let x=0;[x]=['text'];return x.length;", false),
             ("let x=0;[x,y]=[a,b];let y=0;return a;", false),
             ("const x=0;[x]=[a];return a;", false),
-            ("[a]=[b];return a;", false),
+            ("[a]=[b];return a;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
@@ -705,5 +750,55 @@ mod tests {
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod scalar_parameter_tests {
+    #[test]
+    fn scalar_pattern_parameters_require_source_and_storage_proofs() {
+        for (body, ok) in [
+            ("[a]=[b];return a;", true),
+            ("({x:a}={x:b});return a;", true),
+            ("[a=b]=[];return a;", true),
+            ("({x:a=b}={});return a;", true),
+            ("[a]=['text'];return a;", false),
+            ("[a]=[{}];return a;", false),
+            ("[...a]=[b];return a;", false),
+            ("[a]=[];return a;", false),
+            ("const x=0;[x]=[a];return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a:number,b:number){[a]=(['x'] as number[]);return a;}",
+                true
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn scalar_pattern_parameter_rhs_depth_is_bounded_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (n, ok) in [(126, true), (127, false)] {
+                    let source = format!(
+                        "export function run(a,b){{[a]={}[b]{};return a;}}",
+                        "(".repeat(n),
+                        ")".repeat(n)
+                    );
+                    let r = crate::compile(&source, false);
+                    assert_eq!(r.is_ok(), ok, "{n}: {:?}", r.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

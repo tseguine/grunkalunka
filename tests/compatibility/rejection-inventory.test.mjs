@@ -1,3 +1,4 @@
+import { scalarPatternPrograms } from './scalar-pattern-parameters.mjs';
 import { nullableForInPrograms } from './nullable-for-in.mjs';
 import { scalarIterationPrograms } from './scalar-iteration-heads.mjs';
 import { memberIterationPrograms } from './member-iteration-heads.mjs';
@@ -1392,3 +1393,6 @@ test('nullable for-in retains original RHS sources and nullish observations',()=
  assert.equal(nullableForInPrograms.length,14);
  for(const row of nullableForInPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });
+
+
+test('scalar pattern parameters preserve source and original reference results',()=>{assert.equal(scalarPatternPrograms.length,12);for(const row of scalarPatternPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

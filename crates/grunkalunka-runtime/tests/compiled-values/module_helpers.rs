@@ -1,6 +1,15 @@
 use super::*;
 
 #[test]
+fn scalar_pattern_general_helper_parameters_preserve_tags() {
+    compare_helpers(&[
+        "export function run(a,b){const f=x=>{[x]=[false];return x;};return f(null);}",
+        "export function run(a,b){const f=x=>{({x}={x:null});return x;};return f(false);}",
+        "export function run(a,b){const f=x=>{({x}={});return x;};return f(null);}",
+    ]);
+}
+
+#[test]
 fn scalar_iteration_assignments_preserve_selected_primitive_tags() {
     compare_helpers(&[
         "export function run(a,b){let x=0;for(x of [a,b]){}return x;}",
