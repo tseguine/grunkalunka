@@ -2700,8 +2700,25 @@ wrappers and pure void. The evaluator uses a bounded heap worklist and validates
 every operand, including beneath void. It preserves IEEE Number behavior for
 signed zero, infinities and NaN, without evaluating runtime effects. Only Undefined
 selects the result; supplied primitive tags and existing callable/capture rules
-remain unchanged. Self/later/outer reads, arithmetic on earlier parameters,
+remain unchanged. Self/later/outer reads, binary arithmetic on earlier parameters,
 shadowed globals, calls, String/Boolean/null coercions and exponentiation retain
 guards. Source depth 128/129 is exercised on a 2 MiB stack. Corpus 155 retains two
 exact former compiler rejection sources with their hashes as executed positives
 and adds fourteen pairs. All 796 retained negative sources stay in the inventory.
+
+
+Earlier-parameter defaults now admit bounded unary chains of void, logical !,
+unary + and unary -. Resolved symbols still prove that the referenced parameter
+was initialized earlier in the same list. Each fallback loads the saved parameter
+only after supplied arguments have completed. Void produces Undefined; logical !
+uses managed truthiness, including Strings/Objects/Arrays. Numeric signs require
+proof of the supported Number/Boolean/null/Undefined domain before conversion;
+String/reference numeric coercion stays guarded. A preceding void or ! establishes
+its own primitive result, so chains such as +void x or +!!x are safe even when x
+is a represented reference. Source checks do not disappear beneath void.
+
+Inline and emitted calls preserve tags, Number bits, captured values and default
+laziness. Self/later parameters, outer/body scope reads, effects, unsupported value
+lanes and public/async defaults retain guards. Unary depth 128/129 is exercised on
+a 2 MiB native stack. Corpus 156 adds fifteen differential pairs and freezes the
+exact former unary-plus compiler guard as a positive; all 796 negatives remain.

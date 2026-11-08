@@ -189,8 +189,6 @@ fn earlier_parameter_defaults_keep_tdz_scope_and_effect_guards() {
         "export function run(a,b){const f=(x=y,y=3)=>x;return f();}",
         "export function run(a,b){const f=(x=x)=>x;return f();}",
         "function f(x,y=(x=3)){return y;}export function run(a,b){return f(a);}",
-        "function f(x,y=void x){return y;}export function run(a,b){return f(a);}",
-        "function f(x,y=+x){return y;}export function run(a,b){return f(a);}",
     ] {
         assert!(crate::compile_value(source, false).is_err(), "{source}");
     }
@@ -279,6 +277,56 @@ fn arithmetic_parameter_defaults_preserve_number_semantics_and_source_limits() {
                 let expression = (0..depth).fold("1".to_string(), |s, _| format!("1+{s}"));
                 let source = format!(
                     "function f(x={expression}){{return x;}}export function run(a,b){{return f();}}"
+                );
+                assert_eq!(
+                    crate::compile_value(&source, false).is_ok(),
+                    depth == 128,
+                    "{depth}"
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn unary_earlier_defaults_preserve_scope_conversion_and_depth_guards() {
+    for source in [
+        "function f(x,y=void x){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=+x){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=-x){return y;}export function run(a,b){return f(null);}",
+        "function f(x,y=!x){return y;}export function run(a,b){return f({});}",
+        "function f(x,y=+!!x){return y;}export function run(a,b){return f('abc');}",
+        "export function run(a,b){const o={f:(x,y=-x)=>y};return o.f(a);}",
+    ] {
+        for ts in [false, true] {
+            let r = crate::compile_value(source, ts);
+            assert!(r.is_ok(), "{source}: {:?}", r.err());
+        }
+    }
+    for source in [
+        "function f(x=void x){return x;}export function run(a,b){return f();}",
+        "function f(x=void y,y=3){return x;}export function run(a,b){return f();}",
+        "function f(x,y=+x){return y;}export function run(a,b){return f({valueOf:()=>a});}",
+        "function f(x,y=-x){return y;}export function run(a,b){return f('3');}",
+        "export function run(a,b){const f=(x=void a)=>x;return f();}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+    let js = "function f(x,y=-x){return y;}export function run(a,b){return f(a);}";
+    let ts = "function f(x:string,y:boolean=(-(x as never) as unknown)):Wrong{return y as number;}export function run(a:string,b:boolean):never{return f(a);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            for depth in [128, 129] {
+                let source = format!(
+                    "function f(x,y={}x){{return y;}}export function run(a,b){{return f(a);}}",
+                    "void ".repeat(depth)
                 );
                 assert_eq!(
                     crate::compile_value(&source, false).is_ok(),

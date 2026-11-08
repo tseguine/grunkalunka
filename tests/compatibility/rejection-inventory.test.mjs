@@ -1,3 +1,4 @@
+import { unaryDefaultOriginal, unaryDefaultPrograms } from './unary-parameter-defaults.mjs';
 import { arithmeticDefaultOriginals, arithmeticDefaultPrograms } from './arithmetic-parameter-defaults.mjs';
 import { stringObjectAssignmentPrograms } from './string-object-assignments.mjs';
 import { stringAssignmentPrograms } from './string-array-assignments.mjs';
@@ -1181,4 +1182,12 @@ test('arithmetic defaults preserve exact former helper and arrow rejection sourc
   assert.equal(createHash('sha256').update(source).digest('hex'),hashes[index]);
   for(const actual of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(actual,source);
  }
+});
+
+
+test('unary earlier defaults retain the exact former numeric compiler guard',()=>{
+ assert.equal(unaryDefaultPrograms.length,15);
+ assert.equal(createHash('sha256').update(unaryDefaultOriginal).digest('hex'),"4107b4428681c32ee0d3604fe8b57f568d4b05488284e4e102108a66e4217ca9");
+ const pair=programSources(unaryDefaultPrograms.find(row=>row[0]==='unary-default-plus'));
+ for(const source of [pair.sourceJS,pair.sourceTS,pair.oracleSource])assert.equal(source,unaryDefaultOriginal);
 });
