@@ -505,6 +505,8 @@ fn object_binding_annotations_are_erased_without_proving_values() {
 
 #[test]
 fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
+    let original = "export function run(a,b){var {x}={x:a};return a;}";
+    common::compare_sources(original, original);
     for body in [
         "const key='x';const {[key]:x}={x:a};return a;",
         "const {[a?'x':'y']:x}={x:a,y:b};return a;",
@@ -521,7 +523,7 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
         "const {constructor}={};return a;",
         "const {toString}={};return a;",
         "const {__proto__}={};return a;",
-        "var {x}={x:a};return a;",
+        "for(var {x} of [{x:a}]){}return a;",
         "const {x}={x:a};x=b;return a;",
         "const x=a;{const {x}={x:x};return x===a?1:0;}",
         "const source={text:'abc'};source.text=a;const {text}=source;return text.length;",

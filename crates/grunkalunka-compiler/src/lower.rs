@@ -737,6 +737,22 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         value: ValueId,
         mutable: bool,
     ) -> Result<(), String> {
+        if self.stored.var_symbol(symbol) {
+            let slot = self
+                .bindings
+                .iter()
+                .find(|b| b.symbol == symbol)
+                .ok_or("missing hoisted pattern cell")?
+                .slot;
+            if self.slots[slot.0].ty != Type::ManagedValue || ty != Type::ManagedValue {
+                return Err(unsupported(
+                    node,
+                    "var patterns require managed-value cells",
+                ));
+            }
+            Self::push(region, node, Op::Store { slot, value });
+            return Ok(());
+        }
         let slot = SlotId(self.slots.len());
         self.slots.push(Slot {
             ty,

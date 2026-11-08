@@ -890,3 +890,22 @@ fn numeric_intrinsic_and_void_defaults_keep_explicit_numeric_projection() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn var_patterns_preserve_order_defaults_redeclarations_and_rest() {
+    let original = "export function run(a,b){var {x}={x:a};return x;}";
+    common::compare_sources_with_fuel_and_goldens(original, original, None, &[[4, 2, 4]]);
+    for body in [
+        "var {x}={x:a};return +x;",
+        "var [x,y]=[a,b];return +x+(+y);",
+        "var [x=3,y=x]=[];return +y;",
+        "const get=()=>x;var {x}={x:a};var {x}={x:b};return +get();",
+        "var {x,...rest}={x:a,y:b};return +rest.y;",
+        "var [x,...rest]=[a,b];return +rest[0];",
+        "var [a]=[null];return +a;",
+        "for(var [x]=[a];0;){}return +x;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}

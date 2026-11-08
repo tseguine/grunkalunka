@@ -155,10 +155,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             ));
         }
         let BindingPattern::BindingIdentifier(id) = &local.id else {
-            return Err(unsupported(
-                local,
-                "var requires ordinary identifier bindings",
-            ));
+            return self
+                .prepare_local_pattern(local, true)
+                .map(DeclarationInitializer::Pattern);
         };
         self.charge_declaration_bindings(local, 1)?;
         let symbol = id.symbol_id.get().ok_or("missing var symbol")?;

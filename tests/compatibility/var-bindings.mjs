@@ -24,6 +24,5 @@ for (const [id,body] of [
 ]) varPrograms.push(['var-'+id,body,body]);
 export const varRejected = [
   ['function-init','var f=x=>x;return f(a);','function-valued var initializers'],
-  ['pattern','var {x}={x:a};return x;','var requires ordinary identifier bindings'],
   ['catch-name','try{throw a;}catch(e){var e=3;}return 0;','var cannot redeclare a catch binding'],
 ].map(([id,body,diagnostic])=>['var-guard-'+id,`export function run(a,b){${body}}`,'js',diagnostic]);
