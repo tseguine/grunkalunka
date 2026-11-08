@@ -193,3 +193,21 @@ fn conditional_helper_values_keep_the_implicit_undefined_path() {
         "function helper(x){if(x)return x;}export function run(a,b){const f=x=>helper(x);return f(a);}",
     ]);
 }
+
+#[test]
+fn helper_control_flow_preserves_normal_and_abrupt_completions() {
+    compare_helpers(&[
+        "function helper(x){while(x){return x;}}export function run(a,b){return helper(a);}",
+        "function helper(x){for(const y of [x]){if(x)return y;}}export function run(a,b){return helper(a);}",
+        "function helper(x){const o=Object.create(null);o.a=x;for(const key in o){if(x)return x;}}export function run(a,b){return helper(a);}",
+        "function helper(x){try{throw x;}catch(e){if(e)return e;}finally{x++;}}export function run(a,b){return helper(a);}",
+        "function helper(x){for(let i=0;i<2;i++){if(x)return i;}}export function run(a,b){return helper(a);}",
+        "function helper(x){do{if(x)break;return x;}while(false);}export function run(a,b){return helper(a);}",
+        "function helper(x){do{if(x)continue;return x;}while(false);}export function run(a,b){return helper(a);}",
+        "function helper(x){switch(x){case 1:return 3;}}export function run(a,b){return helper(a);}",
+        "function helper(x){switch(x){case 0:break;default:return 3;}}export function run(a,b){return helper(a);}",
+        "function helper(x){try{if(x)return x;}finally{x++;}}export function run(a,b){return helper(a);}",
+        "function helper(x){try{throw x;}catch(e){if(e)return e;}}export function run(a,b){return helper(a);}",
+        "function helper(x){try{return x;}finally{if(x)return;}}export function run(a,b){return helper(a);}",
+    ]);
+}
