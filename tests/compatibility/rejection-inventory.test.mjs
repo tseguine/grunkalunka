@@ -1,3 +1,4 @@
+import { uint32PropertyWritePrograms } from './uint32-property-writes.mjs';
 import { uint32ObjectKeyPrograms } from './uint32-object-keys.mjs';
 import { uint32InKeyPrograms } from './uint32-in-keys.mjs';
 import { uint32DeleteKeyPrograms } from './uint32-delete-keys.mjs';
@@ -1262,6 +1263,17 @@ test('unsigned computed object key corpus retains collisions, ordering and sourc
  assert.equal(uint32ObjectKeyPrograms.length,12);
  for(const id of ['collision','order','boundary','snapshot','reference','closure']) {
   const row=uint32ObjectKeyPrograms.find(row=>row[0]==='uint32-object-key-'+id);
+  assert.equal(row[1],row[2]);
+  assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+
+test('unsigned property write corpus retains growth, boundaries and RHS snapshots',()=>{
+ assert.equal(uint32PropertyWritePrograms.length,12);
+ for(const id of ['array','loop','max-named','last-index','snapshot','key-snapshot','reference']) {
+  const row=uint32PropertyWritePrograms.find(row=>row[0]==='uint32-property-write-'+id);
   assert.equal(row[1],row[2]);
   assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));

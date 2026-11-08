@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn unsigned_property_writes_save_targets_and_keys_across_rhs_awaits() {
+    compare_promises(
+        &[
+            "let xs=[];const saved=xs;let key=0;const result=xs[key>>>0]=(await a,key=1,xs=[],b);await b;return saved!==xs&&Object.hasOwn(saved,0)&&!Object.hasOwn(saved,1)&&!Object.hasOwn(xs,0)&&result===b?1:0;",
+            "const xs=[];xs[(await a,0>>>0)]=(await b,a);await a;return xs.length===1&&Object.hasOwn(xs,0)?1:0;",
+            "const xs=[];let n=0;try{xs[(await Promise.reject(a),0>>>0)]=(n=1,b);}catch(e){await b;return n+xs.length;}return -1;",
+            "const xs=[];let n=0;try{xs[(n=1,0>>>0)]=await Promise.reject(b);}catch(e){await a;return n+xs.length;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_computed_keys_preserve_keys_before_value_awaits() {
     compare_promises(
         &[

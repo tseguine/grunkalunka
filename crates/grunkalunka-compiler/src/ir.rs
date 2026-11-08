@@ -1572,9 +1572,35 @@ impl Verifier<'_> {
                     .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
             }
             Op::ManagedSetOwnDynamic { object, key, value } => {
-                self.value(*object, Type::ManagedObject, visible, span)?;
+                let ty = self
+                    .function
+                    .values
+                    .get(object.0)
+                    .copied()
+                    .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
+                    .ok_or_else(|| {
+                        invalid(
+                            span,
+                            "dynamic property definition requires an object or Array",
+                        )
+                    })?;
+                self.value(*object, ty, visible, span)?;
                 self.managed_key(key, visible, span)?;
                 self.value(*value, Type::ManagedValue, visible, span)?;
+                if ty == Type::ManagedArray
+                    && !match key {
+                        ManagedKey::Uint32(_) => true,
+                        ManagedKey::Literal(key) => {
+                            key.as_slice() != [108, 101, 110, 103, 116, 104]
+                        }
+                        ManagedKey::String(_) => false,
+                    }
+                {
+                    return Err(invalid(
+                        span,
+                        "dynamic Array definition must exclude length",
+                    ));
+                }
             }
             Op::ManagedObjectRest {
                 result,

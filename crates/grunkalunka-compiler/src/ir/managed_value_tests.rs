@@ -1769,3 +1769,38 @@ fn generic_object_definition_supports_large_literal_key_carriers() {
     let wasm = wat::parse_str(crate::emit::emit(&module).unwrap()).unwrap();
     node(&wasm, "1");
 }
+
+#[test]
+fn unsigned_array_definition_checks_length_key_and_operands() {
+    let source = "export function run(a,b){const xs=[];xs[a>>>0]=b;return xs.length;}";
+    for invalid in 0..6 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (object, key, value) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let Op::ManagedSetOwnDynamic { object, key, value } = &mut operation.kind {
+                    Some((object, key, value))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let ManagedKey::Uint32(number) = key else {
+            panic!("numeric key");
+        };
+        let number = *number;
+        match invalid {
+            0 => *key = ManagedKey::Literal("length".encode_utf16().collect()),
+            1 => *key = ManagedKey::String(*value),
+            2 => *key = ManagedKey::Uint32(ValueId(usize::MAX)),
+            3 => *value = *object,
+            4 => *object = number,
+            _ => *key = ManagedKey::Uint32(*value),
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+}
