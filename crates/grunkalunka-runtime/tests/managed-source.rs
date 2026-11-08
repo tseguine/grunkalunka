@@ -5,6 +5,27 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn unsigned_has_own_keys_preserve_presence_and_argument_order() {
+    for body in [
+        "const xs=[a,,b];return Object.hasOwn(xs,a>>>0)?1:0;",
+        "const xs=[undefined];return Object.hasOwn(xs,b>>>0)?1:0;",
+        "const xs=[a,,b];delete xs[0];return Object.hasOwn(xs,0>>>0)?1:0;",
+        "const xs=[a];xs[4294967295>>>0]=b;return Object.hasOwn(xs,4294967295>>>0)&&xs.length===1?1:0;",
+        "const o={0:a};return Object.hasOwn(o,a>>>b)?1:0;",
+        "const o={};o[a>>>0]=b;return Object.hasOwn(o,a>>>0)?1:0;",
+        "const d=Object.create(null);d[a>>>0]=b;return Object.hasOwn(d,a>>>0)?1:0;",
+        "return Object.hasOwn('💠',a>>>0)?1:0;",
+        "return Object.hasOwn('',a>>>0)?1:0;",
+        "return Object.hasOwn(a,b>>>0)?1:0;",
+        "return Object.hasOwn(true,a>>>0)?1:0;",
+        "const xs=[a];return Object.hasOwn(xs,(xs[0]=b,a>>>0))?1:0;",
+        "const xs=[a];return Object.hasOwn(xs,a>>>0,xs.pop())?xs.length:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn unsigned_binding_keys_preserve_selection_order_and_saved_sources() {
     for body in [
         "const {[a>>>0]:x}=[b];return +x;",

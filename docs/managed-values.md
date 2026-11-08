@@ -1550,3 +1550,12 @@ objects, Arrays and Strings. Keys evaluate once before field selection and lazy
 defaults; object-rest exclusions retain the saved numeric key. Strings select
 UTF-16 code units. Existing dictionary String keys remain supported; coercing,
 annotation-only and unproven receivers/keys keep their guards.
+
+Object.hasOwn now accepts source-proven unsigned numeric keys (including the
+>>>-derived 4294967295 named-property boundary) on its existing proven
+object, Array, String, Number and Boolean receivers. The key is normalized
+through the existing Uint32 managed-property carrier; receiver, key and ignored
+extra arguments still execute in source order. Array holes remain distinct from
+own Undefined entries, and primitive Number/Boolean receivers have no own keys.
+Arbitrary runtime Number keys, key coercion and unsupported receiver proofs
+remain guarded; TypeScript annotations do not establish unsigned range.

@@ -370,12 +370,11 @@ impl Emitter<'_> {
             Op::ManagedHasOwn { result, input, key } => {
                 let ty = self.function.values[input.0];
                 if matches!(ty, Type::Number | Type::Predicate) {
-                    // These primitive wrappers have no own properties. The
-                    // source cursor already evaluated the receiver and all arguments.
-                    if !matches!(key, ir::ManagedKey::Literal(_)) {
-                        self.property_key(key);
-                        self.output.push_str("drop\n");
-                    }
+                    // Number/Boolean wrappers have no own properties. The
+                    // source cursor already evaluated the receiver and key
+                    // expression, so no property-key formatter is needed.
+                    // In particular, a numeric key must not pull GC helpers
+                    // into an otherwise primitive-only Wasm artifact.
                     self.output.push_str("i32.const 0\n");
                 } else {
                     let helper = match ty {
