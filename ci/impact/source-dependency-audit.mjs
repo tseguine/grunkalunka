@@ -9,6 +9,10 @@ const imports = /\bimport\s+(?:[\s\S]{0,150}?\s+from\s*)?(['"])([^'"]+)\1/g;
 // TypeScript type-only re-export sources in the same dependency graph.
 const reexports = /\bexport\s+(?:type\s+)?(?:\*\s*(?:as\s+[$\w]+\s*)?|\{[^}]*\})\s+from\s*(['"])([^'"]+)\1/g;
 const importCalls = /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
+// CommonJS modules and fixtures are also source inputs. Restrict this to
+// bare require() calls rather than unrelated object.require() methods.
+const requires = /(?<![.\w$])require\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
+const bareRequires = /(?<![.\w$])require\s*\(/g;
 const urls = /\bnew\s+URL\s*\(\s*(['"])([^'"]+)\1\s*,\s*import\.meta\.url\s*,?\s*\)/g;
 const urlTemplates = /\bnew\s+URL\s*\(\s*\x60([^\x60]*)\x60\s*,\s*import\.meta\.url\s*,?\s*\)/g;
 const includes = /\binclude_(?:str|bytes)!\s*\(\s*"([^"]+)"\s*\)/g;
@@ -45,6 +49,11 @@ export function discoverLiteralSourceInputs(source, text) {
     for (const match of text.matchAll(imports)) add(match[2]);
     for (const match of text.matchAll(reexports)) add(match[2]);
     for (const match of text.matchAll(importCalls)) add(match[2]);
+    const literalRequires = [...text.matchAll(requires)];
+    for (const match of literalRequires) add(match[2]);
+    if ([...text.matchAll(bareRequires)].length !== literalRequires.length) {
+      unresolved.push('computed require expression: ' + source);
+    }
     for (const match of text.matchAll(urls)) add(match[2]);
     for (const match of text.matchAll(urlTemplates)) {
       const name = match[1];
