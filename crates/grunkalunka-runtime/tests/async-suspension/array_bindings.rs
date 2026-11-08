@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn unsigned_binding_keys_preserve_awaited_keys_and_defaults() {
+    compare_promises(
+        &[
+            "const xs=[a];const {[(await a,xs[0]=b,0)>>>0]:x}=xs;await b;return +x;",
+            "const {[(await a,0)>>>0]:x=(await b,b)}=[];return +x;",
+            "const {[(await a,0)>>>0]:x,...rest}='💠';await b;return Object.keys(rest).length;",
+            "let n=0;try{const {[(await Promise.reject(b),0)>>>0]:x=(n++,1)}=[];}catch(e){await a;return n;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_rest_bindings_preserve_awaited_defaults_and_rejection() {
     compare_promises(
         &[
