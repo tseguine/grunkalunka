@@ -308,7 +308,7 @@
     {
       "id": "object-values",
       "kind": "open-requirement",
-      "assessment": "Source data objects, static properties, identity and Number-only field projection are implemented. The exact numeric-property gap executes unchanged. The remaining mapped sources require general object coercion, intrinsic/global properties or public reference results.",
+      "assessment": "Source data objects, static properties, identity and Number-only field projection are implemented. The exact numeric-property gap executes unchanged. The remaining mapped sources require general object coercion, intrinsic/global properties or public reference results. Computed object-literal keys also accept original source-proven unsigned >>> results through the supported range-proof forms, preserving key-before-value effects, collisions and enumeration order. Broader numeric coercions and existing unknown-key member guards remain.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-object-initializer",

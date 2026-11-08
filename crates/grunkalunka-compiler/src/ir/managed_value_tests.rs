@@ -123,6 +123,9 @@ fn dictionary_dynamic_write_checks_every_operand_before_emission() {
                 }
             })
             .unwrap();
+        let ManagedKey::String(key) = key else {
+            panic!("dictionary String key");
+        };
         match invalid {
             0 => *object = *key,
             1 => *key = *object,
@@ -1716,4 +1719,53 @@ fn uint32_delete_key_requires_a_visible_number_snapshot() {
         }
         assert!(verify_module(&module).is_err(), "mutation {invalid}");
     }
+}
+
+#[test]
+fn unsigned_object_definition_validates_receiver_key_and_value() {
+    let source = "export function run(a,b){const o={[a>>>0]:b};return Object.keys(o).length;}";
+    for invalid in 0..6 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (object, key, value) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let Op::ManagedSetOwnDynamic { object, key, value } = &mut operation.kind {
+                    Some((object, key, value))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let ManagedKey::Uint32(number) = key else {
+            panic!("numeric key");
+        };
+        let number = *number;
+        match invalid {
+            0 => *object = number,
+            1 => *key = ManagedKey::Uint32(*value),
+            2 => *key = ManagedKey::Uint32(ValueId(usize::MAX)),
+            3 => *value = *object,
+            4 => *key = ManagedKey::String(number),
+            _ => *object = ValueId(usize::MAX),
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+}
+
+#[test]
+fn generic_object_definition_supports_large_literal_key_carriers() {
+    let source = "export function run(a,b){const o={[a>>>0]:b};return Object.keys(o).length;}";
+    let mut module = crate::lower_source(source, false).unwrap();
+    for operation in &mut module.functions[0].body.operations {
+        if let Op::ManagedSetOwnDynamic { key, .. } = &mut operation.kind {
+            *key = ManagedKey::Literal(vec![u16::from(b'x'); 10001]);
+        }
+    }
+    verify_module(&module).unwrap();
+    let wasm = wat::parse_str(crate::emit::emit(&module).unwrap()).unwrap();
+    node(&wasm, "1");
 }

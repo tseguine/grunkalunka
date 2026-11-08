@@ -515,3 +515,12 @@ keys remain valid for mixed ordinary/null-prototype objects because pristine
 intrinsic prototypes have no uint32-named properties. Existing literal/String
 prototype behavior and unsupported-key/receiver guards remain. Corpus 161 adds
 twelve differential pairs with all 796 compatibility negatives retained.
+
+
+Computed object-literal keys now admit source-proven unsigned >>> results through
+the shared range-proof forms. Keys precede values and retain snapshots across
+rebindings and supported awaits. The shared property-key carrier extends existing
+own definitions without a new IR operation. Duplicate values, numeric/insertion
+ordering, reference values and dictionary/String definitions are covered. Existing
+unknown-key field and coercion guards remain. Corpus 162 adds twelve differential
+pairs while retaining all 796 compatibility negatives.

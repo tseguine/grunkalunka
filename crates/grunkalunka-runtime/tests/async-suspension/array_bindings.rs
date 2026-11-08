@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn unsigned_computed_keys_preserve_keys_before_value_awaits() {
+    compare_promises(
+        &[
+            "let key=0;const o={[key>>>0]:(await a,key=1,b)};await b;return Object.hasOwn(o,0)&&!Object.hasOwn(o,1)&&key===1?1:0;",
+            "const o={[(await a,0>>>0)]:(await b,a)};await b;return Object.hasOwn(o,0)?1:0;",
+            "let n=0;try{const o={[(await Promise.reject(a),0>>>0)]:(n=1,b)};return Object.keys(o).length;}catch(e){await b;return n;}",
+            "let n=0;try{const o={[(n=1,a>>>0)]:await Promise.reject(b)};return Object.keys(o).length;}catch(e){await a;return n;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_in_keys_save_the_key_before_receiver_awaits_and_effects() {
     compare_promises(
         &[
