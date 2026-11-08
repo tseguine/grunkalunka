@@ -8,7 +8,7 @@ pub(super) enum Selection<'e, 'a> {
     Computed(&'e Expression<'a>, bool),
     SavedField(ir::ManagedKey),
     ArrayRest(u32),
-    ObjectRest(Vec<ir::ManagedKey>),
+    ObjectRest,
 }
 
 pub(super) enum Destination<'e, 'a> {
@@ -52,6 +52,7 @@ pub(super) struct State<'e, 'a> {
     depth: usize,
     iterator: Option<control_cursor::array_bindings::IteratorState>,
     next_index: u32,
+    excluded: Vec<ir::ManagedKey>,
     pending: Option<(
         Selection<'e, 'a>,
         SavedDestination,
@@ -324,7 +325,6 @@ impl Lowering<'_, '_> {
                     ));
                 }
                 let dictionary = self.stored.dictionary(assignment.right.node_id());
-                let mut excluded = Vec::new();
                 for property in &pattern.properties {
                     let (key, destination, default) = match property {
                         AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(p) => (
@@ -372,7 +372,6 @@ impl Lowering<'_, '_> {
                                     "String object assignment keys require length or canonical numeric indices",
                                 ));
                             }
-                            excluded.push(ir::ManagedKey::Literal(key.clone()));
                             Selection::Field(key)
                         }
                         iteration::PropertyKey::Runtime(key) => {
@@ -383,12 +382,6 @@ impl Lowering<'_, '_> {
                                 return Err(unsupported(
                                     node,
                                     "computed assignment source keys require unsigned syntax or a dictionary String",
-                                ));
-                            }
-                            if pattern.rest.is_some() {
-                                return Err(unsupported(
-                                    node,
-                                    "computed assignment source keys with object rest are not yet admitted",
                                 ));
                             }
                             Selection::Computed(key, uint32)
@@ -402,7 +395,7 @@ impl Lowering<'_, '_> {
                 }
                 if let Some(rest) = &pattern.rest {
                     writes.push(Write {
-                        selection: Selection::ObjectRest(excluded),
+                        selection: Selection::ObjectRest,
                         destination: self
                             .assignment_pattern_destination(&rest.target, depth + 1)?,
                         default: None,
@@ -465,6 +458,7 @@ impl Lowering<'_, '_> {
                     depth: plan.depth,
                     iterator,
                     next_index: 0,
+                    excluded: Vec::new(),
                     pending: None,
                 })
             }
@@ -595,6 +589,13 @@ impl Lowering<'_, '_> {
                         if uint32 { Mode::Number } else { Mode::Managed },
                     ));
                     return Ok(());
+                }
+                match &selection {
+                    Selection::Field(key) => {
+                        state.excluded.push(ir::ManagedKey::Literal(key.clone()))
+                    }
+                    Selection::SavedField(key) => state.excluded.push(key.clone()),
+                    _ => (),
                 }
                 match destination {
                     Destination::Slot(slot) => (selection, SavedDestination::Slot(slot), default),
@@ -735,7 +736,7 @@ impl Lowering<'_, '_> {
                     );
                     result
                 }
-                Selection::ObjectRest(excluded) => {
+                Selection::ObjectRest => {
                     let rest = self.value(Type::ManagedObject);
                     Self::push(
                         regions.current(),
@@ -743,7 +744,7 @@ impl Lowering<'_, '_> {
                         Op::ManagedObjectRest {
                             result: rest,
                             object: receiver,
-                            excluded,
+                            excluded: std::mem::take(&mut state.excluded),
                         },
                     );
                     let result = self.value(Type::ManagedValue);
@@ -1291,7 +1292,7 @@ mod computed_selection_tests {
             ),
             (
                 "const d=Object.create(null);const k='x';let x,rest;({[k]:x,...rest}=d);return a;",
-                false,
+                true,
             ),
             ("let x;({[a>>>0]:x}='text');return a;", false),
             (
@@ -1328,5 +1329,60 @@ mod computed_selection_tests {
             .unwrap()
             .join()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod computed_rest_tests {
+    #[test]
+    fn computed_exclusions_keep_presence_and_alias_kind_guards() {
+        for (body, admitted) in [
+            (
+                "let rest={};let x;({[a>>>0]:x,...rest}=[b]);return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "const d=Object.create(null);d.k=a;const k='k';let rest={};let x;({[k]:x,...rest}=d);return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "let {...rest}={k:'seed'};const d=Object.create(null);d.k='text';const k='k';let x;({[k]:x,...rest}=d);return rest.k.length;",
+                false,
+            ),
+            (
+                "let {...rest}={0:'seed'};let x;({[a>>>0]:x,...rest}={0:'text'});return rest[0].length;",
+                false,
+            ),
+            (
+                "const d=Object.create(null);d.k=a;const k='k';const o={rest:'safe'};let x;({[k]:x,...o.rest}=d);return o.rest.length;",
+                false,
+            ),
+            (
+                "const k='k';let rest={};let x;({[k]:x,...rest}={k:b});return a;",
+                false,
+            ),
+            (
+                "let rest={};let x;({[a>>>0]:x,...rest}='text');return a;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+    }
+    #[test]
+    fn computed_rest_key_depth_is_bounded_on_a_small_native_stack() {
+        std::thread::Builder::new().stack_size(2*1024*1024).spawn(|| {
+            for (wraps,admitted) in [(125,true),(126,false)] {
+                let source=format!("export function run(a,b){{let rest={{}};let x;({{[{}a>>>0{}]:x,...rest}}=[b]);return Object.keys(rest).length;}}","(".repeat(wraps),")".repeat(wraps));
+                for typed in [false,true] {
+                    let r=crate::compile(&source,typed);
+                    assert_eq!(r.is_ok(),admitted,"{wraps}: {:?}",r.err());
+                }
+            }
+        }).unwrap().join().unwrap();
     }
 }

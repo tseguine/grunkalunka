@@ -1,3 +1,4 @@
+import { computedRestPrograms } from './computed-pattern-rest.mjs';
 import { computedSelectionPrograms } from './computed-pattern-selections.mjs';
 import { memberRestPrograms } from './member-rest-targets.mjs';
 import { computedPatternPrograms } from './computed-pattern-targets.mjs';
@@ -165,7 +166,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 184;
+export const corpusVersion = 185;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -191,7 +192,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...computedSelectionPrograms, ...memberRestPrograms, ...computedPatternPrograms, ...memberPatternPrograms, ...scalarPatternPrograms, ...nullableForInPrograms, ...scalarIterationPrograms, ...memberIterationPrograms, ...optionalDeletePrograms, ...optionalDictionaryReadPrograms, ...functionForInPrograms, ...optionalNumberStringPrograms, ...optionalStringReadPrograms, ...optionalUint32ReadPrograms, ...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...computedRestPrograms, ...computedSelectionPrograms, ...memberRestPrograms, ...computedPatternPrograms, ...memberPatternPrograms, ...scalarPatternPrograms, ...nullableForInPrograms, ...scalarIterationPrograms, ...memberIterationPrograms, ...optionalDeletePrograms, ...optionalDictionaryReadPrograms, ...functionForInPrograms, ...optionalNumberStringPrograms, ...optionalStringReadPrograms, ...optionalUint32ReadPrograms, ...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);

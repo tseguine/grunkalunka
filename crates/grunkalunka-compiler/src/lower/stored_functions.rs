@@ -621,6 +621,7 @@ impl Fields {
                     member_origins::Rest {
                         receiver: id,
                         excluded,
+                        dynamic_excluded: false,
                     },
                 );
             }
@@ -1198,6 +1199,7 @@ impl Fields {
                     if let oxc_ast::ast::AssignmentTarget::ObjectAssignmentTarget(pattern) = &a.left
                     {
                         let mut excluded = BTreeSet::new();
+                        let mut dynamic_excluded = false;
                         for property in &pattern.properties {
                             use oxc_ast::ast::AssignmentTargetProperty as Property;
                             let (identifier, member, key, default) = match property {
@@ -1239,9 +1241,11 @@ impl Fields {
                                     iteration::PropertyKey::Runtime(key)
                                         if evaluate::property_delete::uint32_key(key, 0) =>
                                     {
+                                        dynamic_excluded = true;
                                         Rule::UnsignedMember(a.right.node_id())
                                     }
                                     iteration::PropertyKey::Runtime(key) => {
+                                        dynamic_excluded = true;
                                         Rule::DictionaryMember(a.right.node_id(), key.node_id())
                                     }
                                 };
@@ -1285,6 +1289,7 @@ impl Fields {
                                 member_origins::Rest {
                                     receiver: a.right.node_id(),
                                     excluded,
+                                    dynamic_excluded,
                                 },
                             );
                             if let Some(identifier) = rest
