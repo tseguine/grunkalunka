@@ -1,6 +1,9 @@
 //! Primitive constant defaults use the same lazy Undefined selection as patterns.
 use super::*;
-use oxc_ast::{AstKind, ast::Function};
+use oxc_ast::{
+    AstKind,
+    ast::{ArrowFunctionExpression, FormalParameters, Function},
+};
 use std::collections::BTreeSet;
 
 enum Constant {
@@ -89,10 +92,31 @@ pub(crate) fn validate(
     Ok(())
 }
 
+pub(crate) fn validate_arrow(
+    arrow: &ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+    allowed: bool,
+) -> Result<(), String> {
+    for parameter in &arrow.params.items {
+        if let Some(initializer) = &parameter.initializer
+            && (!allowed || constant(initializer.as_ref(), semantic).is_none())
+        {
+            return Err(unsupported(
+                parameter,
+                "local arrow parameters cannot have defaults, destructuring or modifiers",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn present(semantic: &Semantic<'_>) -> bool {
-    semantic.nodes().iter().any(|node| {
-        matches!(node.kind(), AstKind::Function(f)
-            if f.params.items.iter().any(|p| p.initializer.is_some()))
+    semantic.nodes().iter().any(|node| match node.kind() {
+        AstKind::Function(f) => f.params.items.iter().any(|p| p.initializer.is_some()),
+        AstKind::ArrowFunctionExpression(a) => {
+            a.params.items.iter().any(|p| p.initializer.is_some())
+        }
+        _ => false,
     })
 }
 
@@ -102,7 +126,15 @@ impl Lowering<'_, '_> {
         function: &Function<'_>,
         output: &mut Region,
     ) -> Result<(), String> {
-        for (index, parameter) in function.params.items.iter().enumerate() {
+        self.initialize_parameter_defaults(&function.params, output)
+    }
+
+    pub(super) fn initialize_parameter_defaults(
+        &mut self,
+        parameters: &FormalParameters<'_>,
+        output: &mut Region,
+    ) -> Result<(), String> {
+        for (index, parameter) in parameters.items.iter().enumerate() {
             let Some(initializer) = &parameter.initializer else {
                 continue;
             };
@@ -123,95 +155,137 @@ impl Lowering<'_, '_> {
                     slot,
                 },
             );
-            let undefined = self.binding_undefined(parameter, output);
-            let pending = self.prepare_binding_default(parameter, output, selected, undefined);
-            let mut consequent = self.region(initializer);
-            let value = match constant(initializer, self.semantic).ok_or_else(|| {
-                unsupported(initializer, "helper defaults require primitive constants")
-            })? {
-                Constant::String(units) => {
-                    let value = self.value(Type::ManagedValue);
-                    Self::push(
-                        &mut consequent,
-                        initializer,
-                        Op::ManagedString {
-                            result: value,
-                            units,
-                        },
-                    );
-                    value
-                }
-                constant => {
-                    let primitive = self.value(Type::General);
-                    match constant {
-                        Constant::Number(value) => {
-                            let scalar = self.value(Type::Number);
-                            Self::push(
-                                &mut consequent,
-                                initializer,
-                                Op::Constant {
-                                    result: scalar,
-                                    value,
-                                },
-                            );
-                            Self::push(
-                                &mut consequent,
-                                initializer,
-                                Op::Pack {
-                                    result: primitive,
-                                    input: scalar,
-                                },
-                            );
-                        }
-                        Constant::Boolean(value) => {
-                            let scalar = self.value(Type::Predicate);
-                            Self::push(
-                                &mut consequent,
-                                initializer,
-                                Op::Boolean {
-                                    result: scalar,
-                                    value,
-                                },
-                            );
-                            Self::push(
-                                &mut consequent,
-                                initializer,
-                                Op::Pack {
-                                    result: primitive,
-                                    input: scalar,
-                                },
-                            );
-                        }
-                        Constant::Null | Constant::Undefined => Self::push(
-                            &mut consequent,
-                            initializer,
-                            Op::Nullish {
-                                result: primitive,
-                                value: if matches!(constant, Constant::Null) {
-                                    ir::Nullish::Null
-                                } else {
-                                    ir::Nullish::Undefined
-                                },
-                            },
-                        ),
-                        Constant::String(_) => unreachable!(),
-                    }
-                    let value = self.value(Type::ManagedValue);
-                    Self::push(
-                        &mut consequent,
-                        initializer,
-                        Op::ManagedPrimitive {
-                            result: value,
-                            input: primitive,
-                        },
-                    );
-                    value
-                }
-            };
-            let value = self.finish_binding_default(parameter, output, pending, consequent, value);
+            let value = self.select_parameter_default(parameter, initializer, selected, output)?;
             Self::push(output, parameter, Op::Store { slot, value });
         }
         Ok(())
+    }
+
+    pub(super) fn select_parameter_default(
+        &mut self,
+        parameter: &impl GetSpan,
+        initializer: &Expression<'_>,
+        mut selected: ValueId,
+        output: &mut Region,
+    ) -> Result<ValueId, String> {
+        if self.values[selected.0] != Type::ManagedValue {
+            let primitive = match self.values[selected.0] {
+                Type::General => selected,
+                Type::Number | Type::Predicate => {
+                    let packed = self.value(Type::General);
+                    Self::push(
+                        output,
+                        parameter,
+                        Op::Pack {
+                            result: packed,
+                            input: selected,
+                        },
+                    );
+                    packed
+                }
+                _ => {
+                    return Err(unsupported(
+                        parameter,
+                        "default parameter requires represented primitive storage",
+                    ));
+                }
+            };
+            selected = self.value(Type::ManagedValue);
+            Self::push(
+                output,
+                parameter,
+                Op::ManagedPrimitive {
+                    result: selected,
+                    input: primitive,
+                },
+            );
+        }
+        let undefined = self.binding_undefined(parameter, output);
+        let pending = self.prepare_binding_default(parameter, output, selected, undefined);
+        let mut consequent = self.region(initializer);
+        let value = match constant(initializer, self.semantic).ok_or_else(|| {
+            unsupported(initializer, "helper defaults require primitive constants")
+        })? {
+            Constant::String(units) => {
+                let value = self.value(Type::ManagedValue);
+                Self::push(
+                    &mut consequent,
+                    initializer,
+                    Op::ManagedString {
+                        result: value,
+                        units,
+                    },
+                );
+                value
+            }
+            constant => {
+                let primitive = self.value(Type::General);
+                match constant {
+                    Constant::Number(value) => {
+                        let scalar = self.value(Type::Number);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Constant {
+                                result: scalar,
+                                value,
+                            },
+                        );
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Pack {
+                                result: primitive,
+                                input: scalar,
+                            },
+                        );
+                    }
+                    Constant::Boolean(value) => {
+                        let scalar = self.value(Type::Predicate);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Boolean {
+                                result: scalar,
+                                value,
+                            },
+                        );
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Pack {
+                                result: primitive,
+                                input: scalar,
+                            },
+                        );
+                    }
+                    Constant::Null | Constant::Undefined => Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::Nullish {
+                            result: primitive,
+                            value: if matches!(constant, Constant::Null) {
+                                ir::Nullish::Null
+                            } else {
+                                ir::Nullish::Undefined
+                            },
+                        },
+                    ),
+                    Constant::String(_) => unreachable!(),
+                }
+                let value = self.value(Type::ManagedValue);
+                Self::push(
+                    &mut consequent,
+                    initializer,
+                    Op::ManagedPrimitive {
+                        result: value,
+                        input: primitive,
+                    },
+                );
+                value
+            }
+        };
+        Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
     }
 
     // Reflection counts parameters before the first default, independently of
@@ -243,7 +317,13 @@ impl Lowering<'_, '_> {
                     );
                 }
                 AstKind::ArrowFunctionExpression(a) if arrows.contains(&node.id()) => {
-                    lengths.insert(a.params.items.len());
+                    lengths.insert(
+                        a.params
+                            .items
+                            .iter()
+                            .take_while(|p| p.initializer.is_none())
+                            .count(),
+                    );
                 }
                 _ => (),
             }

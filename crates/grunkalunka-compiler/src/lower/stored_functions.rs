@@ -815,7 +815,14 @@ impl Fields {
                         Origin::Arrow(id),
                         FunctionFlow {
                             parameters: parameters(&arrow.params),
-                            defaults: vec![None; arrow.params.items.len()],
+                            defaults: arrow
+                                .params
+                                .items
+                                .iter()
+                                .map(|p| {
+                                    p.initializer.as_ref().map(|value| value.as_ref().node_id())
+                                })
+                                .collect(),
                             returns,
                             implicit: complete.is_none(),
                             undefined_return: !arrow.r#async

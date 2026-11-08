@@ -2467,8 +2467,24 @@ positive Number proof or explicit conversion after a helper result.
 The callable ABI keeps all declared parameters; `function.length` counts only
 parameters preceding the first default. Reflected runtime selections must prove
 one uniform source length. Public entry defaults, async defaults (including
-helpers in async-entry modules), arrow defaults, expressions/references with
+helpers in async-entry modules), expressions/references with
 effects, rest and destructured parameters retain explicit guards. This first
 subset does not evaluate parameter expressions or expose body bindings to
 initializers. The exact former `direct-call-helper-default` rejection is now an
 unchanged positive fixture in corpus 142; 798 rejections remain.
+
+
+Synchronous local arrows now accept the same primitive literal defaults, including
+inline calls, captured parameters, known aliases and emitted runtime closures in
+own fields. Each path uses the same lazy selection; emitted callees initialize
+actual parameter slots before entering the body. A factory may capture a defaulted
+creator parameter. Reflected arrow lengths use the first default's position,
+while calls keep the complete declared signature. TS optional markers and
+annotations still erase around the initializer.
+
+Async arrows and arrows in async-entry modules retain their default guards, as do
+nonliteral/effectful defaults, destructured/rest parameters, mixed reflected
+lengths and the existing missing-input guard on typed callback calls. A checked
+callback can pass explicit Undefined to select a default. Existing runtime factory
+result-signature limits remain. Corpus 143 adds nine numeric arrow-default pairs;
+all 798 retained rejection cases still require their original diagnostics.

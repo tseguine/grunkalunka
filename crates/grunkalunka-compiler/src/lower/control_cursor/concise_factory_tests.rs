@@ -68,6 +68,7 @@ fn concise_factory_callbacks_and_effects_use_the_source_scheduler() {
         "const seed=x=>{return y=>x+y;};const make=(fn,x)=>y=>fn(y)+x;return make(seed(a),b)(a);",
         "let f=x=>x+a;const make=(fn,x)=>y=>fn(y)+x;return make(f,(f=x=>x-b,a))(b)+f(a);",
         "const make=x=>y=>x+y;const apply=(fn,x)=>fn(x);return apply(make(a),b);",
+        "const make=(x=1)=>y=>x+y;return make(a)(b);",
         "let n=a;const make=x=>y=>x+y;make(n+=b);return n;",
         "let n=0;const make=x=>y=>x+y;if(make(n=n*10+1))n=n*10+2;return n;",
     ]);
@@ -98,7 +99,7 @@ fn concise_factory_arguments_preserve_first_diagnostics() {
             "unsupported at bytes 37..39: callback argument requires a function with the inferred signature",
         ),
         (
-            "const make=(x=1)=>y=>x+y;return make(a)(b);",
+            "const make=(x=a)=>y=>x+y;return make(a)(b);",
             "unsupported at bytes 37..40: local arrow parameters cannot have defaults, destructuring or modifiers",
         ),
         (

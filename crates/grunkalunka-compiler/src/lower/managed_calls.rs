@@ -925,6 +925,21 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         if let AstKind::VariableDeclarator(declaration) = node.kind() {
             seed_pattern_bindings(&declaration.id, &mut bindings);
         }
+        if let AstKind::ArrowFunctionExpression(arrow) = node.kind()
+            && !arrow.r#async
+        {
+            for parameter in &arrow.params.items {
+                if parameter.initializer.is_some()
+                    && let BindingPattern::BindingIdentifier(id) = &parameter.pattern
+                    && let Some(symbol) = id.symbol_id.get()
+                {
+                    bindings
+                        .entry(symbol)
+                        .or_default()
+                        .insert(Kind::BoxedPrimitive);
+                }
+            }
+        }
         let AstKind::Function(f) = node.kind() else {
             continue;
         };

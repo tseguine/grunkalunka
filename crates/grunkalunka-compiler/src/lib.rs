@@ -362,6 +362,15 @@ fn lower_source_profile_with_identities(
             index != 0 && !async_entry && !function.r#async,
         )?;
     }
+    for node in built.semantic.nodes().iter() {
+        if let oxc_ast::AstKind::ArrowFunctionExpression(arrow) = node.kind() {
+            lower::helper_defaults::validate_arrow(
+                arrow,
+                &built.semantic,
+                !async_entry && !arrow.r#async,
+            )?;
+        }
+    }
     let stored = lower::stored_functions::Fields::collect(&built.semantic, signatures[0].symbol);
     lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures, &stored);
     let promise_parameters =

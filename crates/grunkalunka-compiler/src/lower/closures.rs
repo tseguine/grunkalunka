@@ -212,8 +212,19 @@ impl<'s, 'a> Lowering<'s, 'a> {
             ));
         }
         for parameter in &arrow.params.items {
+            // Defaults need the checked tagged input lane even when actuals
+            // currently supply only Numbers. Nonliteral defaults reject earlier.
             if !matches!(parameter.pattern, BindingPattern::BindingIdentifier(_))
-                || parameter.initializer.is_some()
+                || (parameter.initializer.is_some()
+                    && match &parameter.pattern {
+                        BindingPattern::BindingIdentifier(id) => {
+                            id.symbol_id
+                                .get()
+                                .and_then(|s| self.managed_kinds.inputs.get(&s))
+                                != Some(&Type::ManagedValue)
+                        }
+                        _ => true,
+                    })
                 || !parameter.decorators.is_empty()
                 || parameter.accessibility.is_some()
                 || parameter.readonly
@@ -271,6 +282,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     },
                 );
                 value = boxed;
+            }
+            if let Some(initializer) = &parameter.initializer {
+                value =
+                    self.select_parameter_default(parameter, initializer.as_ref(), value, region)?;
             }
             let input_type = self.values[value.0];
             if let Some(expected) = self

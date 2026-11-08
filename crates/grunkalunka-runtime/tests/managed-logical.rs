@@ -816,3 +816,26 @@ fn primitive_helper_defaults_keep_numeric_proofs_and_conversions() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn literal_arrow_defaults_keep_numeric_projection_and_erased_metadata() {
+    for body in [
+        "const f=(x=3)=>x;return f();",
+        "const f=(x=3)=>x;return f(a);",
+        "const f=(x=3)=>x;return f(undefined);",
+        "const f=(x=-0)=>x;return f();",
+        "const f=(x=false)=>x;return +f();",
+        "const f=(x=null)=>x;return +f();",
+        "const f=(x=undefined)=>x;return +f();",
+        "const f=(x='abc')=>x.length;return f();",
+        "const f=(x=3)=>x;return f.length;",
+        "const make=(x=1)=>y=>x+y;return make(a)(b);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    common::compare_sources(
+        "export function run(a,b){const f=(x=1)=>x;return f(a);}",
+        "export function run(a?:number,b?:number){const f=(x:number=1)=>x;return f(a);}",
+    );
+}

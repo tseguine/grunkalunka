@@ -8,6 +8,7 @@ use std::{
 #[test]
 fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
     let cases: &[(&str, f64)] = &[
+        ("const f=(x=1)=>x; return f();", 1.0),
         (
             "const make=x=>()=>++x;const f=make(a),g=make(b);return f()*100+f()*10+g();",
             563.0,
@@ -227,7 +228,7 @@ fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
         "const make=x=>()=>later;const f=make(a);const later=b;return f();",
         "const f=async()=>a; return f();",
         "const f=()=>{if(a)return b;}; return f();",
-        "const f=(x=1)=>x; return f();",
+        "const f=(x=a)=>x; return f();",
         "const f=(...x)=>a; return f();",
         "const f=x=>x; return f();",
         "const f=x=>x; return f(...a);",

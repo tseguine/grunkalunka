@@ -58,7 +58,7 @@ fn optional_markers_keep_other_parameter_and_numeric_return_guards() {
         "export function run(a?:number,b=1){return a;}",
         "export function run(a?:number,...b:number[]){return a;}",
         "export function run(a?:number,b?:number){const f=(x?:number)=>x;return f();}",
-        "export function run(a?:number,b?:number){const f=(x:number=1)=>x;return f(a);}",
+        "export function run(a?:number,b?:number){const f=(x:number=a)=>x;return f(a);}",
         "export function run(a?:number,b?:number){const f=(...x:number[])=>a;return f(a);}",
         "export function run(a?:number,b?:number){const f=({x}:unknown)=>x;return f(a);}",
     ] {
@@ -95,4 +95,14 @@ fn optional_markers_preserve_heap_and_async_artifacts() {
             "{ts}"
         );
     }
+}
+
+#[test]
+fn optional_markers_erase_around_literal_arrow_defaults() {
+    let original = "export function run(a?:number,b?:number){const f=(x:number=1)=>x;return f(a);}";
+    let js = "export function run(a,b){const f=(x=1)=>x;return f(a);}";
+    assert_eq!(
+        crate::compile(original, true).unwrap().wasm,
+        crate::compile(js, false).unwrap().wasm
+    );
 }

@@ -1518,6 +1518,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             },
         );
         child.initialize_general_parameters(&mut body);
+        child.initialize_parameter_defaults(&arrow.params, &mut body)?;
         child.bindings.extend(capture_bindings);
         Ok(PreparedLiftedClosure {
             lowering: child,

@@ -174,6 +174,7 @@ fn unused_callback_peers_keep_complete_signature_guards() {
 #[test]
 fn runtime_closures_preserve_primitive_argument_frames() {
     compare_functions(&[
+        "let f=(x=null)=>+x;return f(null);",
         "const f=a?x=>+x:x=>-x;return f(null);",
         "const f=a?x=>+x:x=>-x;return f(undefined);",
         "const f=a?x=>+x:x=>-x;return f(true);",
@@ -241,7 +242,7 @@ fn runtime_general_frames_retain_width_and_input_guards() {
         format!(
             "export function run(a,b){{let f=({parameters},extra)=>+extra;return f({arguments},true);}}"
         ),
-        "export function run(a,b){let f=(x=null)=>+x;return f(null);}".into(),
+        "export function run(a,b){let f=(x=a)=>+x;return f(null);}".into(),
         "export function run(a,b){let f=x=>+x;return f('text');}".into(),
         "export function run(a,b){let f=x=>+x;return f({});}".into(),
         "export function run(a,b){let f=x=>+x;return f([]);}".into(),
