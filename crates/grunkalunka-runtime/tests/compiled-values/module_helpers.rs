@@ -1,6 +1,16 @@
 use super::*;
 
 #[test]
+fn optional_dictionary_reads_preserve_selected_primitive_tags_and_number_bits() {
+    compare_helpers(&[
+        "export function run(a,b){const d=Object.create(null);d.x=b;const o=a?d:null;const k='x';return o?.[k];}",
+        "export function run(a,b){const d=Object.create(null);d.x=null;const k='x';return d?.[k];}",
+        "export function run(a,b){const d=Object.create(null);d.x=false;const k=a?'x':'missing';return d?.[k];}",
+        "export function run(a,b){const k='x';return null?.[k];}",
+    ]);
+}
+
+#[test]
 fn function_for_in_keeps_primitive_tags_after_empty_enumeration() {
     compare_helpers(&[
         "export function run(a,b){let value=null;const f=x=>x+a;for(const k in f)value=a;return value;}",
