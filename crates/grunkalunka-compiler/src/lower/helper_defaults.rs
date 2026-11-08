@@ -677,7 +677,6 @@ impl Lowering<'_, '_> {
         Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
     }
 
-
     fn load_earlier_value(
         &mut self,
         identifier: &IdentifierReference<'_>,
