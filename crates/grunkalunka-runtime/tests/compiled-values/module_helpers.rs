@@ -1,6 +1,32 @@
 use super::*;
 
 #[test]
+fn earlier_parameter_defaults_preserve_tags_order_aliases_and_shared_calls() {
+    compare_helpers(&[
+        "function f(x,y=x){return y;}export function run(a,b){return f(a);}",
+        "function f(x=3,y=x,z=y){return z;}export function run(a,b){return f();}",
+        "function f(x,y=x){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x){return y;}export function run(a,b){return f(null);}",
+        "function f(x,y=x){return y;}export function run(a,b){return f(false);}",
+        "function f(x,y=x){return y;}export function run(a,b){return f(-0);}",
+        "function f(x,y=x){return y;}export function run(a,b){return f(NaN);}",
+        "function f(x,y=x){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,y=x){x=9;return y;}export function run(a,b){return f(a);}",
+        "function f(x=3,y=x){var x=9;return y;}export function run(a,b){return f();}",
+        "function f(undefined,x=undefined){return x;}export function run(a,b){return f(a);}",
+        "function f(Infinity,x=Infinity){return x;}export function run(a,b){return f(a);}",
+        "function f(NaN,x=NaN){return x;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(undefined,x=undefined)=>x;return f();}",
+        "export function run(a,b){const f=(x,y=x)=>y;return f(a);}",
+        "export function run(a,b){const f=(x=3,y=x)=>y;return f();}",
+        "export function run(a,b){const f=(x=3,y=x)=>()=>y;const g=f();return g();}",
+        "export function run(a,b){const o={f:(x=3,y=x)=>y};return o.f();}",
+        "function f(x,y=x){return y;}export function run(a,b){const g=f;return g(a);}",
+        "export function run(a,b){const f=(x,y=x)=>y;return f(a,undefined,a=b);}",
+    ]);
+}
+
+#[test]
 fn named_module_helpers_return_null() {
     let source = "function helper(x){return null;}export function run(a,b){return helper(b);}";
     let artifact = compile_value(source, false).unwrap();

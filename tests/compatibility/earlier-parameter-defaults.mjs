@@ -1,0 +1,22 @@
+export const earlierParameterPrograms = [];
+for (const [id, source] of [
+  ['helper', 'function f(x,y=x){return y;}export function run(a,b){return f(a);}'],
+  ['chain', 'function f(x=3,y=x,z=y){return z;}export function run(a,b){return +f();}'],
+  ['supplied', 'function f(x,y=x){return y;}export function run(a,b){return f(a,b);}'],
+  ['undefined', 'function f(x,y=x){return y;}export function run(a,b){return +f();}'],
+  ['null', 'function f(x,y=x){return y;}export function run(a,b){return +f(null);}'],
+  ['false', 'function f(x,y=x){return y;}export function run(a,b){return +f(false);}'],
+  ['body-write', 'function f(x,y=x){x=9;return y;}export function run(a,b){return f(a);}'],
+  ['body-var', 'function f(x=3,y=x){var x=9;return y;}export function run(a,b){return +f();}'],
+  ['shadow-undefined', 'function f(undefined,x=undefined){return x;}export function run(a,b){return f(a);}'],
+  ['shadow-infinity', 'function f(Infinity,x=Infinity){return x;}export function run(a,b){return f(a);}'],
+  ['shadow-nan', 'function f(NaN,x=NaN){return x;}export function run(a,b){return f(a);}'],
+  ['arrow', 'export function run(a,b){const f=(x=3,y=x)=>y;return +f();}'],
+  ['closure', 'export function run(a,b){const o={f:(x=3,y=x)=>y};return +o.f();}'],
+  ['capture', 'export function run(a,b){const f=(x=3,y=x)=>()=>y;const g=f();return +g();}'],
+  ['object', 'function f(x,y=x){return x===y?1:0;}export function run(a,b){const o={v:a};return f(o);}'],
+  ['array', 'export function run(a,b){const o={f:(x,y=x)=>x===y?1:0};const xs=[a];return o.f(xs);}'],
+  ['string', "function f(x='abc',y=x){return y.length;}export function run(a,b){return f();}"],
+  ['argument-snapshot', 'export function run(a,b){const f=(x,y=x)=>y;return f(a,undefined,a=b);}'],
+]) earlierParameterPrograms.push(['earlier-parameter-' + id, '', '', undefined, undefined,
+  {sourceJS: source, sourceTS: source}]);
