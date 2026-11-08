@@ -312,7 +312,12 @@ impl Emitter<'_> {
                 self.get(*object);
                 self.property_key(key);
                 self.get(*value);
-                self.output.push_str("call $gc_set\n");
+                self.output
+                    .push_str(if self.function.values[object.0] == Type::ManagedArray {
+                        "call $gc_array_set\n"
+                    } else {
+                        "call $gc_set\n"
+                    });
             }
             Op::ManagedObjectRest {
                 result,

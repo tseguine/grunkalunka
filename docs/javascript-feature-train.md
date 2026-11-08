@@ -524,3 +524,12 @@ own definitions without a new IR operation. Duplicate values, numeric/insertion
 ordering, reference values and dictionary/String definitions are covered. Existing
 unknown-key field and coercion guards remain. Corpus 162 adds twelve differential
 pairs while retaining all 796 compatibility negatives.
+
+
+Plain unsigned runtime-key property assignments now work on represented objects,
+dictionaries and Arrays. Saved receiver/key values precede RHS effects, rebindings
+and supported awaits; assignment preserves the exact RHS value. Sparse Array
+writes grow length for true indices and keep 4294967295 as a named property.
+Existing alias invalidation and unsupported key/update guards remain. The shared
+own-definition operation supplies the behavior without a new IR operation. Corpus
+163 adds twelve differential pairs while retaining all 796 compatibility negatives.

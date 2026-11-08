@@ -2826,3 +2826,24 @@ ECMAScript integer-index versus insertion ordering, including the 4294967294 /
 ordinary Number aliases, signed/coercive keys, accessors/methods and unsupported
 operands retain guards. Annotations cannot establish unsigned range. Corpus 162
 adds twelve JS/TS differential pairs; all 796 compatibility negatives remain.
+
+
+Plain property assignment now accepts source-proven unsigned >>> runtime keys on
+represented objects, dictionaries and Arrays. The source cursor saves receiver
+and key before evaluating the RHS, including rebindings, supported awaits and
+abrupt completion. The expression returns the exact saved RHS primitive bits/tag
+or reference. Existing unknown-key mutation facts conservatively invalidate
+possibly overwritten fields and indices through aliases.
+
+The shared dynamic own-definition operation now admits Array receivers only when
+the key excludes non-configurable length; Uint32 names satisfy that proof. Array
+writes reuse the existing sparse setter and extend length for actual indices.
+4294967294 is the last index; 4294967295 stays a named property and does not grow
+length. Ordinary object/dictionary writes retain existing own-entry semantics.
+The IR verifier checks receiver/key/value visibility/types and rejects runtime
+String/length keys for this Array path. No new IR operation or host API is added.
+
+Unknown/coercive numeric keys, unsupported runtime String targets and compound or
+logical updates retain guards. Annotations cannot prove key range or receiver
+kind. Corpus 163 adds twelve JS/TS pairs with all 796 compatibility negatives
+retained.

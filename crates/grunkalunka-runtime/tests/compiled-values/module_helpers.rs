@@ -1,6 +1,15 @@
 use super::*;
 
 #[test]
+fn unsigned_property_writes_return_exact_rhs_tags_and_bits() {
+    compare_helpers(&[
+        "export function run(a,b){const xs=[];return xs[a>>>0]=b;}",
+        "export function run(a,b){const o={};return o[a>>>0]=null;}",
+        "export function run(a,b){const d=Object.create(null);return d[a>>>0]=false;}",
+    ]);
+}
+
+#[test]
 fn unsigned_in_keys_return_boolean_completions() {
     compare_helpers(&[
         "export function run(a,b){const xs=[a,,b];return (a>>>0) in xs;}",
