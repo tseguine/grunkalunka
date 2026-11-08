@@ -728,7 +728,6 @@ impl Lowering<'_, '_> {
                 );
                 value
             }
-
         }
     }
 

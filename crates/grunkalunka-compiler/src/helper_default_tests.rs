@@ -410,9 +410,13 @@ fn earlier_parameter_logical_defaults_admit_pure_fallbacks() {
         "x&&(false||7)",
     ] {
         for source in [
-            format!("function f(x,y={expression}){{return y;}}export function run(a,b){{return f(a);}}"),
+            format!(
+                "function f(x,y={expression}){{return y;}}export function run(a,b){{return f(a);}}"
+            ),
             format!("export function run(a,b){{const f=(x,y={expression})=>y;return f(a);}}"),
-            format!("export function run(a,b){{const o={{f:(x,y={expression})=>y}};return o.f(a);}}"),
+            format!(
+                "export function run(a,b){{const o={{f:(x,y={expression})=>y}};return o.f(a);}}"
+            ),
         ] {
             for ts in [false, true] {
                 let result = crate::compile_value(&source, ts);
