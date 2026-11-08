@@ -74,7 +74,6 @@ fn var_keeps_unreachable_iteration_async_callable_and_lexical_guards() {
         "return x;var x=3;",
         "var f=x=>x;return f(a);",
         "var {x}={x:a};return x;",
-        "for(var x in {x:a}){}return a;",
         "try{throw a;}catch(e){var e=3;}return 0;",
         "var x=1;let x=2;return x;",
         "var x=1;{const saved=x;let x=2;}return x;",
@@ -90,6 +89,10 @@ fn var_keeps_unreachable_iteration_async_callable_and_lexical_guards() {
 #[test]
 fn var_annotations_erase_without_changing_hoisting_or_parameter_cells() {
     for (js, ts) in [
+        (
+            "export function run(a,b){let n=0;for(var key in {x:a,y:b})n+=key==='x'?1:2;return n;}",
+            "export function run(a:string,b:boolean):number{let n:boolean=0;for(var key in ({x:a,y:b} as never))n+=(key as number)==='x'?1:2;return n;}",
+        ),
         (
             "export function run(a,b){let n=0;for(var item of [a,b])n+=+item;return n;}",
             "export function run(a:string,b:boolean):number{let n:boolean=0;for(var item of ([a,b] as string[]))n+=+(item as number);return n;}",
@@ -128,7 +131,8 @@ fn var_source_binding_limits_are_controlled_on_a_small_native_stack() {
                 let loop_source = format!(
                     "export function run(a,b){{var {loop_names};for(var item of [a]){{}}return a;}}"
                 );
-                for source in [source, loop_source] {
+                let in_source=format!("export function run(a,b){{var {loop_names};for(var item in {{x:a}}){{}}return a;}}");
+                for source in [source, loop_source, in_source] {
                     for ts in [false, true] {
                         let result = crate::compile_value(&source, ts);
                         if count == 128 {
@@ -177,8 +181,44 @@ fn var_for_of_reuses_function_cells_and_preserves_kind_boundaries() {
     }
     for body in [
         "for(var {x} of [{x:a}]){}return a;",
-        "for(var x in {x:a}){}return a;",
         "for(var x of a){}return a;",
+    ] {
+        assert!(
+            crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn var_for_in_reuses_hoisted_cells_and_accounts_for_key_writes() {
+    for body in [
+        "for(var key in {x:a}){}return key==='x'?1:0;",
+        "const before=key;for(var key in {}){}return before===undefined?1:0;",
+        "var key=3;for(var key in {}){}return key===3?1:0;",
+        "const get=()=>a;for(var a in {x:b}){}return get()==='x'?1:0;",
+        "let n=0;for(var key in [a,b])n+=key==='0'?1:2;return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let result = crate::compile_value(&source, ts);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+    for body in [
+        "var key=3;for(var key in {x:a}){}return key;",
+        "const get=()=>key;var key=3;for(var key in {x:a}){}return get();",
+        "for(var a in {x:b}){}return a;",
+    ] {
+        assert!(
+            crate::compile(&format!("export function run(a,b){{{body}}}"), false).is_err(),
+            "{body}"
+        );
+    }
+    for body in [
+        "for(var {x} in {x:a}){}return a;",
+        "try{throw a;}catch(e){for(var e in {x:b}){}}return a;",
+        "const source=a?{x:b}:null;for(var key in source){}return a;",
     ] {
         assert!(
             crate::compile_value(&format!("export function run(a,b){{{body}}}"), false).is_err(),

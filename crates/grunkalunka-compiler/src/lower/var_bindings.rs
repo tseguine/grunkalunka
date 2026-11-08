@@ -67,6 +67,9 @@ pub(super) fn iteration_symbols(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
             AstKind::ForOfStatement(source) => {
                 iteration::var_iteration_binding(&source.left).and_then(|id| id.symbol_id.get())
             }
+            AstKind::ForInStatement(source) => {
+                iteration::var_iteration_binding(&source.left).and_then(|id| id.symbol_id.get())
+            }
             _ => None,
         })
         .collect()
@@ -101,15 +104,6 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
             return Err(unsupported(
                 d,
                 "var bindings in async modules or functions are not yet admitted",
-            ));
-        }
-        if matches!(
-            semantic.nodes().parent_kind(node.id()),
-            AstKind::ForInStatement(_)
-        ) {
-            return Err(unsupported(
-                d,
-                "var iteration declarations are not yet admitted",
             ));
         }
         for local in &d.declarations {

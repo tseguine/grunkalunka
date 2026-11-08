@@ -452,6 +452,10 @@ impl Fields {
                     _ => None,
                 })
                 .or_else(|| {
+                    iteration::var_iteration_binding(&source.left)
+                        .and_then(|binding| binding.symbol_id.get())
+                })
+                .or_else(|| {
                     iteration::assignment_iteration_identifier(&source.left)
                         .ok()
                         .flatten()

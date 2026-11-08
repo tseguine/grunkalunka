@@ -2513,7 +2513,7 @@ including captures, contribute to the result. Unknown write forms disable that
 refinement.
 
 Async modules/functions, pattern declarations, function-valued var initializers,
-`for-in` declaration heads and catch-parameter name collisions retain
+catch-parameter name collisions retain
 explicit guards. Lexical TDZ/collision checks, unreachable-tail rejection and
 source/local/stack budgets remain in force. This does not add general callable
 storage or dynamic property access. Corpus 144 preserves the four exact former
@@ -2530,6 +2530,21 @@ before any body-created captures. Non-simple parameter body cells remain distinc
 Origin analysis includes iteration writes and preserves the zero-visit alternative;
 an earlier Number initializer cannot hide later nullish/container values. Mixed or
 possibly Undefined results need the existing explicit projection/conversion proof.
-Var pattern heads, general iterables, async var and var for-in remain guarded. Corpus
+Var pattern heads, general iterables and async var remain guarded. Corpus
 145 promotes the exact original var-for-of rejection with its source hash; 798
 source-bound rejections remain. No new APIs or host calls are introduced.
+
+
+Identifier `for (var key in source)` heads now assign the same function-scoped
+cell for every visited own String key. Existing key ordering, initial enumeration
+snapshots and deleted-key presence checks apply before assigning the head. Empty
+Object/Array/String/Number enumeration preserves its prior value; captures share
+later assignments. Parameter aliases widen before body-created captures, and
+helpers/defaulted arrows transport key results through managed signatures.
+
+The zero-visit alternative and String writes remain in source-kind unions. Direct
+numeric/primitive exports or specialized projections still require their existing
+proof; strict observations can compare the resulting key without inventing a
+Number or container kind. Pattern declarations, async var, catch-name collisions
+and unproven receivers remain guarded. Corpus 146 executes the exact former
+var-for-in rejection and retains its hash; 797 source-bound rejections remain.
