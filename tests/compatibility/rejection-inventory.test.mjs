@@ -1,3 +1,4 @@
+import { primitiveObjectBindingPrograms } from './primitive-object-bindings.mjs';
 import { unsignedBindingPrograms } from './unsigned-binding-keys.mjs';
 import { stringRestBindingPrograms } from './string-rest-bindings.mjs';
 import { stringObjectRestPrograms } from './string-object-rest.mjs';
@@ -1424,3 +1425,5 @@ test('String object rest retains original enumerable copying sources',()=>{asser
 test('String object-rest bindings retain original source programs',()=>{assert.equal(stringRestBindingPrograms.length,15);for(const row of stringRestBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('unsigned binding keys retain original reference expressions',()=>{assert.equal(unsignedBindingPrograms.length,12);for(const row of unsignedBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('primitive object bindings retain original Number and Boolean sources',()=>{assert.equal(primitiveObjectBindingPrograms.length,12);for(const row of primitiveObjectBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

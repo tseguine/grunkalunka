@@ -433,6 +433,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             } else {
                 let root_type = if self.stored.string(pattern.node_id()) {
                     Some(Type::ManagedValue)
+                } else if self.stored.object_primitive(pattern.node_id()) {
+                    Some(Type::General)
                 } else {
                     self.stored.container(pattern.node_id())
                 }

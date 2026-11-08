@@ -124,13 +124,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 Some(Type::ManagedValue)
             }
             Some(Type::ManagedValue) => self.stored.container(source.node_id()),
-            ty => ty,
+            ty => ty.or_else(|| {
+                (self.stored.object_primitive(source.node_id())
+                    || self.numeric_result_shape(source, 0)
+                    || self.operand_boolean_shape(source, 0))
+                .then_some(Type::General)
+            }),
         };
         let (root_type, mode) = match (&local.id, receiver) {
             (_, Some(Type::ManagedValue)) => (Type::ManagedValue, evaluate::Mode::Managed),
             (_, Some(Type::ManagedArray)) => (Type::ManagedArray, evaluate::Mode::Array),
             (BindingPattern::ObjectPattern(_), Some(Type::ManagedObject)) => {
                 (Type::ManagedObject, evaluate::Mode::Object)
+            }
+            (BindingPattern::ObjectPattern(_), Some(Type::General)) => {
+                (Type::General, evaluate::Mode::General)
             }
             (BindingPattern::ArrayPattern(_), _) => {
                 return Err(unsupported(
@@ -204,6 +212,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         Some(root_type)
                     } else if self.stored.string(origin) {
                         Some(Type::ManagedValue)
+                    } else if self.stored.object_primitive(origin) {
+                        Some(Type::General)
                     } else {
                         self.stored.container(origin)
                     };
@@ -214,7 +224,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             let Some(
                                 receiver @ (Type::ManagedObject
                                 | Type::ManagedArray
-                                | Type::ManagedValue),
+                                | Type::ManagedValue
+                                | Type::General),
                             ) = proven
                             else {
                                 return Err(unsupported(
@@ -226,6 +237,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 return Err(unsupported(
                                     object.as_ref(),
                                     "String object bindings require a proven String",
+                                ));
+                            }
+                            if receiver == Type::General && !object.properties.is_empty() {
+                                return Err(unsupported(
+                                    object.as_ref(),
+                                    "Number and Boolean object bindings require an empty property list",
                                 ));
                             }
                             steps.push(BindingStep::Object {
@@ -369,7 +386,8 @@ mod string_rest_binding_tests {
             ),
             ("const {...rest}='abc';return rest.length;", false),
             ("const {...rest}=(a?'abc':null);return a;", false),
-            ("const {...rest}=a;return a;", false),
+            // Number entry parameters now use the primitive object-binding path.
+            ("const {...rest}=a;return a;", true),
             ("const k='0';const {[k]:x,...rest}='abc';return a;", false),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -380,7 +398,7 @@ mod string_rest_binding_tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){const {...rest}=(a as string);return a;}",
+                "export function run(a,b){const {0:x,...rest}=(a as string);return a;}",
                 true
             )
             .is_err()
@@ -434,5 +452,48 @@ mod unsigned_binding_tests {
             .unwrap()
             .join()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod primitive_object_binding_tests {
+    #[test]
+    fn number_and_boolean_bindings_admit_empty_and_rest_patterns_only() {
+        for (body, ok) in [
+            ("const {}=a;return b;", true),
+            (
+                "const {...rest}=false;return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "const {...rest}=(a?b:false);return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "const {value:{...rest}}={value:a};return Object.keys(rest).length;",
+                true,
+            ),
+            (
+                "let n=0;for(const {...rest} of [a,false])n+=Object.keys(rest).length;return n;",
+                true,
+            ),
+            ("const {x}=a;return x;", false),
+            ("const {...rest}=(a?b:null);return a;", false),
+            ("const {}=null;return a;", false),
+            ("const {}=undefined;return a;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&source, ts);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){const value=(a?{}:null) as object;const {}=value;return b;}",
+                true
+            )
+            .is_err()
+        );
     }
 }

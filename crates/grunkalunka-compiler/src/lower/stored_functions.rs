@@ -306,6 +306,14 @@ impl Fields {
                 })
         })
     }
+    pub(super) fn object_primitive(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values
+                    .iter()
+                    .all(|origin| matches!(origin, Origin::Number | Origin::Boolean))
+        })
+    }
     pub(super) fn nullish(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()

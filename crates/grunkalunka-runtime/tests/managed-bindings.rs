@@ -4,6 +4,26 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn primitive_object_bindings_box_empty_own_property_sets() {
+    for body in [
+        "const {}=a;return b;",
+        "const {...rest}=a;return Object.keys(rest).length;",
+        "const {...rest}=false;return Object.keys(rest).length;",
+        "const {...rest}=a?b:false;return Object.keys(rest).length;",
+        "const {value:{...rest}}={value:a};return Object.keys(rest).length;",
+        "const {value:{...rest}}={value:a>b};return Object.keys(rest).length;",
+        "let n=0;for(const {...rest} of [a,false,b])n+=Object.keys(rest).length;return n;",
+        "var {...rest}=a;return Object.keys(rest).length;",
+        "let n=0;const {...rest}=(n++,a);return n+Object.keys(rest).length;",
+        "const identity=x=>x;const {...rest}=identity(a);return Object.keys(rest).length;",
+        "const {...rest}=a;const read=()=>rest;return read()===rest&&Object.keys(read()).length===0?1:0;",
+        "const {...left}=a;const {...right}=false;return left!==right&&Object.keys(left).length===0&&Object.keys(right).length===0?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn string_rest_executes_the_exact_former_runtime_guard_source() {
     compare("const {...rest}='abc';return a;");
 }
