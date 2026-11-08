@@ -1,6 +1,15 @@
 use super::*;
 
 #[test]
+fn optional_string_length_and_comparisons_preserve_primitive_tags() {
+    compare_helpers(&[
+        "export function run(a,b){const s=a?'ab':null;return s?.length;}",
+        "export function run(a,b){const s=a?'ab':undefined;return s?.['length'];}",
+        "export function run(a,b){const s=a?'ab':null;return s?.[0]==='a';}",
+    ]);
+}
+
+#[test]
 fn unsigned_optional_reads_preserve_primitive_tags_and_number_bits() {
     compare_helpers(&[
         "export function run(a,b){const xs=a?[b]:null;return xs?.[0>>>0];}",

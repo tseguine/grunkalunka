@@ -1,0 +1,18 @@
+export const optionalStringReadPrograms=[
+ ["optional-string-read-length", "const s='a\ud83d\ude00';return s?.length;", "const s='a\ud83d\ude00';return s?.length;"],
+ ["optional-string-read-nullable-length", "const s=a?'ab':null;return +(s?.length);", "const s=a?'ab':null;return +(s?.length);"],
+ ["optional-string-read-undefined-length", "const s=a?'ab':undefined;return +(s?.['length']);", "const s=a?'ab':undefined;return +(s?.['length']);"],
+ ["optional-string-read-first", "const s=a?'ab':null;return s?.[0]==='a'?1:0;", "const s=a?'ab':null;return s?.[0]==='a'?1:0;"],
+ ["optional-string-read-runtime-index", "const s='ab';return s?.[a>>>0]==='a'?1:0;", "const s='ab';return s?.[a>>>0]==='a'?1:0;"],
+ ["optional-string-read-nullable-index", "const s=a?'ab':undefined;return s?.[a>>>0]===undefined?1:0;", "const s=a?'ab':undefined;return s?.[a>>>0]===undefined?1:0;"],
+ ["optional-string-read-empty", "const s='';return s?.[0]===undefined&&s?.length===0?1:0;", "const s='';return s?.[0]===undefined&&s?.length===0?1:0;"],
+ ["optional-string-read-missing", "const s='ab';return s?.[99]===undefined?1:0;", "const s='ab';return s?.[99]===undefined?1:0;"],
+ ["optional-string-read-max-index", "const s='ab';return s?.[(-1)>>>0]===undefined?1:0;", "const s='ab';return s?.[(-1)>>>0]===undefined?1:0;"],
+ ["optional-string-read-utf16", "const s='\ud83d\ude00';return s?.[0]==='\\ud83d'&&s?.[1]==='\\ude00'?1:0;", "const s='\ud83d\ude00';return s?.[0]==='\\ud83d'&&s?.[1]==='\\ude00'?1:0;"],
+ ["optional-string-read-receiver-once", "let n=0;const s='ab';const v=(n++,s)?.[0];return n===1&&v==='a'?1:0;", "let n=0;const s='ab';const v=(n++,s)?.[0];return n===1&&v==='a'?1:0;"],
+ ["optional-string-read-lazy-key", "let n=0;const s=a?'ab':null;const v=s?.[(n++,0>>>0)];return n===(a?1:0)&&v===(a?'a':undefined)?1:0;", "let n=0;const s=a?'ab':null;const v=s?.[(n++,0>>>0)];return n===(a?1:0)&&v===(a?'a':undefined)?1:0;"],
+ ["optional-string-read-snapshot", "let s='ab';const v=s?.[(s='bc',0>>>0)];return v==='a'&&s==='bc'?1:0;", "let s='ab';const v=s?.[(s='bc',0>>>0)];return v==='a'&&s==='bc'?1:0;"],
+ ["optional-string-read-default", "const s=a?'ab':null;return (s?.[a>>>0]??'z')==='z'?1:0;", "const s=a?'ab':null;return (s?.[a>>>0]??'z')==='z'?1:0;"],
+ ["optional-string-read-helper", "const get=()=>a?'ab':null;return get()?.[0]==='a'?1:0;", "const get=()=>a?'ab':null;return get()?.[0]==='a'?1:0;"],
+ ["optional-string-read-closure", "const s=a?'ab':null;const read=()=>s?.[0]==='a'?1:0;return read();", "const s=a?'ab':null;const read=()=>s?.[0]==='a'?1:0;return read();"],
+];

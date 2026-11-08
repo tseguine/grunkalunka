@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn optional_string_reads_preserve_saved_text_across_key_awaits() {
+    compare_promises(
+        &[
+            "let s='ab';const v=s?.[(await b,s='bc',0>>>0)];await a;return v==='a'&&s==='bc'?1:0;",
+            "let n=0;const s=a?'ab':null;const v=s?.[(await b,n++,0>>>0)];await a;return n===(a?1:0)&&v===(a?'a':undefined)?1:0;",
+            "const s=a?'ab':null;const n=(await a,s)?.length;await b;return +n;",
+            "let n=0;const s=a?'ab':null;try{const v=s?.[(await Promise.reject(b),n++,0>>>0)];return n;}catch(e){await a;return n;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_optional_reads_skip_key_awaits_and_save_projected_receivers() {
     compare_promises(
         &[

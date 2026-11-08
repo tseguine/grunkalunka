@@ -64,7 +64,7 @@ impl Members<'_, '_> {
             matches!(
                 origin,
                 Origin::Object(_) | Origin::NullObject(_) | Origin::Array(_)
-            ) || (optional && matches!(origin, Origin::Null | Origin::Undefined))
+            ) || (optional && matches!(origin, Origin::Null | Origin::Undefined | Origin::String))
         }) {
             return BTreeSet::from([Origin::Other]);
         }

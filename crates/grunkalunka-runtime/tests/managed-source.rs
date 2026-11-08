@@ -5,6 +5,30 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_string_reads_preserve_utf16_length_and_lazy_receiver_snapshots() {
+    for body in [
+        "const s='a😀';return s?.length;",
+        "const s=a?'ab':null;return +(s?.length);",
+        "const s=a?'ab':undefined;return +(s?.['length']);",
+        "const s=a?'ab':null;return s?.[0]==='a'?1:0;",
+        "const s='ab';return s?.[a>>>0]==='a'?1:0;",
+        "const s=a?'ab':undefined;return s?.[a>>>0]===undefined?1:0;",
+        "const s='';return s?.[0]===undefined&&s?.length===0?1:0;",
+        "const s='ab';return s?.[99]===undefined?1:0;",
+        "const s='ab';return s?.[(-1)>>>0]===undefined?1:0;",
+        "const s='😀';return s?.[0]==='\\ud83d'&&s?.[1]==='\\ude00'?1:0;",
+        "let n=0;const s='ab';const v=(n++,s)?.[0];return n===1&&v==='a'?1:0;",
+        "let n=0;const s=a?'ab':null;const v=s?.[(n++,0>>>0)];return n===(a?1:0)&&v===(a?'a':undefined)?1:0;",
+        "let s='ab';const v=s?.[(s='bc',0>>>0)];return v==='a'&&s==='bc'?1:0;",
+        "const s=a?'ab':null;return (s?.[a>>>0]??'z')==='z'?1:0;",
+        "const get=()=>a?'ab':null;return get()?.[0]==='a'?1:0;",
+        "const s=a?'ab':null;const read=()=>s?.[0]==='a'?1:0;return read();",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn unsigned_optional_reads_skip_keys_and_preserve_receiver_order_and_identity() {
     for body in [
         "const xs=[a];return xs?.[(xs.length=0,0>>>0)]===undefined?1:0;",

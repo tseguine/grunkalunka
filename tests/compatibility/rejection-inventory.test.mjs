@@ -1,3 +1,4 @@
+import { optionalStringReadPrograms } from './optional-string-reads.mjs';
 import { optionalUint32ReadPrograms } from './optional-uint32-reads.mjs';
 import { optionalStaticReadPrograms } from './optional-static-reads.mjs';
 import { primitiveForInPrograms } from './primitive-for-in.mjs';
@@ -1334,4 +1335,10 @@ test('optional static reads execute original chain syntax and preserve nullish o
 test('unsigned optional reads retain original lazy key and saved receiver observations',()=>{
  assert.equal(optionalUint32ReadPrograms.length,19);
  for(const row of optionalUint32ReadPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('?.['));assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('optional String reads retain original length, UTF-16 and lazy index observations',()=>{
+ assert.equal(optionalStringReadPrograms.length,16);
+ for(const row of optionalStringReadPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('?.'));assert.ok(programs.some(program=>program[0]===row[0]));}
 });

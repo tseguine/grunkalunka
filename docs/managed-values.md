@@ -12,9 +12,9 @@ preserves sparse-array length and updates the source facts used by later reads.
 
 Optional property reads retain the original `?.` chain syntax. Static names,
 literal computed keys and original `>>>`-proven unsigned runtime keys work on
-source-proven objects and Arrays, including unions
-with Null and Undefined. The receiver executes once; only the non-nullish branch
-projects its reference and reads the field. The other branch returns Undefined.
+source-proven objects, Arrays and Strings, including unions with Null and
+Undefined. The receiver executes once; only the non-nullish branch reads its
+selected field. The other branch returns Undefined.
 Array length, sparse misses, primitive tags and selected reference identity retain
 their ordinary behavior. Literal-key reads from a proven nullish-only receiver
 perform no property selection, including for intrinsic prototype names.
@@ -25,11 +25,16 @@ non-nullish receiver has been captured. Nullish receivers skip those effects;
 key effects can change the selected property before it is read while rebinding
 the receiver leaves its original reference intact. Complete source operands still
 undergo validation, including in a branch that never executes.
+
+String receivers expose their own length and canonical UTF-16 index properties,
+using the same lazy unsigned-key path. Index reads preserve individual UTF-16
+units, including isolated surrogate units; missing indices return Undefined.
+Other String properties and String/object receiver unions remain guarded.
+
 Numeric projections still need a Number proof or explicit primitive conversion.
 Unknown receivers, inherited fields, other runtime keys, optional calls and
 unparenthesized multi-step chains remain guarded. Type assertions establish no
 receiver or selected-value proof.
-
 
 Boxed values whose source alternatives are all Number, Boolean, Null or Undefined
 can now project into the existing tagged scalar path. This preserves each actual
