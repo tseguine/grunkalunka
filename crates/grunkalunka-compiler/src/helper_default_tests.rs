@@ -545,9 +545,15 @@ fn earlier_parameter_logical_chains_admit_policy_precedence() {
         "x&&backup||alt",
     ] {
         for source in [
-            format!("function f(x,backup,alt,result={expression}){{return result;}}export function run(a,b){{return f(a,b,3);}}"),
-            format!("export function run(a,b){{const f=(x,backup,alt,result={expression})=>result;return f(a,b,3);}}"),
-            format!("export function run(a,b){{const o={{f:(x,backup,alt,result={expression})=>result}};return o.f(a,b,3);}}"),
+            format!(
+                "function f(x,backup,alt,result={expression}){{return result;}}export function run(a,b){{return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const f=(x,backup,alt,result={expression})=>result;return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,backup,alt,result={expression})=>result}};return o.f(a,b,3);}}"
+            ),
         ] {
             for ts in [false, true] {
                 let result = crate::compile_value(&source, ts);

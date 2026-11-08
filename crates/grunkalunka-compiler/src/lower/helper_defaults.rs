@@ -518,11 +518,8 @@ impl Lowering<'_, '_> {
             );
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, result));
         }
-        if let Some((identifier, steps)) =
-            earlier_logical_chain(initializer, self.semantic)
-        {
-            let mut original =
-                self.load_earlier_value(identifier, initializer, &mut consequent)?;
+        if let Some((identifier, steps)) = earlier_logical_chain(initializer, self.semantic) {
+            let mut original = self.load_earlier_value(identifier, initializer, &mut consequent)?;
             for (operator, fallback) in steps {
                 let condition = self.value(Type::Predicate);
                 Self::push(
@@ -541,8 +538,7 @@ impl Lowering<'_, '_> {
                     },
                 );
                 let mut selected = self.region(initializer);
-                let fallback =
-                    self.emit_default_operand(initializer, &mut selected, fallback)?;
+                let fallback = self.emit_default_operand(initializer, &mut selected, fallback)?;
                 selected.exit = Exit::Yield(fallback);
                 let mut kept = self.region(initializer);
                 kept.exit = Exit::Yield(original);
@@ -564,7 +560,9 @@ impl Lowering<'_, '_> {
                 );
                 original = result;
             }
-            return Ok(self.finish_binding_default(parameter, output, pending, consequent, original));
+            return Ok(self.finish_binding_default(
+                parameter, output, pending, consequent, original,
+            ));
         }
         if let Some((identifier, operators)) = earlier_parameter(initializer, self.semantic) {
             let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
