@@ -1,3 +1,4 @@
+import { uint32NumericUpdatePrograms } from './uint32-numeric-updates.mjs';
 import { uint32LogicalWritePrograms } from './uint32-logical-writes.mjs';
 import { uint32PropertyReadPrograms } from './uint32-property-reads.mjs';
 import { uint32PropertyWritePrograms } from './uint32-property-writes.mjs';
@@ -1292,4 +1293,10 @@ test('unsigned property reads preserve numeric boundaries, absence and snapshots
 test('unsigned logical writes retain original short-circuit and value observations',()=>{
  assert.equal(uint32LogicalWritePrograms.length,12);
  for(const row of uint32LogicalWritePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('unsigned numeric updates retain original conversion, boundary and snapshot observations',()=>{
+ assert.equal(uint32NumericUpdatePrograms.length,25);
+ for(const row of uint32NumericUpdatePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });

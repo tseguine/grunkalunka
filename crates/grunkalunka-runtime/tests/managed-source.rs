@@ -5,6 +5,39 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn unsigned_numeric_updates_preserve_old_values_and_saved_targets() {
+    for body in [
+        "const xs=[];xs[a>>>0]+=b;return a;",
+        "const xs=[a];return xs[0>>>0]*=b;",
+        "const xs=[a];return xs[0>>>0]/=b;",
+        "const xs=[a];return xs[0>>>0]%=b;",
+        "const xs=[a];return xs[0>>>0]&=b;",
+        "const xs=[a];return xs[0>>>0]|=b;",
+        "const xs=[a];return xs[0>>>0]^=b;",
+        "const xs=[a];return xs[0>>>0]<<=b;",
+        "const xs=[a];return xs[0>>>0]>>=b;",
+        "const xs=[a];return xs[0>>>0]++;",
+        "const xs=[a];return --xs[0>>>0];",
+        "const xs=[];const n=xs[a>>>0]++;return n;",
+        "const xs=[false,null,undefined];return xs[a>>>0]+=b;",
+        "const o={0:a};return o[0>>>0]-=b;",
+        "const d=Object.create(null);return ++d[a>>>0];",
+        "const xs=[];xs[2>>>0]|=b;return xs.length===3&&Object.hasOwn(xs,2)&&!Object.hasOwn(xs,0)?1:0;",
+        "const xs=[];xs[(-1)>>>0]&=b;return xs.length===0&&Object.hasOwn(xs,4294967295)?1:0;",
+        "const xs=[];xs[(-2)>>>0]^=b;return xs.length;",
+        "let xs=[a];const old=xs;let key=0;const v=xs[key>>>0]-=(key=1,xs=[b],b);return old!==xs&&!Object.hasOwn(old,1)?v:99;",
+        "let xs=[a];const old=xs;const v=xs[(xs=[b],0>>>0)]++;return old!==xs?v:99;",
+        "const xs=[a];return xs[0>>>0]*=(xs[0>>>0]=b,b);",
+        "const xs=[a];return xs[0>>>0]>>>=b;",
+        "const xs=[a];xs[0>>>0]+=b;xs[0>>>0]-=b;xs[0>>>0]*=b;xs[0>>>0]/=b;xs[0>>>0]%=b;xs[0>>>0]&=b;xs[0>>>0]|=b;xs[0>>>0]^=b;xs[0>>>0]<<=b;return xs[0>>>0]>>=b;",
+        "const xs=[a];const update=()=>xs[0>>>0]++;return update();",
+        "const xs=[a];const alias=xs;xs[0>>>0]++;return +alias[0>>>0];",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn unsigned_logical_property_writes_preserve_short_circuit_and_snapshots() {
     for body in [
         "const xs=[a];return +(xs[0>>>0]||=b);",
