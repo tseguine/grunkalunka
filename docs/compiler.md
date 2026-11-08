@@ -2571,7 +2571,7 @@ observe Undefined; lexical TDZ checks remain unchanged. Post-declaration proofs
 use selected leaf origins, including every duplicate binding occurrence, rather
 than the complete source object. Unknown writes disable refinement.
 
-Var for-in pattern heads, async var, callable initializers and catch-name
+Var for-in Array pattern heads, async var, callable initializers and catch-name
 collisions remain guarded. Source limits count all pattern names, with the same
 128/129 small-stack boundary. Corpus 147 preserves the exact former pattern
 rejection as a positive and retains a source-bound iteration-pattern guard. No
@@ -2587,9 +2587,9 @@ Zero visits preserve the previous values or initial Undefined. Loop writes widen
 all aliases and suppress initializer-only Number refinements.
 
 The iterable and selected container kinds must remain source-proven. Async var,
-for-in patterns, general iterables and unproven selected receivers stay guarded.
+for-in Array patterns, general iterables and unproven selected receivers stay guarded.
 Corpus 148 executes the exact former var iteration-pattern rejection with its hash
-and retains a separate for-in pattern guard. No API or host import is added.
+and retains a separate for-in Array pattern guard. No API or host import is added.
 
 
 Object binding declarations now accept source-proven primitive Strings for static
@@ -2605,3 +2605,15 @@ String object rest, dynamic/noncanonical keys, inherited members, mixed/nullish
 receivers and String array-iterator destructuring retain guards. This is language
 binding support; no standard-library API or host import is added. Corpus 149
 retains the exact former empty-String runtime rejection as an executed positive.
+
+For-in declaration heads also admit object binding patterns over enumerated
+String keys. Static length and canonical numeric selections, nested String
+patterns and ordered defaults use the same planner as declarations. The own-key
+presence check precedes the complete binding plan, so deleting a future key skips
+its defaults and cell assignments. Const/let patterns allocate fresh lexical
+cells per visit; var patterns assign their hoisted shared cells, including
+parameter aliases and captures. Zero visits preserve initial values or Undefined.
+Key origins are String independently of the enumerated values, and every var
+pattern leaf participates in iteration-write widening. Array patterns, String
+rest, dynamic/inherited keys and unsupported receiver kinds retain guards.
+Number receivers still enumerate no keys, regardless of erased TS annotations.

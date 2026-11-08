@@ -362,7 +362,7 @@ impl Fields {
         if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
-                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_)
+                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
@@ -471,22 +471,24 @@ impl Fields {
             .nodes()
             .iter()
             .filter_map(|node| {
-                let AstKind::ForOfStatement(source) = node.kind() else {
-                    return None;
+                let (pattern, rule) = match node.kind() {
+                    AstKind::ForOfStatement(source) => (
+                        iteration::for_of_pattern(source)?,
+                        Rule::Iterated(source.right.node_id()),
+                    ),
+                    AstKind::ForInStatement(source) => (
+                        iteration::declaration_iteration_pattern(&source.left)?,
+                        Rule::Known(Origin::String),
+                    ),
+                    _ => return None,
                 };
-                let pattern = iteration::for_of_pattern(source)?;
                 (!matches!(pattern, BindingPattern::BindingIdentifier(_)))
-                    .then_some((pattern, source.right.node_id()))
+                    .then_some((pattern, rule))
             })
             .collect::<Vec<_>>();
         let has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
-        for (pattern, receiver) in patterned_iterations {
-            pattern_definitions(
-                pattern,
-                Rule::Iterated(receiver),
-                &mut definitions,
-                &mut pattern_rules,
-            );
+        for (pattern, rule) in patterned_iterations {
+            pattern_definitions(pattern, rule, &mut definitions, &mut pattern_rules);
         }
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
         // A spread or untracked property key can introduce an unlisted field.

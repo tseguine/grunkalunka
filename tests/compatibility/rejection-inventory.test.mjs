@@ -1,3 +1,4 @@
+import { forInObjectPrograms } from './for-in-object-patterns.mjs';
 import { originalStringObjectBinding, stringObjectPrograms } from './string-object-bindings.mjs';
 import { varLoopPatternPromotion, varLoopPatternPrograms } from './var-pattern-for-of.mjs';
 import { varPatternPromotion, varPatternPrograms } from './var-patterns.mjs';
@@ -1092,4 +1093,15 @@ test('String object patterns retain the original runtime guard source',()=>{
   assert.equal(source,originalStringObjectBinding.source);
   assert.equal(createHash('sha256').update(source).digest('hex'),originalStringObjectBinding.sha256);
  }
+});
+
+test('for-in object patterns retain shared executable bodies and the native oracle', () => {
+  assert.equal(forInObjectPrograms.length, 13);
+  for (const row of forInObjectPrograms) {
+    assert.ok(programs.some(program => program[0] === row[0]));
+    const pair = programSources(row);
+    assert.equal(row[1], row[2]);
+    assert.equal(pair.sourceTS, `export function run(a: number, b: number): number { ${row[2]} }\n`);
+    assert.equal(pair.sourceJS, pair.oracleSource);
+  }
 });

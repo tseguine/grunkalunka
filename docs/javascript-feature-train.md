@@ -406,17 +406,23 @@ TDZ reads and effects beneath void retain admission guards; no API is added.
 
 Var destructuring declarations reuse hoisted cells for Object/Array bindings,
 defaults, rest, parameter aliases and repeated declarations. Leaf-origin proofs
-preserve safe projections and capture identity. For-in pattern heads, async var,
+preserve safe projections and capture identity. For-in Array pattern heads, async var,
 callable initializers and catch-name collisions remain separate work.
 
 
 Var for-of patterns now share hoisted cells across proven container elements,
 including defaults, nested selections and fresh rest values. Captures observe
 later writes; zero visits preserve old values and origin proofs retain all loop
-writes. Async var, for-in patterns and unproven iterables/elements remain guarded.
+writes. Async var, for-in Array patterns and unproven iterables/elements remain guarded.
 
 
 Object destructuring can select length and canonical numeric keys from proven
 Strings, including nested receivers, var captures and ordered defaults. Reads
 preserve UTF-16 code units and saved RHS values. String rest, dynamic/inherited
 keys and unproven/mixed receivers remain guarded; no API is added.
+
+For-in object binding heads now destructure each String key using the existing
+String property planner. Per-visit lexical cells and shared var captures retain
+their distinct behavior. Deleted keys skip the entire pattern, including default
+side effects; empty enumerations preserve hoisted values. Corpus 150 covers own
+key order, UTF-16, defaults, nested selections, control flow and capture identity.

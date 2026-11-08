@@ -19,6 +19,10 @@ fn compare_vars(sources: Vec<String>) {
 fn hoisted_var_cells_preserve_values_scope_and_shared_captures() {
     compare_vars([
         "var x;return x;",
+        "const before=n;for(var {length:n} in {}){}return before;",
+        "var n=null;for(var {length:n} in {}){}return n;",
+        "const get=()=>a;for(var {length:a} in {abc:1}){}return get();",
+        "var x=3;for(var {0:x='?'} in {a:1}){}return x==='a'?1:0;",
         "const {length:n}='abc';return n;",
         "const {'99':x}='abc';return x===undefined?1:0;",
         "let {length:n}='abc';n=null;return n;",
