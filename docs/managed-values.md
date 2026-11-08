@@ -1559,3 +1559,13 @@ extra arguments still execute in source order. Array holes remain distinct from
 own Undefined entries, and primitive Number/Boolean receivers have no own keys.
 Arbitrary runtime Number keys, key coercion and unsupported receiver proofs
 remain guarded; TypeScript annotations do not establish unsigned range.
+
+Fixed Array-literal spreads in `Object.hasOwn` calls now use the same
+original-expression argument expansion as ordinary represented function calls.
+Nested literal spreads and zero-length spreads preserve left-to-right argument
+evaluation, receiver/key snapshots and ignored extra-argument effects. Each
+selected key still needs a static primitive, source-proven String, or proven
+unsigned Number; a spread cannot launder unknown kinds or receiver proofs.
+Opaque iterable spreads, sparse literal holes and more than 1,000 flattened
+arguments remain guarded. This does not add general iterable or standard
+library call-spread semantics.
