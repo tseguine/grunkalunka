@@ -1445,7 +1445,9 @@ impl Lowering<'_, '_> {
                 );
                 values.push(Value::Managed(result));
             }
-            ManagedWork::OptionalRead(task) => self.complete_optional_member(task, regions, values),
+            ManagedWork::OptionalRead(task) => {
+                self.complete_optional_member(task, regions, values, work)
+            }
             ManagedWork::DictionaryNew(node) => {
                 let result = self.value(Type::ManagedObject);
                 Self::push(regions.current(), node, Op::ManagedObjectNew { result });

@@ -47,6 +47,12 @@ impl Members<'_, '_> {
     }
 
     pub(super) fn unsigned_value(&self, receiver: NodeId) -> Alternatives {
+        self.unsigned_select(receiver, false)
+    }
+    pub(super) fn optional_unsigned_value(&self, receiver: NodeId) -> Alternatives {
+        self.unsigned_select(receiver, true)
+    }
+    fn unsigned_select(&self, receiver: NodeId, optional: bool) -> Alternatives {
         let Some(receivers) = self
             .values
             .get(&receiver)
@@ -58,21 +64,26 @@ impl Members<'_, '_> {
             matches!(
                 origin,
                 Origin::Object(_) | Origin::NullObject(_) | Origin::Array(_)
-            )
+            ) || (optional && matches!(origin, Origin::Null | Origin::Undefined))
         }) {
             return BTreeSet::from([Origin::Other]);
         }
         // Numeric names have no inherited value in the represented pristine realm.
         // Include every own initializer/write conservatively, and possible absence.
-        let mut found = self.enumerable_values(receiver);
+        let mut found = self.enumerable_values_for(receiver, optional);
         found.insert(Origin::Undefined);
         found
     }
 
     pub(super) fn enumerable_values(&self, receiver: NodeId) -> Alternatives {
+        self.enumerable_values_for(receiver, false)
+    }
+    fn enumerable_values_for(&self, receiver: NodeId, optional: bool) -> Alternatives {
         let mut found = Alternatives::new();
         let origins = |id: NodeId| self.values.get(&id).into_iter().flatten().copied();
-        for origin in origins(receiver) {
+        for origin in origins(receiver)
+            .filter(|origin| !optional || !matches!(origin, Origin::Null | Origin::Undefined))
+        {
             let site = match origin {
                 Origin::Object(site) | Origin::Array(site) | Origin::NullObject(site) => site,
                 Origin::String => {

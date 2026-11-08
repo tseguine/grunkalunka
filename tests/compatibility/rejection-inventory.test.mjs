@@ -1,3 +1,4 @@
+import { optionalUint32ReadPrograms } from './optional-uint32-reads.mjs';
 import { optionalStaticReadPrograms } from './optional-static-reads.mjs';
 import { primitiveForInPrograms } from './primitive-for-in.mjs';
 import { primitivePropertyUpdatePrograms } from './primitive-property-updates.mjs';
@@ -1327,4 +1328,10 @@ test('scalar for-in sources retain empty iteration and RHS/head effects',()=>{
 test('optional static reads execute original chain syntax and preserve nullish observations',()=>{
  assert.equal(optionalStaticReadPrograms.length,25);
  for(const row of optionalStaticReadPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('?.'));assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('unsigned optional reads retain original lazy key and saved receiver observations',()=>{
+ assert.equal(optionalUint32ReadPrograms.length,19);
+ for(const row of optionalUint32ReadPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(row[1].includes('?.['));assert.ok(programs.some(program=>program[0]===row[0]));}
 });
