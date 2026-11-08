@@ -16,9 +16,8 @@ enum Constant {
 fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Constant> {
     let mut node = expression;
     let mut depth = 0;
-    let mut sign = 1.0;
-    let mut numeric = false;
-    loop {
+    let mut operators = Vec::new();
+    let mut value = loop {
         let (inner, next) = closures::unwrapped_at(node, depth)?;
         node = inner;
         depth = next;
@@ -29,42 +28,49 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
             Expression::UnaryExpression(unary)
                 if matches!(
                     unary.operator,
-                    UnaryOperator::UnaryPlus | UnaryOperator::UnaryNegation
+                    UnaryOperator::UnaryPlus | UnaryOperator::UnaryNegation | UnaryOperator::Void
                 ) =>
             {
-                numeric = true;
-                if unary.operator == UnaryOperator::UnaryNegation {
-                    sign = -sign;
-                }
+                operators.push(unary.operator);
                 node = &unary.argument;
                 depth += 1;
             }
-            Expression::NumericLiteral(number) => {
-                return Some(Constant::Number(sign * number.value));
-            }
-            Expression::BooleanLiteral(boolean) if !numeric => {
-                return Some(Constant::Boolean(boolean.value));
-            }
-            Expression::NullLiteral(_) if !numeric => return Some(Constant::Null),
-            Expression::StringLiteral(string) if !numeric => {
-                return Some(Constant::String(string.value.encode_utf16().collect()));
+            Expression::NumericLiteral(number) => break Constant::Number(number.value),
+            Expression::BooleanLiteral(boolean) => break Constant::Boolean(boolean.value),
+            Expression::NullLiteral(_) => break Constant::Null,
+            Expression::StringLiteral(string) => {
+                break Constant::String(string.value.encode_utf16().collect());
             }
             Expression::Identifier(id)
-                if !numeric
-                    && id.name == "undefined"
-                    && id.reference_id.get().is_some_and(|reference| {
-                        semantic
-                            .scoping()
-                            .get_reference(reference)
-                            .symbol_id()
-                            .is_none()
-                    }) =>
+                if id.reference_id.get().is_some_and(|reference| {
+                    semantic
+                        .scoping()
+                        .get_reference(reference)
+                        .symbol_id()
+                        .is_none()
+                }) =>
             {
-                return Some(Constant::Undefined);
+                break match id.name.as_str() {
+                    "undefined" => Constant::Undefined,
+                    "Infinity" => Constant::Number(f64::INFINITY),
+                    "NaN" => Constant::Number(f64::NAN),
+                    _ => return None,
+                };
             }
             _ => return None,
         }
+    };
+    // Fold only proven constant operands. In particular void never suppresses
+    // admission of effects, unresolved reads, parameter TDZ or shadowed globals.
+    for operator in operators.into_iter().rev() {
+        value = match (operator, value) {
+            (UnaryOperator::Void, _) => Constant::Undefined,
+            (UnaryOperator::UnaryPlus, Constant::Number(n)) => Constant::Number(n),
+            (UnaryOperator::UnaryNegation, Constant::Number(n)) => Constant::Number(-n),
+            _ => return None,
+        };
     }
+    Some(value)
 }
 
 pub(crate) fn validate(

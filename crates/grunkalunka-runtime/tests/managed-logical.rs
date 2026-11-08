@@ -877,3 +877,16 @@ fn var_numeric_reads_execute_original_promotions_and_preserve_goldens() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn numeric_intrinsic_and_void_defaults_keep_explicit_numeric_projection() {
+    for source in [
+        "function f(x=Infinity){return x;}export function run(a,b){return +f();}",
+        "function f(x=-Infinity){return x;}export function run(a,b){return +f();}",
+        "function f(x=NaN){return x;}export function run(a,b){return +f();}",
+        "function f(x=void 0){return x;}export function run(a,b){return +f();}",
+        "export function run(a,b){const o={f:(x=Infinity)=>x};return +o.f();}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}

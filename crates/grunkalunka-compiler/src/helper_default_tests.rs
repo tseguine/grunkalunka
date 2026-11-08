@@ -104,3 +104,59 @@ fn arrow_defaults_keep_effect_scope_async_and_callback_arity_guards() {
         assert!(crate::compile_async(source, false).is_err(), "{source}");
     }
 }
+
+#[test]
+fn constant_parameter_defaults_check_intrinsic_resolution_and_void_operands() {
+    for value in [
+        "Infinity",
+        "-Infinity",
+        "+NaN",
+        "void 0",
+        "void null",
+        "void 'abc'",
+        "void void 0",
+    ] {
+        for body in [
+            format!("function f(x={value}){{return x;}}export function run(a,b){{return f();}}"),
+            format!("export function run(a,b){{const f=(x={value})=>x;return f();}}"),
+            format!("export function run(a,b){{const o={{f:(x={value})=>x}};return o.f();}}"),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&body, ts);
+                assert!(result.is_ok(), "{body}: {:?}", result.err());
+            }
+        }
+    }
+    for source in [
+        "function f(Infinity,x=Infinity){return x;}export function run(a,b){return f(a);}",
+        "function f(NaN,x=NaN){return x;}export function run(a,b){return f(a);}",
+        "function f(x=void y,y=3){return x;}export function run(a,b){return f();}",
+        "export function run(a,b){const Infinity=3;const f=(x=Infinity)=>x;return f();}",
+        "function f(x=void missing){return x;}export function run(a,b){return f();}",
+        "function f(x=void (a=3)){return x;}export function run(a,b){return f();}",
+        "function f(x=void g()){return x;}export function run(a,b){return f();}",
+        "function f(x=void {} ){return x;}export function run(a,b){return f();}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            for depth in [16, 129] {
+                let source = format!(
+                    "function f(x={}0){{return x;}}export function run(a,b){{return f();}}",
+                    "void ".repeat(depth)
+                );
+                assert_eq!(crate::compile_value(&source, false).is_ok(), depth == 16);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    let js = "function f(x=-Infinity){return x;}export function run(a,b){return f();}";
+    let ts = "function f(x:never=(-Infinity as unknown)):boolean{return x;}export function run(a:string,b:boolean):never{return f();}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}

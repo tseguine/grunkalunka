@@ -397,3 +397,8 @@ Identifier var-for-in heads now share the function cell across existing own-key
 enumeration. Empty sources preserve values, deleted keys do not assign the head,
 and captures retain parameter aliases and final keys. String loop writes widen
 kind analysis; pattern/async var and unproven receivers remain explicit guards.
+
+
+Constant parameter defaults now include unshadowed Infinity/NaN and pure void
+constants through the same helper/arrow/emitted-closure selection. Shadowed names,
+TDZ reads and effects beneath void retain admission guards; no API is added.

@@ -291,3 +291,25 @@ fn synchronous_arrow_defaults_preserve_selections_captures_and_callable_abi() {
         "export function run(a,b){const f=(x=3)=>x;const g=f;return g.length;}",
     ]);
 }
+
+#[test]
+fn intrinsic_and_void_parameter_defaults_keep_tags_resolution_and_selection() {
+    compare_helpers(&[
+        "function f(x=Infinity){return x;}export function run(a,b){return f();}",
+        "function f(x=-Infinity){return x;}export function run(a,b){return f(undefined);}",
+        "function f(x=NaN){return x;}export function run(a,b){return f();}",
+        "function f(x=Infinity){return x;}export function run(a,b){return f(a);}",
+        "function f(x=Infinity){return x;}export function run(a,b){return f(null);}",
+        "function f(x=NaN){return x;}export function run(a,b){return f(false);}",
+        "function f(x=void 0){return x;}export function run(a,b){return f();}",
+        "function f(x=void 'abc'){return x;}export function run(a,b){return f();}",
+        "function f(x=void void null){return x;}export function run(a,b){return f(a);}",
+        "function f(x=Infinity){var Infinity=3;return x;}export function run(a,b){return f();}",
+        "export function run(a,b){const f=(x=-Infinity)=>x;return f();}",
+        "export function run(a,b){const f=(x=void 0)=>x;return f();}",
+        "export function run(a,b){const o={f:(x=NaN)=>x};return o.f();}",
+        "export function run(a,b){const o={f:(x=void null)=>x};return o.f();}",
+        "function f(x=Infinity){const get=()=>x;x=3;return get();}export function run(a,b){return f();}",
+        "export function run(a,b){const f=(x=Infinity)=>x;return f.length;}",
+    ]);
+}
