@@ -5,6 +5,39 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn dictionary_numeric_updates_preserve_primitive_conversions_and_key_snapshots() {
+    for body in [
+        "const d=Object.create(null);const key='x';d[key]++;return a;",
+        "const d=Object.create(null);const key='x';d[key]+=a;return a;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]+=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]-=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]*=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]/=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]%=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]&=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]|=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]^=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]<<=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]>>=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]>>>=b;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]++;",
+        "const d=Object.create(null);d.x=a;const k='x';return --d[k];",
+        "const d=Object.create(null);const k='missing';return d[k]++;",
+        "const d=Object.create(null);d.x=a?false:null;const k='x';return ++d[k];",
+        "const d=Object.create(null);const k='__proto__';d[k]|=b;return Object.hasOwn(d,k)?+d[k]:99;",
+        "const d=Object.create(null);d.x=a;let k='x';const v=d[k]-=(k='y',b);return Object.hasOwn(d,'y')?99:v;",
+        "let d=Object.create(null);d.x=a;const old=d;const k='x';const v=d[k]-=(d=Object.create(null),b);return old!==d&&!Object.hasOwn(d,k)?v:99;",
+        "let d=Object.create(null);d.x=a;const old=d;const v=d[(d=Object.create(null),'x')]++;return old!==d&&!Object.hasOwn(d,'x')?v:99;",
+        "const d=Object.create(null);d.x=a;const k='x';return d[k]*=(d[k]=b,b);",
+        "const d=Object.create(null);d.x=a;const k='x';const update=()=>d[k]++;return update();",
+        "const d=Object.create(null);d.x=a;const alias=d;const k='x';d[k]++;return +alias[k];",
+        "const d=Object.create(null);const k='\\ud800😀';d[k]|=b;return +d[k];",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn unsigned_numeric_updates_preserve_old_values_and_saved_targets() {
     for body in [
         "const xs=[];xs[a>>>0]+=b;return a;",
@@ -622,8 +655,6 @@ fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
         "const d=Object.create(null);d[a]=b;return a;",
         "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
         "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",
-        "const d=Object.create(null);const key='x';d[key]+=a;return a;",
-        "const d=Object.create(null);const key='x';d[key]++;return a;",
         "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
         "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
         "const d=Object.create(null);const key='x';d.x=()=>a;const alias=d;alias[key]=b;return d.x();",

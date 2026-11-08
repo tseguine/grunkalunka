@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn dictionary_numeric_updates_preserve_string_keys_and_old_values_across_awaits() {
+    compare_promises(
+        &[
+            "let d=Object.create(null);d.x=a;const old=d;let k='x';const v=d[k]-=(await a,k='y',d=Object.create(null),b);await b;return old!==d&&!Object.hasOwn(old,'y')?v:99;",
+            "const d=Object.create(null);d.x=a;const v=d[(await b,'x')]++;await a;return v;",
+            "const d=Object.create(null);d.x=a;const k='x';try{d[k]-=await Promise.reject(b);}catch(e){await a;return +d[k];}return 99;",
+            "const d=Object.create(null);let n=0;try{d[(await Promise.reject(a),'x')]-=(n=1,b);}catch(e){await b;return n+Object.keys(d).length;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_numeric_updates_preserve_targets_keys_and_old_values_across_awaits() {
     compare_promises(
         &[
