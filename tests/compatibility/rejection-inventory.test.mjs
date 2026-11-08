@@ -1,3 +1,4 @@
+import { originalStringObjectBinding, stringObjectPrograms } from './string-object-bindings.mjs';
 import { varLoopPatternPromotion, varLoopPatternPrograms } from './var-pattern-for-of.mjs';
 import { varPatternPromotion, varPatternPrograms } from './var-patterns.mjs';
 import { varForInPromotion, varForInPrograms } from './var-for-in.mjs';
@@ -1081,4 +1082,14 @@ test('var for-of patterns preserve the exact guarded source and hash',()=>{
  }
  assert.ok(!rejected.some(row=>row[0]===varLoopPatternPromotion.id));
  assert.ok(!catalog.records.some(row=>row.id===varLoopPatternPromotion.id));
+});
+
+
+test('String object patterns retain the original runtime guard source',()=>{
+ const pair=programSources(stringObjectPrograms.find(p=>p[0]===originalStringObjectBinding.id));
+ assert.equal(originalStringObjectBinding.sha256,"e0799ecdff5d780c2089495c43d9129ee674ce05ed241c206e8cb306670b580d");
+ for(const source of [pair.sourceJS,pair.sourceTS,pair.oracleSource]) {
+  assert.equal(source,originalStringObjectBinding.source);
+  assert.equal(createHash('sha256').update(source).digest('hex'),originalStringObjectBinding.sha256);
+ }
 });

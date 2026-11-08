@@ -121,6 +121,16 @@ impl Members<'_, '_> {
         let mut found = Alternatives::new();
         while let Some(step) = work.pop().or_else(|| initial.next()) {
             let (origin, shifted) = match step {
+                Step::Read(Origin::String, None) => {
+                    if source_key.as_slice() == LENGTH {
+                        found.insert(Origin::Number);
+                    } else if binding_patterns::string_index(source_key).is_some() {
+                        found.extend([Origin::String, Origin::Undefined]);
+                    } else {
+                        found.insert(Origin::Other);
+                    }
+                    continue;
+                }
                 Step::Read(Origin::String, Some(_)) => {
                     // An indexed projection through an iterator copy may miss.
                     found.extend([Origin::String, Origin::Undefined]);

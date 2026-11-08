@@ -414,3 +414,9 @@ Var for-of patterns now share hoisted cells across proven container elements,
 including defaults, nested selections and fresh rest values. Captures observe
 later writes; zero visits preserve old values and origin proofs retain all loop
 writes. Async var, for-in patterns and unproven iterables/elements remain guarded.
+
+
+Object destructuring can select length and canonical numeric keys from proven
+Strings, including nested receivers, var captures and ordered defaults. Reads
+preserve UTF-16 code units and saved RHS values. String rest, dynamic/inherited
+keys and unproven/mixed receivers remain guarded; no API is added.

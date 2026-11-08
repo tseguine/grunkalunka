@@ -7,6 +7,12 @@ use oxc_ast::ast::{
 };
 use oxc_syntax::node::NodeId;
 
+pub(super) fn string_index(key: &[u16]) -> Option<u32> {
+    let text = String::from_utf16(key).ok()?;
+    let index = text.parse::<u32>().ok()?;
+    (index.to_string() == text).then_some(index)
+}
+
 /// Original-source pattern leaves for representation planning. Plain identifier
 /// declarations have their own planners. This walk does not admit a pattern.
 pub(super) fn leaves<'n, 'a>(
@@ -112,10 +118,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             .as_ref()
             .ok_or_else(|| unsupported(local, "binding patterns require an initializer"))?;
         let receiver = match self.managed_source_type(source, 0) {
+            Some(Type::ManagedValue) if self.stored.string(source.node_id()) => {
+                Some(Type::ManagedValue)
+            }
             Some(Type::ManagedValue) => self.stored.container(source.node_id()),
             ty => ty,
         };
         let (root_type, mode) = match (&local.id, receiver) {
+            (BindingPattern::ObjectPattern(_), Some(Type::ManagedValue)) => {
+                (Type::ManagedValue, evaluate::Mode::Managed)
+            }
             (_, Some(Type::ManagedArray)) => (Type::ManagedArray, evaluate::Mode::Array),
             (BindingPattern::ObjectPattern(_), Some(Type::ManagedObject)) => {
                 (Type::ManagedObject, evaluate::Mode::Object)
@@ -190,6 +202,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     }
                     let proven = if pattern.node_id() == root {
                         Some(root_type)
+                    } else if self.stored.string(origin) {
+                        Some(Type::ManagedValue)
                     } else {
                         self.stored.container(origin)
                     };
@@ -197,14 +211,25 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     pending.push(Work::Leave);
                     match pattern {
                         BindingPattern::ObjectPattern(object) => {
-                            let Some(receiver @ (Type::ManagedObject | Type::ManagedArray)) =
-                                proven
+                            let Some(
+                                receiver @ (Type::ManagedObject
+                                | Type::ManagedArray
+                                | Type::ManagedValue),
+                            ) = proven
                             else {
                                 return Err(unsupported(
                                     object.as_ref(),
                                     "nested object bindings require a source-proven managed object or array",
                                 ));
                             };
+                            if receiver == Type::ManagedValue
+                                && (!self.stored.string(origin) || object.rest.is_some())
+                            {
+                                return Err(unsupported(
+                                    object.as_ref(),
+                                    "String object bindings require a proven String without rest",
+                                ));
+                            }
                             steps.push(BindingStep::Object {
                                 source: object,
                                 receiver,
@@ -257,6 +282,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             receiver == Type::ManagedArray,
                             dictionary,
                         )?;
+                        if receiver == Type::ManagedValue
+                            && key.as_slice() != [108, 101, 110, 103, 116, 104]
+                            && string_index(&key).is_none()
+                        {
+                            return Err(unsupported(
+                                property,
+                                "String object binding keys require length or canonical numeric indices",
+                            ));
+                        }
                         steps.push(BindingStep::Field {
                             source: property,
                             key,

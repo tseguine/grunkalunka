@@ -2590,3 +2590,18 @@ The iterable and selected container kinds must remain source-proven. Async var,
 for-in patterns, general iterables and unproven selected receivers stay guarded.
 Corpus 148 executes the exact former var iteration-pattern rejection with its hash
 and retains a separate for-in pattern guard. No API or host import is added.
+
+
+Object binding declarations now accept source-proven primitive Strings for static
+`length` and canonical unsigned numeric property keys, including nested String
+receivers. Selection reads UTF-16 length/code units through existing String IR;
+out-of-range indices select Undefined and ordered defaults remain lazy. The RHS is
+saved once, so default-side rebinding cannot change later fields. Const/let/var
+storage, captures, annotations and source limits retain their existing contracts.
+Member-origin analysis records Number for length and String-or-Undefined for an
+index; specialized projections and primitive exports still need their usual proof.
+
+String object rest, dynamic/noncanonical keys, inherited members, mixed/nullish
+receivers and String array-iterator destructuring retain guards. This is language
+binding support; no standard-library API or host import is added. Corpus 149
+retains the exact former empty-String runtime rejection as an executed positive.
