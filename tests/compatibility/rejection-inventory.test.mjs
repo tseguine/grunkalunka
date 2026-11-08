@@ -1,3 +1,4 @@
+import { resolveNumericOrigin, primitiveProfileCounts } from './numeric-origins.mjs';
 import { optionalParameterPrograms, optionalParameterPromotions } from './optional-parameters.mjs';
 import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
@@ -31,7 +32,7 @@ import { valuePrograms, valueRejected, valueFuelCases } from './primitive-values
 import { generalConstBindings, generalConstBindingPromotion } from './general-const-bindings.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { rejected } from './corpus.mjs';
+import { rejected, programs } from './corpus.mjs';
 import { genericDeclarations, genericDeclarationPromotions } from './generic-declarations.mjs';
 import { numericLogicalAssignment, numericLogicalAssignmentPromotions } from './numeric-logical-assignment.mjs';
 import { typeOnlyModuleItems, typeOnlyModulePromotions } from './type-only-module-items.mjs';
@@ -965,4 +966,38 @@ test('conditional helper fallthrough keeps its exact numeric boundary source',()
  assert.equal(createHash('sha256').update(row[1]).digest('hex'),'992962503d4d3ce449edabea14ba708156d6be360eb97b358e66a6dbbb4cedbe');
  assert.equal(row[3],'managed value requires an identity or managed storage position');
  assert.equal(rejectionClassification(validate(catalog),row[0]).group,'return-policy');
+});
+
+test('primitive numeric origins survive promotion without losing their exact source',()=>{
+  const resolved=valuePrograms.map(fixture=>resolveNumericOrigin(fixture,rejected,programs)).filter(Boolean);
+  const promoted=resolved.filter(origin=>origin.status==='supported');
+  assert.deepEqual(promoted.map(origin=>origin.id),['gap-nullish']);
+  assert.equal(promoted[0].sourceJS,'export function run(a,b) { return (a === 4 ? null : a) ?? b; }');
+  assert.ok(resolved.some(origin=>origin.status==='rejected'));
+});
+
+test('numeric origin resolution fails closed on missing, duplicate or changed source records',()=>{
+  const source='export function run(a,b){return a;}';
+  const fixture={numericOrigin:'example',sourceJS:source};
+  const positive=['example','','',undefined,undefined,{sourceJS:source,sourceTS:source}];
+  const negative=['example',source];
+  assert.equal(resolveNumericOrigin(fixture,[negative],[]).status,'rejected');
+  assert.equal(resolveNumericOrigin(fixture,[],[positive]).status,'supported');
+  assert.equal(resolveNumericOrigin({numericOrigin:null},[],[]),null);
+  for(const [neg,pos]of [[[],[]],[[negative,negative],[]],[[],[positive,positive]],[[negative],[positive]]]){
+    assert.throws(()=>resolveNumericOrigin(fixture,neg,pos),/unique numeric origin/);
+  }
+  assert.throws(()=>resolveNumericOrigin({...fixture,sourceJS:source+' '},[negative],[]),/unchanged numeric origin source/);
+  assert.throws(()=>resolveNumericOrigin({...fixture,sourceJS:source+' '},[],[positive]),/unchanged numeric origin source/);
+  assert.throws(()=>resolveNumericOrigin({sourceJS:source},[],[]),/numeric origin ID/);
+});
+
+test('primitive checker profile totals match the actual catalog and promoted numeric controls',()=>{
+  const origins=valuePrograms.map(fixture=>resolveNumericOrigin(fixture,rejected,programs)).filter(Boolean);
+  const supported=origins.filter(origin=>origin.status==='supported').length;
+  assert.deepEqual(primitiveProfileCounts,{
+    pairedPrograms:valuePrograms.length,rejectedPairs:valueRejected.length,numericOriginCases:origins.length,
+    numericSupportedOriginCases:supported,rejections:valueRejected.length*2,
+    comparisons:valuePrograms.length*2*2*14+supported*2*14,
+  });
 });

@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { valuePrograms, valueRejected, valueFuelCases } from './primitive-values.mjs';
-import { rejected as numericRejected } from './corpus.mjs';
+import { rejected as numericRejected, programs as numericPrograms } from './corpus.mjs';
+import { resolveNumericOrigin, primitiveProfileCounts } from './numeric-origins.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const compiler = path.join(root, 'target/debug/grunkalunka' + (process.platform === 'win32' ? '.exe' : ''));
@@ -66,7 +67,7 @@ const report = {
   vectors: vectors.map(([a,b]) => [bits(a), bits(b)]),
   pairedPrograms: valuePrograms.length, rejectedPairs: valueRejected.length,
   comparisons: 0, fixtures: [], rejections: [], controls: [], invocations: [],
-  numericOriginCases: 0,
+  numericOriginCases: 0, numericSupportedOriginCases: 0,
 };
 const ids = new Set();
 for (const fixture of valuePrograms) {
@@ -75,9 +76,9 @@ for (const fixture of valuePrograms) {
   assert.ok(standards.length > 0 && standards.every(url => url.startsWith('https://tc39.es/ecma262/')));
   const original = Function('"use strict";' + sourceJS.replace('export function', 'function') + ';return run;')();
   const reference = vectors.map(([a,b]) => observe(original(a,b)));
-  const numericOrigin = fixture.numericOrigin === null ? null : numericRejected.find(row => row[0] === fixture.numericOrigin);
-  if(fixture.numericOrigin !== null) { assert.ok(numericOrigin); assert.equal(sourceJS,numericOrigin[1]); report.numericOriginCases++; }
-  const record = {id, standards, numericOrigin: fixture.numericOrigin, oracle: save(id + '.oracle.js', sourceJS), reference, variants: []};
+  const numericOrigin = resolveNumericOrigin(fixture, numericRejected, numericPrograms);
+  if (numericOrigin) report.numericOriginCases++;
+  const record = {id, standards, numericOrigin: fixture.numericOrigin, numericOriginStatus: numericOrigin?.status ?? null, oracle: save(id + '.oracle.js', sourceJS), reference, variants: []};
   for (const [extension, source] of [['js', sourceJS], ['ts', sourceTS]]) {
     const name = id + '.' + extension, output = name + '.wasm';
     const sourceArtifact = save(name, source);
@@ -99,7 +100,30 @@ for (const fixture of valuePrograms) {
       wasm: {path: output, sha256: sha(wasm)}, raw: save(name + '.stdout', raw), node, wasmtime});
     report.comparisons += reference.length * 2;
   }
-  if(numericOrigin) {
+  if(numericOrigin?.status === 'supported') {
+    const numericOutput = path.join(run,id+'.numeric-supported.wasm');
+    invoke(['compile',path.join(run,id+'.js'),numericOutput]);
+    const wasm = fs.readFileSync(numericOutput);
+    const instance = new WebAssembly.Instance(new WebAssembly.Module(wasm));
+    const expected = vectors.map(([a,b]) => {
+      const value = original(a,b);
+      assert.equal(typeof value, 'number', id + ' numeric oracle');
+      return observe(value);
+    });
+    const node = vectors.map(([a,b]) => observe(instance.exports.run(a,b)));
+    const raw = invoke(['eval',numericOutput],input).stdout;
+    assert.ok(raw.endsWith('\n'));
+    const wasmtime = raw.slice(0,-1).split('\n').map(line => {
+      const hex = line.replace(/\r$/, '');
+      assert.match(hex, /^[0-9a-f]{16}$/);
+      return observe(fromBits(hex));
+    });
+    assert.deepEqual(node,expected,id + ' promoted numeric Node-Wasm');
+    assert.deepEqual(wasmtime,expected,id + ' promoted numeric Wasmtime');
+    record.numericSupported = {wasm: {path: path.basename(numericOutput), sha256: sha(wasm)}, node, wasmtime};
+    report.numericSupportedOriginCases++;
+    report.comparisons += expected.length * 2;
+  } else if(numericOrigin) {
     const numericOutput = path.join(run,id+'.numeric-rejected.wasm');
     record.numericDiagnostic = invoke(['compile',path.join(run,id+'.js'),numericOutput],'',false).stderr.trimEnd();
     assert.ok(!fs.existsSync(numericOutput));
@@ -177,8 +201,9 @@ assert.equal(report.terminationCases.length,6);
 report.controls.push('admitted String condition loop exhausts fuel');
 report.controls.push('admitted recursive General numeric result exhausts fuel');
 report.controls.push('generic entry recursion remains termination-only evidence');
-assert.equal(report.pairedPrograms, 198); assert.equal(report.numericOriginCases,16); assert.equal(report.rejections.length, 6);
-assert.equal(report.comparisons, 11088);
+for (const [key, expected] of Object.entries(primitiveProfileCounts)) {
+  assert.equal(key === 'rejections' ? report.rejections.length : report[key], expected, key);
+}
 report.artifacts = fs.readdirSync(run).sort().map(name => {const bytes=fs.readFileSync(path.join(run,name)); return {path:name,bytes:bytes.length,sha256:sha(bytes)};});
 save('report.json', JSON.stringify(report, null, 2) + '\n');
 console.log(`PASS primitive-return-v1: ${report.pairedPrograms} pairs, ${report.rejectedPairs} rejected pairs, ${report.comparisons} comparisons, ${report.controls.length} CLI controls`);
