@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn scalar_for_in_awaits_rhs_once_and_never_visits_primitive_keys() {
+    compare_promises(
+        &[
+            "let n=0;for(const k in (await a,n++,null))n+=10;await b;return n;",
+            "let key='old';for(key in (await b,false))key='changed';await a;return key==='old'?1:0;",
+            "let n=0;try{for(const k in (await Promise.reject(a),n++,undefined))n+=10;}catch(e){await b;return n;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn primitive_static_updates_preserve_old_values_and_targets_across_awaits() {
     compare_promises(
         &[

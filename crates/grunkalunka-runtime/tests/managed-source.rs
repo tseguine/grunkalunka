@@ -5,6 +5,30 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn scalar_for_in_preserves_rhs_effects_and_skips_body_and_head_assignments() {
+    for body in [
+        "let n=0;for(const k in null)n++;return n;",
+        "let n=0;for(const k in undefined)n++;return n;",
+        "let n=0;for(const k in false)n++;return n;",
+        "let n=0;for(let k in true)n++;return n;",
+        "let n=0;for(const k in (a?true:null))n++;return n;",
+        "let n=0;for(const k in (a?b:undefined))n++;return n;",
+        "let n=0;for(const k in (n++,undefined))n+=10;return n;",
+        "let key='old';for(key in null)key='changed';return key==='old'?1:0;",
+        "var key;for(var key in undefined){}return key===undefined?1:0;",
+        "var key=a;for(var key in false){}return key===a?1:0;",
+        "let n=0;for(const {0:x=(n++,'x')} in null)n++;return n;",
+        "let n=0;for(const [x=(n++,'x')] in undefined)n++;return n;",
+        "const get=()=>a?false:null;let n=0;for(const k in get())n++;return n;",
+        "let value=a;if(b)value=null;let n=0;for(const k in value)n++;return n;",
+        "let n=0;for(const x of [a,b])for(const k in (n++,false))n+=10;return n;",
+        "let n=0;const get=()=>{n++;return null;};for(const k in get())n+=10;return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn primitive_static_property_updates_preserve_conversions_missing_fields_and_aliases() {
     for body in [
         "const o={n:a?false:undefined};return o.n+=b;",
