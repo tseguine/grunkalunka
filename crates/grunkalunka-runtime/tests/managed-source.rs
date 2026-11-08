@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn member_rest_targets_preserve_selection_order_and_rest_identity() {
+    for body in [
+        "const o={};[...o.x]=[b];return a;",
+        "const o={};({...o.x}={x:b});return a;",
+        "const o={x:[]};[...o.x]=[a,b];return o.x.length;",
+        "const o={x:[]};[,...o.x]=\"💠x\";return o.x.length;",
+        "let first;const o={x:{}};({first,...o.x}={first:a,keep:b});return \"first\" in o.x?0:1;",
+        "const rows=[a];const o={x:[]};const get=()=>{rows[1]=b;return o;};[...get().x]=rows;return o.x.length;",
+        "const rows=[a];const xs=[];const key=()=>{rows[1]=b;return 0;};[...xs[key()>>>0]]=rows;return xs.length;",
+        "const row={keep:a,drop:b};const o={x:{}};const get=()=>{delete row.drop;return o;};({...get().x}=row);return \"drop\" in o.x?0:1;",
+        "const rows=[];const o={x:[]};const get=()=>{rows[1]=a;return o;};[,...get().x]=rows;return o.x.length;",
+        "const d=Object.create(null);const k=a?\"__proto__\":\"tail\";[...d[k]]=[a,b];return k in d?1:0;",
+        "const child={v:a};const o={x:{}};({...o.x}={child});return o.x.child===child?1:0;",
+        "const o={x:[]};const rows=[a,b];return ([...o.x]=rows)===rows?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn member_pattern_elisions_finish_before_destination_effects() {
     for body in [
         "const rows=[];const o={x:undefined};const grow=()=>{rows[1]=a;return o;};[,grow().x]=rows;return o.x===undefined?1:0;",

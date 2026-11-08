@@ -1495,5 +1495,13 @@ and source-proven String keys on null-prototype dictionaries. The receiver and k
 execute once, in that order, before source selection; both survive awaited keys and
 lazy defaults. Elisions finish before evaluating the next member reference, so an
 exhausted iterator cannot be revived by a destination effect. Dynamic writes widen all potentially aliased field/element facts.
-Member rest targets, nested target patterns, unproven/coercing keys, nullable/unknown
+Nested target patterns, unproven/coercing keys, nullable/unknown
 receivers and unchecked Array length writes remain guarded.
+
+
+Array/object rest assignments also accept the same owned member destinations.
+The original reference (including supported computed keys/awaits) executes before
+collecting the fresh rest container. Array elisions retain sticky exhaustion;
+object exclusions and shallow reference identity use the existing rest operations.
+Source facts track the new allocation and its possible contents through aliases.
+String Array rest uses code points; String object rest remains guarded.

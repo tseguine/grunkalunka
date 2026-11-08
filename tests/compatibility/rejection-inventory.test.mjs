@@ -1,3 +1,4 @@
+import { memberRestPrograms } from './member-rest-targets.mjs';
 import { computedPatternPrograms } from './computed-pattern-targets.mjs';
 import { memberPatternPrograms } from './member-pattern-targets.mjs';
 import { scalarPatternPrograms } from './scalar-pattern-parameters.mjs';
@@ -1403,3 +1404,5 @@ test('scalar pattern parameters preserve source and original reference results',
 test('member pattern targets retain original address/selection/default ordering',()=>{assert.equal(memberPatternPrograms.length,12);for(const row of memberPatternPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
 test('computed pattern targets retain original key/address/selection order',()=>{assert.equal(computedPatternPrograms.length,14);for(const row of computedPatternPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+test('member rest targets retain original reference and copy operations',()=>{assert.equal(memberRestPrograms.length,12);for(const row of memberRestPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
