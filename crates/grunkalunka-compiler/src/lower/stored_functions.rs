@@ -1158,23 +1158,41 @@ impl Fields {
                                 }
                             }
                         }
-                        if let Some(rest) = &pattern.rest
-                            && let Some(identifier) = rest
-                                .target
-                                .as_simple_assignment_target()
-                                .and_then(|t| target_identifier(t, 0).ok().flatten())
-                            && let Some(symbol) = symbol(identifier, semantic)
-                        {
+                        if let Some(rest) = &pattern.rest {
                             elements.add_rest(
                                 rest.node_id(),
                                 a.right.node_id(),
                                 pattern.elements.len() as u32,
                             );
-                            pattern_rules.push((
-                                identifier.node_id(),
-                                Rule::Known(Origin::Array(rest.node_id())),
-                            ));
-                            definitions.push(Definition::Value(symbol, identifier.node_id()));
+                            if let Some(identifier) = rest
+                                .target
+                                .as_simple_assignment_target()
+                                .and_then(|t| target_identifier(t, 0).ok().flatten())
+                                && let Some(symbol) = symbol(identifier, semantic)
+                            {
+                                pattern_rules.push((
+                                    identifier.node_id(),
+                                    Rule::Known(Origin::Array(rest.node_id())),
+                                ));
+                                definitions.push(Definition::Value(symbol, identifier.node_id()));
+                            } else if let Some((receiver, key)) =
+                                assignment_patterns::property_target(&rest.target, 0)
+                            {
+                                let id = rest.target.node_id();
+                                pattern_rules
+                                    .push((id, Rule::Known(Origin::Array(rest.node_id()))));
+                                match key {
+                                    iteration::PropertyKey::Literal(key) => {
+                                        writes.push((receiver.node_id(), key, id))
+                                    }
+                                    iteration::PropertyKey::Runtime(_) => {
+                                        mutations.push(mutations::Mutation::AnyKeyWrite {
+                                            receiver: receiver.node_id(),
+                                            value: id,
+                                        })
+                                    }
+                                }
+                            }
                         }
                     }
                     if let oxc_ast::ast::AssignmentTarget::ObjectAssignmentTarget(pattern) = &a.left
@@ -1241,13 +1259,7 @@ impl Fields {
                                 }
                             }
                         }
-                        if let Some(rest) = &pattern.rest
-                            && let Some(identifier) = rest
-                                .target
-                                .as_simple_assignment_target()
-                                .and_then(|t| target_identifier(t, 0).ok().flatten())
-                            && let Some(symbol) = symbol(identifier, semantic)
-                        {
+                        if let Some(rest) = &pattern.rest {
                             rest_sources.insert(
                                 rest.node_id(),
                                 member_origins::Rest {
@@ -1255,11 +1267,35 @@ impl Fields {
                                     excluded,
                                 },
                             );
-                            pattern_rules.push((
-                                identifier.node_id(),
-                                Rule::Known(Origin::Object(rest.node_id())),
-                            ));
-                            definitions.push(Definition::Value(symbol, identifier.node_id()));
+                            if let Some(identifier) = rest
+                                .target
+                                .as_simple_assignment_target()
+                                .and_then(|t| target_identifier(t, 0).ok().flatten())
+                                && let Some(symbol) = symbol(identifier, semantic)
+                            {
+                                pattern_rules.push((
+                                    identifier.node_id(),
+                                    Rule::Known(Origin::Object(rest.node_id())),
+                                ));
+                                definitions.push(Definition::Value(symbol, identifier.node_id()));
+                            } else if let Some((receiver, key)) =
+                                assignment_patterns::property_target(&rest.target, 0)
+                            {
+                                let id = rest.target.node_id();
+                                pattern_rules
+                                    .push((id, Rule::Known(Origin::Object(rest.node_id()))));
+                                match key {
+                                    iteration::PropertyKey::Literal(key) => {
+                                        writes.push((receiver.node_id(), key, id))
+                                    }
+                                    iteration::PropertyKey::Runtime(_) => {
+                                        mutations.push(mutations::Mutation::AnyKeyWrite {
+                                            receiver: receiver.node_id(),
+                                            value: id,
+                                        })
+                                    }
+                                }
+                            }
                         }
                     }
                     if let Some(name) = a

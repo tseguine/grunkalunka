@@ -132,19 +132,6 @@ impl Lowering<'_, '_> {
             .map(Destination::Slot)
     }
 
-    fn assignment_pattern_slot_for_rest(
-        &self,
-        target: &AssignmentTarget<'_>,
-    ) -> Result<SlotId, String> {
-        let identifier = target
-            .as_simple_assignment_target()
-            .map(|t| target_identifier(t, 0))
-            .transpose()?
-            .flatten()
-            .ok_or_else(|| unsupported(target, "rest assignment requires an identifier target"))?;
-        self.assignment_identifier_slot(identifier)
-    }
-
     fn assignment_identifier_slot(
         &self,
         identifier: &IdentifierReference<'_>,
@@ -310,9 +297,8 @@ impl Lowering<'_, '_> {
                         .map_err(|_| unsupported(node, "array assignment exceeds index limit"))?;
                     writes.push(Write {
                         selection: Selection::ArrayRest(start),
-                        destination: Destination::Slot(
-                            self.assignment_pattern_slot_for_rest(&rest.target)?,
-                        ),
+                        destination: self
+                            .assignment_pattern_destination(&rest.target, depth + 1)?,
                         default: None,
                     });
                 }
@@ -375,9 +361,8 @@ impl Lowering<'_, '_> {
                 if let Some(rest) = &pattern.rest {
                     writes.push(Write {
                         selection: Selection::ObjectRest(excluded),
-                        destination: Destination::Slot(
-                            self.assignment_pattern_slot_for_rest(&rest.target)?,
-                        ),
+                        destination: self
+                            .assignment_pattern_destination(&rest.target, depth + 1)?,
                         default: None,
                     });
                 }
@@ -1041,8 +1026,8 @@ mod member_tests {
             ("const o={};[o.__proto__]=[b];return a;", false),
             ("const xs=[];[xs.length]=[b];return a;", false),
             ("const o={};const k='x';[o[k]]=[b];return a;", false),
-            ("const o={};[...o.x]=[b];return a;", false),
-            ("const o={};({...o.x}={x:b});return a;", false),
+            ("const o={};[...o.x]=[b];return a;", true),
+            ("const o={};({...o.x}={x:b});return a;", true),
             (
                 "const o={x:'safe'},alias=o;[alias.x]=[a];return o.x.length;",
                 false,
@@ -1108,7 +1093,7 @@ mod computed_member_tests {
                 false,
             ),
             ("const xs=[[]];[xs[a>>>0]]=[b];return xs[0].length;", false),
-            ("const xs=[];[...xs[a>>>0]]=[b];return a;", false),
+            ("const xs=[];[...xs[a>>>0]]=[b];return a;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
@@ -1128,6 +1113,62 @@ mod computed_member_tests {
         std::thread::Builder::new().stack_size(2*1024*1024).spawn(|| {
             for (wraps,admitted) in [(126,true),(127,false)] {
                 let source=format!("export function run(a,b){{const xs=[];[xs[{}a>>>0{}]]=[b];return xs.length;}}","(".repeat(wraps),")".repeat(wraps));
+                for typed in [false,true] {
+                    let r=crate::compile(&source,typed);
+                    assert_eq!(r.is_ok(),admitted,"{wraps}: {:?}",r.err());
+                }
+            }
+        }).unwrap().join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod member_rest_tests {
+    #[test]
+    fn member_rest_targets_preserve_receiver_key_and_alias_guards() {
+        for (body, admitted) in [
+            ("const o={x:[]};[...o.x]=[a,b];return o.x.length;", true),
+            (
+                "const o={x:{}};({...o.x}={a,b});return 'a' in o.x?1:0;",
+                true,
+            ),
+            (
+                "const d=Object.create(null);const k='tail';[...d[k]]=[a,b];return k in d?1:0;",
+                true,
+            ),
+            ("[...a.x]=[b];return a;", false),
+            ("const o=a?{}:null;({...o.x}={x:b});return a;", false),
+            ("const xs=[];[...xs.length]=[b];return a;", false),
+            ("const o={};({...o.__proto__}={x:b});return a;", false),
+            ("const xs=[];[...xs[a]]=[b];return a;", false),
+            (
+                "const o={x:'safe'};const alias=o;[...alias.x]=[a];return o.x.length;",
+                false,
+            ),
+            (
+                "const o={x:'safe'};const alias=o;({...alias.x}={a});return o.x.length;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
+            }
+        }
+        assert!(
+            crate::compile(
+                "export function run(a,b){[...(a as object).x]=[b];return a;}",
+                true
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn member_rest_reference_depth_is_bounded_on_a_small_native_stack() {
+        std::thread::Builder::new().stack_size(2*1024*1024).spawn(|| {
+            for (wraps,admitted) in [(126,true),(127,false)] {
+                let source=format!("export function run(a,b){{const o={{x:[]}};[...({}o{}).x]=[a,b];return o.x.length;}}","(".repeat(wraps),")".repeat(wraps));
                 for typed in [false,true] {
                     let r=crate::compile(&source,typed);
                     assert_eq!(r.is_ok(),admitted,"{wraps}: {:?}",r.err());

@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn member_rest_targets_preserve_awaited_references_and_exhaustion() {
+    compare_promises(
+        &[
+            "const rows=[a];const o={x:[]};[...(await b,rows[1]=b,o).x]=rows;await a;return o.x.length;",
+            "const rows=[];const o={x:[]};[,...(await b,rows[1]=a,o).x]=rows;await a;return o.x.length;",
+            "const row={x:a,y:b};const o={x:{}};({... (await a,delete row.y,o).x}=row);await b;return \"y\" in o.x?0:1;",
+            "const xs=[];let n=0;try{[...xs[(await Promise.reject(b),n++,0)>>>0]]=[a];}catch(e){await a;return xs.length+n;}return 99;",
+            "const rows=[];const o={x:undefined};[,(await b,rows[1]=a,o).x]=rows;await a;return o.x===undefined?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn computed_pattern_targets_preserve_awaited_keys_and_saved_references() {
     compare_promises(
         &[
