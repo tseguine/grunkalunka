@@ -121,11 +121,7 @@ impl Lowering<'_, '_> {
         };
         let receiver = self.receiver_type(object, depth + 2);
         if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))
-            || !(if !matches!(key, Key::Literal(_)) {
-                self.stored.primitive(target.node_id())
-            } else {
-                self.stored.number(target.node_id())
-            })
+            || !self.stored.primitive(target.node_id())
         {
             // Keep existing validation/first diagnostics for unsupported writes.
             return Ok(false);
@@ -267,32 +263,24 @@ impl Lowering<'_, '_> {
                     },
                 );
                 let old = self.value(Type::Number);
-                if !matches!(key, ir::ManagedKey::Literal(_)) {
-                    // The source planner proves Number/Boolean/Null/Undefined only.
-                    let primitive = self.value(Type::General);
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::ManagedToPrimitive {
-                            result: primitive,
-                            input,
-                        },
-                    );
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::NumberFromGeneral {
-                            result: old,
-                            input: primitive,
-                        },
-                    );
-                } else {
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::ManagedToNumber { result: old, input },
-                    );
-                }
+                // Source alternatives exclude String/reference/BigInt coercion.
+                let primitive = self.value(Type::General);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedToPrimitive {
+                        result: primitive,
+                        input,
+                    },
+                );
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::NumberFromGeneral {
+                        result: old,
+                        input: primitive,
+                    },
+                );
                 work.push(Work::PropertyUpdate(Task::Write {
                     node,
                     object,
@@ -375,6 +363,33 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn static_primitive_updates_include_missing_fields_but_reject_coercing_kinds() {
+        for (body, admitted) in [
+            ("const o={n:false};return o.n++;", true),
+            ("const o={n:null};return ++o.n;", true),
+            ("const o={};return o.n+=b;", true),
+            ("const xs=[,];return xs[0]++;", true),
+            ("const xs=[false,null];return xs[0]+=b;", true),
+            ("const xs=[];return xs[2]|=b;", true),
+            ("const o={n:a?false:null};return o.n-=b;", true),
+            ("const o={n:false};o.n++;return o.n;", false),
+            ("const o={n:false};o.n++;return +o.n;", true),
+            ("const o={n:'text'};return o.n++;", false),
+            ("const o={n:{}};return o.n-=b;", false),
+            ("const o={n:false};return o.n+='text';", false),
+            ("const o={};return o.toString++;", false),
+            ("const xs=[];return xs.length++;", false),
+            ("const xs=[];return xs.map++;", false),
+        ] {
+            let s = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&s, ts);
+                assert_eq!(r.is_ok(), admitted, "{s}: {:?}", r.err());
+            }
+        }
+    }
+
     #[test]
     fn dictionary_numeric_updates_require_runtime_string_and_primitive_proofs() {
         for (body, admitted) in [
@@ -477,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn number_property_writes_require_known_own_fields_and_keep_result_positions() {
+    fn primitive_property_writes_require_known_kinds_and_keep_result_positions() {
         for (body, admitted) in [
             ("const o={n:a};return o.n++;", true),
             ("const o={n:a};return ++o.n;", true),
@@ -486,8 +501,8 @@ mod tests {
             ("const o={n:a};const box={x:o.n++};return box.x+b;", true),
             ("const o={n:a};o.n+=undefined;return o.n;", true),
             ("const o={n:'text'};o.n++;return a;", false),
-            ("const o={};o.n++;return a;", false),
-            ("const o={n:a};delete o.n;o.n++;return a;", false),
+            ("const o={};o.n++;return a;", true),
+            ("const o={n:a};delete o.n;o.n++;return a;", true),
             ("const o={n:a};o.n='text';o.n++;return a;", false),
             ("const o={n:a};return o.n+='text';", false),
             ("const o={n:a};const k='n';return o[k]++;", false),
