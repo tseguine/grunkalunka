@@ -194,3 +194,45 @@ test('re-exported source changes cannot silently drop the consumer check', () =>
   });
   assert.equal(selected.valid, true, selected.errors.join('\n'));
 });
+
+test('literal Rust include! loads an audited local source while computed include! fails closed', () => {
+  const source = [
+    'include!("./generated/dispatch.rs");',
+    'const S: &str = include_str!("../fixtures/labels.txt");',
+    'const B: &[u8] = include_bytes!("../fixtures/payload.bin");',
+    'include!(concat!(env!("CARGO_MANIFEST_DIR"), "/generated.rs"));',
+  ].join('\n');
+  const result = discoverLiteralSourceInputs('crates/runtime/src/lib.rs', source);
+  assert.deepEqual(result.inputs, [
+    'crates/runtime/fixtures/labels.txt',
+    'crates/runtime/fixtures/payload.bin',
+    'crates/runtime/src/generated/dispatch.rs',
+  ]);
+  assert.deepEqual(result.unresolved, [
+    'nonliteral Rust include: crates/runtime/src/lib.rs',
+  ]);
+});
+
+test('Rust include! source edges participate in real check-coverage decisions', () => {
+  const options = {
+    specs: [{ source: 'crates/runtime/src/lib.rs',
+      requiredChecks: ['cargo-test:grunkalunka-runtime'] }],
+    readSource: () => 'include!("./generated/dispatch.rs");',
+    exists: () => true,
+  };
+  const missing = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: [] }),
+  });
+  assert.equal(missing.valid, false);
+  assert.deepEqual(missing.edges, [{
+    consumer: 'crates/runtime/src/lib.rs',
+    dependency: 'crates/runtime/src/generated/dispatch.rs',
+    outcome: 'under-selected',
+  }]);
+  const selected = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: ['cargo-test:grunkalunka-runtime'] }),
+  });
+  assert.equal(selected.valid, true, selected.errors.join('\n'));
+});

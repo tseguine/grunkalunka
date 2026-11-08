@@ -12,6 +12,9 @@ const importCalls = /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
 const urls = /\bnew\s+URL\s*\(\s*(['"])([^'"]+)\1\s*,\s*import\.meta\.url\s*,?\s*\)/g;
 const urlTemplates = /\bnew\s+URL\s*\(\s*\x60([^\x60]*)\x60\s*,\s*import\.meta\.url\s*,?\s*\)/g;
 const includes = /\binclude_(?:str|bytes)!\s*\(\s*"([^"]+)"\s*\)/g;
+// include! splices Rust source text at compile time; omitting it can also omit
+// every transitive input introduced by that text from the source audit.
+const codeIncludes = /\binclude!\s*\(\s*"([^"]+)"\s*\)/g;
 const rustPaths = /#\[\s*path\s*=\s*"([^"]+)"\s*\]/g;
 
 function resolveSourceInput(source, specifier) {
@@ -60,9 +63,9 @@ export function discoverLiteralSourceInputs(source, text) {
       }
     }
   } else {
-    const literalIncludes = [...text.matchAll(includes)];
+    const literalIncludes = [...text.matchAll(includes), ...text.matchAll(codeIncludes)];
     for (const match of literalIncludes) add(match[1]);
-    if ([...text.matchAll(/\binclude_(?:str|bytes)!\s*\(/g)].length !== literalIncludes.length) {
+    if ([...text.matchAll(/\binclude(?:_(?:str|bytes))?!\s*\(/g)].length !== literalIncludes.length) {
       unresolved.push('nonliteral Rust include: ' + source);
     }
     const literalPaths = [...text.matchAll(rustPaths)];
