@@ -6,6 +6,7 @@
 use super::*;
 mod for_loop;
 mod for_of;
+mod iteration_member;
 pub(super) mod switch;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
@@ -445,6 +446,29 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     cursor,
                 )
             }
+            Frame::ForOfMemberReceiver { frame, selected } => self
+                .resume_iteration_member_receiver(
+                    frame,
+                    output_region,
+                    selected,
+                    value.expect("iteration member receiver"),
+                    cursor,
+                ),
+            Frame::ForOfMemberKey {
+                frame,
+                selected,
+                object,
+                uint32,
+            } => {
+                let key = value.expect("iteration member key");
+                let key = if uint32 {
+                    ir::ManagedKey::Uint32(key)
+                } else {
+                    ir::ManagedKey::String(key)
+                };
+                self.finish_iteration_member(frame, output_region, selected, object, key, cursor);
+                Ok(())
+            }
             Frame::ForUpdate {
                 frame,
                 body,
@@ -611,6 +635,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::DoWhilePredicate { .. }
             | Frame::ForInitializer { .. }
             | Frame::ForOfSource { .. }
+            | Frame::ForOfMemberReceiver { .. }
+            | Frame::ForOfMemberKey { .. }
             | Frame::ForPredicate(_)
             | Frame::ForUpdate { .. } => {
                 unreachable!("expression continuation is resumed by a value result")

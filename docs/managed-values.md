@@ -51,6 +51,17 @@ Unknown receivers, inherited fields, other runtime keys, optional calls and
 unparenthesized multi-step chains remain guarded. Type assertions establish no
 receiver or selected-value proof.
 
+`for...of` and `for...in` can assign each selection directly to a member target.
+Static/literal own properties work on source-proven objects and Arrays;
+`>>>`-proven unsigned runtime keys also work, and null-prototype dictionaries
+accept source-proven String keys. The iterable is evaluated once, then each
+selection is saved before evaluating that visit's receiver and key. These target
+effects, including supported awaits, do not run on an empty loop or on a removed
+`for...in` key. Rebinding during key evaluation still writes to the captured
+receiver. Array length/prototype writes, unknown or nullable targets, coercing
+keys and assignment-pattern heads retain guards. Member writes update the same
+alias/helper field and Array element facts as ordinary assignments.
+
 Boxed values whose source alternatives are all Number, Boolean, Null or Undefined
 can now project into the existing tagged scalar path. This preserves each actual
 language tag and every Number bit; arithmetic, explicit coercion, relational

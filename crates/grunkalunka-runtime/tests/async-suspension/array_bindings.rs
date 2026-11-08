@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn member_iteration_heads_save_selections_and_targets_across_awaits() {
+    compare_promises(
+        &[
+            "const o={x:a};for((await b,o).x of [b]){await a;}return +(o.x);",
+            "let o={x:a};const old=o;for(o[(await b,o={x:b},0>>>0)] of [a]){await a;}return old[0]===a&&o.x===b?1:0;",
+            "const d=Object.create(null);for(d[(await a,'x')] of [b]){await b;}return +(d.x);",
+            "const o={x:a};try{for(o[(await Promise.reject(b),0>>>0)] of [b]){}return 9;}catch(e){await a;return o.x===a?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn optional_delete_preserves_saved_targets_and_skipped_rejected_keys() {
     compare_promises(
         &[

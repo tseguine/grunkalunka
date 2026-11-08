@@ -1,6 +1,16 @@
 use super::*;
 
 #[test]
+fn member_iteration_heads_preserve_primitive_tags_and_number_bits() {
+    compare_helpers(&[
+        "export function run(a,b){const o={x:undefined};for(o.x of [a,b]){}return o.x;}",
+        "export function run(a,b){const o={x:undefined};for(o.x of [null]){}return o.x;}",
+        "export function run(a,b){const o={x:undefined};for(o.x of [false]){}return o.x;}",
+        "export function run(a,b){const o={x:undefined};for(o.x of []){}return o.x===undefined;}",
+    ]);
+}
+
+#[test]
 fn optional_delete_returns_boolean_tags_for_present_and_nullish_receivers() {
     compare_helpers(&[
         "export function run(a,b){const o=a?{x:b}:null;return delete o?.x;}",

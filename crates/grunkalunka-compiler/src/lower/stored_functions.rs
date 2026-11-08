@@ -526,7 +526,7 @@ impl Fields {
                     .then_some((pattern, rule))
             })
             .collect::<Vec<_>>();
-        let has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
+        let mut has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
         for (pattern, rule) in patterned_iterations {
             pattern_definitions(pattern, rule, &mut definitions, &mut pattern_rules);
         }
@@ -539,6 +539,7 @@ impl Fields {
         let mut enumeration_inputs = Vec::new();
         let mut indexed_copy_inputs = Vec::new();
         let mut writes = Vec::new();
+        let mut member_iteration_rules = Vec::new();
         let mut numeric_targets = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -554,6 +555,33 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            let member_iteration = match node.kind() {
+                AstKind::ForOfStatement(source) => {
+                    Some((&source.left, Rule::Iterated(source.right.node_id())))
+                }
+                AstKind::ForInStatement(source) => {
+                    Some((&source.left, Rule::Known(Origin::String)))
+                }
+                _ => None,
+            };
+            if let Some((left, rule)) = member_iteration
+                && let Some((receiver, key)) = iteration::property_iteration_target(left)
+            {
+                has_iterations = true;
+                let value = left.node_id();
+                member_iteration_rules.push((value, rule));
+                match key {
+                    iteration::PropertyKey::Literal(key) => {
+                        writes.push((receiver.node_id(), key, value))
+                    }
+                    iteration::PropertyKey::Runtime(_) => {
+                        mutations.push(mutations::Mutation::AnyKeyWrite {
+                            receiver: receiver.node_id(),
+                            value,
+                        })
+                    }
+                }
+            }
             if let AstKind::UnaryExpression(unary) = node.kind()
                 && let Some(mutation) = mutations::delete(unary)
             {
@@ -1258,6 +1286,17 @@ impl Fields {
             if let Some(rule) = rule {
                 rules.push((id, rule));
             }
+        }
+        // Member heads are assignment references, never reads of their old
+        // value. Their selected iteration origins feed the ordinary alias writes.
+        let member_heads = member_iteration_rules
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<BTreeSet<_>>();
+        rules.retain(|(id, _)| !member_heads.contains(id));
+        for (id, rule) in member_iteration_rules {
+            values.remove(&id);
+            rules.push((id, rule));
         }
         let has_patterns = !pattern_rules.is_empty();
         for (id, rule) in pattern_rules {

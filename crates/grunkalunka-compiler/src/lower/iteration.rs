@@ -79,8 +79,8 @@ pub(super) fn for_of_pattern<'n, 'a>(
     declaration_iteration_pattern(&source.left)
 }
 
-/// An existing lexical binding is an assignable iteration head. Patterns,
-/// members and unsupported TS targets retain their existing diagnostics.
+/// Query the existing identifier case; member references have their own planner.
+/// Assignment patterns and unsupported TS targets retain their diagnostics.
 pub(super) fn assignment_iteration_identifier<'n, 'a>(
     left: &'n ForStatementLeft<'a>,
 ) -> Result<Option<&'n IdentifierReference<'a>>, String> {
@@ -88,6 +88,31 @@ pub(super) fn assignment_iteration_identifier<'n, 'a>(
         .map(|target| target_identifier(target, 0))
         .transpose()
         .map(Option::flatten)
+}
+
+pub(super) enum PropertyKey<'n, 'a> {
+    Literal(Vec<u16>),
+    Runtime(&'n Expression<'a>),
+}
+
+/// Borrow the original reference; loop lowering evaluates it after each selection.
+pub(super) fn property_iteration_target<'n, 'a>(
+    left: &'n ForStatementLeft<'a>,
+) -> Option<(&'n Expression<'a>, PropertyKey<'n, 'a>)> {
+    match left.as_simple_assignment_target()? {
+        SimpleAssignmentTarget::StaticMemberExpression(member) if !member.optional => Some((
+            &member.object,
+            PropertyKey::Literal(member.property.name.encode_utf16().collect()),
+        )),
+        SimpleAssignmentTarget::ComputedMemberExpression(member) if !member.optional => {
+            let key = closures::unwrapped_at(&member.expression, 1)
+                .and_then(|(key, _)| static_keys::literal(key))
+                .map(PropertyKey::Literal)
+                .unwrap_or(PropertyKey::Runtime(&member.expression));
+            Some((&member.object, key))
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn for_of_binding<'n, 'a>(
