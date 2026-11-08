@@ -3,6 +3,25 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn fixed_array_literal_has_own_spreads_preserve_keys_receivers_and_effects() {
+    for source in [
+        "export function run(a,b){const xs=[a];return Object.hasOwn(...[xs,0>>>0])?1:0;}",
+        "export function run(a,b){const o={x:a};return Object.hasOwn(...[o,'x'])?1:0;}",
+        "export function run(a,b){const xs=[a];return Object.hasOwn(...[xs,...[],0>>>0])?1:0;}",
+        "export function run(a,b){const xs=[a];return Object.hasOwn(...[...[xs],0>>>0])?1:0;}",
+        "export function run(a,b){const xs=[a];return Object.hasOwn(...[xs],0>>>0)?1:0;}",
+        "export function run(a,b){const xs=[a];return Object.hasOwn(xs,...[0>>>0])?1:0;}",
+        "export function run(a,b){const xs=[a];const ok=Object.hasOwn(...[xs,(xs[0]=undefined,0>>>0)]);return ok&&xs.length===1?1:0;}",
+        "export function run(a,b){const xs=[a];let n=0;const ok=Object.hasOwn(...[(n=n*10+1,xs),(n=n*10+2,0>>>0)],n=n*10+3);return ok&&n===123?1:0;}",
+        "export function run(a,b){const xs=[a];let old=xs;const other=[b];const ok=Object.hasOwn(...[(xs=other,old),(delete old[0],0>>>0)]);return ok?1:0;}",
+        "export function run(a,b){const xs=[a];return Object.hasOwn(...[xs,4294967295>>>0])?1:0;}",
+        "export function run(a,b){return Object.hasOwn(...[true,0>>>0])?1:0;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
 fn literal_call_spreads_preserve_reference_and_callback_inputs() {
     for source in [
         "function f(x,y){x.v=y;return x;}export function run(a,b){const o={v:a};return f(...[o,b])===o&&o.v===b?1:0;}",

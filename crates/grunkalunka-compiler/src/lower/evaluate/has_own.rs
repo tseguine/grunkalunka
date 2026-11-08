@@ -12,6 +12,7 @@ pub(super) enum Membership {
 pub(super) struct Task<'e, 'a> {
     node: &'e Expression<'a>,
     call: &'e CallExpression<'a>,
+    arguments: invocation::Arguments<'e, 'a>,
     depth: usize,
     index: usize,
     input: Option<ValueId>,
@@ -120,7 +121,8 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         boolean_consumer(node, mode, "property presence produces a Boolean", work)?;
-        if call.arguments.len() > 1000 {
+        let arguments = invocation::all_arguments(call);
+        if arguments.len() > 1000 {
             return Err(unsupported(
                 node,
                 "at most 1000 Object.hasOwn arguments are admitted",
@@ -129,6 +131,7 @@ impl Lowering<'_, '_> {
         work.push(Work::HasOwn(Task {
             node,
             call,
+            arguments,
             depth,
             index: 0,
             input: None,
@@ -156,7 +159,7 @@ impl Lowering<'_, '_> {
                 ir::ManagedKey::String(key)
             });
         }
-        let Some(arg) = task.call.arguments.get(task.index) else {
+        let Some(actual) = task.arguments.get(task.index) else {
             let input = task.input.ok_or_else(|| {
                 unsupported(
                     task.node,
@@ -169,10 +172,13 @@ impl Lowering<'_, '_> {
             self.finish_property_presence(task.node, regions.current(), values, input, key);
             return Ok(());
         };
-        let arg = arg
-            .as_expression()
-            .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
-        let depth = task.depth + 1;
+        let arg = actual.as_expression().ok_or_else(|| {
+            unsupported(
+                task.node,
+                "only fixed array-literal call spreads are admitted",
+            )
+        })?;
+        let depth = task.depth + 1 + actual.depth;
         let mode = if task.index == offset {
             match self.receiver_type(arg, depth) {
                 Some(Type::ManagedObject) => Mode::Object,
@@ -321,6 +327,70 @@ mod uint32_has_own_tests {
                         "export function run(a,b){{const xs=[a];return Object.hasOwn(xs,{}a>>>0{})?1:0;}}",
                         "(".repeat(depth),
                         ")".repeat(depth)
+                    );
+                    let result = crate::compile(&source, false);
+                    assert_eq!(result.is_ok(), admitted, "{depth}: {:?}", result.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod fixed_has_own_spread_tests {
+    #[test]
+    fn fixed_literal_spreads_reuse_ordinary_argument_proofs() {
+        for (body, admitted) in [
+            (
+                "const xs=[a];return Object.hasOwn(...[xs,0>>>0])?1:0;",
+                true,
+            ),
+            ("const o={x:a};return Object.hasOwn(...[o,'x'])?1:0;", true),
+            ("return Object.hasOwn(...[[...[a]],0>>>0])?1:0;", true),
+            (
+                "const xs=[a];return Object.hasOwn(...[xs,...[],0>>>0])?1:0;",
+                true,
+            ),
+            ("return Object.hasOwn(...[...[{0:a}],0>>>0])?1:0;", true),
+            (
+                "const xs=[a];return Object.hasOwn(...[xs],0>>>0)?1:0;",
+                true,
+            ),
+            (
+                "const xs=[a];return Object.hasOwn(xs,...[0>>>0])?1:0;",
+                true,
+            ),
+            ("const xs=[a];return Object.hasOwn(...xs)?1:0;", false),
+            ("const xs=[a];return Object.hasOwn(...[xs,a])?1:0;", false),
+            (
+                "const xs=[a];return Object.hasOwn(...[xs,a>>0])?1:0;",
+                false,
+            ),
+            (
+                "const xs=[a];return Object.hasOwn(...[xs,,0>>>0])?1:0;",
+                false,
+            ),
+            ("return Object.hasOwn(...[null,0>>>0])?1:0;", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn nested_fixed_spreads_keep_the_small_native_stack_boundary() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (depth, admitted) in [(16, true), (129, false)] {
+                    let spread = (0..depth).fold("[a]".to_owned(), |s, _| format!("[...{s}]"));
+                    let source = format!(
+                        "export function run(a,b){{return Object.hasOwn(...[{spread},0>>>0])?1:0;}}"
                     );
                     let result = crate::compile(&source, false);
                     assert_eq!(result.is_ok(), admitted, "{depth}: {:?}", result.err());
