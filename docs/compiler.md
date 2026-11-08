@@ -2548,3 +2548,14 @@ proof; strict observations can compare the resulting key without inventing a
 Number or container kind. Pattern declarations, async var, catch-name collisions
 and unproven receivers remain guarded. Corpus 146 executes the exact former
 var-for-in rejection and retains its hash; 797 source-bound rejections remain.
+
+
+Private synchronous helper/arrow defaults also accept unshadowed `Infinity` and
+`NaN`, including numeric signs, and `void` applied to admitted primitive constants
+such as `void 0` or `void null`. Folding follows unary order on a bounded heap
+worklist. A shadowed intrinsic, unresolved name, parameter reference, call,
+assignment or object expression is still rejected even beneath `void`; discarded
+values never suppress source admission or default-parameter TDZ checks. Numeric
+unary operators retain their Number-constant operand restriction. Actual Undefined
+alone selects defaults; supplied null, false, signed zero and NaN retain their
+values. Existing public/async/default-scope guards and callable lengths remain.
