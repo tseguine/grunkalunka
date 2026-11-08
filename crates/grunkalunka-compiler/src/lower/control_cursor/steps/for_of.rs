@@ -36,12 +36,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             return Err(unsupported(&source, "for-await-of is not yet admitted"));
         }
         if let Some(pattern) = iteration::declaration_iteration_pattern(source.left()) {
-            if source.is_in() && matches!(pattern, BindingPattern::ArrayPattern(_)) {
-                return Err(unsupported(
-                    &source,
-                    "for-in requires an identifier or object binding",
-                ));
-            }
             let ForStatementLeft::VariableDeclaration(declaration) = source.left() else {
                 unreachable!("checked lexical iteration binding");
             };
@@ -332,7 +326,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
                 self.begin_for_of_body(frame, body, cursor);
             } else {
-                let root_type = if source.is_in() && self.stored.string(pattern.node_id()) {
+                let root_type = if self.stored.string(pattern.node_id()) {
                     Some(Type::ManagedValue)
                 } else {
                     self.stored.container(pattern.node_id())

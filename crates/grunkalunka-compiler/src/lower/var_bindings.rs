@@ -138,16 +138,6 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
             ));
         }
         for local in &d.declarations {
-            if matches!(
-                semantic.nodes().parent_kind(node.id()),
-                AstKind::ForInStatement(_)
-            ) && matches!(local.id, BindingPattern::ArrayPattern(_))
-            {
-                return Err(unsupported(
-                    local,
-                    "var iteration heads require ordinary identifier bindings",
-                ));
-            }
             for id in names(&local.id) {
                 count += 1;
                 if count > 128 {

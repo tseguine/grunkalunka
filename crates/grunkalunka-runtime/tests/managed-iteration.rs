@@ -323,12 +323,13 @@ fn array_for_of_erases_annotations_without_proving_runtime_values() {
 
 #[test]
 fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
+    let original = "export function run(a,b){for(const [first] of 'abc'){}return a;}";
+    common::compare_sources(original, original);
     for body in [
         "let item=a;for(item of [b]){}return a;",
         "const row={value:a};for(row.value of [b]){}return a;",
         "for(const item of a){}return a;",
         "const source=a?'abc':[b];for(const item of source){}return a;",
-        "for(const [first] of 'abc'){}return a;",
         "for(let item of 'abc'){item=a;return item.trim().length;}return 0;",
         "for(const item of {0:a,length:1}){}return a;",
         "for(const item of null){}return a;",
@@ -476,6 +477,8 @@ fn destructuring_for_of_allocates_fresh_leaf_cells_and_preserves_loop_control() 
 
 #[test]
 fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
+    let original = "export function run(a,b){for(var [x] in {x:a}){}return a;}";
+    common::compare_sources(original, original);
     let original = "export function run(a,b){for(var {value} of [{value:a}]){}return a;}";
     common::compare_sources(original, original);
     let js = "export function run(a,b){let n=0;for(const {row:{label},values:[value]} of [{row:{label:' x '},values:[a]}])n+=label.trim().length+(value===a?1:0);return n;}";
@@ -496,7 +499,6 @@ fn destructuring_for_of_erases_types_and_keeps_unknowns_and_tdz_rejected() {
         "for(const {first=next,next=a} of [{}]){}return a;",
         "for(const [value] of [[a]]){}return value;",
         "for(const {value} of [{value:a}])value=b;return a;",
-        "for(var [x] in {x:a}){}return a;",
         "for(const [...rest] of [[a],null]){}return a;",
         "for(const [...rest] of [[a]])rest=[];return a;",
         "for(const [head=rest,...rest] of [[]]){}return a;",

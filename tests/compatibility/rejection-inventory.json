@@ -668,7 +668,7 @@
     {
       "id": "var-bindings",
       "kind": "open-requirement",
-      "assessment": "Synchronous var declarations and for-of patterns write hoisted function cells, including defaults/rest. Var for-in pattern heads, callable initializers and catch-name collisions remain guarded.",
+      "assessment": "Synchronous var declarations and intrinsic for-in/of patterns write hoisted function cells, including defaults/rest. Callable initializers, async var and catch-name collisions remain guarded.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-variable-statement",
@@ -682,7 +682,7 @@
         "value-representation"
       ],
       "observableDone": [
-        "Admit the remaining var for-in-pattern, callable and catch-name sources with native-JS comparisons while preserving function cells."
+        "Admit the remaining callable, async and catch-name sources with native-JS comparisons while preserving function cells."
       ]
     },
     {
@@ -714,7 +714,7 @@
     {
       "id": "destructuring",
       "kind": "open-requirement",
-      "assessment": "Local const/let object and array binding declarations now admit mixed nesting, empty patterns and lazy defaults on identifier leaves or whole nested patterns over source-proven containers. Ordered nested reads preserve each selected receiver; every array pattern owns independent live-length/exhaustion state, including when a descendant default changes an ancestor array. Identifier rest elements in arrays collect fresh dense tails with shared reference values and independent slots, preserving live defaults and persistent exhaustion. Rest results have proven Array receivers but opaque element origins. The same supported patterns also work in const/let heads of intrinsic-array for-of loops, with a positive container proof for every selected receiver. Source-proven Number selections now project to arithmetic and numeric returns, so the exact gap-local-destructure source executes unchanged; for-destructure and declarators-later-destructure still use numeric parameters where the pattern requires an array. Flat array/object assignment patterns now update existing mutable local cells, including Number-initialized and bare let locals, using boxed storage from declaration execution. RHS identity, captures, static keys, lazy identifier defaults and identifier rest targets are supported. Assignment defaults preserve live array length, sticky iterator exhaustion, source ordering and supported suspension. The exact gap-destructuring-write source now executes unchanged through the source-proven Number projection. Nested/member assignment targets, parameter patterns, runtime assignment keys, general iterators and primitive RHS coercion remain separate requirements; rejection of these exact sources is not evidence that those forms execute.",
+      "assessment": "Local const/let object and array binding declarations now admit mixed nesting, empty patterns and lazy defaults on identifier leaves or whole nested patterns over source-proven containers. Ordered nested reads preserve each selected receiver; every array pattern owns independent live-length/exhaustion state, including when a descendant default changes an ancestor array. Identifier rest elements in arrays collect fresh dense tails with shared reference values and independent slots, preserving live defaults and persistent exhaustion. Rest results have proven Array receivers but opaque element origins. The same supported patterns also work in const/let heads of intrinsic-array for-of loops, with a positive container proof for every selected receiver. Source-proven Number selections now project to arithmetic and numeric returns, so the exact gap-local-destructure source executes unchanged; for-destructure and declarators-later-destructure still use numeric parameters where the pattern requires an array. Flat array/object assignment patterns now update existing mutable local cells, including Number-initialized and bare let locals, using boxed storage from declaration execution. RHS identity, captures, static keys, lazy identifier defaults and identifier rest targets are supported. Assignment defaults preserve live array length, sticky iterator exhaustion, source ordering and supported suspension. The exact gap-destructuring-write source now executes unchanged through the source-proven Number projection. Nested/member assignment targets, parameter patterns, runtime assignment keys, general iterators and non-String primitive RHS coercion remain separate requirements; rejection of these exact sources is not evidence that those forms execute. Declaration and intrinsic loop patterns also admit source-proven Strings: array patterns consume code points and object patterns select own UTF-16 properties. Defaults preserve the saved String and rest Arrays are fresh; this does not expand destructuring assignment targets.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-destructuring-assignment",
@@ -894,7 +894,7 @@
     {
       "id": "for-in-of",
       "kind": "open-requirement",
-      "assessment": "Local const/let for-of bindings now admit identifiers and supported object/array patterns, including mixed nesting, identifier rest elements in arrays and lazy defaults on identifier leaves or nested patterns, over source-proven managed arrays. Pattern heads require each selected container kind to be proven and initialize every leaf before the body, with fresh captured const/let cells per iteration. The exact for-of fixture now executes unchanged: Number-only selected elements project to arithmetic and numeric returns. for-in over unknown or prototype-mutable receivers, general iterables, for-await-of, var or assignment heads and unsupported pattern forms remain separate requirements; a successful rejection is not evidence that those forms execute.",
+      "assessment": "Intrinsic for-of Array/String and own-key for-in loops admit const/let/var identifiers and source-proven object/array patterns. Lexical captures use fresh per-visit cells; var and existing mutable assignment identifiers share their cells. String pattern receivers use intrinsic code-point iteration or own UTF-16 property selection. Unknown or prototype-mutable receivers, general iterables, for-await-of and assignment-pattern heads remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements",
@@ -6631,13 +6631,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "16be9c1b536731829cd7f1393ba515ded370d7c1198bf249cfede4f1b528b352",
-      "group": "var-bindings"
-    },
-    {
-      "id": "var-guard-in-pattern",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c3d9a13011b88148ef06e3494a808941381271eaebc6a113ea19128248680d2f",
       "group": "var-bindings"
     }
   ]

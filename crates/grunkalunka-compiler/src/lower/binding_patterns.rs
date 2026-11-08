@@ -60,6 +60,7 @@ pub(super) enum BindingStep<'n, 'a> {
     Array {
         source: &'n ArrayPattern<'a>,
         live: bool,
+        string: bool,
     },
     Field {
         source: &'n BindingProperty<'a>,
@@ -125,9 +126,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             ty => ty,
         };
         let (root_type, mode) = match (&local.id, receiver) {
-            (BindingPattern::ObjectPattern(_), Some(Type::ManagedValue)) => {
-                (Type::ManagedValue, evaluate::Mode::Managed)
-            }
+            (_, Some(Type::ManagedValue)) => (Type::ManagedValue, evaluate::Mode::Managed),
             (_, Some(Type::ManagedArray)) => (Type::ManagedArray, evaluate::Mode::Array),
             (BindingPattern::ObjectPattern(_), Some(Type::ManagedObject)) => {
                 (Type::ManagedObject, evaluate::Mode::Object)
@@ -243,7 +242,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             }));
                         }
                         BindingPattern::ArrayPattern(array) => {
-                            if proven != Some(Type::ManagedArray) {
+                            let string =
+                                proven == Some(Type::ManagedValue) && self.stored.string(origin);
+                            if proven != Some(Type::ManagedArray) && !string {
                                 return Err(unsupported(
                                     array.as_ref(),
                                     "nested array bindings require a source-proven managed array",
@@ -255,6 +256,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             steps.push(BindingStep::Array {
                                 source: array,
                                 live: false,
+                                string,
                             });
                             if let Some(rest) = &array.rest {
                                 // Rest follows every fixed position, including

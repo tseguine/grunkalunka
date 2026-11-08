@@ -80,9 +80,16 @@ fn array_rest_bindings_compose_with_defaults_captures_and_iteration() {
 
 #[test]
 fn array_rest_bindings_keep_target_receiver_and_element_proof_guards() {
+    on_small_stack(
+        "export function run(a,b){const [...rest]='text';return a;}",
+        false,
+        false,
+    )
+    .0
+    .unwrap();
     for body in [
         "const [...rest]=a;return a;",
-        "const [...rest]='text';return a;",
+        "const [...rest]=(a?'text':b);return a;",
         "const [first=rest,...rest]=[];return a;",
         "const [...rest]=rest;return a;",
         "const [...rest]=[];rest=[];return a;",
