@@ -169,9 +169,7 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                 let operand = values.pop()?;
                 let value = match (op, operand) {
                     (UnaryOperator::Void, _) => Constant::Undefined,
-                    (UnaryOperator::LogicalNot, operand) => {
-                        Constant::Boolean(!operand.truthy())
-                    }
+                    (UnaryOperator::LogicalNot, operand) => Constant::Boolean(!operand.truthy()),
                     (UnaryOperator::UnaryPlus, Constant::Number(n)) => Constant::Number(n),
                     (UnaryOperator::UnaryNegation, Constant::Number(n)) => Constant::Number(-n),
                     _ => return None,
@@ -182,7 +180,11 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                 let right = values.pop()?;
                 let left = values.pop()?;
                 let value = match (op, left, right) {
-                    (BinaryOperator::Addition, Constant::String(mut left), Constant::String(right)) => {
+                    (
+                        BinaryOperator::Addition,
+                        Constant::String(mut left),
+                        Constant::String(right),
+                    ) => {
                         left.extend(right);
                         Constant::String(left)
                     }

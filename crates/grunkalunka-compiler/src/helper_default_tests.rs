@@ -359,7 +359,9 @@ fn pure_expression_defaults_select_string_boolean_and_numeric_values() {
         "void (1?2:3)",
     ] {
         for source in [
-            format!("function f(x={expression}){{return x;}}export function run(a,b){{return f();}}"),
+            format!(
+                "function f(x={expression}){{return x;}}export function run(a,b){{return f();}}"
+            ),
             format!("export function run(a,b){{const f=(x={expression})=>x;return f();}}"),
             format!("export function run(a,b){{const o={{f:(x={expression})=>x}};return o.f();}}"),
         ] {
