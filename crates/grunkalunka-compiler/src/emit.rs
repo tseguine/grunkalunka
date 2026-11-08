@@ -362,7 +362,7 @@ impl Emitter<'_> {
                 if matches!(ty, Type::Number | Type::Predicate) {
                     // These primitive wrappers have no own properties. The
                     // source cursor already evaluated the receiver and all arguments.
-                    if let ir::ManagedKey::String(_) = key {
+                    if !matches!(key, ir::ManagedKey::Literal(_)) {
                         self.property_key(key);
                         self.output.push_str("drop\n");
                     }
@@ -1244,6 +1244,10 @@ impl Emitter<'_> {
         match key {
             ir::ManagedKey::Literal(units) => self.managed_key(units),
             ir::ManagedKey::String(input) => self.managed_key_value(*input),
+            ir::ManagedKey::Uint32(input) => {
+                self.int32_bits(*input);
+                self.output.push_str("call $gc_spread_index\n");
+            }
         }
     }
 
@@ -1790,6 +1794,21 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     }
     // Emit the decimal index formatter immediately before its first consumer.
     let mut emitted_index = false;
+    // All ManagedKey consumers may use the normalized numeric-key variant.
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| match op {
+            Op::ManagedDeleteOwn { key, .. } | Op::ManagedHasOwn { key, .. } => {
+                matches!(key, ir::ManagedKey::Uint32(_))
+            }
+            Op::ManagedObjectRest { excluded, .. } => excluded
+                .iter()
+                .any(|key| matches!(key, ir::ManagedKey::Uint32(_))),
+            _ => false,
+        })
+    }) {
+        output.push_str(include_str!("emit/managed_index.wat"));
+        emitted_index = true;
+    }
     let mut indexed = |output: &mut String, runtime: &str| {
         if !runtime.is_empty() {
             if !emitted_index {

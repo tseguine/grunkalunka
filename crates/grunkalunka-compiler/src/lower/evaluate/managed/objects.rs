@@ -68,6 +68,9 @@ impl Lowering<'_, '_> {
                         Some(ir::ManagedKey::String(key)) => {
                             Op::ManagedSetOwnDynamic { object, key, value }
                         }
+                        Some(ir::ManagedKey::Uint32(_)) => {
+                            unreachable!("literal keys are static or String")
+                        }
                         None => Op::ManagedObjectSpread {
                             object,
                             input: value,

@@ -1,3 +1,4 @@
+import { uint32DeleteKeyPrograms } from './uint32-delete-keys.mjs';
 import { debuggerStatementPrograms } from './debugger-statements.mjs';
 import { mixedLiteralArraySpreadOriginal, mixedLiteralArraySpreadPrograms } from './mixed-literal-array-spreads.mjs';
 import { literalCallSpreadOriginals, literalCallSpreadPrograms } from './literal-call-spreads.mjs';
@@ -1228,6 +1229,17 @@ test('debugger statement corpus executes unchanged complete source programs',()=
   assert.ok(pair.sourceJS.includes('debugger;'));
   assert.equal(pair.sourceJS,pair.sourceTS);
   assert.equal(pair.sourceJS,pair.oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+
+test('uint32 delete corpus retains original key, boundary and effect observations',()=>{
+ assert.equal(uint32DeleteKeyPrograms.length,12);
+ for(const id of ['array','max-named','last-index','snapshot','operand-effects']) {
+  const row=uint32DeleteKeyPrograms.find(row=>row[0]==='uint32-delete-key-'+id);
+  assert.equal(row[1],row[2]);
+  assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));
  }
 });

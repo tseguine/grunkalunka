@@ -1,6 +1,14 @@
 use super::*;
 
 #[test]
+fn uint32_delete_keys_return_boolean_completions() {
+    compare_helpers(&[
+        "export function run(a,b){const xs=[a,b];return delete xs[a>>>0];}",
+        "export function run(a,b){const o={0:a};return delete o[a>>>0];}",
+    ]);
+}
+
+#[test]
 fn debugger_statements_preserve_primitive_and_helper_completions() {
     compare_helpers(&[
         "export function run(a,b){debugger;return a;}",

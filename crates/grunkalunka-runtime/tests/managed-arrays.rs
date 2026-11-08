@@ -2,6 +2,27 @@
 mod common;
 
 #[test]
+fn uint32_delete_keys_preserve_properties_boundaries_and_effects() {
+    for body in [
+        "const xs=[a,b];const removed=delete xs[a>>>0];return removed?xs.length*10+(Object.hasOwn(xs,0)?1:0)+(Object.hasOwn(xs,1)?2:0):-1;",
+        "const xs=[a,b];delete xs[a>>>b];return (Object.hasOwn(xs,0)?1:0)+(Object.hasOwn(xs,1)?2:0);",
+        "const o={0:a,1:b,length:7};delete o[a>>>0];return Object.keys(o).length+(o.length===7?10:0);",
+        "const d=Object.create(null);d[0]=a;d[1]=b;delete d[a>>>0];return Object.keys(d).length;",
+        "const xs=[a,b],alias=xs;delete alias[0>>>0];return !Object.hasOwn(xs,0)&&Object.hasOwn(xs,1)&&xs.length===2?1:0;",
+        "let xs=[a,b];const saved=xs;let n=0;const removed=delete (n=1,xs)[(n=n*10+2,xs=[b],0>>>0)];return removed&&n===12&&!Object.hasOwn(saved,0)&&Object.hasOwn(xs,0)?1:0;",
+        "const xs=[a,b];delete xs[a?(0>>>0):(1>>>0)];return (Object.hasOwn(xs,0)?1:0)+(Object.hasOwn(xs,1)?2:0);",
+        "const xs=[a,b];let key=0;delete xs[key=a>>>0];return Object.hasOwn(xs,0)?1:0;",
+        "const xs=[a];xs[4294967295]=b;delete xs[(-1)>>>0];return xs.length===1&&!Object.hasOwn(xs,4294967295)&&Object.hasOwn(xs,0)?1:0;",
+        "const xs=[a];xs[4294967294]=b;delete xs[(-2)>>>0];return xs.length===4294967295&&!Object.hasOwn(xs,4294967294)?1:0;",
+        "const xs=[a,b];const erase=()=>{delete xs[a>>>0];return xs.length;};return erase();",
+        "const xs=[a];let n=0;delete xs[((n=1,a)>>>((n=n*10+2,b)))];return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn mixed_literal_spreads_preserve_holes_order_identity_and_element_proofs() {
     for body in [
         "const x=[a,...[b]];return a;",

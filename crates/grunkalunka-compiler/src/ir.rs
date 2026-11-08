@@ -547,6 +547,8 @@ impl OwnEnumeration {
 pub(crate) enum ManagedKey {
     Literal(Vec<u16>),
     String(ValueId),
+    // Decimal property key of ToUint32(input), never the non-configurable length key.
+    Uint32(ValueId),
 }
 
 #[derive(Debug)]
@@ -1399,6 +1401,7 @@ impl Verifier<'_> {
                 Ok(())
             }
             ManagedKey::String(value) => self.value(*value, Type::ManagedValue, visible, span),
+            ManagedKey::Uint32(value) => self.value(*value, Type::Number, visible, span),
         }
     }
 
@@ -1619,9 +1622,12 @@ impl Verifier<'_> {
                     .ok_or_else(|| invalid(span, "delete requires an object or array receiver"))?;
                 self.value(*input, ty, visible, span)?;
                 self.managed_key(key, visible, span)?;
-                if ty == Type::ManagedArray
-                    && !matches!(key, ManagedKey::Literal(key) if key.as_slice() != [108,101,110,103,116,104])
-                {
+                let configurable = match key {
+                    ManagedKey::Literal(key) => key.as_slice() != [108, 101, 110, 103, 116, 104],
+                    ManagedKey::Uint32(_) => true,
+                    ManagedKey::String(_) => false,
+                };
+                if ty == Type::ManagedArray && !configurable {
                     return Err(invalid(
                         span,
                         "array delete must exclude non-configurable length",

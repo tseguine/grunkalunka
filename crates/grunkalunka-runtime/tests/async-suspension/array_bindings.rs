@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn uint32_delete_keys_keep_receiver_and_effect_snapshots_across_await() {
+    compare_promises(
+        &[
+            "let xs=[a,b];const saved=xs;let n=0;const removed=delete (n=1,await a,xs)[(n=n*10+2,await b,xs=[b],0>>>0)];return removed&&n===12&&!Object.hasOwn(saved,0)&&Object.hasOwn(xs,0)?1:0;",
+            "const xs=[a];try{delete xs[(await Promise.reject(a),0>>>0)];}catch(e){await b;return Object.hasOwn(xs,0)?1:0;}return 0;",
+            "const xs=[a,b];delete xs[(await a)>>>0];await b;return xs.length;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn debugger_statements_keep_async_effects_and_cleanup() {
     compare_promises(
         &[

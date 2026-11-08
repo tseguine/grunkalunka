@@ -2770,3 +2770,25 @@ and do not emit an IR operation. Helpers, arrows, loops, branches, exception
 cleanup and supported async bodies retain their existing completion behavior.
 This adds statement syntax support, without a debugger/host API. Corpus 159 adds
 eight JS/TS pairs; all 796 compatibility negatives remain.
+
+
+Delete now admits runtime numeric property keys proven unsigned by an original
+unsigned right-shift (>>>) result. Parentheses/erased wrappers, sequence tails,
+plain assignment results and conditional results whose two arms prove unsigned
+compose through a bounded heap traversal. The ordinary evaluator still checks
+all operands and effects; annotations, arbitrary Number cells and opaque helpers
+do not prove the range. Existing source depth/size limits still apply.
+
+Objects, dictionaries and Arrays evaluate and save the receiver before the key.
+ManagedKey::Uint32 explicitly means the decimal property key of ToUint32(input);
+the verifier requires a visible Number snapshot, and emission reuses the existing
+integer conversion and decimal formatter. This key cannot name non-configurable
+Array length. The upper value 4294967295 remains a named property, while
+4294967294 is the largest Array index. Deletion preserves length, order, aliases
+and supported suspension. Member-kind planning conservatively invalidates any
+possibly deleted field/index, including reads through aliases.
+
+Arbitrary runtime Array Number/String keys, signed shifts, unsupported receivers,
+optional chains and deletion of non-configurable length retain guards. No public
+standard-library or host API is added. Corpus 160 adds twelve JS/TS differential
+pairs; all 796 retained compatibility negatives remain.
