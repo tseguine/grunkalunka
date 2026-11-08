@@ -123,21 +123,43 @@ fn pure_operand<'n, 'a>(
     )?))
 }
 
-// For logical selection the left source must be earlier; its right arm may
-// be a pure constant expression or another earlier parameter.
-fn earlier_logical<'n, 'a>(
+// Source-order logical default chains model common A1 policy precedence:
+// value ?? override ?? fallback and enabled && flag && value. Each right
+// operand is a pure constant or a resolved earlier parameter. Only the
+// first left operand may be read before selection; nested evaluation is lazy.
+fn earlier_logical_chain<'n, 'a>(
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
-) -> Option<(&'n IdentifierReference<'a>, LogicalOperator, DefaultOperand<'n, 'a>)> {
-    let (node, _) = closures::unwrapped_at(expression, 0)?;
-    let Expression::LogicalExpression(logical) = node else {
+) -> Option<(
+    &'n IdentifierReference<'a>,
+    Vec<(LogicalOperator, DefaultOperand<'n, 'a>)>,
+)> {
+    let mut node = expression;
+    let mut depth = 0;
+    let mut steps = Vec::new();
+    loop {
+        let (inner, next) = closures::unwrapped_at(node, depth)?;
+        node = inner;
+        depth = next;
+        let Expression::LogicalExpression(logical) = node else {
+            break;
+        };
+        if depth >= 128 {
+            return None;
+        }
+        steps.push((
+            logical.operator,
+            pure_operand(expression, &logical.right, semantic)?,
+        ));
+        node = &logical.left;
+        depth += 1;
+    }
+    if steps.is_empty() {
         return None;
-    };
-    Some((
-        earlier_identifier(expression, &logical.left, semantic)?,
-        logical.operator,
-        pure_operand(expression, &logical.right, semantic)?,
-    ))
+    }
+    let original = earlier_identifier(expression, node, semantic)?;
+    steps.reverse();
+    Some((original, steps))
 }
 
 // A conditional can select either an earlier source value or a pure
@@ -334,7 +356,7 @@ pub(crate) fn validate(
             }
             if constant(initializer, semantic).is_none()
                 && earlier_parameter(initializer, semantic).is_none()
-                && earlier_logical(initializer, semantic).is_none()
+                && earlier_logical_chain(initializer, semantic).is_none()
                 && earlier_conditional(initializer, semantic).is_none()
             {
                 return Err(unsupported(
@@ -357,7 +379,7 @@ pub(crate) fn validate_arrow(
             && (!allowed
                 || (constant(initializer.as_ref(), semantic).is_none()
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
-                    && earlier_logical(initializer.as_ref(), semantic).is_none()
+                    && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
                     && earlier_conditional(initializer.as_ref(), semantic).is_none()))
         {
             return Err(unsupported(
@@ -496,49 +518,53 @@ impl Lowering<'_, '_> {
             );
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, result));
         }
-        if let Some((identifier, operator, fallback)) =
-            earlier_logical(initializer, self.semantic)
+        if let Some((identifier, steps)) =
+            earlier_logical_chain(initializer, self.semantic)
         {
-            let original =
+            let mut original =
                 self.load_earlier_value(identifier, initializer, &mut consequent)?;
-            let condition = self.value(Type::Predicate);
-            Self::push(
-                &mut consequent,
-                initializer,
-                if operator == LogicalOperator::Coalesce {
-                    Op::ManagedIsNullish {
-                        result: condition,
-                        input: original,
-                    }
+            for (operator, fallback) in steps {
+                let condition = self.value(Type::Predicate);
+                Self::push(
+                    &mut consequent,
+                    initializer,
+                    if operator == LogicalOperator::Coalesce {
+                        Op::ManagedIsNullish {
+                            result: condition,
+                            input: original,
+                        }
+                    } else {
+                        Op::ManagedTruthy {
+                            result: condition,
+                            input: original,
+                        }
+                    },
+                );
+                let mut selected = self.region(initializer);
+                let fallback =
+                    self.emit_default_operand(initializer, &mut selected, fallback)?;
+                selected.exit = Exit::Yield(fallback);
+                let mut kept = self.region(initializer);
+                kept.exit = Exit::Yield(original);
+                let (if_true, if_false) = if operator == LogicalOperator::Or {
+                    (kept, selected)
                 } else {
-                    Op::ManagedTruthy {
-                        result: condition,
-                        input: original,
-                    }
-                },
-            );
-            let mut selected = self.region(initializer);
-            let fallback = self.emit_default_operand(initializer, &mut selected, fallback)?;
-            selected.exit = Exit::Yield(fallback);
-            let mut kept = self.region(initializer);
-            kept.exit = Exit::Yield(original);
-            let (if_true, if_false) = if operator == LogicalOperator::Or {
-                (kept, selected)
-            } else {
-                (selected, kept)
-            };
-            let result = self.value(Type::ManagedValue);
-            Self::push(
-                &mut consequent,
-                initializer,
-                Op::If {
-                    result: Some(result),
-                    condition,
-                    consequent: if_true,
-                    alternate: if_false,
-                },
-            );
-            return Ok(self.finish_binding_default(parameter, output, pending, consequent, result));
+                    (selected, kept)
+                };
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    &mut consequent,
+                    initializer,
+                    Op::If {
+                        result: Some(result),
+                        condition,
+                        consequent: if_true,
+                        alternate: if_false,
+                    },
+                );
+                original = result;
+            }
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, original));
         }
         if let Some((identifier, operators)) = earlier_parameter(initializer, self.semantic) {
             let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;

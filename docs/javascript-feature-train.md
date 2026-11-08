@@ -612,3 +612,14 @@ are preserved. Symbol resolution excludes self/later/body/outer reads; nested
 expressions with effects remain guarded. Focused compiler admissions/negative
 cases and JS/TS differential source oracles live in the helper-default and
 managed-logical suites. No application or host API is changed.
+
+Multi-stage logical parameter defaults now accept left-associated chains of
+`??`, `||` and `&&`, including parenthesized mixed operators. A1 helpers can
+choose `value ?? override ?? 'missing'` or gate `enabled && flag && label`
+without repeating control-flow boilerplate. The compiler proves every right
+operand is a pure constant or an already initialized parameter, then emits
+each selection iteratively using lazy, structured `If` regions. Chained
+fallbacks retain missing-argument semantics, nullish/falsy distinctions and
+reference identity. Effects, unproven coercions and self/later/outer reads are
+still rejected; right-nested selection and dynamic arithmetic remain separate
+work. Compiler admissions and JS/TS differential cases cover the chain.
