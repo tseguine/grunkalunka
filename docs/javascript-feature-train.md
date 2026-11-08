@@ -491,3 +491,9 @@ and supported awaits. Outer elisions remain holes; spread elisions become own
 Undefined slots. Dynamic Array/String operands in mixed initializers retain
 guards; existing single-spread copy support stays available. Corpus 158 adds
 thirteen differential pairs with all 796 compatibility negatives retained.
+
+
+Debugger statements now complete normally in generated execution with no debugger
+facility attached. They retain normal source charging and existing control,
+helper/arrow, exception and async behavior. Corpus 159 adds eight differential
+pairs; all 796 compatibility negatives remain.

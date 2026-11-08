@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn debugger_statements_keep_async_effects_and_cleanup() {
+    compare_promises(
+        &[
+            "debugger;const x=await a;debugger;return x;",
+            "try{debugger;return await a;}finally{debugger;await b;debugger;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn mixed_literal_spreads_preserve_prefixes_and_effects_across_await() {
     compare_promises(
         &[
