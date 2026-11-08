@@ -89,10 +89,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     evaluate::Mode::Managed
                 }
                 _ if self.numeric_result_shape(source.right(), 0) => evaluate::Mode::Number,
+                _ if self.stored.primitive(source.right().node_id()) => {
+                    // The four scalar kinds have no enumerable own fields in
+                    // the represented pristine realm. Numeric conversion is
+                    // effect-free for this source-proven set; it evaluates the
+                    // original RHS once and reuses empty scalar enumeration.
+                    evaluate::Mode::Numeric
+                }
                 _ => {
                     return Err(unsupported(
                         source.right(),
-                        "for-in requires a source-proven object, array, String or Number",
+                        "for-in requires a source-proven object, array, String or Number/Boolean/nullish primitive",
                     ));
                 }
             }
@@ -453,5 +460,35 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         );
         Self::push(&mut output, &source, Op::Block(header));
         cursor.completed = Some(Outcome::Statement(output, completion.pretest_loop()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn for_in_scalar_sources_keep_effects_and_reject_opaque_values() {
+        for (body, admitted) in [
+            ("let n=0;for(const k in null)n++;return n;", true),
+            ("let n=0;for(const k in undefined)n++;return n;", true),
+            ("let n=0;for(const k in false)n++;return n;", true),
+            ("let n=0;for(const k in (a?true:null))n++;return n;", true),
+            ("let n=0;for(const k in (n++,undefined))n++;return n;", true),
+            ("let n=0;for(const {} in null)n++;return n;", true),
+            ("let n=0;for(const k of null)n++;return n;", false),
+            ("let n=0;for(const k in 1n)n++;return n;", false),
+            ("let n=0;for(const k in (a?{}:null))n++;return n;", false),
+        ] {
+            let s = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&s, ts);
+                assert_eq!(r.is_ok(), admitted, "{s}: {:?}", r.err());
+            }
+        }
+        let js = "export function run(a,b){let n=0;for(const k in (a?false:null))n++;return n;}";
+        let ts = "export function run(a:string,b:boolean):never{let n=0;for(const k in ((a?false:null) as object))n++;return n;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
     }
 }

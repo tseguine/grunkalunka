@@ -20,6 +20,15 @@ when the existing source analysis proves it. Checked helper/capture flows and
 primitive return interfaces retain these tags. Numeric-only returns still require
 a Number proof or explicit conversion.
 
+`for...in` also accepts source-proven Boolean, Null and Undefined values, including
+mixed alternatives with Number. These scalar values enumerate no keys in the
+represented pristine realm. The original RHS executes once, preserving effects,
+awaits and rejection; no head assignment, pattern default or body visit executes.
+Unsupported receiver kinds and object/nullish unions remain guarded. This is the
+language loop contract, independent of the nullish behavior of existing object
+enumeration intrinsics. Loop-head facts remain conservative; subsequent primitive
+projections still require the ordinary source-kind proof.
+
 Primitive projection requires a nonempty set containing only those four origins;
 type annotations, String/reference alternatives, unknown writes and unresolved
 helper results do not satisfy it. Its verified IR checks a visible managed input

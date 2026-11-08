@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn scalar_for_in_keeps_primitive_tags_when_no_iteration_executes() {
+    compare_helpers(&[
+        "export function run(a,b){let value=null;for(const k in false)value=a;return value;}",
+        "export function run(a,b){var key;let value=undefined;for(var key in null)value=a;return value;}",
+        "export function run(a,b){let value=false;for(const k in undefined)value=a;return value;}",
+    ]);
+    // Loop-head facts still include possible String keys. Preserve this
+    // projection guard rather than treating an empty loop as flow narrowing.
+    let source = "export function run(a,b){var key;for(var key in null){}return key;}";
+    for typed in [false, true] {
+        let error = compile_value(source, typed)
+            .err()
+            .expect("mixed loop-head projection stays guarded");
+        assert!(
+            error.contains("managed value requires an identity or managed storage position"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
 fn numeric_property_updates_return_number_tags_for_every_admitted_key_kind() {
     compare_helpers(&[
         "export function run(a,b){const o={n:false};return o.n++;}",

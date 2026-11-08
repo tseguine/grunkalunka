@@ -1,3 +1,4 @@
+import { primitiveForInPrograms } from './primitive-for-in.mjs';
 import { primitivePropertyUpdatePrograms } from './primitive-property-updates.mjs';
 import { dictionaryNumericUpdatePrograms } from './dictionary-numeric-updates.mjs';
 import { uint32NumericUpdatePrograms } from './uint32-numeric-updates.mjs';
@@ -1313,4 +1314,10 @@ test('dictionary numeric updates retain original key, conversion and snapshot ob
 test('primitive property updates retain missing, conversion and alias observations',()=>{
  assert.equal(primitivePropertyUpdatePrograms.length,26);
  for(const row of primitivePropertyUpdatePrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
+});
+
+
+test('scalar for-in sources retain empty iteration and RHS/head effects',()=>{
+ assert.equal(primitiveForInPrograms.length,16);
+ for(const row of primitiveForInPrograms){assert.equal(row[1],row[2]);assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(program=>program[0]===row[0]));}
 });

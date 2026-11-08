@@ -1,0 +1,18 @@
+export const primitiveForInPrograms=[
+ ["primitive-for-in-null", "let n=0;for(const k in null)n++;return n;", "let n=0;for(const k in null)n++;return n;"],
+ ["primitive-for-in-undefined", "let n=0;for(const k in undefined)n++;return n;", "let n=0;for(const k in undefined)n++;return n;"],
+ ["primitive-for-in-false", "let n=0;for(const k in false)n++;return n;", "let n=0;for(const k in false)n++;return n;"],
+ ["primitive-for-in-true", "let n=0;for(let k in true)n++;return n;", "let n=0;for(let k in true)n++;return n;"],
+ ["primitive-for-in-mixed", "let n=0;for(const k in (a?true:null))n++;return n;", "let n=0;for(const k in (a?true:null))n++;return n;"],
+ ["primitive-for-in-number-choice", "let n=0;for(const k in (a?b:undefined))n++;return n;", "let n=0;for(const k in (a?b:undefined))n++;return n;"],
+ ["primitive-for-in-rhs-effects", "let n=0;for(const k in (n++,undefined))n+=10;return n;", "let n=0;for(const k in (n++,undefined))n+=10;return n;"],
+ ["primitive-for-in-assignment", "let key='old';for(key in null)key='changed';return key==='old'?1:0;", "let key='old';for(key in null)key='changed';return key==='old'?1:0;"],
+ ["primitive-for-in-var-hoisted", "var key;for(var key in undefined){}return key===undefined?1:0;", "var key;for(var key in undefined){}return key===undefined?1:0;"],
+ ["primitive-for-in-var-preserved", "var key=a;for(var key in false){}return key===a?1:0;", "var key=a;for(var key in false){}return key===a?1:0;"],
+ ["primitive-for-in-object-pattern", "let n=0;for(const {0:x=(n++,'x')} in null)n++;return n;", "let n=0;for(const {0:x=(n++,'x')} in null)n++;return n;"],
+ ["primitive-for-in-array-pattern", "let n=0;for(const [x=(n++,'x')] in undefined)n++;return n;", "let n=0;for(const [x=(n++,'x')] in undefined)n++;return n;"],
+ ["primitive-for-in-helper", "const get=()=>a?false:null;let n=0;for(const k in get())n++;return n;", "const get=()=>a?false:null;let n=0;for(const k in get())n++;return n;"],
+ ["primitive-for-in-mixed-binding", "let value=a;if(b)value=null;let n=0;for(const k in value)n++;return n;", "let value=a;if(b)value=null;let n=0;for(const k in value)n++;return n;"],
+ ["primitive-for-in-nested", "let n=0;for(const x of [a,b])for(const k in (n++,false))n+=10;return n;", "let n=0;for(const x of [a,b])for(const k in (n++,false))n+=10;return n;"],
+ ["primitive-for-in-effectful-call", "let n=0;const get=()=>{n++;return null;};for(const k in get())n+=10;return n;", "let n=0;const get=()=>{n++;return null;};for(const k in get())n+=10;return n;"],
+];
