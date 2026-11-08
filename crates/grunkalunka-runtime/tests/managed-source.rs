@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn unsigned_in_keys_preserve_presence_boundaries_and_key_snapshots() {
+    for body in [
+        "const xs=[a,,b];return (a>>>0) in xs?1:0;",
+        "const o={0:undefined,1:b};return (a>>>0) in o?1:0;",
+        "const d=Object.create(null);d[0]=a;return (a>>>b) in d?1:0;",
+        "const o=a?{}:Object.create(null);o[0]=b;return (0>>>0) in o?1:0;",
+        "const xs=[a];xs[4294967295]=b;return ((-1)>>>0) in xs&&xs.length===1?1:0;",
+        "const xs=[a];xs[4294967294]=b;return ((-2)>>>0) in xs&&xs.length===4294967295?1:0;",
+        "let key=0,n=0;const xs=[a];const found=(n=1,key>>>0) in (n=n*10+2,key=1,xs);return found&&n===12&&key===1?1:0;",
+        "let key=a;const found=(key>>>0) in (key=b,{0:a});return found===((a>>>0)===0)?1:0;",
+        "const xs=[a,b];const before=(a>>>0) in xs;delete xs[a>>>0];return before?((a>>>0) in xs?-1:1):0;",
+        "const xs=[a];const has=()=>(a>>>0) in xs;return has()?1:0;",
+        "const xs=[a,b];return (a?(0>>>0):(1>>>0)) in xs?1:0;",
+        "const xs=[a];let key=0;return (key=a>>>0) in xs?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn loose_null_equality_executes_the_exact_former_object_rejection() {
     compare("const o={};return o==null?a:b;");
 }

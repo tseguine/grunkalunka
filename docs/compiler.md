@@ -2792,3 +2792,20 @@ Arbitrary runtime Array Number/String keys, signed shifts, unsupported receivers
 optional chains and deletion of non-configurable length retain guards. No public
 standard-library or host API is added. Corpus 160 adds twelve JS/TS differential
 pairs; all 796 retained compatibility negatives remain.
+
+
+The in operator now accepts the same source-proven unsigned runtime keys as
+delete. Its shared >>> range proof composes through erased/parenthesized wrappers,
+sequence tails, plain assignments and conditional results. The cursor evaluates
+and captures the left key value before evaluating the right receiver, including
+supported awaits and abrupt completion. Arrays distinguish holes from own
+Undefined entries; objects and dictionaries use their actual own-property table.
+
+Uint32 decimal names cannot denote any inherited property on the represented
+pristine Object/Array prototypes, so the existing own-presence IR path is valid,
+including mixed ordinary/null-prototype receiver alternatives. Existing String
+and literal inherited-name handling remains unchanged. The normalized key carrier
+and formatter from unsigned delete are reused without new IR operations or host
+calls. Arbitrary numeric/coercive keys and non-object/prototype guards remain;
+type annotations cannot establish the range. Corpus 161 adds twelve JS/TS pairs;
+all 796 retained compatibility negatives remain.

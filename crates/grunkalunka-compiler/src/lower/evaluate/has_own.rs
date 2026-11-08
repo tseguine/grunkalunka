@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) enum Membership {
     Own(Option<Vec<u16>>),
+    Uint32,
     Inherited,
     Prototype,
 }
@@ -28,8 +29,11 @@ impl Lowering<'_, '_> {
     ) -> Result<(), String> {
         boolean_consumer(node, mode, "property presence produces a Boolean", work)?;
         let literal = literal_property_name(&binary.left, self.semantic, depth + 1);
+        let uint32 = property_delete::uint32_key(&binary.left, depth + 1);
         let key_mode = if literal.is_some() {
             Mode::Discard
+        } else if uint32 {
+            Mode::Number
         } else if self.stored.string(binary.left.node_id()) {
             Mode::Managed
         } else {
@@ -41,10 +45,21 @@ impl Lowering<'_, '_> {
         let receiver = binary.right.node_id();
         let ty = self.receiver_type(&binary.right, depth + 1);
         let (mode, membership) = if self.stored.dictionary(receiver) {
-            (Mode::Object, Membership::Own(literal))
+            (
+                Mode::Object,
+                if uint32 {
+                    Membership::Uint32
+                } else {
+                    Membership::Own(literal)
+                },
+            )
         } else if let Some(ty @ (Type::ManagedObject | Type::ManagedArray)) = ty {
             let known_prototype = ty == Type::ManagedArray || self.stored.ordinary_object(receiver);
-            let membership = if let Some(key) = literal {
+            let membership = if uint32 {
+                // Decimal uint32 names are absent from the pristine intrinsic
+                // prototypes, just like supported literal numeric keys.
+                Membership::Uint32
+            } else if let Some(key) = literal {
                 let inherited =
                     crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key)
                         || (ty == Type::ManagedArray
@@ -212,4 +227,42 @@ pub(super) fn literal_property_name(
         _ => return None,
     };
     Some(name.encode_utf16().collect())
+}
+
+#[cfg(test)]
+mod uint32_membership_tests {
+    #[test]
+    fn unsigned_in_keys_retain_source_range_receiver_and_operand_checks() {
+        for (body, admitted) in [
+            ("const xs=[a,,b];return (a>>>0) in xs?1:0;", true),
+            ("const o={0:a};return (a>>>b) in o?1:0;", true),
+            ("const d=Object.create(null);return (a>>>0) in d?1:0;", true),
+            (
+                "const o=a?{}:Object.create(null);return (a>>>0) in o?1:0;",
+                true,
+            ),
+            ("const xs=[a];let key=0;return (key=a>>>0) in xs?1:0;", true),
+            ("const xs=[a];return a in xs?1:0;", false),
+            ("const xs=[a];return (a>>0) in xs?1:0;", false),
+            ("return (a>>>0) in a?1:0;", false),
+            ("const xs=[a];return (a?(0>>>0):b) in xs?1:0;", false),
+            (
+                "const xs=[a];return (Math.random(),a>>>0) in xs?1:0;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            }
+        }
+        let js = "export function run(a,b){const xs=[a];return (a>>>0) in xs?1:0;}";
+        let ts = "export function run(a:string,b:boolean):never{const xs=[a];return ((a>>>0) as never) in xs?1:0;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+        assert!(crate::compile("export function run(a:number,b:number){const xs=[a];return (a as number) in xs?1:0;}",true).is_err());
+    }
 }

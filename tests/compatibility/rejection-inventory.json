@@ -435,7 +435,7 @@
     {
       "id": "in-operator",
       "kind": "open-requirement",
-      "assessment": "The in operator requires object/property semantics.",
+      "assessment": "Local membership supports represented objects, dictionaries and Arrays with supported literal primitive keys and runtime String keys under existing prototype proofs. Runtime unsigned numeric keys proven by original >>> results now use decimal own-key checks: pristine intrinsic prototypes contain no uint32 names. Key values are saved before receiver effects and suspension; holes differ from own Undefined values. Arbitrary key coercion, unsupported receivers/prototypes and catchable non-object TypeErrors remain guarded.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
