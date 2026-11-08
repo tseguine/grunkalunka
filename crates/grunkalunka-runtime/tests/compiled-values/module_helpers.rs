@@ -1,6 +1,15 @@
 use super::*;
 
 #[test]
+fn optional_delete_returns_boolean_tags_for_present_and_nullish_receivers() {
+    compare_helpers(&[
+        "export function run(a,b){const o=a?{x:b}:null;return delete o?.x;}",
+        "export function run(a,b){const xs=a?[b]:undefined;return delete xs?.[a>>>0];}",
+        "export function run(a,b){const k='x';return delete null?.[k];}",
+    ]);
+}
+
+#[test]
 fn optional_dictionary_reads_preserve_selected_primitive_tags_and_number_bits() {
     compare_helpers(&[
         "export function run(a,b){const d=Object.create(null);d.x=b;const o=a?d:null;const k='x';return o?.[k];}",

@@ -19,6 +19,7 @@ mod managed;
 mod managed_equality_tests;
 #[cfg(test)]
 mod number_projection_tests;
+mod optional_delete;
 pub(super) mod optional_member;
 pub(super) use managed::member_key as managed_member_key;
 mod own_keys;
