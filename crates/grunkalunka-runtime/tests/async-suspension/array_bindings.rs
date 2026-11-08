@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn unsigned_optional_reads_skip_key_awaits_and_save_projected_receivers() {
+    compare_promises(
+        &[
+            "let xs=[a];const old=xs;const v=xs?.[(await b,xs=[b],0>>>0)];await a;return old!==xs?+v:99;",
+            "const xs=null;let n=0;const v=xs?.[(await Promise.reject(a),n++,0>>>0)];await b;return n===0&&v===undefined?1:0;",
+            "const xs=a?[b]:null;let n=0;const v=xs?.[(await b,n++,0>>>0)];await a;return n===(a?1:0)?+v:99;",
+            "let n=0;const xs=[a];try{const v=xs?.[(await Promise.reject(b),n++,0>>>0)];return +v;}catch(e){await a;return n;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn optional_static_reads_preserve_await_order_and_rejected_receivers() {
     compare_promises(
         &[

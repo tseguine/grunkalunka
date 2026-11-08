@@ -5,6 +5,33 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn unsigned_optional_reads_skip_keys_and_preserve_receiver_order_and_identity() {
+    for body in [
+        "const xs=[a];return xs?.[(xs.length=0,0>>>0)]===undefined?1:0;",
+        "const xs=[a,b];return +(xs?.[a>>>0]);",
+        "const xs=a?[b]:null;return +(xs?.[0>>>0]);",
+        "const xs=a?[b]:undefined;return +(xs?.[0>>>0]);",
+        "const o={0:a};return +(o?.[a>>>0]);",
+        "const o=a?{0:b}:null;return +(o?.[0>>>0]);",
+        "const d=Object.create(null);d[0]=b;return +(d?.[a>>>0]);",
+        "const xs=[];xs[4294967295]=b;return +(xs?.[(-1)>>>0]);",
+        "const xs=[];xs[4294967294]=b;return +(xs?.[(-2)>>>0]);",
+        "let n=0;const xs=[a];const v=xs?.[(n++,0>>>0)];return n===1?+v:99;",
+        "let n=0;const xs=null;const v=xs?.[(n++,0>>>0)];return n===0&&v===undefined?1:0;",
+        "let n=0;const xs=a?[b]:null;const v=xs?.[(n++,0>>>0)];return n===(a?1:0)?+v:99;",
+        "let xs=[a];const old=xs;const v=xs?.[(xs=[b],0>>>0)];return old!==xs?+v:99;",
+        "const xs=[a];return +(xs?.[(xs[0]=b,0>>>0)]);",
+        "let n=0;const xs=[a];const v=(n=n*10+1,xs)?.[(n=n*10+2,0>>>0)];return n===12?+v:99;",
+        "let n=0;const key=()=>{n++;return 0;};const xs=a?[b]:null;const v=xs?.[key()>>>0];return n===(a?1:0)?+v:99;",
+        "const child={v:b};const xs=a?[child]:null;return xs?.[0>>>0]===child?1:0;",
+        "const xs=[false,null];return xs?.[0>>>0]===false&&xs?.[1>>>0]===null?1:0;",
+        "const xs=a?[b]:null;return +(xs?.[a>>>0]??b);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn optional_static_reads_preserve_nullish_values_identity_and_receiver_effects() {
     for body in [
         "return null?.constructor===undefined?1:0;",

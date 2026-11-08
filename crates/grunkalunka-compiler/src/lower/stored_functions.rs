@@ -35,6 +35,7 @@ enum Rule {
     Symbol(SymbolId),
     Member(NodeId, Key),
     OptionalMember(NodeId, Key),
+    OptionalUnsignedMember(NodeId),
     DictionaryMember(NodeId, NodeId),
     UnsignedMember(NodeId),
     Call(
@@ -1201,7 +1202,14 @@ impl Fields {
                 }
                 AstKind::ChainExpression(chain) => Some(
                     evaluate::optional_member::parts(chain, 0)
-                        .map(|(receiver, key)| Rule::OptionalMember(receiver.node_id(), key))
+                        .map(|(receiver, key)| match key {
+                            evaluate::optional_member::Key::Literal(key) => {
+                                Rule::OptionalMember(receiver.node_id(), key)
+                            }
+                            evaluate::optional_member::Key::Uint32(_) => {
+                                Rule::OptionalUnsignedMember(receiver.node_id())
+                            }
+                        })
                         .unwrap_or(Rule::Known(Origin::Other)),
                 ),
                 AstKind::StaticMemberExpression(m) if !m.optional => Some(Rule::Member(
@@ -1256,7 +1264,10 @@ impl Fields {
         let has_dictionary_selection = rules.iter().any(|(_, rule)| {
             matches!(
                 rule,
-                Rule::DictionaryMember(..) | Rule::UnsignedMember(..) | Rule::OptionalMember(..)
+                Rule::DictionaryMember(..)
+                    | Rule::UnsignedMember(..)
+                    | Rule::OptionalMember(..)
+                    | Rule::OptionalUnsignedMember(..)
             )
         });
         let track_elements = has_iterations
@@ -1509,6 +1520,9 @@ impl Fields {
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
                     Rule::OptionalMember(receiver, key) => members.optional_select(*receiver, key),
+                    Rule::OptionalUnsignedMember(receiver) => {
+                        members.optional_unsigned_value(*receiver)
+                    }
                     Rule::UnsignedMember(receiver) => members.unsigned_value(*receiver),
                     Rule::DictionaryMember(receiver, key) => {
                         members.dictionary_value(*receiver, *key)

@@ -3,30 +3,50 @@ use super::managed::ManagedWork;
 use super::*;
 use oxc_ast::ast::{ChainElement, ChainExpression};
 
+pub(in crate::lower) enum Key<'e, 'a> {
+    Literal(Vec<u16>),
+    Uint32(&'e Expression<'a>),
+}
+
 pub(in crate::lower) fn parts<'e, 'a>(
     chain: &'e ChainExpression<'a>,
     depth: usize,
-) -> Option<(&'e Expression<'a>, Vec<u16>)> {
+) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
     if depth + 2 > 128 {
         return None;
     }
     match &chain.expression {
         ChainElement::StaticMemberExpression(member) if member.optional => Some((
             &member.object,
-            member.property.name.encode_utf16().collect(),
+            Key::Literal(member.property.name.encode_utf16().collect()),
         )),
         ChainElement::ComputedMemberExpression(member) if member.optional => {
             let (key, _) = closures::unwrapped_at(&member.expression, depth + 2)?;
-            Some((&member.object, static_keys::literal(key)?))
+            if let Some(key) = static_keys::literal(key) {
+                Some((&member.object, Key::Literal(key)))
+            } else if property_delete::uint32_key(&member.expression, depth + 2) {
+                Some((&member.object, Key::Uint32(&member.expression)))
+            } else {
+                None
+            }
         }
         _ => None,
     }
 }
 
-pub(super) struct Read<'e, 'a> {
-    node: &'e Expression<'a>,
-    key: Vec<u16>,
-    receiver: Option<Type>,
+pub(super) enum Read<'e, 'a> {
+    Receiver {
+        node: &'e Expression<'a>,
+        key: Key<'e, 'a>,
+        receiver: Option<Type>,
+        depth: usize,
+    },
+    Key {
+        node: &'e Expression<'a>,
+        object: Option<ValueId>,
+        condition: ValueId,
+        skipped: Region,
+    },
 }
 
 impl Lowering<'_, '_> {
@@ -48,11 +68,19 @@ impl Lowering<'_, '_> {
             return Ok(false);
         }
         let array = receiver == Some(Type::ManagedArray);
-        let length = array && key.as_slice() == [108, 101, 110, 103, 116, 104];
-        let key = if length || receiver.is_none() {
-            key
-        } else {
-            managed_member_key(node, key, array, self.stored.dictionary(object.node_id()))?
+        let key = match key {
+            Key::Literal(key)
+                if receiver.is_some()
+                    && !(array && key.as_slice() == [108, 101, 110, 103, 116, 104]) =>
+            {
+                Key::Literal(managed_member_key(
+                    node,
+                    key,
+                    array,
+                    self.stored.dictionary(object.node_id()),
+                )?)
+            }
+            key => key,
         };
         match mode {
             Mode::Managed => (),
@@ -77,10 +105,11 @@ impl Lowering<'_, '_> {
             }
             _ => return Ok(false),
         }
-        work.push(Work::Managed(ManagedWork::OptionalRead(Read {
+        work.push(Work::Managed(ManagedWork::OptionalRead(Read::Receiver {
             node,
             key,
             receiver,
+            depth,
         })));
         // The original receiver executes once, before either branch. No AST
         // replacement or synthetic member expression changes the source route.
@@ -88,25 +117,55 @@ impl Lowering<'_, '_> {
         Ok(true)
     }
 
-    pub(super) fn complete_optional_member(
+    pub(super) fn complete_optional_member<'e, 'a>(
         &mut self,
-        task: Read<'_, '_>,
+        task: Read<'e, 'a>,
         regions: &mut Regions,
         values: &mut Vec<Value>,
+        work: &mut Vec<Work<'e, 'a>>,
     ) {
-        let Read {
-            node,
-            key,
-            receiver,
-        } = task;
+        let (node, key, receiver, depth) = match task {
+            Read::Receiver {
+                node,
+                key,
+                receiver,
+                depth,
+            } => (node, key, receiver, depth),
+            Read::Key {
+                node,
+                object,
+                condition,
+                skipped,
+            } => {
+                let key = values.pop().expect("optional unsigned key").number();
+                let result = if let Some(object) = object {
+                    let result = self.value(Type::ManagedValue);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::ManagedGetOwnDynamic {
+                            result,
+                            object,
+                            key: ir::ManagedKey::Uint32(key),
+                        },
+                    );
+                    result
+                } else {
+                    // Validate even the unreachable source key while preserving
+                    // runtime short-circuiting for a nullish-only receiver.
+                    self.optional_undefined(node, regions.current())
+                };
+                let selected = regions.finish(result);
+                self.finish_optional_read(node, condition, skipped, selected, regions, values);
+                return;
+            }
+        };
         let input = values.pop().expect("optional member receiver").id();
-        let Some(ty) = receiver else {
-            // Source-proven nullish receiver: evaluation is retained and its
-            // static selection is never performed.
+        if receiver.is_none() && matches!(key, Key::Literal(_)) {
             let result = self.optional_undefined(node, regions.current());
             values.push(Value::Managed(result));
             return;
-        };
+        }
         let mut skipped = self.region(node);
         let undefined = self.optional_undefined(node, &mut skipped);
         skipped.exit = Exit::Yield(undefined);
@@ -120,27 +179,85 @@ impl Lowering<'_, '_> {
             },
         );
         let mut selected = self.region(node);
-        let object = self.value(ty);
-        Self::push(
-            &mut selected,
-            node,
-            if ty == Type::ManagedArray {
-                Op::ManagedToArray {
-                    result: object,
-                    input,
-                }
-            } else {
-                Op::ManagedToObject {
-                    result: object,
-                    input,
-                }
-            },
-        );
-        let result = self.value(Type::ManagedValue);
-        if ty == Type::ManagedArray && key.as_slice() == [108, 101, 110, 103, 116, 104] {
-            let length = self.value(Type::Number);
+        let object = receiver.map(|ty| {
+            let object = self.value(ty);
             Self::push(
                 &mut selected,
+                node,
+                if ty == Type::ManagedArray {
+                    Op::ManagedToArray {
+                        result: object,
+                        input,
+                    }
+                } else {
+                    Op::ManagedToObject {
+                        result: object,
+                        input,
+                    }
+                },
+            );
+            object
+        });
+        match key {
+            Key::Uint32(key) => {
+                regions.children.push(selected);
+                work.push(Work::Managed(ManagedWork::OptionalRead(Read::Key {
+                    node,
+                    object,
+                    condition,
+                    skipped,
+                })));
+                work.push(Work::Eval(key, depth + 2, Mode::Number));
+            }
+            Key::Literal(key) => {
+                let result = self.optional_literal_get(
+                    node,
+                    key,
+                    object.expect("non-nullish literal receiver"),
+                    &mut selected,
+                );
+                selected.exit = Exit::Yield(result);
+                self.finish_optional_read(node, condition, skipped, selected, regions, values);
+            }
+        }
+    }
+
+    fn finish_optional_read(
+        &mut self,
+        node: &Expression<'_>,
+        condition: ValueId,
+        skipped: Region,
+        selected: Region,
+        regions: &mut Regions,
+        values: &mut Vec<Value>,
+    ) {
+        let result = self.value(Type::ManagedValue);
+        Self::push(
+            regions.current(),
+            node,
+            Op::If {
+                result: Some(result),
+                condition,
+                consequent: skipped,
+                alternate: selected,
+            },
+        );
+        values.push(Value::Managed(result));
+    }
+
+    fn optional_literal_get(
+        &mut self,
+        node: &Expression<'_>,
+        key: Vec<u16>,
+        object: ValueId,
+        region: &mut Region,
+    ) -> ValueId {
+        let result = self.value(Type::ManagedValue);
+        let array = self.values[object.0] == Type::ManagedArray;
+        if array && key.as_slice() == [108, 101, 110, 103, 116, 104] {
+            let length = self.value(Type::Number);
+            Self::push(
+                region,
                 node,
                 Op::ManagedArrayLength {
                     result: length,
@@ -149,7 +266,7 @@ impl Lowering<'_, '_> {
             );
             let primitive = self.value(Type::General);
             Self::push(
-                &mut selected,
+                region,
                 node,
                 Op::Pack {
                     result: primitive,
@@ -157,7 +274,7 @@ impl Lowering<'_, '_> {
                 },
             );
             Self::push(
-                &mut selected,
+                region,
                 node,
                 Op::ManagedPrimitive {
                     result,
@@ -166,9 +283,9 @@ impl Lowering<'_, '_> {
             );
         } else {
             Self::push(
-                &mut selected,
+                region,
                 node,
-                if ty == Type::ManagedArray {
+                if array {
                     Op::ManagedArrayGetOwn {
                         result,
                         array: object,
@@ -183,19 +300,7 @@ impl Lowering<'_, '_> {
                 },
             );
         }
-        selected.exit = Exit::Yield(result);
-        let result = self.value(Type::ManagedValue);
-        Self::push(
-            regions.current(),
-            node,
-            Op::If {
-                result: Some(result),
-                condition,
-                consequent: skipped,
-                alternate: selected,
-            },
-        );
-        values.push(Value::Managed(result));
+        result
     }
 
     fn optional_undefined(&mut self, node: &Expression<'_>, region: &mut Region) -> ValueId {
@@ -223,6 +328,58 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn optional_unsigned_key_depth_is_charged_on_a_small_native_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (wraps, admitted) in [(125, true), (126, false)] {
+                    let source = format!(
+                        "export function run(a,b){{const xs=[a,b];return xs?.[{}a>>>0{}];}}",
+                        "(".repeat(wraps),
+                        ")".repeat(wraps)
+                    );
+                    let r = crate::compile_value(&source, false);
+                    assert_eq!(r.is_ok(), admitted, "{wraps}: {:?}", r.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn unsigned_optional_reads_require_range_receiver_and_operand_proofs() {
+        for (body, ok) in [
+            ("const xs=[a,b];return +(xs?.[a>>>0]);", true),
+            ("const xs=a?[b]:null;return +(xs?.[0>>>0]);", true),
+            ("const xs=null;let n=0;xs?.[(n++,0>>>0)];return n;", true),
+            ("const o={0:a};return +(o?.[a>>>0]);", true),
+            ("const xs=[a];return +(xs?.[a]);", false),
+            ("const xs=[a];return +(xs?.[(xs.length=0,0>>>0)]);", false),
+            ("const xs=[a];return +(xs?.[a>>0]);", false),
+            ("const xs=[a];return +(xs?.[1n>>>0]);", false),
+            ("const xs=null;return +(xs?.[1n>>>0]);", false),
+            ("return +(a?.[0>>>0]);", false),
+            (
+                "const xs=['text'];return (xs?.[0>>>0]).trim().length;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+        let js = "export function run(a,b){const xs=a?[b]:null;return +(xs?.[a>>>0]);}";
+        let ts = "export function run(a:string,b:boolean):never{const xs=a?[b]:null;return +((xs as never)?.[((a>>>0) as never)]);}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+    }
+
     #[test]
     fn optional_receiver_depth_is_charged_on_a_small_native_stack() {
         std::thread::Builder::new()
