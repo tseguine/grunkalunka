@@ -22,7 +22,7 @@ pub(super) enum Task<'e, 'a> {
 
 // Source operators, never annotations, prove the key's numeric range. The
 // ordinary evaluator still validates every operand and effect of these forms.
-pub(super) fn uint32_key(expression: &Expression<'_>, depth: usize) -> bool {
+pub(in crate::lower) fn uint32_key(expression: &Expression<'_>, depth: usize) -> bool {
     let mut pending = vec![(expression, depth)];
     while let Some((expression, depth)) = pending.pop() {
         let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {

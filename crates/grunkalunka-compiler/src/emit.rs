@@ -298,8 +298,13 @@ impl Emitter<'_> {
                 key,
             } => {
                 self.get(*object);
-                self.managed_key_value(*key);
-                self.output.push_str("call $gc_get\n");
+                self.property_key(key);
+                self.output
+                    .push_str(if self.function.values[object.0] == Type::ManagedArray {
+                        "call $gc_array_get\n"
+                    } else {
+                        "call $gc_get\n"
+                    });
                 self.set(*result);
             }
             Op::ManagedSetOwn { object, key, value } => {
@@ -1804,7 +1809,8 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
         ir::any_operation(&function.body, &mut |op| match op {
             Op::ManagedDeleteOwn { key, .. }
             | Op::ManagedHasOwn { key, .. }
-            | Op::ManagedSetOwnDynamic { key, .. } => {
+            | Op::ManagedSetOwnDynamic { key, .. }
+            | Op::ManagedGetOwnDynamic { key, .. } => {
                 matches!(key, ir::ManagedKey::Uint32(_))
             }
             Op::ManagedObjectRest { excluded, .. } => excluded
@@ -2082,7 +2088,7 @@ fn needs_literal_scratch(function: &ir::Function) -> bool {
             Op::ManagedObjectRest { excluded, .. } => {
                 excluded.iter().any(|key| matches!(key, ir::ManagedKey::Literal(text) if text.len() > MAX_FIXED_TEXT_UNITS))
             }
-            Op::ManagedSetOwnDynamic { key: ir::ManagedKey::Literal(key), .. } => key.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedSetOwnDynamic { key: ir::ManagedKey::Literal(key), .. } | Op::ManagedGetOwnDynamic {key:ir::ManagedKey::Literal(key),..} => key.len() > MAX_FIXED_TEXT_UNITS,
             Op::ManagedGetOwn { key, .. }
             | Op::ManagedSetOwn { key, .. }
             | Op::ManagedArrayGetOwn { key, .. }

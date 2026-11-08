@@ -46,6 +46,29 @@ impl Members<'_, '_> {
         found
     }
 
+    pub(super) fn unsigned_value(&self, receiver: NodeId) -> Alternatives {
+        let Some(receivers) = self
+            .values
+            .get(&receiver)
+            .filter(|values| !values.is_empty())
+        else {
+            return Alternatives::new();
+        };
+        if !receivers.iter().all(|origin| {
+            matches!(
+                origin,
+                Origin::Object(_) | Origin::NullObject(_) | Origin::Array(_)
+            )
+        }) {
+            return BTreeSet::from([Origin::Other]);
+        }
+        // Numeric names have no inherited value in the represented pristine realm.
+        // Include every own initializer/write conservatively, and possible absence.
+        let mut found = self.enumerable_values(receiver);
+        found.insert(Origin::Undefined);
+        found
+    }
+
     pub(super) fn enumerable_values(&self, receiver: NodeId) -> Alternatives {
         let mut found = Alternatives::new();
         let origins = |id: NodeId| self.values.get(&id).into_iter().flatten().copied();

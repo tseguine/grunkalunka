@@ -23,7 +23,7 @@ pub(super) use managed::member_key as managed_member_key;
 mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
-mod property_delete;
+pub(super) mod property_delete;
 mod property_logical;
 pub(super) mod property_update;
 mod string_addition;

@@ -782,7 +782,7 @@ pub(crate) enum Op {
     ManagedGetOwnDynamic {
         result: ValueId,
         object: ValueId,
-        key: ValueId,
+        key: ManagedKey,
     },
     ManagedSetOwn {
         object: ValueId,
@@ -1561,8 +1561,18 @@ impl Verifier<'_> {
                 object,
                 key,
             } => {
-                self.value(*object, Type::ManagedObject, visible, span)?;
-                self.value(*key, Type::ManagedValue, visible, span)?;
+                let ty = self
+                    .function
+                    .values
+                    .get(object.0)
+                    .copied()
+                    .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
+                    .ok_or_else(|| invalid(span, "dynamic read requires an object or Array"))?;
+                self.value(*object, ty, visible, span)?;
+                self.managed_key(key, visible, span)?;
+                if ty == Type::ManagedArray && !matches!(key, ManagedKey::Uint32(_)) {
+                    return Err(invalid(span, "dynamic Array reads require unsigned keys"));
+                }
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedSetOwn { object, key, value } => {

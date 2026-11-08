@@ -35,6 +35,7 @@ enum Rule {
     Symbol(SymbolId),
     Member(NodeId, Key),
     DictionaryMember(NodeId, NodeId),
+    UnsignedMember(NodeId),
     Call(
         NodeId,
         Vec<NodeId>,
@@ -1183,6 +1184,8 @@ impl Fields {
                         closures::unwrapped(&m.expression, 0).and_then(static_keys::literal)
                     {
                         Some(Rule::Member(m.object.node_id(), key))
+                    } else if evaluate::property_delete::uint32_key(&m.expression, 0) {
+                        Some(Rule::UnsignedMember(m.object.node_id()))
                     } else {
                         // Null-prototype dictionaries have no inherited values.
                         // The solver checks the receiver/key before collecting
@@ -1223,7 +1226,7 @@ impl Fields {
             .any(|(_, rule)| matches!(rule, Rule::Logical(..)));
         let has_dictionary_selection = rules
             .iter()
-            .any(|(_, rule)| matches!(rule, Rule::DictionaryMember(..)));
+            .any(|(_, rule)| matches!(rule, Rule::DictionaryMember(..) | Rule::UnsignedMember(..)));
         let track_elements = has_iterations
             || has_relative_selection
             || !elements.rest_sources.is_empty()
@@ -1465,6 +1468,7 @@ impl Fields {
                         found
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
+                    Rule::UnsignedMember(receiver) => members.unsigned_value(*receiver),
                     Rule::DictionaryMember(receiver, key) => {
                         members.dictionary_value(*receiver, *key)
                     }

@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn unsigned_property_reads_preserve_missing_values_and_snapshots() {
+    for body in [
+        "const xs=[a,b];return +xs[a>>>0];",
+        "const xs=[,a];return xs[a>>>0]===undefined?1:0;",
+        "const o={0:a,1:b};return +o[a>>>0];",
+        "const d=Object.create(null);d[0]=a;return +d[b>>>0];",
+        "const xs=[];xs[a>>>0]=b;return +xs[a>>>0];",
+        "const xs=[];xs[4294967295]=b;return +xs[(-1)>>>0];",
+        "const xs=[];xs[4294967294]=b;return +xs[(-2)>>>0];",
+        "let xs=[a,b];const saved=xs;let n=0;const v=(n=1,xs)[(n=n*10+2,xs=[b],0>>>0)];return n===12&&saved!==xs&&v===a?1:0;",
+        "const child={v:a};const xs=[child];return xs[0>>>0]===child?1:0;",
+        "const xs=[a,b];delete xs[a>>>0];return xs[a>>>0]===undefined?1:0;",
+        "const xs=[a,b];const read=()=>+xs[a>>>0];return read();",
+        "const xs=[a,b];return +xs[a?(0>>>0):(1>>>0)];",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn unsigned_property_writes_preserve_growth_values_and_snapshots() {
     for body in [
         "const xs=[];xs[a>>>0]=b;return Object.keys(xs).length*10+(Object.hasOwn(xs,0)?1:0)+(Object.hasOwn(xs,1)?2:0);",

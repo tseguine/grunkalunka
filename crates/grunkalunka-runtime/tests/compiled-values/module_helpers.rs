@@ -1,6 +1,14 @@
 use super::*;
 
 #[test]
+fn unsigned_property_reads_preserve_tags_and_bits() {
+    compare_helpers(&[
+        "export function run(a,b){const xs=[a,b];return xs[a>>>0];}",
+        "export function run(a,b){const xs=[null,false,undefined];return xs[a>>>0];}",
+    ]);
+}
+
+#[test]
 fn unsigned_property_writes_return_exact_rhs_tags_and_bits() {
     compare_helpers(&[
         "export function run(a,b){const xs=[];return xs[a>>>0]=b;}",
