@@ -1436,6 +1436,6 @@ test('unsigned Object.hasOwn fixtures retain native reference and compiler sourc
   }
 });
 
-test('primitive object bindings retain original Number and Boolean sources',()=>{assert.equal(primitiveObjectBindingPrograms.length,12);for(const row of primitiveObjectBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+test('primitive object bindings retain original Number and Boolean sources',()=>{assert.equal(primitiveObjectBindingPrograms.length,16);for(const row of primitiveObjectBindingPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
 
-test('primitive object assignments retain original RHS and result expressions',()=>{assert.equal(primitiveObjectAssignmentPrograms.length,12);for(const row of primitiveObjectAssignmentPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+test('primitive object assignments retain original RHS and result expressions',()=>{assert.equal(primitiveObjectAssignmentPrograms.length,16);for(const row of primitiveObjectAssignmentPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

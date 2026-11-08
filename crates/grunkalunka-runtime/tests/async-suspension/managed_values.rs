@@ -1465,3 +1465,14 @@ fn primitive_object_assignments_preserve_suspension_rhs_and_results() {
         &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
     );
 }
+
+#[test]
+fn primitive_object_numeric_field_defaults_survive_suspension() {
+    compare_promises(
+        &[
+            "const {0:x=(b=7)}=await a;return b;",
+            "let x={},rest={};({[b>>>0]:x=(b=9),...rest}=await a);await b;return b+Object.keys(rest).length;",
+        ],
+        &[(0.0, 2.0), (1.0, 3.0), (f64::NAN, f64::INFINITY)],
+    );
+}

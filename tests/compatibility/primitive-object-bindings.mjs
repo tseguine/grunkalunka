@@ -58,5 +58,25 @@ export const primitiveObjectBindingPrograms=[
     "primitive-object-bind-fresh-rest",
     "const {...left}=a;const {...right}=false;return left!==right&&Object.keys(left).length===0&&Object.keys(right).length===0?1:0;",
     "const {...left}=a;const {...right}=false;return left!==right&&Object.keys(left).length===0&&Object.keys(right).length===0?1:0;"
+  ],
+  [
+    "primitive-object-bind-static-numeric-default",
+    "const {0:x=(b=7)}=a;return b;",
+    "const {0:x=(b=7)}=a;return b;"
+  ],
+  [
+    "primitive-object-bind-computed-numeric-default",
+    "const {[b>>>0]:x=(b=9)}=a;return b;",
+    "const {[b>>>0]:x=(b=9)}=a;return b;"
+  ],
+  [
+    "primitive-object-bind-numeric-rest",
+    "const {0:x=(b=3),...rest}=a;return b+Object.keys(rest).length;",
+    "const {0:x=(b=3),...rest}=a;return b+Object.keys(rest).length;"
+  ],
+  [
+    "primitive-object-bind-boolean-numeric",
+    "const {0:x=(b=5)}=(a>b);return b;",
+    "const {0:x=(b=5)}=(a>b);return b;"
   ]
 ];

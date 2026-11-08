@@ -239,12 +239,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     "String object bindings require a proven String",
                                 ));
                             }
-                            if receiver == Type::General && !object.properties.is_empty() {
-                                return Err(unsupported(
-                                    object.as_ref(),
-                                    "Number and Boolean object bindings require an empty property list",
-                                ));
-                            }
                             steps.push(BindingStep::Object {
                                 source: object,
                                 receiver,
@@ -300,6 +294,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             receiver == Type::ManagedArray,
                             dictionary,
                         )?;
+                        if receiver == Type::General && string_index(&key).is_none() {
+                            return Err(unsupported(
+                                property,
+                                "Number and Boolean object binding keys require canonical numeric indices",
+                            ));
+                        }
                         if receiver == Type::ManagedValue
                             && key.as_slice() != [108, 101, 110, 103, 116, 104]
                             && string_index(&key).is_none()
@@ -388,6 +388,10 @@ mod string_rest_binding_tests {
             ("const {...rest}=(a?'abc':null);return a;", false),
             // Number entry parameters now use the primitive object-binding path.
             ("const {...rest}=a;return a;", true),
+            ("const {0:x=(b=7)}=a;return b;", true),
+            ("const {[b>>>0]:x=(b=7),...rest}=a;return b;", true),
+            ("const {valueOf:x}=a;return a;", false),
+            ("const {[b]:x}=a;return a;", false),
             ("const k='0';const {[k]:x,...rest}='abc';return a;", false),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -398,7 +402,7 @@ mod string_rest_binding_tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){const {0:x,...rest}=(a as string);return a;}",
+                "export function run(a,b){const {valueOf:x,...rest}=(a as string);return a;}",
                 true
             )
             .is_err()
@@ -414,7 +418,7 @@ mod unsigned_binding_tests {
             ("const {[a>>>0]:x=b}=[a];return x;", true),
             ("const {[a>>>0]:x='?'}='abc';return x.length;", true),
             ("const {[a]:x}=[b];return a;", false),
-            ("const {[a>>>0]:x}=b;return a;", false),
+            ("const {[a>>>0]:x}=b;return a;", true),
             ("const k='0';const {[k]:x}=[b];return a;", false),
             ("const {[a>>>0]:x}=[a?'text':b];return x.length;", false),
         ] {

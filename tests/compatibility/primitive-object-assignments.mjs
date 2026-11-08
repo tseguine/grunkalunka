@@ -58,5 +58,25 @@ export const primitiveObjectAssignmentPrograms=[
     "primitive-object-assign-fresh-rest",
     "let left={},right={};({...left}=a);({...right}=false);return left!==right&&Object.keys(left).length===0&&Object.keys(right).length===0?1:0;",
     "let left={},right={};({...left}=a);({...right}=false);return left!==right&&Object.keys(left).length===0&&Object.keys(right).length===0?1:0;"
+  ],
+  [
+    "primitive-object-assign-static-numeric-default",
+    "let x={};({0:x=(b=7)}=a);return b;",
+    "let x={};({0:x=(b=7)}=a);return b;"
+  ],
+  [
+    "primitive-object-assign-computed-numeric-default",
+    "let x={};({[b>>>0]:x=(b=9)}=a);return b;",
+    "let x={};({[b>>>0]:x=(b=9)}=a);return b;"
+  ],
+  [
+    "primitive-object-assign-numeric-rest",
+    "let x={},rest={};({0:x=(b=3),...rest}=a);return b+Object.keys(rest).length;",
+    "let x={},rest={};({0:x=(b=3),...rest}=a);return b+Object.keys(rest).length;"
+  ],
+  [
+    "primitive-object-assign-boolean-numeric",
+    "let x={};({0:x=(b=5)}=(a>b));return b;",
+    "let x={};({0:x=(b=5)}=(a>b));return b;"
   ]
 ];

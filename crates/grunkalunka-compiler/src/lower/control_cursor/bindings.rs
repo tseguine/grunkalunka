@@ -183,6 +183,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     if let Some(excluded) = excluded {
                         excluded.push(ir::ManagedKey::Literal(key.clone()));
                     }
+                    if self.values[object.0] == Type::General {
+                        let selected = self.binding_undefined(source, &mut output);
+                        state.selected = Some(selected);
+                        continue;
+                    }
                     let selected = self.value(Type::ManagedValue);
                     if self.values[object.0] == Type::ManagedValue {
                         if key.as_slice() == [108, 101, 110, 103, 116, 104] {
@@ -477,24 +482,29 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if let Some(excluded) = excluded {
             excluded.push(saved_key.clone());
         }
-        let selected = self.value(Type::ManagedValue);
-        Self::push(
-            &mut output,
-            source,
-            if self.values[value.0] == Type::ManagedValue {
-                Op::ManagedStringGetIndex {
-                    result: selected,
-                    input: *value,
-                    index: key,
-                }
-            } else {
-                Op::ManagedGetOwnDynamic {
-                    result: selected,
-                    object: *value,
-                    key: saved_key,
-                }
-            },
-        );
+        let selected = if self.values[value.0] == Type::General {
+            self.binding_undefined(source, &mut output)
+        } else {
+            let selected = self.value(Type::ManagedValue);
+            Self::push(
+                &mut output,
+                source,
+                if self.values[value.0] == Type::ManagedValue {
+                    Op::ManagedStringGetIndex {
+                        result: selected,
+                        input: *value,
+                        index: key,
+                    }
+                } else {
+                    Op::ManagedGetOwnDynamic {
+                        result: selected,
+                        object: *value,
+                        key: saved_key,
+                    }
+                },
+            );
+            selected
+        };
         state.selected = Some(selected);
         self.advance_binding_pattern(resume, state, output, cursor)
     }
