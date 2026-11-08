@@ -11,6 +11,7 @@ mod arrays;
 mod objects;
 
 pub(super) enum ManagedWork<'e, 'a> {
+    OptionalRead(optional_member::Read<'e, 'a>),
     StringIndexReceiver {
         node: &'e Expression<'a>,
         index: &'e Expression<'a>,
@@ -511,6 +512,11 @@ impl Lowering<'_, '_> {
                                         .map(|_| Type::ManagedValue)
                                 }),
                         ),
+                        Expression::ChainExpression(chain)
+                            if optional_member::parts(chain, depth).is_some() =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::StaticMemberExpression(m) if !m.optional => {
                             work.push(Shape::Member(&m.object, m.property.name == "length"));
                             work.push(Shape::Expr(&m.object, depth + 1));
@@ -650,7 +656,8 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
-        if self.schedule_string_await(node, depth, mode, work)?
+        if self.schedule_optional_member(node, depth, mode, work)?
+            || self.schedule_string_await(node, depth, mode, work)?
             || self.schedule_string_addition(node, depth, mode, regions, work)?
             || self.schedule_local_logical(node, depth, mode, regions, work)?
             || self.schedule_local_update(node, depth, mode, regions, values, work)?
@@ -1438,6 +1445,7 @@ impl Lowering<'_, '_> {
                 );
                 values.push(Value::Managed(result));
             }
+            ManagedWork::OptionalRead(task) => self.complete_optional_member(task, regions, values),
             ManagedWork::DictionaryNew(node) => {
                 let result = self.value(Type::ManagedObject);
                 Self::push(regions.current(), node, Op::ManagedObjectNew { result });

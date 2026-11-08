@@ -136,16 +136,36 @@ impl Members<'_, '_> {
     }
 
     pub(super) fn select(&self, receiver: NodeId, source_key: &Key) -> Alternatives {
+        self.select_member(receiver, source_key, false)
+    }
+
+    pub(super) fn optional_select(&self, receiver: NodeId, source_key: &Key) -> Alternatives {
+        self.select_member(receiver, source_key, true)
+    }
+
+    fn select_member(&self, receiver: NodeId, source_key: &Key, optional: bool) -> Alternatives {
         enum Step {
             Read(Origin, Option<u32>),
             FinishRest(NodeId, Option<u32>),
         }
         let origins = |id: NodeId| self.values.get(&id).into_iter().flatten().copied();
-        let mut initial = origins(receiver).map(|origin| Step::Read(origin, None));
+        let roots: Vec<_> = origins(receiver).collect();
+        let nullish = optional
+            && roots
+                .iter()
+                .any(|origin| matches!(origin, Origin::Null | Origin::Undefined));
+        let mut initial = roots
+            .into_iter()
+            .filter(|origin| !optional || !matches!(origin, Origin::Null | Origin::Undefined))
+            .map(|origin| Step::Read(origin, None));
         let mut work = Vec::new();
         let mut active = BTreeSet::new();
         let mut completed = BTreeSet::new();
-        let mut found = Alternatives::new();
+        let mut found = if nullish {
+            BTreeSet::from([Origin::Undefined])
+        } else {
+            Alternatives::new()
+        };
         while let Some(step) = work.pop().or_else(|| initial.next()) {
             let (origin, shifted) = match step {
                 Step::Read(Origin::String, None) => {
@@ -185,6 +205,10 @@ impl Members<'_, '_> {
             };
             let array = matches!(origin, Origin::Array(_));
             let dictionary = matches!(origin, Origin::NullObject(_));
+            if optional && array && key.as_slice() == LENGTH {
+                found.insert(Origin::Number);
+                continue;
+            }
             if (array && (self.open_fields.contains(&object) || key.as_slice() == LENGTH))
                 || evaluate::managed_member_key(
                     &self.semantic.nodes().kind(object),

@@ -34,6 +34,7 @@ enum Rule {
     Default(NodeId, NodeId),
     Symbol(SymbolId),
     Member(NodeId, Key),
+    OptionalMember(NodeId, Key),
     DictionaryMember(NodeId, NodeId),
     UnsignedMember(NodeId),
     Call(
@@ -335,6 +336,29 @@ impl Fields {
             })
             .then_some(ty)
     }
+    pub(super) fn optional_container(&self, node: NodeId) -> Option<Type> {
+        let mut roots = self
+            .values
+            .get(&node)?
+            .iter()
+            .filter(|origin| !matches!(origin, Origin::Null | Origin::Undefined));
+        let ty = match roots.next()? {
+            Origin::Object(_) | Origin::NullObject(_) => Type::ManagedObject,
+            Origin::Array(_) => Type::ManagedArray,
+            _ => return None,
+        };
+        roots
+            .all(|origin| {
+                matches!(
+                    (ty, origin),
+                    (
+                        Type::ManagedObject,
+                        Origin::Object(_) | Origin::NullObject(_)
+                    ) | (Type::ManagedArray, Origin::Array(_))
+                )
+            })
+            .then_some(ty)
+    }
     pub(super) fn functions(&self, node: NodeId) -> Option<&Alternatives> {
         let values = self.values.get(&node)?;
         (!values.is_empty()
@@ -363,7 +387,7 @@ impl Fields {
         if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
-                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_)
+                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_) | AstKind::ChainExpression(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
                 || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
@@ -1175,6 +1199,11 @@ impl Fields {
                     }
                     Some(Rule::Copy(vec![a.right.node_id()]))
                 }
+                AstKind::ChainExpression(chain) => Some(
+                    evaluate::optional_member::parts(chain, 0)
+                        .map(|(receiver, key)| Rule::OptionalMember(receiver.node_id(), key))
+                        .unwrap_or(Rule::Known(Origin::Other)),
+                ),
                 AstKind::StaticMemberExpression(m) if !m.optional => Some(Rule::Member(
                     m.object.node_id(),
                     m.property.name.encode_utf16().collect(),
@@ -1224,9 +1253,12 @@ impl Fields {
         let has_logical_selection = rules
             .iter()
             .any(|(_, rule)| matches!(rule, Rule::Logical(..)));
-        let has_dictionary_selection = rules
-            .iter()
-            .any(|(_, rule)| matches!(rule, Rule::DictionaryMember(..) | Rule::UnsignedMember(..)));
+        let has_dictionary_selection = rules.iter().any(|(_, rule)| {
+            matches!(
+                rule,
+                Rule::DictionaryMember(..) | Rule::UnsignedMember(..) | Rule::OptionalMember(..)
+            )
+        });
         let track_elements = has_iterations
             || has_relative_selection
             || !elements.rest_sources.is_empty()
@@ -1476,6 +1508,7 @@ impl Fields {
                         found
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
+                    Rule::OptionalMember(receiver, key) => members.optional_select(*receiver, key),
                     Rule::UnsignedMember(receiver) => members.unsigned_value(*receiver),
                     Rule::DictionaryMember(receiver, key) => {
                         members.dictionary_value(*receiver, *key)

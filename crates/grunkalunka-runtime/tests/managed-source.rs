@@ -5,6 +5,39 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_static_reads_preserve_nullish_values_identity_and_receiver_effects() {
+    for body in [
+        "return null?.constructor===undefined?1:0;",
+        "const o={x:a};return o?.x;",
+        "const o=a?{x:b}:null;return +(o?.x);",
+        "const o=a?{x:b}:undefined;return o?.x===undefined?1:0;",
+        "const xs=[a,b];return xs?.[0];",
+        "const xs=a?[b]:null;return +(xs?.[0]);",
+        "const xs=[a,b];return xs?.length;",
+        "const xs=a?[b]:undefined;return +(xs?.length);",
+        "const xs=[,b];return xs?.[0]===undefined?1:0;",
+        "const o={};return o?.missing===undefined?1:0;",
+        "return null?.x===undefined?1:0;",
+        "return undefined?.[0]===undefined?1:0;",
+        "const o=a?null:undefined;return o?.x===undefined?1:0;",
+        "const o=a?{x:'ok'}:null;return o?.x==='ok'?1:0;",
+        "const o=a?{x:false}:null;return o?.x?1:0;",
+        "const o=a?{x:null}:undefined;return +(o?.x??b);",
+        "const child={x:a};const o={child};return o?.child===child?1:0;",
+        "const child={x:a};const o=a?{child}:null;return o?.child===child?1:0;",
+        "const o={x:a};const v=o?.x;o.x=b;return v;",
+        "let n=0;const o={x:a};const v=(n++,o)?.x;return n===1?v:99;",
+        "let n=0;const v=(n++,null)?.x;return n===1&&v===undefined?1:0;",
+        "let n=0;const get=()=>{n++;return a?{x:b}:null;};const v=get()?.x;return n===1?+v:99;",
+        "const d=Object.create(null);d.x=a;return +(d?.['x']);",
+        "const d=Object.create(null);d.x=b;const maybe=a?d:null;return +(maybe?.x);",
+        "const o={'\\ud800':a};return o?.['\\ud800'];",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn scalar_for_in_preserves_rhs_effects_and_skips_body_and_head_assignments() {
     for body in [
         "let n=0;for(const k in null)n++;return n;",
