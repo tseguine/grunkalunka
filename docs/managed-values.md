@@ -1483,3 +1483,12 @@ Number-only alternatives, and tagged primitive cells retain their original tags.
 The RHS is still saved once, defaults remain lazy, and later selections/defaults
 observe preceding writes. Incompatible parameter kinds and annotation-only proofs
 remain guarded; this does not widen public result signatures.
+
+
+Array/object assignment patterns also accept static/literal own member targets
+on source-proven objects and Arrays. Each original destination reference executes
+before its value is selected and before its lazy default; supported awaits retain
+that address. Array patterns use a live, sticky-done iterator when target effects
+can change the source. Alias field facts include every assigned selection/default.
+Dynamic target keys, member rest targets, nested target patterns, nullable/unknown
+receivers and unchecked Array length writes remain guarded.

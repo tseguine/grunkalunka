@@ -1,3 +1,4 @@
+import { memberPatternPrograms } from './member-pattern-targets.mjs';
 import { scalarPatternPrograms } from './scalar-pattern-parameters.mjs';
 import { nullableForInPrograms } from './nullable-for-in.mjs';
 import { scalarIterationPrograms } from './scalar-iteration-heads.mjs';
@@ -1396,3 +1397,6 @@ test('nullable for-in retains original RHS sources and nullish observations',()=
 
 
 test('scalar pattern parameters preserve source and original reference results',()=>{assert.equal(scalarPatternPrograms.length,12);for(const row of scalarPatternPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});
+
+
+test('member pattern targets retain original address/selection/default ordering',()=>{assert.equal(memberPatternPrograms.length,12);for(const row of memberPatternPrograms){assert.equal(programSources(row).sourceJS,programSources(row).oracleSource);assert.ok(programs.some(p=>p[0]===row[0]));}});

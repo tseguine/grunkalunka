@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn member_pattern_targets_preserve_reference_order_and_live_selections() {
+    for body in [
+        "const o={x:a};[o.x]=[b];return o.x;",
+        "const o={x:a};({v:o.x}={v:b});return o.x;",
+        "const xs=[];[xs[0],xs[1]]=[a,b];return xs.length;",
+        "const o={x:a};[o.x=b]=[];return o.x;",
+        "const rows=[a];const o={x:0};const get=()=>{rows[0]=b;return o;};[get().x]=rows;return o.x;",
+        "const row={v:a};const o={x:0};const get=()=>{row.v=b;return o;};({v:get().x}=row);return o.x;",
+        "let o={x:a};const old=o;[o.x=(o={x:b},1)]=[];return old.x===1&&o.x===b?1:0;",
+        "const row={v:undefined,w:a};const o={x:0,y:0};({v:o.x=(row.w=b,1),w:o.y}=row);return o.y;",
+        "const o={x:undefined};[o.x]='';return o.x===undefined?1:0;",
+        "const o={x:''};[o.x]='💠';return o.x==='💠'?1:0;",
+        "const values=[];const o={x:undefined,y:undefined};const grow=()=>{values[1]=a;return o;};[o.x,grow().y]=values;return o.x===undefined&&o.y===undefined?1:0;",
+        "const o={x:a};const values=[b];return ([o.x]=values)===values?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn scalar_pattern_parameters_preserve_defaults_captures_and_rhs_snapshots() {
     for body in [
         "[a]=[b];return a;",

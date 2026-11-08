@@ -2,16 +2,30 @@
 use super::*;
 use oxc_ast::ast::{AssignmentTarget, AssignmentTargetProperty};
 
-enum Selection {
+pub(super) enum Selection {
     Index(u32),
     Field(Vec<u16>),
     ArrayRest(u32),
     ObjectRest(Vec<ir::ManagedKey>),
 }
 
+enum Destination<'e, 'a> {
+    Slot(SlotId),
+    Member {
+        object: &'e Expression<'a>,
+        key: Vec<u16>,
+        ty: Type,
+    },
+}
+
+pub(super) enum SavedDestination {
+    Slot(SlotId),
+    Member { object: ValueId, key: Vec<u16> },
+}
+
 struct Write<'e, 'a> {
     selection: Selection,
-    slot: SlotId,
+    destination: Destination<'e, 'a>,
     default: Option<&'e Expression<'a>>,
 }
 
@@ -31,26 +45,75 @@ pub(super) struct State<'e, 'a> {
     mode: Mode,
     depth: usize,
     iterator: Option<control_cursor::array_bindings::IteratorState>,
+    pending: Option<(Selection, SavedDestination, Option<&'e Expression<'a>>)>,
 }
 
 pub(super) enum Task<'e, 'a> {
     Begin(Plan<'e, 'a>),
+    Receiver {
+        state: Box<State<'e, 'a>>,
+        selection: Selection,
+        key: Vec<u16>,
+        default: Option<&'e Expression<'a>>,
+    },
     Default {
         state: Box<State<'e, 'a>>,
-        slot: SlotId,
+        destination: SavedDestination,
         selected: ValueId,
         condition: ValueId,
     },
 }
 
 impl Lowering<'_, '_> {
-    fn assignment_pattern_slot(&self, target: &AssignmentTarget<'_>) -> Result<SlotId, String> {
+    fn assignment_pattern_destination<'e, 'a>(
+        &self,
+        target: &'e AssignmentTarget<'a>,
+        depth: usize,
+    ) -> Result<Destination<'e, 'a>, String> {
+        if let Some((object, key)) = assignment_patterns::member_target(target, depth) {
+            let ty = self
+                .receiver_type(object, depth)
+                .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
+                .ok_or_else(|| {
+                    unsupported(
+                        target,
+                        "assignment member requires a proven object or Array",
+                    )
+                })?;
+            if ty == Type::ManagedArray && key.as_slice() == [108, 101, 110, 103, 116, 104] {
+                return Err(unsupported(
+                    target,
+                    "assignment patterns cannot set unchecked Array length",
+                ));
+            }
+            let key = managed::member_key(
+                target,
+                key,
+                ty == Type::ManagedArray,
+                self.stored.dictionary(object.node_id()),
+            )?;
+            return Ok(Destination::Member { object, key, ty });
+        }
         let identifier = target
             .as_simple_assignment_target()
             .map(|target| target_identifier(target, 0))
             .transpose()?
             .flatten()
             .ok_or_else(|| unsupported(target, "assignment patterns require identifier targets"))?;
+        self.assignment_identifier_slot(identifier)
+            .map(Destination::Slot)
+    }
+
+    fn assignment_pattern_slot_for_rest(
+        &self,
+        target: &AssignmentTarget<'_>,
+    ) -> Result<SlotId, String> {
+        let identifier = target
+            .as_simple_assignment_target()
+            .map(|t| target_identifier(t, 0))
+            .transpose()?
+            .flatten()
+            .ok_or_else(|| unsupported(target, "rest assignment requires an identifier target"))?;
         self.assignment_identifier_slot(identifier)
     }
 
@@ -111,6 +174,33 @@ impl Lowering<'_, '_> {
             _ => unreachable!("validated assignment cell"),
         };
         Self::push(region, node, Op::Store { slot, value });
+    }
+
+    fn store_pattern_destination(
+        &mut self,
+        node: &Expression<'_>,
+        destination: SavedDestination,
+        value: ValueId,
+        region: &mut Region,
+    ) {
+        match destination {
+            SavedDestination::Slot(slot) => {
+                self.store_assignment_selection(node, slot, value, region)
+            }
+            SavedDestination::Member { object, key } => Self::push(
+                region,
+                node,
+                if self.values[object.0] == Type::ManagedArray {
+                    Op::ManagedArraySetOwn {
+                        array: object,
+                        key,
+                        value,
+                    }
+                } else {
+                    Op::ManagedSetOwn { object, key, value }
+                },
+            ),
+        }
     }
 
     pub(super) fn schedule_destructure<'e, 'a>(
@@ -180,7 +270,7 @@ impl Lowering<'_, '_> {
                         })?;
                         writes.push(Write {
                             selection: Selection::Index(index),
-                            slot: self.assignment_pattern_slot(target)?,
+                            destination: self.assignment_pattern_destination(target, depth + 1)?,
                             default,
                         });
                     }
@@ -190,7 +280,9 @@ impl Lowering<'_, '_> {
                         .map_err(|_| unsupported(node, "array assignment exceeds index limit"))?;
                     writes.push(Write {
                         selection: Selection::ArrayRest(start),
-                        slot: self.assignment_pattern_slot(&rest.target)?,
+                        destination: Destination::Slot(
+                            self.assignment_pattern_slot_for_rest(&rest.target)?,
+                        ),
                         default: None,
                     });
                 }
@@ -205,10 +297,10 @@ impl Lowering<'_, '_> {
                 let dictionary = self.stored.dictionary(assignment.right.node_id());
                 let mut excluded = Vec::new();
                 for property in &pattern.properties {
-                    let (key, slot, default) = match property {
+                    let (key, destination, default) = match property {
                         AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(p) => (
                             p.binding.name.encode_utf16().collect(),
-                            self.assignment_identifier_slot(&p.binding)?,
+                            Destination::Slot(self.assignment_identifier_slot(&p.binding)?),
                             p.init.as_ref(),
                         ),
                         AssignmentTargetProperty::AssignmentTargetPropertyProperty(p) => {
@@ -221,7 +313,11 @@ impl Lowering<'_, '_> {
                                 })?;
                             let (target, default) =
                                 assignment_patterns::target_and_default(&p.binding);
-                            (key, self.assignment_pattern_slot(target)?, default)
+                            (
+                                key,
+                                self.assignment_pattern_destination(target, depth + 1)?,
+                                default,
+                            )
                         }
                     };
                     let key = managed::member_key(
@@ -242,14 +338,16 @@ impl Lowering<'_, '_> {
                     excluded.push(ir::ManagedKey::Literal(key.clone()));
                     writes.push(Write {
                         selection: Selection::Field(key),
-                        slot,
+                        destination,
                         default,
                     });
                 }
                 if let Some(rest) = &pattern.rest {
                     writes.push(Write {
                         selection: Selection::ObjectRest(excluded),
-                        slot: self.assignment_pattern_slot(&rest.target)?,
+                        destination: Destination::Slot(
+                            self.assignment_pattern_slot_for_rest(&rest.target)?,
+                        ),
                         default: None,
                     });
                 }
@@ -295,7 +393,10 @@ impl Lowering<'_, '_> {
                     input.id()
                 };
                 let iterator = (self.values[receiver.0] == Type::ManagedArray
-                    && plan.writes.iter().any(|write| write.default.is_some()))
+                    && plan.writes.iter().any(|write| {
+                        write.default.is_some()
+                            || matches!(write.destination, Destination::Member { .. })
+                    }))
                 .then(|| self.begin_array_binding_iterator(plan.node, regions.current()));
                 Box::new(State {
                     node: plan.node,
@@ -305,11 +406,23 @@ impl Lowering<'_, '_> {
                     mode: plan.mode,
                     depth: plan.depth,
                     iterator,
+                    pending: None,
                 })
+            }
+            Task::Receiver {
+                mut state,
+                selection,
+                key,
+                default,
+            } => {
+                let object = values.pop().expect("assignment member receiver").id();
+                state.pending =
+                    Some((selection, SavedDestination::Member { object, key }, default));
+                state
             }
             Task::Default {
                 state,
-                slot,
+                destination,
                 selected,
                 condition,
             } => {
@@ -328,18 +441,39 @@ impl Lowering<'_, '_> {
                         alternate,
                     },
                 );
-                self.store_assignment_selection(state.node, slot, value, regions.current());
+                self.store_pattern_destination(state.node, destination, value, regions.current());
                 state
             }
         };
         let node = state.node;
         let receiver = state.receiver;
-        while let Some(Write {
-            selection,
-            slot,
-            default,
-        }) = state.writes.next()
-        {
+        loop {
+            let (selection, destination, default) = if let Some(pending) = state.pending.take() {
+                pending
+            } else {
+                let Some(Write {
+                    selection,
+                    destination,
+                    default,
+                }) = state.writes.next()
+                else {
+                    break;
+                };
+                match destination {
+                    Destination::Slot(slot) => (selection, SavedDestination::Slot(slot), default),
+                    Destination::Member { object, key, ty } => {
+                        let depth = state.depth;
+                        work.push(Work::Destructure(Task::Receiver {
+                            state,
+                            selection,
+                            key,
+                            default,
+                        }));
+                        work.push(Work::Eval(object, depth, Mode::managed(ty)));
+                        return Ok(());
+                    }
+                }
+            };
             let value = match selection {
                 Selection::Index(index) => {
                     if let Some(iterator) = &mut state.iterator {
@@ -474,14 +608,14 @@ impl Lowering<'_, '_> {
                 let depth = state.depth;
                 work.push(Work::Destructure(Task::Default {
                     state,
-                    slot,
+                    destination,
                     selected: value,
                     condition,
                 }));
                 work.push(Work::Eval(default, depth, Mode::Managed));
                 return Ok(());
             }
-            self.store_assignment_selection(node, slot, value, regions.current());
+            self.store_pattern_destination(node, destination, value, regions.current());
         }
         match state.mode {
             Mode::Array | Mode::Object => values.push(state.input),
@@ -790,6 +924,58 @@ mod scalar_parameter_tests {
                 for (n, ok) in [(126, true), (127, false)] {
                     let source = format!(
                         "export function run(a,b){{[a]={}[b]{};return a;}}",
+                        "(".repeat(n),
+                        ")".repeat(n)
+                    );
+                    let r = crate::compile(&source, false);
+                    assert_eq!(r.is_ok(), ok, "{n}: {:?}", r.err());
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod member_tests {
+    #[test]
+    fn member_pattern_destinations_require_owned_receiver_and_literal_keys() {
+        for (body, ok) in [
+            ("const o={x:a};[o.x]=[b];return o.x;", true),
+            ("const xs=[];({x:xs[0]}={x:a});return xs.length;", true),
+            ("const o={x:a};[o.x=b]=[];return o.x;", true),
+            ("[a.x]=[b];return a;", false),
+            ("const o=a?{}:null;[o.x]=[b];return a;", false),
+            ("const o={};[o.__proto__]=[b];return a;", false),
+            ("const xs=[];[xs.length]=[b];return a;", false),
+            ("const o={};const k='x';[o[k]]=[b];return a;", false),
+            ("const o={};[...o.x]=[b];return a;", false),
+            ("const o={};({...o.x}={x:b});return a;", false),
+            (
+                "const o={x:'safe'},alias=o;[alias.x]=[a];return o.x.length;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let r = crate::compile(&source, typed);
+                assert_eq!(r.is_ok(), ok, "{source}: {:?}", r.err());
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod member_depth_tests {
+    #[test]
+    fn member_pattern_receiver_depth_stays_bounded_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for (n, ok) in [(127, true), (128, false)] {
+                    let source = format!(
+                        "export function run(a,b){{const o={{x:0}};[{}o{}.x]=[a];return o.x;}}",
                         "(".repeat(n),
                         ")".repeat(n)
                     );

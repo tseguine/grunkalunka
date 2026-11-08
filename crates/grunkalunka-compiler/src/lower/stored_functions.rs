@@ -1127,6 +1127,24 @@ impl Fields {
                                         &mut definitions,
                                         &mut pattern_rules,
                                     );
+                                } else if let Some((receiver, key)) =
+                                    assignment_patterns::member_target(target, 0)
+                                {
+                                    let id = target.node_id();
+                                    let selection = Rule::Member(
+                                        a.right.node_id(),
+                                        index.to_string().encode_utf16().collect(),
+                                    );
+                                    if let Some(default) = default {
+                                        pattern_rules.push((element.node_id(), selection));
+                                        pattern_rules.push((
+                                            id,
+                                            Rule::Default(element.node_id(), default.node_id()),
+                                        ));
+                                    } else {
+                                        pattern_rules.push((id, selection));
+                                    }
+                                    writes.push((receiver.node_id(), key, id));
                                 }
                             }
                         }
@@ -1154,9 +1172,10 @@ impl Fields {
                         let mut excluded = BTreeSet::new();
                         for property in &pattern.properties {
                             use oxc_ast::ast::AssignmentTargetProperty as Property;
-                            let (identifier, key, default) = match property {
+                            let (identifier, member, key, default) = match property {
                                 Property::AssignmentTargetPropertyIdentifier(p) => (
                                     Some(&p.binding),
+                                    None,
                                     Some(p.binding.name.encode_utf16().collect()),
                                     p.init.as_ref(),
                                 ),
@@ -1167,6 +1186,9 @@ impl Fields {
                                         target
                                             .as_simple_assignment_target()
                                             .and_then(|t| target_identifier(t, 0).ok().flatten()),
+                                        assignment_patterns::member_target(target, 0).map(
+                                            |(receiver, key)| (receiver, key, target.node_id()),
+                                        ),
                                         static_keys::property(&p.name, p.computed, 0),
                                         default,
                                     )
@@ -1184,6 +1206,18 @@ impl Fields {
                                         &mut definitions,
                                         &mut pattern_rules,
                                     );
+                                } else if let Some((receiver, member_key, id)) = member {
+                                    let selection = Rule::Member(a.right.node_id(), key);
+                                    if let Some(default) = default {
+                                        pattern_rules.push((property.node_id(), selection));
+                                        pattern_rules.push((
+                                            id,
+                                            Rule::Default(property.node_id(), default.node_id()),
+                                        ));
+                                    } else {
+                                        pattern_rules.push((id, selection));
+                                    }
+                                    writes.push((receiver.node_id(), member_key, id));
                                 }
                             }
                         }
