@@ -236,3 +236,42 @@ test('Rust include! source edges participate in real check-coverage decisions', 
   });
   assert.equal(selected.valid, true, selected.errors.join('\n'));
 });
+
+test('bare CommonJS requires contribute literal inputs and flag computed paths', () => {
+  const source = [
+    "const common = require('./common.cjs');",
+    "require('../fixtures/config.json');",
+    "require('./common.cjs');",
+    "const fs = require('node:fs');",
+    "const dynamic = require(fileName);",
+    "object.require('./not-a-module.mjs');",
+  ].join('\n');
+  const found = discoverLiteralSourceInputs('tools/bench/loader.cjs', source);
+  assert.deepEqual(found.inputs, [
+    'tools/bench/common.cjs',
+    'tools/fixtures/config.json',
+  ]);
+  assert.deepEqual(found.unresolved, [
+    'computed require expression: tools/bench/loader.cjs',
+  ]);
+});
+
+test('literal CommonJS dependencies cannot lose their consumer checks', () => {
+  const options = {
+    specs: [{ source: 'tools/bench/loader.cjs',
+      requiredChecks: ['check:benchmark-tests'] }],
+    readSource: () => "module.exports = require('./common.cjs');",
+    exists: () => true,
+  };
+  const underSelected = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: [] }),
+  });
+  assert.equal(underSelected.valid, false);
+  assert.match(underSelected.errors.join('\n'), /missing check:benchmark-tests/);
+  const selected = auditSourceSelection({
+    ...options,
+    planForPath: () => ({ full: false, tests: ['check:benchmark-tests'] }),
+  });
+  assert.equal(selected.valid, true, selected.errors.join('\n'));
+});
