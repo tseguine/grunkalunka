@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn unsigned_property_reads_preserve_receiver_across_key_await() {
+    compare_promises(
+        &[
+            "let xs=[a];const old=xs;const v=xs[(await b,xs=[b],0>>>0)];return old!==xs&&v===a?1:0;",
+            "const xs=[a,b];const v=xs[(await a,0>>>0)];await b;return +v;",
+            "let n=0;const xs=[a];try{const v=xs[(await Promise.reject(b),n=1,0>>>0)];return +v;}catch(e){await a;return n;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_property_writes_save_targets_and_keys_across_rhs_awaits() {
     compare_promises(
         &[

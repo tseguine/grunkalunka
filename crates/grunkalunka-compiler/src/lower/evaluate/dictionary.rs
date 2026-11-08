@@ -6,10 +6,12 @@ pub(super) enum Task<'e, 'a> {
         node: &'e Expression<'a>,
         key: &'e Expression<'a>,
         depth: usize,
+        uint32: bool,
     },
     ReadKey {
         node: &'e Expression<'a>,
         object: ValueId,
+        uint32: bool,
     },
     SetReceiver {
         node: &'e Expression<'a>,
@@ -42,7 +44,13 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        if member.optional || !self.stored.dictionary(member.object.node_id()) {
+        let uint32 = property_delete::uint32_key(&member.expression, depth + 1);
+        let dictionary = self.stored.dictionary(member.object.node_id());
+        let receiver = self.receiver_type(&member.object, depth + 1);
+        if member.optional
+            || !(dictionary
+                || (uint32 && matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))))
+        {
             return Ok(false);
         }
         if closures::unwrapped_at(&member.expression, depth + 1).is_some_and(|(key, _)| {
@@ -50,7 +58,7 @@ impl Lowering<'_, '_> {
         }) {
             return Ok(false);
         }
-        if !self.stored.string(member.expression.node_id()) {
+        if !uint32 && !self.stored.string(member.expression.node_id()) {
             return Err(unsupported(
                 node,
                 "runtime dictionary keys require a known String",
@@ -60,8 +68,17 @@ impl Lowering<'_, '_> {
             node,
             key: &member.expression,
             depth: depth + 1,
+            uint32,
         }));
-        work.push(Work::Eval(&member.object, depth + 1, Mode::Object));
+        work.push(Work::Eval(
+            &member.object,
+            depth + 1,
+            if dictionary {
+                Mode::Object
+            } else {
+                Mode::managed(receiver.expect("validated read receiver"))
+            },
+        ));
         Ok(true)
     }
 
@@ -132,12 +149,29 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         match task {
-            Task::ReadReceiver { node, key, depth } => {
+            Task::ReadReceiver {
+                node,
+                key,
+                depth,
+                uint32,
+            } => {
                 let object = values.pop().expect("dictionary receiver").id();
-                work.push(Work::Dictionary(Task::ReadKey { node, object }));
-                work.push(Work::Eval(key, depth, Mode::Managed));
+                work.push(Work::Dictionary(Task::ReadKey {
+                    node,
+                    object,
+                    uint32,
+                }));
+                work.push(Work::Eval(
+                    key,
+                    depth,
+                    if uint32 { Mode::Number } else { Mode::Managed },
+                ));
             }
-            Task::ReadKey { node, object } => {
+            Task::ReadKey {
+                node,
+                object,
+                uint32,
+            } => {
                 let key = values.pop().expect("dictionary key").id();
                 let result = self.value(Type::ManagedValue);
                 Self::push(
@@ -146,7 +180,11 @@ impl Lowering<'_, '_> {
                     Op::ManagedGetOwnDynamic {
                         result,
                         object,
-                        key,
+                        key: if uint32 {
+                            ir::ManagedKey::Uint32(key)
+                        } else {
+                            ir::ManagedKey::String(key)
+                        },
                     },
                 );
                 values.push(Value::Managed(result));
@@ -242,6 +280,37 @@ mod uint32_write_tests {
         }
         let js = "export function run(a,b){const xs=[];xs[a>>>0]=b;return xs.length;}";
         let ts = "export function run(a:string,b:boolean):never{const xs=[];(xs as never)[((a>>>0) as number)]=b;return xs.length;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
+    }
+}
+
+#[cfg(test)]
+mod unsigned_read_tests {
+    #[test]
+    fn unsigned_reads_keep_range_receiver_and_value_guards() {
+        for (body, ok) in [
+            ("const xs=[a];return +xs[b>>>0];", true),
+            ("const o={0:a};return +o[b>>>0];", true),
+            ("const xs=[a];return +xs[b];", false),
+            ("const xs=[a];return +xs[b>>0];", false),
+            ("const xs=[a];return +xs[b?(0>>>0):a];", false),
+            ("return +a[b>>>0];", false),
+            (
+                "const xs=['text'];const alias=xs;alias[0]=a;return xs[b>>>0].trim().length;",
+                false,
+            ),
+        ] {
+            let s = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&s, ts);
+                assert_eq!(r.is_ok(), ok, "{s}: {:?}", r.err());
+            }
+        }
+        let js = "export function run(a,b){const xs=[a];return +xs[b>>>0];}";
+        let ts = "export function run(a:string,b:boolean):never{const xs=[a];return +xs[(b>>>0) as never];}";
         assert_eq!(
             crate::compile(js, false).unwrap().wasm,
             crate::compile(ts, true).unwrap().wasm

@@ -404,7 +404,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Op::ManagedGetOwnDynamic {
                 result: selected,
                 object: *value,
-                key,
+                key: ir::ManagedKey::String(key),
             },
         );
         state.selected = Some(selected);

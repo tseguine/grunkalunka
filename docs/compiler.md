@@ -2847,3 +2847,19 @@ Unknown/coercive numeric keys, unsupported runtime String targets and compound o
 logical updates retain guards. Annotations cannot prove key range or receiver
 kind. Corpus 163 adds twelve JS/TS pairs with all 796 compatibility negatives
 retained.
+
+
+Runtime property reads now accept original source-proven unsigned >>> keys on
+represented objects, dictionaries and Arrays, using the same bounded proof forms
+as writes/delete/in. The receiver is captured before key effects and supported
+awaits. Reads preserve actual own values, primitive tags, Number bits and reference
+identity; holes and missing properties yield Undefined. Numeric decimal names do
+not select inherited properties in the represented pristine realm. The maximum
+uint32 remains a named property, distinct from the last Array index.
+
+The shared dynamic read operation uses ManagedKey without adding an IR operation;
+Array receivers require the Uint32 carrier. Kind planning conservatively includes
+all possible own initializers/writes and an absent-value alternative, preserving
+alias mutation guards. Arbitrary runtime keys, unsupported receivers/coercions and
+unproven narrow projections remain guarded; annotations cannot prove unsigned
+range. Corpus 164 adds twelve JS/TS pairs and retains all 796 negative sources.

@@ -118,7 +118,7 @@ impl Lowering<'_, '_> {
                     Op::ManagedGetOwnDynamic {
                         result: old,
                         object,
-                        key,
+                        key: ir::ManagedKey::String(key),
                     },
                 );
                 let condition = self.value(Type::Predicate);

@@ -159,6 +159,9 @@ fn dictionary_dynamic_read_checks_operands_and_result_before_emission() {
                 }
             })
             .unwrap();
+        let ManagedKey::String(key) = key else {
+            panic!("String key");
+        };
         match invalid {
             0 => *object = *key,
             1 => *key = *object,
@@ -1802,5 +1805,43 @@ fn unsigned_array_definition_checks_length_key_and_operands() {
             _ => *key = ManagedKey::Uint32(*value),
         }
         assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+}
+
+#[test]
+fn unsigned_array_reads_validate_key_receiver_and_result() {
+    for bad in 0..5 {
+        let mut m = crate::lower_source(
+            "export function run(a,b){const xs=[a];return +xs[b>>>0];}",
+            false,
+        )
+        .unwrap();
+        verify_module(&m).unwrap();
+        let f = &mut m.functions[0];
+        let (r, o, k) = f
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedGetOwnDynamic {
+                    result,
+                    object,
+                    key,
+                } = &mut op.kind
+                {
+                    Some((result, object, key))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        match bad {
+            0 => *k = ManagedKey::Uint32(ValueId(usize::MAX)),
+            1 => *k = ManagedKey::String(*r),
+            2 => *k = ManagedKey::Literal("length".encode_utf16().collect()),
+            3 => *o = *r,
+            _ => f.values[r.0] = Type::Number,
+        }
+        assert!(verify_module(&m).is_err());
     }
 }
