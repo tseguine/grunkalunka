@@ -1,3 +1,4 @@
+import { uint32LogicalWritePrograms } from './uint32-logical-writes.mjs';
 import { uint32PropertyReadPrograms } from './uint32-property-reads.mjs';
 import { uint32PropertyWritePrograms } from './uint32-property-writes.mjs';
 import { uint32ObjectKeyPrograms } from './uint32-object-keys.mjs';
@@ -145,7 +146,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 164;
+export const corpusVersion = 165;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -171,7 +172,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);

@@ -8,12 +8,14 @@ pub(super) enum Task<'e, 'a> {
         assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
         key: &'e Expression<'a>,
         depth: usize,
+        uint32: bool,
     },
     Key {
         node: &'e Expression<'a>,
         assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
         object: ValueId,
         depth: usize,
+        uint32: bool,
     },
     Write {
         node: &'e Expression<'a>,
@@ -22,6 +24,7 @@ pub(super) enum Task<'e, 'a> {
         key: ValueId,
         old: ValueId,
         condition: ValueId,
+        uint32: bool,
     },
 }
 
@@ -52,7 +55,13 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        if member.optional || !self.stored.dictionary(member.object.node_id()) {
+        let uint32 = property_delete::uint32_key(&member.expression, depth + 1);
+        let dictionary = self.stored.dictionary(member.object.node_id());
+        let receiver = self.receiver_type(&member.object, depth + 1);
+        if member.optional
+            || !(dictionary
+                || (uint32 && matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))))
+        {
             return Ok(false);
         }
         if closures::unwrapped_at(&member.expression, depth + 1)
@@ -60,7 +69,7 @@ impl Lowering<'_, '_> {
         {
             return Ok(false);
         }
-        if !self.stored.string(member.expression.node_id()) {
+        if !uint32 && !self.stored.string(member.expression.node_id()) {
             return Err(unsupported(
                 node,
                 "runtime dictionary keys require a known String",
@@ -76,8 +85,17 @@ impl Lowering<'_, '_> {
             assignment,
             key: &member.expression,
             depth: depth + 1,
+            uint32,
         }));
-        work.push(Work::Eval(&member.object, depth + 1, Mode::Object));
+        work.push(Work::Eval(
+            &member.object,
+            depth + 1,
+            if dictionary {
+                Mode::Object
+            } else {
+                Mode::managed(receiver.expect("validated logical receiver"))
+            },
+        ));
         Ok(true)
     }
 
@@ -94,6 +112,7 @@ impl Lowering<'_, '_> {
                 assignment,
                 key,
                 depth,
+                uint32,
             } => {
                 let object = values.pop().expect("logical dictionary receiver").id();
                 work.push(Work::DictionaryLogical(Task::Key {
@@ -101,14 +120,20 @@ impl Lowering<'_, '_> {
                     assignment,
                     object,
                     depth,
+                    uint32,
                 }));
-                work.push(Work::Eval(key, depth, Mode::Managed));
+                work.push(Work::Eval(
+                    key,
+                    depth,
+                    if uint32 { Mode::Number } else { Mode::Managed },
+                ));
             }
             Task::Key {
                 node,
                 assignment,
                 object,
                 depth,
+                uint32,
             } => {
                 let key = values.pop().expect("logical dictionary key").id();
                 let old = self.value(Type::ManagedValue);
@@ -118,7 +143,11 @@ impl Lowering<'_, '_> {
                     Op::ManagedGetOwnDynamic {
                         result: old,
                         object,
-                        key: ir::ManagedKey::String(key),
+                        key: if uint32 {
+                            ir::ManagedKey::Uint32(key)
+                        } else {
+                            ir::ManagedKey::String(key)
+                        },
                     },
                 );
                 let condition = self.value(Type::Predicate);
@@ -145,6 +174,7 @@ impl Lowering<'_, '_> {
                     key,
                     old,
                     condition,
+                    uint32,
                 }));
                 work.push(Work::Eval(&assignment.right, depth, Mode::Managed));
             }
@@ -155,6 +185,7 @@ impl Lowering<'_, '_> {
                 key,
                 old,
                 condition,
+                uint32,
             } => {
                 let value = values.pop().expect("logical dictionary RHS").id();
                 Self::push(
@@ -162,7 +193,11 @@ impl Lowering<'_, '_> {
                     node,
                     Op::ManagedSetOwnDynamic {
                         object,
-                        key: ir::ManagedKey::String(key),
+                        key: if uint32 {
+                            ir::ManagedKey::Uint32(key)
+                        } else {
+                            ir::ManagedKey::String(key)
+                        },
                         value,
                     },
                 );
@@ -223,5 +258,37 @@ mod tests {
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod unsigned_tests {
+    #[test]
+    fn unsigned_logical_writes_retain_proofs_and_operand_checks() {
+        for (body, ok) in [
+            ("const xs=[];xs[a>>>0]??=b;return xs.length;", true),
+            ("const o={0:a};return +(o[0>>>0]||=b);", true),
+            ("const xs=[];xs[a]??=b;return a;", false),
+            ("const xs=[];xs[a>>0]||=b;return a;", false),
+            ("const xs=[];const k='length';xs[k]&&=b;return a;", false),
+            (
+                "const xs=['text'];xs[a>>>0]&&=b;return xs[0].trim().length;",
+                false,
+            ),
+            ("const xs=[];xs[0>>>0]&&=1n;return a;", false),
+            ("a[0>>>0]??=b;return a;", false),
+        ] {
+            let s = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let r = crate::compile(&s, ts);
+                assert_eq!(r.is_ok(), ok, "{s}: {:?}", r.err());
+            }
+        }
+        let js = "export function run(a,b){const xs=[];xs[a>>>0]??=b;return xs.length;}";
+        let ts = "export function run(a:string,b:boolean):never{const xs=[];xs[(a>>>0) as never]??=b;return xs.length;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
     }
 }

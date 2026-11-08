@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn unsigned_logical_writes_preserve_lazy_rhs_and_await_snapshots() {
+    compare_promises(
+        &[
+            "let xs=[0];const old=xs;let key=0;const v=xs[key>>>0]||=(await a,key=1,xs=[a],b);await b;return old!==xs&&!Object.hasOwn(old,1)&&v===b?1:0;",
+            "let n=0;const xs=[false,0];xs[0>>>0]??=(n=1,await Promise.reject(a));xs[1>>>0]&&=(n=2,await Promise.reject(b));return n;",
+            "const xs=[];try{xs[0>>>0]??=await Promise.reject(a);}catch(e){await b;return xs.length;}return -1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn unsigned_property_reads_preserve_receiver_across_key_await() {
     compare_promises(
         &[
