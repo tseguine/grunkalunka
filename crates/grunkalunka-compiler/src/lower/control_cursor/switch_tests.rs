@@ -116,7 +116,7 @@ fn final_switch_arms_can_complete_normally() {
         ("switch(a){case 0:if(b)return b;}return a;", true),
         ("switch(a){case 0:a=b;case 1:return a;}return b;", true),
         ("switch(a){default:a=b;case 0:return a;}return b;", false),
-        ("while(a){switch(b){case 0:continue;}}return b;", false),
+        ("while(a){switch(b){case 0:continue;}}return b;", true),
         ("while(a){switch(b){default:break;}}return b;", true),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
@@ -215,7 +215,7 @@ fn switch_breaks_are_normal_exits_with_conditional_fallthrough() {
             false,
         ),
         ("switch(a){case 0:continue;}return a;", false),
-        ("while(a){switch(b){case 0:continue;}}return b;", false),
+        ("while(a){switch(b){case 0:continue;}}return b;", true),
         (
             "const f=x=>{switch(x){case 0:break;default:return x;}return b;};return f(a);",
             true,
@@ -289,7 +289,7 @@ fn fallthrough_switches_prove_returns_without_publishing_cross_case_bindings() {
         ("switch(a){case 0:return b;a++;default:return a;}", false),
         (
             "while(a){switch(b){case 0:continue;default:break;}}return b;",
-            false,
+            true,
         ),
         ("switch(a){case 0:;case 1:;}", false),
     ] {

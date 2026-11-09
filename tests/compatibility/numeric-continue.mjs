@@ -1,6 +1,7 @@
 // Unlabelled continue reaches the nearest loop's test, or its step then test.
 // https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-forbodyevaluation
 const cases = [
+  ['continue-switch-live', 'let n=0;for(let i=0;i<3;i++){switch(i){case 1:continue;default:break;}n+=a;}return n;'],
   ['continue-promoted-reference', 'let i=0; while(i<2) { i=i+1; if(i===1) continue; a=a+b; } return a;'],
   ['continue-promoted-for', 'for(let i=0;i<1;i++) { continue; } return a;'],
   ['continue-promoted-do', 'do { continue; } while(0); return a;'],
@@ -29,6 +30,11 @@ const cases = [
   ['continue-local-boundary', `for(let i=0;0;) { const ${Array.from({length:127},(_,i)=>`x${i}=a`).join(',')}; continue; } return b;`],
 ];
 export const numericContinue = cases.map(([id, body]) => [id, body, body]);
+const promotedSwitchBody = 'while(0) { switch(a) { default: continue; } } return b;';
+numericContinue.push(['continue-switch-remains', promotedSwitchBody, promotedSwitchBody, undefined, undefined, {
+  sourceJS: `export function run(a,b) { ${promotedSwitchBody} }`,
+  sourceTS: `export function run(a:number,b:number):number { ${promotedSwitchBody} }`,
+}]);
 numericContinue.push(['ts-continue-predicate',
   'let g=0; for(;g++<3;) { if(a) continue; b+=g; } return b;',
   'let g:number=0; for(;g++<3;) { if(a as number) continue; b+=g; } return b;']);
@@ -57,7 +63,6 @@ const negatives = [
   ['continue-do-body-test-scope', 'do { let x=0; continue; } while(x); return a;', reference],
   ['continue-header-scope', 'for(let i=0;i<1;i++) { continue; } return i;', reference],
   ['continue-const-step', 'for(const i=0;0;i++) { continue; } return a;', 'update to a const binding is not admitted'],
-  ['continue-switch-remains', 'while(0) { switch(a) { default: continue; } } return b;', 'outer-loop continue through switch is not yet admitted'],
   ['continue-statement-limit', `do { ${';'.repeat(253)} continue; } while(0); return a;`, 'at most 256 statements'],
   ['continue-header-statement-limit', `for(let i=0;0;) { ${';'.repeat(252)} continue; } return a;`, 'at most 256 statements'],
   ['continue-depth-limit', `${'while(false) '.repeat(65)}continue; return a;`, 'statement nesting exceeds 64'],

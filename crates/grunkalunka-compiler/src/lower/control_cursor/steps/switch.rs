@@ -181,12 +181,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         completion: Completion,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if completion.continues {
-            return Err(unsupported(
-                &state.source.cases[state.index],
-                "outer-loop continue through switch is not yet admitted",
-            ));
-        }
         self.bindings.truncate(state.visible);
         state.arms.push(Arm {
             index: state.index,
@@ -206,12 +200,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mut completion: Completion,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
-        if completion.continues {
-            return Err(unsupported(
-                state.source,
-                "outer-loop continue through switch is not yet admitted",
-            ));
-        }
         self.bindings.truncate(state.visible);
         let count = state.source.cases.len();
         let selected = SlotId(self.slots.len());
@@ -329,10 +317,28 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         self.in_loop_body = state.old_loop;
         {
             // Even a break overridden by a finalizer needs a lexical IR target.
-            // A single-iteration region supplies the existing nearest-break
-            // target. Outer-loop continue is guarded above; nested source loops
-            // consume their own break/continue completions before reaching here.
+            // A switch-local break leaves this synthetic loop. For arms that
+            // continue the enclosing loop, reserve count+1 as a completion
+            // marker. Only continue may enter the condition: ordinary
+            // fallthrough leaves via break, after any finalizers have run.
             let mut condition = self.region(state.source);
+            let marker = if completion.continues {
+                if completion.normal {
+                    alternate.exit = Exit::Break;
+                }
+                let marker = self.switch_index(state.source, count + 1, &mut state.output);
+                Self::push(
+                    &mut condition,
+                    state.source,
+                    Op::Store {
+                        slot: selected,
+                        value: marker,
+                    },
+                );
+                Some(marker)
+            } else {
+                None
+            };
             let zero = self.value(Type::Number);
             Self::push(
                 &mut condition,
@@ -360,7 +366,48 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     condition,
                 },
             );
-            completion = completion.do_loop();
+            completion.normal |= completion.breaks;
+            completion.breaks = false;
+            if let Some(marker) = marker {
+                let mut relay = self.region(state.source);
+                relay.exit = Exit::Continue;
+                if completion.normal {
+                    let position = self.value(Type::Number);
+                    Self::push(
+                        &mut state.output,
+                        state.source,
+                        Op::Load {
+                            result: position,
+                            slot: selected,
+                        },
+                    );
+                    let condition = self.value(Type::Predicate);
+                    Self::push(
+                        &mut state.output,
+                        state.source,
+                        Op::Compare {
+                            result: condition,
+                            operator: Compare::Equal,
+                            left: position,
+                            right: marker,
+                        },
+                    );
+                    let fallthrough = self.region(state.source);
+                    Self::push(
+                        &mut state.output,
+                        state.source,
+                        Op::If {
+                            result: None,
+                            condition,
+                            consequent: relay,
+                            alternate: fallthrough,
+                        },
+                    );
+                } else {
+                    // Return and throw already left the function or protected region.
+                    Self::push(&mut state.output, state.source, Op::Block(relay));
+                }
+            }
         }
         cursor.completed = Some(Outcome::Statement(state.output, completion));
         Ok(())

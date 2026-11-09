@@ -793,7 +793,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
   `for-in` and labels. [Returning switch dispatch](returning-switch.md) now admits
   grouped labels, fallthrough, break and proven represented operands with an optional default;
-  shared-case lexical bindings and outer-loop continue through switch remain guarded. The separately documented managed, primitive
+  shared-case lexical bindings remain guarded. The separately documented managed, primitive
   and async extensions have their own admission; in particular,
   [managed bindings and iteration](#managed-bindings-and-iteration) admit the
   supported object/array declarations and intrinsic-array `for...of` forms.
