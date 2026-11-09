@@ -639,7 +639,7 @@ Private synchronous helper/arrow parameter defaults can now build dynamic String
 labels using `+` between source-proven String parameters and literal String
 fragments, and through untagged cooked template literals with earlier-parameter
 String interpolations. An A1 policy helper may default a label to
-````${prefix}:${suffix}```` or `prefix + ': ' + suffix` without
+a template combining `prefix` and `suffix` or `prefix + ': ' + suffix` without
 manual body initialization. The iterative planner evaluates fragments in source
 order and reuses the managed String concatenation IR, preserving UTF-16 contents,
 explicit overrides and Undefined-triggered defaults. It checks that every
