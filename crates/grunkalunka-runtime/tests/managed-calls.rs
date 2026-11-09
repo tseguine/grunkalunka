@@ -15,7 +15,7 @@ fn object_enumeration_literal_spreads_observe_sources_after_extra_effects() {
         "export function run(a,b){const obj={x:a};obj.y=b;return Object.keys(...[obj],delete obj.x).length;}",
         "export function run(a,b){const o={x:a};let n=0;const keys=Object.keys(...[(n++,o)],n++);return n*10+keys.length;}",
         "export function run(a,b){const o={x:a};return Object.keys(...[...[o]]).length;}",
-        "export function run(a,b){return Object.keys(...[...'💠']).length;}",
+        "export function run(a,b){return Object.keys(...[...['💠']]).length;}",
         "export function run(a,b){return Object.keys(...['💠']).length;}",
         "export function run(a,b){return Object.entries(...[true]).length;}",
         "export function run(a,b){return Object.values(...[a]).length;}",
@@ -36,7 +36,7 @@ fn fixed_array_literal_has_own_spreads_preserve_keys_receivers_and_effects() {
         "export function run(a,b){const xs=[a];return Object.hasOwn(xs,...[0>>>0])?1:0;}",
         "export function run(a,b){const xs=[a];const ok=Object.hasOwn(...[xs,(xs[0]=undefined,0>>>0)]);return ok&&xs.length===1?1:0;}",
         "export function run(a,b){const xs=[a];let n=0;const ok=Object.hasOwn(...[(n=n*10+1,xs),(n=n*10+2,0>>>0)],n=n*10+3);return ok&&n===123?1:0;}",
-        "export function run(a,b){const xs=[a];let old=xs;const other=[b];const ok=Object.hasOwn(...[(xs=other,old),(delete old[0],0>>>0)]);return ok?1:0;}",
+        "export function run(a,b){let xs=[a];let old=xs;const other=[b];const ok=Object.hasOwn(...[(xs=other,old),(delete old[0],0>>>0)]);return ok?1:0;}",
         "export function run(a,b){const xs=[a];return Object.hasOwn(...[xs,4294967295>>>0])?1:0;}",
         "export function run(a,b){return Object.hasOwn(...[true,0>>>0])?1:0;}",
     ] {
