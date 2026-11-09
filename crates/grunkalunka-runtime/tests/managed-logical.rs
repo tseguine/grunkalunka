@@ -1037,3 +1037,27 @@ fn numeric_defaults_match_native_js_for_helpers_arrows_and_stored_calls() {
     let ts = "export function run(a:number,b:number):number{const f=(x:unknown,d:unknown,y:unknown=(x as never)+(d as never))=>y;return f(a,b) as number;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn string_and_template_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(x,y,z=x+'-'+y){return z.length;}return f('up','date')+a;",
+        "function f(x,y,z=x+y+'!'){return z.length;}return f('go','now')+a;",
+        "function f(x,y,z=(x+' ') + (y+'!')){return z.length;}return f('go','now')+a;",
+        "function f(x,y,z=`${x}:${y}`){return z.length;}return f('go','now')+a;",
+        "function f(x,y,z=`[${x}][${y}]`){return z.length;}return f('go','now')+a;",
+        "function f(x,y,z=`${x}`){return z.length;}return f('go','now')+a;",
+        "function f(x,y,z=x+y){return z.length;}return f('ab','cd')+a;",
+        "const f=(x,y=x+'!')=>y.length;return f('ok')+a;",
+        "const o={f:(x,y,z=x+':'+y)=>z.length};return o.f('a','bc')+a;",
+        "function f(x,y,z=x+'-'+y){return z.length;}return f('up','date','abc')+a;",
+        "function f(x,y,z=`${x}:${y}`){return z.length;}return f('up','date',undefined)+a;",
+        "function f(x,y,z=x+'\\u{1F642}'+y){return z.length;}return f('a','b')+a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(x,y,z=x+':'+y){return z.length;}export function run(a,b){return f('a','bc')+a;}";
+    let ts = "function f(x:never,y:never,z:unknown=(x as string)+':'+(y as string)){return (z as string).length;}export function run(a:number,b:number):number{return f('a','bc')+a;}";
+    common::compare_sources(js, ts);
+}
