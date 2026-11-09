@@ -634,3 +634,18 @@ coercions, effects, scope reads, self/later parameters, other binary operators
 and async/public defaults remain guarded. Missing/Undefined arguments select
 the initializer; explicit supplied arguments bypass it. Focused compiler
 accept/reject tests and JS/TS differential fixtures cover the admitted slice.
+
+Private synchronous helper/arrow parameter defaults can now build dynamic String
+labels using `+` between source-proven String parameters and literal String
+fragments, and through untagged cooked template literals with earlier-parameter
+String interpolations. An A1 policy helper may default a label to
+````${prefix}:${suffix}```` or `prefix + ': ' + suffix` without
+manual body initialization. The iterative planner evaluates fragments in source
+order and reuses the managed String concatenation IR, preserving UTF-16 contents,
+explicit overrides and Undefined-triggered defaults. It checks that every
+dynamic interpolated or concatenated operand is an already initialized,
+source-proven String: TS annotations, unproven Number/object coercions, outer or
+later reads, effects, tagged templates and async/public defaults confer no new
+admission. Compiler positive/negative tests and managed-logical JS/TS differential
+fixtures exercise nested concatenation, templates, helpers, arrows and stored
+callables. The new fixture coverage is not a claim that CI has executed yet.
