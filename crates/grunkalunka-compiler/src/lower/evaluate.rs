@@ -4271,9 +4271,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                     input: None,
                                     depth: depth + 1,
                                 });
-                            } else if let Some((operator, identity)) =
-                                math_variadic(call, self.semantic)
-                            {
+                            } else if let Some((operator, identity)) = math_variadic(call, self.semantic) {
                                 if call.arguments.len() > 1000 {
                                     return Err(unsupported(
                                         node,
