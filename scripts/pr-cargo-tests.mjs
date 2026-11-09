@@ -114,8 +114,18 @@ export function planPrCargoTests({ metadata, classification, packages = null }) 
   const base = ['test', '--locked', '--offline', '-j', '4'];
   if (others.length) groups.push([...base, ...others.flatMap(name => ['-p', name])]);
   if (selectedPackages.includes(runtimePackage)) {
+    // A single Windows cargo test process can exceed the 120s PR execution
+    // budget even though every individual fast target is bounded. Split only
+    // larger target sets into deterministic batches, without dropping tests.
+    // The runtime library tests run exactly once in the first batch.
+    const fast = policy.fast.targets;
+    const split = fast.length > 12 ? Math.ceil(fast.length / 2) : fast.length;
     groups.push([...base, '-p', runtimePackage, '--lib',
-      ...policy.fast.targets.flatMap(name => ['--test', name])]);
+      ...fast.slice(0, split).flatMap(name => ['--test', name])]);
+    if (split < fast.length) {
+      groups.push([...base, '-p', runtimePackage,
+        ...fast.slice(split).flatMap(name => ['--test', name])]);
+    }
   }
   // Link only the selected test binaries before starting the execution clock.
   // There is no retry or expansion to the exhaustive test suite after failure.
