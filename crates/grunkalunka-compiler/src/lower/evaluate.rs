@@ -2952,6 +2952,46 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         ));
                     }
                 }
+                Work::MathFold {
+                    node,
+                    call,
+                    operator,
+                    index,
+                    mut accumulator,
+                    depth,
+                } => {
+                    if index != 0 {
+                        let right = values.pop().expect("Math fold argument").number();
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::Binary {
+                                result,
+                                operator,
+                                left: accumulator,
+                                right,
+                            },
+                        );
+                        accumulator = result;
+                    }
+                    if index == call.arguments.len() {
+                        values.push(Value::Number(accumulator));
+                    } else {
+                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
+                            unsupported(node, "spread call arguments are not admitted")
+                        })?;
+                        work.push(Work::MathFold {
+                            node,
+                            call,
+                            operator,
+                            index: index + 1,
+                            accumulator,
+                            depth,
+                        });
+                        work.push(Work::Eval(argument, depth, Mode::Numeric));
+                    }
+                }
                 Work::Sequence {
                     remaining,
                     last,
@@ -4229,6 +4269,32 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                     operator,
                                     index: 0,
                                     input: None,
+                                    depth: depth + 1,
+                                });
+                            } else if let Some((operator, identity)) =
+                                math_variadic(call, self.semantic)
+                            {
+                                if call.arguments.len() > 1000 {
+                                    return Err(unsupported(
+                                        node,
+                                        "at most 1000 ordinary Math arguments are admitted",
+                                    ));
+                                }
+                                let accumulator = self.value(Type::Number);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::Constant {
+                                        result: accumulator,
+                                        value: identity,
+                                    },
+                                );
+                                work.push(Work::MathFold {
+                                    node,
+                                    call,
+                                    operator,
+                                    index: 0,
+                                    accumulator,
                                     depth: depth + 1,
                                 });
                             } else {
