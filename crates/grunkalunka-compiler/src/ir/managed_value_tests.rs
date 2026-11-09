@@ -1358,7 +1358,8 @@ fn managed_nullish_predicate_keeps_the_carrier_type_boundary() {
 #[test]
 fn array_brand_requires_a_boxed_input_and_a_predicate_result() {
     let mut module = primitive_comparison();
-    let check = |input| Op::ManagedIsArray {
+    let check = |input| Op::ManagedTest {
+        test: ManagedTest::Array,
         result: ValueId(6),
         input,
     };

@@ -722,12 +722,12 @@ impl Lowering<'_, '_> {
         if let Expression::BinaryExpression(binary) = node
             && binary.operator == BinaryOperator::Instanceof
             && let Some(Expression::Identifier(rhs)) = closures::unwrapped(&binary.right, depth + 1)
-            && object_intrinsics::global_name(rhs, self.semantic, "Array")
+            && let Some(test) = object_intrinsics::instance_test(rhs, self.semantic)
         {
-            // Represented arrays all have the pristine realm's Array prototype.
             // The RHS identifier has no evaluation effects in this profile.
             boolean_consumer(node, mode, "instanceof produces a Boolean", work)?;
-            work.push(Work::ArrayIsArray {
+            work.push(Work::ManagedTest {
+                test,
                 node,
                 has_input: true,
             });
@@ -759,7 +759,8 @@ impl Lowering<'_, '_> {
                 ));
             }
             let first = invocation::offset(call);
-            work.push(Work::ArrayIsArray {
+            work.push(Work::ManagedTest {
+                test: ir::ManagedTest::Array,
                 node,
                 has_input: first < call.arguments.len(),
             });
@@ -1481,7 +1482,7 @@ impl Lowering<'_, '_> {
             }
             ManagedWork::DictionaryNew(node) => {
                 let result = self.value(Type::ManagedObject);
-                Self::push(regions.current(), node, Op::ManagedObjectNew { result });
+                Self::push(regions.current(), node, Op::ManagedDictionaryNew { result });
                 values.push(Value::Object(result));
             }
             ManagedWork::ConcatRight { node, right, depth } => {

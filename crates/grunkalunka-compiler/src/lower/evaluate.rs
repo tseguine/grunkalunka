@@ -1611,11 +1611,19 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?
                 }
-                Work::ArrayIsArray { node, has_input } => {
+                Work::ManagedTest {
+                    node,
+                    has_input,
+                    test,
+                } => {
                     let result = self.value(Type::Predicate);
                     let op = if has_input {
                         let input = values.pop().expect("array brand input").id();
-                        Op::ManagedIsArray { result, input }
+                        Op::ManagedTest {
+                            result,
+                            input,
+                            test,
+                        }
                     } else {
                         Op::Boolean {
                             result,

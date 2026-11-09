@@ -758,6 +758,12 @@ impl Emitter<'_> {
                 .unwrap();
                 self.set(*result);
             }
+            Op::ManagedDictionaryNew { result } => {
+                self.output.push_str(
+                    "i32.const 0 array.new_default $gc_props struct.new $gc_dictionary\n",
+                );
+                self.set(*result);
+            }
             Op::ManagedObjectNew { result } => {
                 self.output.push_str("call $gc_object_new\n");
                 self.set(*result);
@@ -884,15 +890,37 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_truthy\n");
                 self.set(*result);
             }
-            Op::ManagedIsArray { result, input } => {
+            Op::ManagedTest {
+                result,
+                input,
+                test,
+            } => {
                 self.get(*input);
-                // Objects and arrays share language tag 4. The actual GC
-                // payload carries the array brand, regardless of its own keys.
-                self.output
-                    .push_str("struct.get $gc_value 0\ni32.const 4\ni32.eq\n");
-                self.get(*input);
-                self.output
-                    .push_str("struct.get $gc_value 2\nref.test (ref $gc_array)\ni32.and\n");
+                self.output.push_str("struct.get $gc_value 0\n");
+                match test {
+                    ir::ManagedTest::Array => {
+                        self.output.push_str("i32.const 4\ni32.eq\n");
+                        self.get(*input);
+                        self.output.push_str(
+                            "struct.get $gc_value 2\nref.test (ref $gc_array)\ni32.and\n",
+                        );
+                    }
+                    ir::ManagedTest::Function => self.output.push_str("i32.const 6\ni32.eq\n"),
+                    ir::ManagedTest::InheritsObject => {
+                        // Tags 4, 6 and 7 carry objects/arrays, functions and errors.
+                        self.output.push_str("i32.const 4\ni32.eq\n");
+                        for tag in [6, 7] {
+                            self.get(*input);
+                            writeln!(
+                                self.output,
+                                "struct.get $gc_value 0\ni32.const {tag}\ni32.eq\ni32.or"
+                            )
+                            .unwrap();
+                        }
+                        self.get(*input);
+                        self.output.push_str("struct.get $gc_value 2\nref.test (ref $gc_dictionary)\ni32.eqz\ni32.and\n");
+                    }
+                }
                 self.set(*result);
             }
             Op::ManagedIsNullish { result, input } => {

@@ -64,6 +64,13 @@ pub(crate) enum StringTrim {
     Both,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ManagedTest {
+    Array,
+    Function,
+    InheritsObject,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ArraySearch {
     Includes,
@@ -728,6 +735,9 @@ pub(crate) enum Op {
         position: ValueId,
         backwards: bool,
     },
+    ManagedDictionaryNew {
+        result: ValueId,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -833,7 +843,8 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
-    ManagedIsArray {
+    ManagedTest {
+        test: ManagedTest,
         result: ValueId,
         input: ValueId,
     },
@@ -1858,7 +1869,7 @@ impl Verifier<'_> {
                 self.value(*position, Type::Number, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
             }
-            Op::ManagedObjectNew { result } => {
+            Op::ManagedObjectNew { result } | Op::ManagedDictionaryNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;
             }
             Op::ManagedFromObject { result, input } => {
@@ -1944,7 +1955,7 @@ impl Verifier<'_> {
             }
             Op::ManagedTruthy { result, input }
             | Op::ManagedIsNullish { result, input }
-            | Op::ManagedIsArray { result, input } => {
+            | Op::ManagedTest { result, input, .. } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
