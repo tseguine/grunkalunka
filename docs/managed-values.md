@@ -522,6 +522,23 @@ tests execute emitted IR in Node against native JS; runtime kernel tests exercis
 Wasmtime,
 holes, sparse storage, cycles, text edges and repeated forced copying collections.
 
+### Appending to source-proven Arrays
+
+`Array.prototype.push` appends source values to an existing, source-proven
+Array. The receiver is retained before any arguments; each argument is evaluated
+exactly once in order, and the resulting values are appended **after all**
+argument effects finish. The returned Number is the final Array length.
+A call with no arguments reads the current length without modifying elements.
+Sparse holes and aliases keep their existing semantics; Number, Boolean,
+Null, Undefined, Strings, objects, Arrays and closure values use the current
+managed-value carrier. A dedicated GC Array append helper rejects maximum-length
+overflow before mutating storage.
+
+This first source profile admits only the built-in Array method, with static
+or literal-computed keys and at most 1,000 non-spread arguments. Arbitrary
+array-like receivers, overridden methods, argument spreads and catchable
+RangeError at the maximum possible length remain outside the contract.
+
 ## Ordinary-object property storage
 
 Property keys are lossless UTF-16 vectors, including NUL and lone surrogates.
