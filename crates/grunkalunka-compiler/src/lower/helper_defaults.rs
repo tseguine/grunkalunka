@@ -70,13 +70,15 @@ fn earlier_parameter<'n, 'a>(
 // An initializer may read an already initialized parameter in either arm
 // of a pure selection. Resolve identity in this parameter list, never by name:
 // body var aliases, outer captures, self and later parameters are excluded.
+type FieldDefaultPath<'n, 'a> = Vec<(&'n Expression<'a>, Vec<u16>)>;
+
 enum DefaultOperand<'n, 'a> {
     Constant(Constant),
     Earlier(&'n IdentifierReference<'a>),
     // A direct own-property read on a source-proven earlier object argument.
     Field {
         receiver: &'n IdentifierReference<'a>,
-        path: Vec<(&'n Expression<'a>, Vec<u16>)>,
+        path: FieldDefaultPath<'n, 'a>,
     },
 }
 
@@ -123,10 +125,7 @@ fn earlier_field<'n, 'a>(
     initializer: &Expression<'a>,
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
-) -> Option<(
-    &'n IdentifierReference<'a>,
-    Vec<(&'n Expression<'a>, Vec<u16>)>,
-)> {
+) -> Option<(&'n IdentifierReference<'a>, FieldDefaultPath<'n, 'a>)> {
     // Walk the source member chain without native recursion. Every key is
     // literal; every receiver is checked for a positive kind proof at emission.
     let mut cursor = expression;
