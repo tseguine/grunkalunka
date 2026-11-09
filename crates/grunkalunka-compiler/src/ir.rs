@@ -330,6 +330,7 @@ pub(crate) enum Binary {
     Multiply,
     Min,
     Max,
+    Imul,
     Divide,
     Remainder,
     BitAnd,

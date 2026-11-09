@@ -587,6 +587,18 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   dynamic/optional method lookup, spreads and mutable Math bindings are
   not silently admitted. Source-proven Number inputs and existing Boolean,
   Null and Undefined ToNumber bridges retain the current constraints.
+- The pristine `Math.imul(first, second)` intrinsic accepts the same
+  source-proven Number/Boolean/Null/Undefined arguments and returns a Number.
+  The first two arguments convert via the existing ToInt32 bits lane and
+  multiply with wrapping Wasm `i32.mul`; the signed i32 result converts to
+  binary64 exactly. Fractional and nonfinite operands follow JavaScript
+  ToInt32, so NaN, infinities and an omitted argument contribute zero.
+  Additional arguments evaluate in source order but do not participate in
+  the product. Calls preserve primitive operand snapshots, even if later
+  surplus expressions reassign their source bindings. The 1,000-argument,
+  source-depth and small-stack limits remain in force. General object
+  coercion, dynamic/optional method access and spread calls remain guarded.
+  See [Math.imul](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.imul).
 - The body admits initialized numeric `const`/`let` declarations and
   discarded Number/Boolean expression statements in source order, lexical blocks and
   statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
