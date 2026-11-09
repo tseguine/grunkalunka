@@ -319,6 +319,7 @@ pub(crate) enum Unary {
     Floor,
     Ceil,
     Trunc,
+    Fround,
     Plus,
     Negate,
     BitNot,

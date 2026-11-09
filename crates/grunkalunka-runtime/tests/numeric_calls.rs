@@ -3,6 +3,53 @@ use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 use wasmtime::Trap;
 
 #[test]
+fn math_fround_preserves_float32_rounding_signed_zero_and_source_order() {
+    compare_helper_sources(&[
+        "export function run(a,b){return Math.fround(a);}",
+        "export function run(a,b){return Math.fround();}",
+        "export function run(a,b){return Math.fround(-0);}",
+        "export function run(a,b){return Math.fround(0);}",
+        "export function run(a,b){return Math.fround(NaN);}",
+        "export function run(a,b){return Math.fround(Infinity);}",
+        "export function run(a,b){return Math.fround(-Infinity);}",
+        "export function run(a,b){return Math.fround(16777217);}",
+        "export function run(a,b){return Math.fround(-16777217);}",
+        "export function run(a,b){return Math.fround(16777215);}",
+        "export function run(a,b){return Math.fround(1.0000000596046448);}",
+        "export function run(a,b){return Math.fround(1.0000001788139343);}",
+        "export function run(a,b){return Math.fround(1e-46);}",
+        "export function run(a,b){return Math.fround(-1e-46);}",
+        "export function run(a,b){return Math.fround(1e-40);}",
+        "export function run(a,b){return Math.fround(3.4028234663852886e38);}",
+        "export function run(a,b){return Math.fround(3.5e38);}",
+        "export function run(a,b){return Math.fround(-3.5e38);}",
+        "export function run(a,b){return Math.fround(true);}",
+        "export function run(a,b){return Math.fround(false);}",
+        "export function run(a,b){return Math.fround(null);}",
+        "export function run(a,b){return Math.fround(undefined);}",
+        "export function run(a,b){return Math.fround(a+b);}",
+        "export function run(a,b){return Math.fround(Math.imul(a,b));}",
+        "export function run(a,b){let n=0;return Math.fround((n=1,a),n=n*10+2)+n;}",
+        "export function run(a,b){let x=a;return Math.fround(x,x=b)+x;}",
+    ]);
+}
+
+#[test]
+fn math_fround_retains_unrepresented_call_guards() {
+    for body in [
+        "return Math['fround'](a);",
+        "return Math.fround(...[a]);",
+        "return Math.fround?.(a);",
+        "return Math.fround('3');",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            assert!(compile(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn math_imul_matches_32bit_wraparound_with_primitive_number_inputs() {
     compare_helper_sources(&[
         "export function run(a,b){return Math.imul(a,b);}",

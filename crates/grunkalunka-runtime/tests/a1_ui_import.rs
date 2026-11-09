@@ -449,6 +449,20 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 }
 
 #[test]
+fn imported_handler_rounds_float32_actions_before_wit_selection() {
+    for body in [
+        "return choose(Math.fround(a+1/3),b);",
+        "return choose(Math.fround(Math.imul(a,2)),b);",
+        "let n=0;return choose(Math.fround((n=1,a+1/3),n=n*10+2),b)+(n===12?0:1);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_handler_composes_math_imul_with_signed_actions() {
     for body in [
         "return choose(Math.imul(a,b),b);",
