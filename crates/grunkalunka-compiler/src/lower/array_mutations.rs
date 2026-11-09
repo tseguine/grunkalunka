@@ -67,6 +67,9 @@ mod tests {
         for body in [
             "const xs=[];return xs.push(a);",
             "const xs=[a];return xs.push(b,a);",
+            "const xs=[a];return xs.push(...[b]);",
+            "const xs=[a];return xs.push(...[...[b],a]);",
+            "const xs=[a];return xs.push(...[]);",
             "const xs=[a];xs.push(b);return xs.length;",
             "const xs=[a];return xs['push'](b);",
             "const xs=[a];return xs.push()===1?1:0;",
@@ -79,7 +82,9 @@ mod tests {
         }
         for body in [
             "return a.push(b);",
-            "const xs=[a];return xs.push(...[b]);",
+            "const xs=[a];const other=[b];return xs.push(...other);",
+            "const xs=[a];return xs.push(...'abc');",
+            "const xs=[a];return xs.push(...[,]);",
             "const xs=[a];return xs.push.call(xs,b);",
         ] {
             let source = format!("export function run(a,b){{{body}}}");

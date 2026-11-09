@@ -453,6 +453,7 @@ fn imported_handler_builds_lists_with_array_push() {
     for body in [
         "const actions=[a];const length=actions.push(b);return choose(length===actions.length?a:0,b);",
         "const actions=[a];let step=0;const length=actions.push((step=1,b),(step=step*10+2,a));return choose(length===3&&step===12?a:0,b);",
+        "const actions=[a];const length=actions.push(...[b,a]);return choose(length===3&&actions.length===3?a:0,b);",
     ] {
         compare_composed_source(&format!(
             "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
