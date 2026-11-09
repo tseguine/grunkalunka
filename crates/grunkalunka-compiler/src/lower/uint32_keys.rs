@@ -84,9 +84,9 @@ impl Uint32Keys {
             || self.contains(expression, 0)
     }
 
-    // The only write increments a counter strictly below a uint32 bound.
-    // Even its value after the final increment still fits. The bound may vary
-    // across iterations, as long as each observation has that range.
+    // Facts apply only inside the body, after the test succeeds. In a reverse
+    // traversal the terminating test can observe -1. The counter is integral
+    // throughout and its sole write is the increment or decrement in the header.
     fn loop_counter(&self, source: &ForStatement<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
         let ForStatementInit::VariableDeclaration(declaration) = source.init.as_ref()? else {
             return None;
@@ -97,33 +97,56 @@ impl Uint32Keys {
         let BindingPattern::BindingIdentifier(name) = &counter.id else {
             return None;
         };
-        if declaration.kind != VariableDeclarationKind::Let
-            || !self.unsigned_value(counter.init.as_ref()?)
-        {
+        if declaration.kind != VariableDeclarationKind::Let {
             return None;
         }
+        let init = counter.init.as_ref()?;
         let symbol = name.symbol_id.get()?;
         let Expression::BinaryExpression(test) = closures::unwrapped(source.test.as_ref()?, 0)?
         else {
             return None;
         };
-        let Expression::Identifier(left) = closures::unwrapped(&test.left, 1)? else {
-            return None;
-        };
+        let left = closures::unwrapped(&test.left, 1)?;
         let scope = semantic.scoping();
-        if test.operator != BinaryOperator::LessThan
-            || !self.unsigned_value(&test.right)
-            || scope.get_reference(left.reference_id.get()?).symbol_id() != Some(symbol)
-        {
-            return None;
-        }
-        let Expression::UpdateExpression(update) = closures::unwrapped(source.update.as_ref()?, 0)?
-        else {
-            return None;
+        let limit = closures::unwrapped(&test.right, 1)?;
+        let bound = static_keys::number(limit);
+        let update = if let Some(step) = &source.update {
+            let Expression::Identifier(left) = left else {
+                return None;
+            };
+            if scope.get_reference(left.reference_id.get()?).symbol_id() != Some(symbol) {
+                return None;
+            }
+            let Expression::UpdateExpression(update) = closures::unwrapped(step, 0)? else {
+                return None;
+            };
+            match (update.operator, test.operator) {
+                (UpdateOperator::Increment, BinaryOperator::LessThan)
+                    if self.unsigned_value(init) && self.unsigned_value(limit) => {}
+                (UpdateOperator::Decrement, BinaryOperator::GreaterEqualThan)
+                    if bound == Some(0.0) && self.reverse_start(init) => {}
+                (UpdateOperator::Decrement, BinaryOperator::GreaterThan)
+                    if (bound == Some(-1.0) || bound == Some(0.0)) && self.reverse_start(init) => {}
+                _ => return None,
+            }
+            update
+        } else {
+            // for (let i = xs.length; i-- > 0;) visits length - 1 through 0.
+            let Expression::UpdateExpression(update) = left else {
+                return None;
+            };
+            if update.prefix
+                || update.operator != UpdateOperator::Decrement
+                || test.operator != BinaryOperator::GreaterThan
+                || bound != Some(0.0)
+                || !self.unsigned_value(init)
+            {
+                return None;
+            }
+            update
         };
         let step = target_identifier(&update.argument, 0).ok()??;
-        if update.operator != UpdateOperator::Increment
-            || scope.get_reference(step.reference_id.get()?).symbol_id() != Some(symbol)
+        if scope.get_reference(step.reference_id.get()?).symbol_id() != Some(symbol)
             || scope
                 .get_resolved_references(symbol)
                 .any(|r| r.is_write() && r.node_id() != step.node_id())
@@ -131,6 +154,16 @@ impl Uint32Keys {
             return None;
         }
         Some(symbol)
+    }
+
+    fn reverse_start(&self, init: &Expression<'_>) -> bool {
+        self.unsigned_value(init)
+            || matches!(
+                closures::unwrapped(init, 0),
+                Some(Expression::BinaryExpression(sub)) if sub.operator == BinaryOperator::Subtraction
+                    && closures::unwrapped(&sub.right, 1).and_then(static_keys::number) == Some(1.0)
+                    && self.unsigned_value(&sub.left)
+            )
     }
 
     // This proof runs before general field-origin analysis, which itself uses
@@ -193,6 +226,13 @@ mod tests {
         for (header, body, admitted) in [
             ("let i=0;i<xs.length;i++", "", true),
             ("let i=1;i<3;++i", "", true),
+            ("let i=xs.length-1;i>=0;--i", "", true),
+            ("let i=xs.length;i-- > 0;", "", true),
+            ("let i=xs.length;i-- >= 0;", "", false),
+            ("let i=xs.length-1;i>=-1;i--", "", false),
+            ("let i=a-1;i>=0;i--", "", false),
+            ("let i=xs.length-0.5;i>=0;--i", "", false),
+            ("let i=xs.length;i-- > 0;", "i=-2;", false),
             ("let i=0;i<=xs.length;i++", "", false),
             ("let i=0;i<a;i++", "", false),
             ("let i=-1;i<xs.length;i++", "", false),

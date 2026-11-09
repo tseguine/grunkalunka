@@ -2,6 +2,19 @@
 mod common;
 
 #[test]
+fn reverse_loops_index_the_current_element_and_skip_empty_arrays() {
+    for body in [
+        "const xs=[1,2,3];let n=0;for(let i=xs.length-1;i>=0;--i)n=n*10+(+xs[i]);return n;",
+        "const xs=[1,,3];let n=0;for(let i=xs.length;i-->0;){if(i in xs)n=n*10+(+xs[i]);}return n;",
+        "const xs=[];let n=0;for(let i=xs.length-1;i>=0;--i)xs[i]=++n;for(let i=xs.length;i-- > 0;)xs[i]=++n;return n;",
+        "const xs=[11,22,33];let last=()=>0;for(let i=xs.length-1;i>-1;i--){last=()=>+xs[i];if(i===0)break;}return last();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn counted_loops_use_the_live_index_for_reads_and_writes() {
     for body in [
         "const xs=[11,,33];let sum=0;for(let i=0;i<xs.length;++i){if(i in xs)sum+=+xs[i];}return sum;",
