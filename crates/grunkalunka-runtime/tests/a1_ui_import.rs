@@ -427,6 +427,28 @@ fn imported_service_composes_with_runtime_closures_and_shared_cells() {
 }
 
 #[test]
+fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provider() {
+    for source in [
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function relay(expanded, count) { return choose(expanded, count); }
+           export function run(a, b) { return relay.apply(null, [a, b]); }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             let offset = 0;
+             const relay = (expanded, count) => choose(expanded + offset, count);
+             return relay.apply(offset = 1, [(offset = 2, a), b]) ? b : 0;
+           }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             const action = {invoke: (expanded, count) => choose(expanded, count)};
+             return action.invoke.apply(null, [a, b]) ? b : 0;
+           }"#,
+    ] {
+        compare_composed_source(source);
+    }
+}
+
+#[test]
 fn imported_service_composes_with_gc_captures_and_function_identities() {
     for body in [
         "let state={expanded:a};const initial=state;let dispatch=()=>choose(state.expanded===a?1:0,b);state={expanded:b};return dispatch()+(initial===state?10:20);",

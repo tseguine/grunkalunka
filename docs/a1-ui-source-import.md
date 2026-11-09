@@ -39,6 +39,14 @@ and function objects. No reference crosses the scalar service boundary.
 The service binding remains a direct call target; reifying that imported function
 as a stored value or passing it itself as a callback remains unsupported.
 
+Within admitted local-helper, arrow and own-field signatures, an A1 action can
+also invoke a captured or named handler using `handler.apply(null, [expanded, count])`.
+Fixed Array-literal forwarding keeps the source-compiled provider arguments and
+`thisArg` effects ordered without changing the scalar WIT ABI. The integration
+comparison exercises the same code with native JavaScript, Node-Wasm, and the
+real Rust WIT provider, including provider denial and state transitions.
+A dynamic argument Array or dynamic receiver binding remains a separate feature.
+
 The profile is not exposed through the ordinary CLI/build API; the Rust compiler
 API and integration tests are the
 supported experimental entry points. Unsupported imports, missing/incorrect
