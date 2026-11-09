@@ -124,8 +124,9 @@ fn numeric_binding<'b>(
         })
 }
 
-// The numeric module supplies a pristine intrinsic, never an external realm object.
-fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Unary, &'static str)> {
+// The numeric module supplies pristine intrinsics, never an external realm
+// Math object. Require a resolved reference check instead of name matching.
+fn math_name<'e>(call: &'e CallExpression<'_>, semantic: &Semantic<'_>) -> Option<&'e str> {
     let Expression::StaticMemberExpression(member) = &call.callee else {
         return None;
     };
@@ -144,12 +145,26 @@ fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Una
     {
         return None;
     }
-    match member.property.name.as_str() {
+    Some(member.property.name.as_str())
+}
+
+fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Unary, &'static str)> {
+    match math_name(call, semantic)? {
         "abs" => Some((Unary::Abs, "abs")),
         "sqrt" => Some((Unary::Sqrt, "sqrt")),
         "floor" => Some((Unary::Floor, "floor")),
         "ceil" => Some((Unary::Ceil, "ceil")),
         "trunc" => Some((Unary::Trunc, "trunc")),
+        _ => None,
+    }
+}
+
+// Empty folds have opposite infinities as their identities; all subsequent
+// primitive ToNumber conversions are pure in the admitted numeric profile.
+fn math_variadic(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Binary, f64)> {
+    match math_name(call, semantic)? {
+        "min" => Some((Binary::Min, f64::INFINITY)),
+        "max" => Some((Binary::Max, f64::NEG_INFINITY)),
         _ => None,
     }
 }

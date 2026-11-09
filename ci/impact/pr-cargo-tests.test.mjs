@@ -135,9 +135,16 @@ test('checked-in classification accounts for every current runtime integration s
     ...actual.map(name => ({ name, kind: ['test'] })),
   ];
   const result = plan({ metadata: actualMetadata, classification: policy, packages: [runtime] });
-  assert.ok(result.commands.every(command => command.args.includes('--lib')));
-  assert.deepEqual(result.commands[1].args.filter((_, index, args) => args[index - 1] === '--test'),
-    policy.fast.targets);
+  const runtimeCommands = result.commands.filter(command => command.phase === 'test');
+  assert.equal(runtimeCommands.length, 2, '21 fast tests should fit two bounded runs');
+  assert.equal(result.commands.length, 4, 'compile each bounded group first');
+  assert.deepEqual(runtimeCommands.map(command => command.timeoutMs), [120_000, 120_000]);
+  assert.ok(runtimeCommands[0].args.includes('--lib'));
+  assert.ok(!runtimeCommands[1].args.includes('--lib'));
+  const selected = runtimeCommands.flatMap(command => command.args
+    .filter((_, index, args) => args[index - 1] === '--test'));
+  assert.deepEqual(selected, policy.fast.targets, 'every fast target runs once in stable order');
+  assert.equal(new Set(selected).size, selected.length, 'no duplicate fast targets');
 });
 
 test('compile or execution failures stop immediately without retries or exhaustive fallback', () => {
@@ -193,9 +200,11 @@ test('production helper bounds discovery, compilation and execution, and fails o
     const line = result.stdout.split('\n').find(line => line.startsWith('CARGO SPAWNS '));
     assert.ok(line, result.stdout + result.stderr);
     const calls = JSON.parse(line.slice('CARGO SPAWNS '.length));
-    const expectedCount = failure === 'metadata' ? 1 : failure === 'compile' ? 2 : 3;
+    const expectedCount = failure === 'metadata' ? 1
+      : failure === 'compile' ? 2 : failure === 'none' ? 5 : 4;
     assert.equal(calls.length, expectedCount);
-    assert.deepEqual(calls.map(call => call.timeout), [30_000, 600_000, 120_000].slice(0, expectedCount));
+    assert.deepEqual(calls.map(call => call.timeout),
+      [30_000, 600_000, 600_000, 120_000, 120_000].slice(0, expectedCount));
     assert.ok(calls.every(call => call.killSignal === 'SIGKILL'));
     assert.deepEqual(calls[0].args,
       ['metadata', '--format-version', '1', '--no-deps', '--locked', '--offline']);
