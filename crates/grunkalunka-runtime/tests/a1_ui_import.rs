@@ -449,6 +449,21 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 }
 
 #[test]
+fn imported_handler_builds_repeated_utf16_labels() {
+    for body in [
+        "const label='-'.repeat(3);return choose(label.length===3?a:0,b);",
+        "const label='🍁'.repeat(2);return choose(label.length===4?a:0,b);",
+        "const label='xy';return choose(label.repeat(2)==='xyxy'?a:0,b);",
+        "let label='ab';const repeated=label.repeat((label='x',2));return choose(repeated==='abab'&&label==='x'?a:0,b);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_handler_invokes_defaulted_helpers_via_empty_apply() {
     for body in [
         "return choose(f.apply()===1?1:0,b);",

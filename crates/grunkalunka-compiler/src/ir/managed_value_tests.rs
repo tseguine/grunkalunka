@@ -33,6 +33,47 @@ fn primitive_projection_checks_visible_input_and_general_result() {
 }
 
 #[test]
+fn string_repeat_verifier_checks_receiver_count_and_result_types() {
+    for invalid in 0..6 {
+        let mut module = crate::lower_source(
+            "export function run(a,b){return 'xy'.repeat(3).length;}",
+            false,
+        )
+        .unwrap();
+        verify_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let (result, input, count) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedStringRepeat {
+                    result,
+                    input,
+                    count,
+                } = &mut op.kind
+                {
+                    Some((result, input, count))
+                } else {
+                    None
+                }
+            })
+            .expect("repeat operation");
+        match invalid {
+            0 => *input = ValueId(usize::MAX),
+            1 => *count = ValueId(usize::MAX),
+            2 => *input = *result,
+            3 => *count = *result,
+            4 => function.values[result.0] = Type::Number,
+            _ => function.values[count.0] = Type::ManagedValue,
+        }
+        assert!(verify_module(&module).is_err(), "mutation {invalid}");
+    }
+    let numeric = crate::compile("export function run(a,b){return a+b;}", false).unwrap();
+    assert!(!numeric.wat.contains("$gc_string_repeat"));
+}
+
+#[test]
 fn string_comparison_checks_visible_managed_operands_and_predicate_result() {
     for invalid in 0..7 {
         let mut module =

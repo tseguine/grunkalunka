@@ -2,6 +2,79 @@
 mod common;
 
 #[test]
+fn string_repeat_preserves_utf16_units_count_conversion_and_empty_results() {
+    for body in [
+        "return 'ab'.repeat(3)==='ababab'?1:0;",
+        "return 'ab'.repeat(1)==='ab'?1:0;",
+        "return 'ab'.repeat(0)===''?1:0;",
+        "return 'ab'.repeat()===''?1:0;",
+        "return 'ab'.repeat(undefined)===''?1:0;",
+        "return 'ab'.repeat(NaN)===''?1:0;",
+        "return 'ab'.repeat(2.9)==='abab'?1:0;",
+        "return 'ab'.repeat(-0.2)===''?1:0;",
+        "return ''.repeat(2000)===''?1:0;",
+        "return '🍁'.repeat(2).length===4?1:0;",
+        r"return '\ud800\0'.repeat(3)==='\ud800\0\ud800\0\ud800\0'?1:0;",
+        "return ('a'+'b').repeat(3)==='ababab'?1:0;",
+        "return 'a'.repeat(4).length===4?1:0;",
+        "return 'a'.repeat(7).length===7?1:0;",
+        "return 'a'.repeat(21).length===21?1:0;",
+        "return 'a'.repeat(33).length===33?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn string_repeat_saves_receiver_and_count_through_argument_effects() {
+    for body in [
+        "let text='ab';const out=text.repeat((text='z',2));return out==='abab'&&text==='z'?1:0;",
+        "let count=1;const out='xy'.repeat((count=3,count),count=5);return out==='xyxyxy'&&count===5?1:0;",
+        "let n=0;const out='x'.repeat((n=1,2),n=n*10+2,n=n*10+3);return out==='xx'&&n===123?1:0;",
+        "const o={text:'xy'};return o.text.repeat(2)==='xyxy'?1:0;",
+        "const o={text:'x'};const read=()=>o.text.repeat(3);return read()==='xxx'?1:0;",
+        "const xs=['x'];return xs[0].repeat(3)==='xxx'?1:0;",
+        "function duplicate(text){return text.repeat(2);}return duplicate('ab')==='abab'?1:0;",
+        "const make=text=>text.repeat(2);return make('x')==='xx'?1:0;",
+        "const x='xy';return x['repeat'](2)==='xyxy'?1:0;",
+        "let n=0;const out='ab'.repeat(void(n=1));return n===1&&out===''?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const text='xy';return text.repeat(3)==='xyxyxy'?1:0;}";
+    let ts = "export function run(a:number,b:string):number{const text:number='xy';return (text as string).repeat(3)==='xyxyxy'?1:0;}";
+    common::compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn string_repeat_keeps_receiver_coercion_and_dynamic_invocation_guarded() {
+    for body in [
+        "return a.repeat(2);",
+        "return 'ab'.repeat('2').length;",
+        "return 'ab'.repeat(...[2]).length;",
+        "const key='repeat';return 'ab'[key](2).length;",
+        "return 'ab'.repeat?.(2).length;",
+        "return String.prototype.repeat.call('ab',2).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let result = grunkalunka_compiler::compile(&source, typed);
+            assert!(result.is_err(), "unexpectedly compiled {source}");
+            assert!(
+                !result.unwrap_err().contains("internal IR"),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
 fn string_relational_operators_use_utf16_units_and_equal_prefix_lengths() {
     for (left, right) in [
         ("''", "''"),
