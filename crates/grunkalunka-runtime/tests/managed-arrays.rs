@@ -45,6 +45,25 @@ fn mixed_literal_spreads_preserve_holes_order_identity_and_element_proofs() {
 }
 
 #[test]
+fn array_push_appends_after_argument_effects_and_returns_length() {
+    for source in [
+        "export function run(a,b){const xs=[];return xs.push()===0&&xs.length===0?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push(b)===2&&xs.length===2&&xs[1]===b?1:0;}",
+        "export function run(a,b){const xs=[a,,];return xs.push(b)===3&&xs.length===3&&!Object.hasOwn(xs,1)&&xs[2]===b?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push(b,a)===3&&xs[1]===b&&xs[2]===a?1:0;}",
+        "export function run(a,b){const xs=[a];let n=0;const length=xs.push((n=1,b),(n=n*10+2,a));return length===3&&n===12&&xs[1]===b&&xs[2]===a?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push((xs.length=0,b))===1&&xs[0]===b?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push(xs.push(b))===3&&xs[1]===b&&xs[2]===2?1:0;}",
+        "export function run(a,b){const xs=[a];xs.push(b);return xs.pop()===b&&xs.length===1?1:0;}",
+        "export function run(a,b){const xs=[a];const alias=xs;alias.push(b);return xs.length===2&&xs===alias?1:0;}",
+        "export function run(a,b){const xs=[a];xs.push('text',null,false,undefined);return xs.length===5&&xs[1]==='text'&&xs[2]===null&&xs[3]===false&&xs[4]===undefined?1:0;}",
+        "export function run(a,b){const xs=[a];return xs['push'](b)===2&&xs.length===2?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
 fn array_pop_removes_current_elements_holes_and_sparse_extremes() {
     for source in [
         "export function run(a,b){const x=[];return x.pop()===undefined&&x.length===0?1:0;}",
@@ -124,7 +143,6 @@ fn array_pop_keeps_unknown_receivers_overrides_and_borrowing_explicit() {
         "const x=[a];return x?.pop();",
         "const x=[a];return x.pop(...[b]);",
         "const x=[a];return x.pop();",
-        "const x=[a];return x.push(b);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
