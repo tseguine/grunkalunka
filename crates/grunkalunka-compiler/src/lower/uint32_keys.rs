@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 #[derive(Default)]
 pub(super) struct Uint32Keys {
     reads: BTreeSet<NodeId>,
+    array_or_string_reads: BTreeSet<NodeId>,
 }
 
 // An AND clears the sign bit if either operand is an integer literal in
@@ -39,13 +40,17 @@ impl Uint32Keys {
                 continue;
             };
             let literal = closures::unwrapped(init, 0).and_then(static_keys::number);
-            if !literal
+            let reads = if literal
                 .is_some_and(|n| (0.0..=f64::from(u32::MAX)).contains(&n) && n.fract() == 0.0)
-                && !keys.contains(init, 0)
+                || keys.contains(init, 0)
             {
+                &mut keys.reads
+            } else if keys.array_or_string(init, 0) {
+                &mut keys.array_or_string_reads
+            } else {
                 continue;
-            }
-            keys.reads.extend(
+            };
+            reads.extend(
                 semantic
                     .scoping()
                     .get_resolved_references(symbol)
@@ -60,6 +65,18 @@ impl Uint32Keys {
         keys
     }
 
+    // This proof runs before general field-origin analysis, which itself uses
+    // unsigned keys. Only literal receivers and their immutable aliases qualify.
+    fn array_or_string(&self, expression: &Expression<'_>, depth: usize) -> bool {
+        closures::unwrapped(expression, depth).is_some_and(|expr| match expr {
+            Expression::ArrayExpression(_)
+            | Expression::StringLiteral(_)
+            | Expression::TemplateLiteral(_) => true,
+            Expression::Identifier(id) => self.array_or_string_reads.contains(&id.node_id()),
+            _ => false,
+        })
+    }
+
     // Source operators, never annotations, prove the key's numeric range. The
     // ordinary evaluator still validates every operand and effect of these forms.
     pub(super) fn contains(&self, expression: &Expression<'_>, depth: usize) -> bool {
@@ -70,6 +87,9 @@ impl Uint32Keys {
             };
             match expression {
                 Expression::Identifier(id) if self.reads.contains(&id.node_id()) => {}
+                Expression::StaticMemberExpression(_) | Expression::ComputedMemberExpression(_)
+                    if static_keys::length_receiver(expression, depth)
+                        .is_some_and(|receiver| self.array_or_string(receiver, depth + 1)) => {}
                 Expression::BinaryExpression(binary)
                     if binary.operator == BinaryOperator::ShiftRightZeroFill => {}
                 Expression::BinaryExpression(binary)
@@ -100,6 +120,33 @@ impl Uint32Keys {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn length_keys_require_an_array_or_string_receiver() {
+        for (body, admitted) in [
+            ("const xs=[a];return Object.hasOwn(xs,xs.length)?1:0;", true),
+            (
+                "const s='ab',t=s;return Object.hasOwn([b],t['length'])?1:0;",
+                true,
+            ),
+            (
+                "const o={length:-1};return Object.hasOwn([b],o.length)?1:0;",
+                false,
+            ),
+            (
+                "let xs=[a];xs={length:-1};return Object.hasOwn([b],xs.length)?1:0;",
+                false,
+            ),
+            (
+                "const x=a as string;return Object.hasOwn([b],x.length)?1:0;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let result = crate::compile(&source, true);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+        }
+    }
+
     #[test]
     fn const_key_proofs_respect_bindings_and_unsigned_range() {
         for (body, admitted) in [

@@ -2,6 +2,19 @@
 mod common;
 
 #[test]
+fn length_indices_observe_mutation_and_count_utf16_units() {
+    for body in [
+        "const xs=[a];xs[xs.length]=b;return xs.length===2&&xs[1]===b?1:0;",
+        "const xs=[a],alias=xs;const old=alias.length;xs.push(b);const o={[xs.length]:b};return old in o?0:Object.hasOwn(o,alias['length'])?1:0;",
+        "const s='💠';const xs=[11,22,33];return +(xs[s.length]);",
+        "const xs=[a];xs[xs.length]=(xs.length=0,b);return xs.length===2&&!Object.hasOwn(xs,0)&&xs[1]===b?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn const_indices_snapshot_values_across_array_and_record_operations() {
     for body in [
         "let n=0;const i=((n=n+1,a)&3),j=i;const xs=[];xs[j]=b;return n*10+xs.length+(Object.hasOwn(xs,i)?10:0);",
