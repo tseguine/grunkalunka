@@ -574,6 +574,19 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   [Math.ceil](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.ceil),
   [Math.trunc](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.trunc)
   and [Wasm floating numerics](https://webassembly.github.io/spec/core/exec/numerics.html#op-fsqrt).
+- The same pristine numeric Math profile also admits `Math.min` and
+  `Math.max` with zero to 1,000 arguments. The zero-argument results are
+  +Infinity and -Infinity respectively. Each argument is evaluated and
+  converted from the admitted four primitive kinds in source order; the
+  iterative fold retains snapshots across subsequent argument effects.
+  The verified f64 binary operations emit Wasm `f64.min`/`f64.max`,
+  preserving signed-zero ordering and propagating NaN; no recursive native
+  lowering or host call is introduced. Missing and explicit undefined inputs
+  are distinct: zero arguments return the identity, while an explicit
+  Undefined argument converts to NaN. Out-of-domain Strings, objects,
+  dynamic/optional method lookup, spreads and mutable Math bindings are
+  not silently admitted. Source-proven Number inputs and existing Boolean,
+  Null and Undefined ToNumber bridges retain the current constraints.
 - The body admits initialized numeric `const`/`let` declarations and
   discarded Number/Boolean expression statements in source order, lexical blocks and
   statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
