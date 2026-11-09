@@ -2822,7 +2822,11 @@ including through further const aliases. Its initializer executes once.
 Array and String literals, and const aliases of those receivers, also supply an
 unsigned `.length` or `["length"]`. Each read observes the current length, so
 `xs[xs.length] = value` snapshots the append position before RHS effects.
-Mutable Number cells, annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
+A single `let` counter with an unsigned initializer can index a counted loop:
+`for (let i = 0; i < xs.length; i++) dst[i] = xs[i]`. The strict upper bound
+must also be proven unsigned and the header increment must be the counter's
+only write, including in closures. The test still reads the live upper bound
+on every iteration. Annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
 
 Objects, dictionaries and Arrays evaluate and save the receiver before the key.
 ManagedKey::Uint32 explicitly means the decimal property key of ToUint32(input);

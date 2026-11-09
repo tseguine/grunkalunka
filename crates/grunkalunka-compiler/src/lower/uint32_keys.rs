@@ -1,6 +1,6 @@
 //! Original-source proofs for the shared unsigned computed-key representation.
 use super::*;
-use oxc_ast::AstKind;
+use oxc_ast::{AstKind, ast::ForStatement};
 use oxc_syntax::node::NodeId;
 use std::collections::BTreeSet;
 
@@ -24,6 +24,22 @@ impl Uint32Keys {
         // Earlier declarations publish facts to their resolved reads. A chain
         // of aliases therefore needs one forward pass and no initializer replay.
         for node in semantic.nodes().iter() {
+            if let AstKind::ForStatement(source) = node.kind()
+                && let Some(symbol) = keys.loop_counter(source, semantic)
+            {
+                let body = source.body.span();
+                keys.reads.extend(
+                    semantic
+                        .scoping()
+                        .get_resolved_references(symbol)
+                        .filter(|r| {
+                            r.is_read()
+                                && body
+                                    .contains_inclusive(semantic.nodes().kind(r.node_id()).span())
+                        })
+                        .map(|r| r.node_id()),
+                );
+            }
             let AstKind::VariableDeclarator(declaration) = node.kind() else {
                 continue;
             };
@@ -39,11 +55,7 @@ impl Uint32Keys {
             let Some(init) = declaration.init.as_ref() else {
                 continue;
             };
-            let literal = closures::unwrapped(init, 0).and_then(static_keys::number);
-            let reads = if literal
-                .is_some_and(|n| (0.0..=f64::from(u32::MAX)).contains(&n) && n.fract() == 0.0)
-                || keys.contains(init, 0)
-            {
+            let reads = if keys.unsigned_value(init) {
                 &mut keys.reads
             } else if keys.array_or_string(init, 0) {
                 &mut keys.array_or_string_reads
@@ -63,6 +75,62 @@ impl Uint32Keys {
             );
         }
         keys
+    }
+
+    fn unsigned_value(&self, expression: &Expression<'_>) -> bool {
+        closures::unwrapped(expression, 0)
+            .and_then(static_keys::number)
+            .is_some_and(|n| (0.0..=f64::from(u32::MAX)).contains(&n) && n.fract() == 0.0)
+            || self.contains(expression, 0)
+    }
+
+    // The only write increments a counter strictly below a uint32 bound.
+    // Even its value after the final increment still fits. The bound may vary
+    // across iterations, as long as each observation has that range.
+    fn loop_counter(&self, source: &ForStatement<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
+        let ForStatementInit::VariableDeclaration(declaration) = source.init.as_ref()? else {
+            return None;
+        };
+        let [counter] = declaration.declarations.as_slice() else {
+            return None;
+        };
+        let BindingPattern::BindingIdentifier(name) = &counter.id else {
+            return None;
+        };
+        if declaration.kind != VariableDeclarationKind::Let
+            || !self.unsigned_value(counter.init.as_ref()?)
+        {
+            return None;
+        }
+        let symbol = name.symbol_id.get()?;
+        let Expression::BinaryExpression(test) = closures::unwrapped(source.test.as_ref()?, 0)?
+        else {
+            return None;
+        };
+        let Expression::Identifier(left) = closures::unwrapped(&test.left, 1)? else {
+            return None;
+        };
+        let scope = semantic.scoping();
+        if test.operator != BinaryOperator::LessThan
+            || !self.unsigned_value(&test.right)
+            || scope.get_reference(left.reference_id.get()?).symbol_id() != Some(symbol)
+        {
+            return None;
+        }
+        let Expression::UpdateExpression(update) = closures::unwrapped(source.update.as_ref()?, 0)?
+        else {
+            return None;
+        };
+        let step = target_identifier(&update.argument, 0).ok()??;
+        if update.operator != UpdateOperator::Increment
+            || scope.get_reference(step.reference_id.get()?).symbol_id() != Some(symbol)
+            || scope
+                .get_resolved_references(symbol)
+                .any(|r| r.is_write() && r.node_id() != step.node_id())
+        {
+            return None;
+        }
+        Some(symbol)
     }
 
     // This proof runs before general field-origin analysis, which itself uses
@@ -120,6 +188,29 @@ impl Uint32Keys {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn loop_counter_requires_a_bounded_test_and_a_single_increment() {
+        for (header, body, admitted) in [
+            ("let i=0;i<xs.length;i++", "", true),
+            ("let i=1;i<3;++i", "", true),
+            ("let i=0;i<=xs.length;i++", "", false),
+            ("let i=0;i<a;i++", "", false),
+            ("let i=-1;i<xs.length;i++", "", false),
+            ("let i=0;i<xs.length;i--", "", false),
+            ("let i=0;i<xs.length;a++", "", false),
+            ("let i=0;a<xs.length;i++", "", false),
+            ("let i=0;i<xs.length;i++", "i=b;", false),
+            ("let i=0;i<xs.length;i++", "const f=()=>i=b;f();", false),
+            ("let i=0;i<xs.length;i++", "for(i of [-1]){}", false),
+        ] {
+            let source = format!(
+                "export function run(a,b){{const xs=[a,b];for({header}){{{body}xs[i]=1;}}return xs.length;}}"
+            );
+            let result = crate::compile(&source, false);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+        }
+    }
+
     #[test]
     fn length_keys_require_an_array_or_string_receiver() {
         for (body, admitted) in [
