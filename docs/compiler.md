@@ -544,7 +544,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   renew it. The existing engine stack guard also remains in place. Neither is a
   static termination proof or a guarantee for arbitrary host-thread stacks.
 - The self-contained numeric execution profile provides pristine specified
-  Math.abs, Math.sqrt, Math.floor, Math.ceil, Math.trunc and Math.fround intrinsics, rather than
+  Math.abs, Math.sqrt, Math.floor, Math.ceil, Math.trunc, Math.fround and Math.clz32 intrinsics, rather than
   references to an external JavaScript realm's mutable Math object. Each requires
   a nonoptional static call and an actual unresolved semantic value reference for
   Math. An omitted first argument produces Number NaN. A supplied first operand
@@ -602,6 +602,15 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   source-depth and small-stack limits remain in force. General object
   coercion, dynamic/optional method access and spread calls remain guarded.
   See [Math.imul](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.imul).
+- Pristine `Math.clz32(value)` counts leading zero bits after the existing
+  ToUint32/ToInt32 conversion (their bits are identical). It emits Wasm
+  `i32.clz` and converts the resulting unsigned count to a binary64 Number.
+  Missing, undefined, NaN, infinite and zero inputs produce 32; negative and
+  overflowing finite values are reduced modulo 2³², matching JavaScript.
+  Surplus arguments execute after the saved first operand. Dynamic or optional
+  method lookup, spread arguments, object conversion and mutable Math objects
+  remain guarded. See
+  [Math.clz32](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.clz32).
 - The body admits initialized numeric `const`/`let` declarations and
   discarded Number/Boolean expression statements in source order, lexical blocks and
   statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
