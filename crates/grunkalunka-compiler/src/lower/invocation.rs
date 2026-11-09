@@ -1,22 +1,48 @@
-//! Original-source ordinary call arguments and represented Function.prototype.call.
+//! Original-source ordinary call arguments and represented Function.call/apply.
 //! Intrinsic recognition still inspects the original call, not this projection.
 use super::*;
 use oxc_ast::ast::Argument;
 
-fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, usize)> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Method {
+    Call,
+    Apply,
+}
+
+fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, usize, Method)> {
     let (callee, depth) = closures::unwrapped_at(&call.callee, 0)?;
     let Expression::StaticMemberExpression(member) = callee else {
         return None;
     };
-    (member.property.name == "call" && !member.optional).then_some((&member.object, depth + 1))
+    if member.optional {
+        return None;
+    }
+    let kind = if member.property.name == "call" {
+        Method::Call
+    } else if member.property.name == "apply" {
+        // The original literal Array is newly constructed and unobservable
+        // after this call. Its ordinary element evaluation can use the same
+        // source-ordered argument cursor as a fixed literal spread.
+        if call.arguments.len() != 2 {
+            return None;
+        }
+        let (array, _) = closures::unwrapped_at(call.arguments[1].as_expression()?, 0)?;
+        if !matches!(array, Expression::ArrayExpression(_)) {
+            return None;
+        }
+        Method::Apply
+    } else {
+        return None;
+    };
+    Some((&member.object, depth + 1, kind))
 }
 
 pub(super) fn callee<'e, 'a>(call: &'e CallExpression<'a>) -> &'e Expression<'a> {
-    method(call).map_or(&call.callee, |(callee, _)| callee)
+    method(call).map_or(&call.callee, |(callee, _, _)| callee)
 }
 
 pub(super) fn depth(call: &CallExpression<'_>, depth: usize) -> usize {
-    depth + method(call).map_or(0, |(_, extra)| extra)
+    depth + method(call).map_or(0, |(_, extra, _)| extra)
 }
 
 pub(super) fn offset(call: &CallExpression<'_>) -> usize {
@@ -72,6 +98,7 @@ impl<'n, 'a> IntoIterator for Arguments<'n, 'a> {
 pub(super) fn all_arguments<'n, 'a>(call: &'n CallExpression<'a>) -> Arguments<'n, 'a> {
     use oxc_ast::ast::ArrayExpressionElement;
     let mut result = Vec::new();
+    let is_apply = matches!(method(call), Some((_, _, Method::Apply)));
     let mut pending = call
         .arguments
         .iter()
@@ -80,7 +107,9 @@ pub(super) fn all_arguments<'n, 'a>(call: &'n CallExpression<'a>) -> Arguments<'
         .map(|(index, arg)| {
             (
                 arg.as_expression(),
-                if let Argument::SpreadElement(s) = arg {
+                if is_apply && index == 1 {
+                    arg.as_expression()
+                } else if let Argument::SpreadElement(s) = arg {
                     Some(&s.argument)
                 } else {
                     None
@@ -143,6 +172,10 @@ mod tests {
             "export function run(a,b){const o={f:(x,y)=>x+y};return o.f(...[a,b]);}",
             "function f(x=3){return x;}export function run(a,b){return +f(...[]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,b]);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,...[b]]);}",
+            "export function run(a,b){const f=(x,y)=>x+y;return f.apply(null,[a,b]);}",
+            "export function run(a,b){const o={f:(x,y)=>x+y};return o.f.apply(null,[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f(...[...[a],b]);}",
         ] {
             for ts in [false, true] {
@@ -155,6 +188,8 @@ mod tests {
             "function f(x){return x;}export function run(a,b){return f(...[,]);}",
             "function f(x){return x;}export function run(a,b){return f(...'abc');}",
             "function f(x){return x;}export function run(a,b){return f.call(...[null,a]);}",
+            "function f(x){return x;}export function run(a,b){const xs=[a];return f.apply(null,xs);}",
+            "function f(x){return x;}export function run(a,b){return f.apply(null,[a],b);}",
         ] {
             assert!(crate::compile(source, false).is_err(), "{source}");
         }
