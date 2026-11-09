@@ -870,10 +870,20 @@ impl Lowering<'_, '_> {
                     crate::lower::array_mutations::Operation::Reverse
                         | crate::lower::array_mutations::Operation::ToReversed,
                     Mode::Array
+                ) | (
+                    crate::lower::array_mutations::Operation::Push,
+                    Mode::Number | Mode::General | Mode::Predicate | Mode::Managed | Mode::Discard
                 )
             )
             && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
         {
+            if operation == crate::lower::array_mutations::Operation::Push {
+                if matches!(mode, Mode::Discard) {
+                    work.push(Work::Forget);
+                } else {
+                    number_consumer(work, node, mode)?;
+                }
+            }
             work.push(Work::ArrayMutation(super::array_mutation::Task {
                 operation,
                 node,
@@ -881,6 +891,8 @@ impl Lowering<'_, '_> {
                 array: None,
                 argument: 0,
                 depth,
+                push_values: Vec::new(),
+                awaiting_push: false,
             }));
             work.push(Work::Eval(receiver, depth + 1, Mode::Array));
             return Ok(true);

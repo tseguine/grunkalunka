@@ -449,6 +449,19 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 }
 
 #[test]
+fn imported_handler_builds_lists_with_array_push() {
+    for body in [
+        "const actions=[a];const length=actions.push(b);return choose(length===actions.length?a:0,b);",
+        "const actions=[a];let step=0;const length=actions.push((step=1,b),(step=step*10+2,a));return choose(length===3&&step===12?a:0,b);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_service_composes_with_gc_captures_and_function_identities() {
     for body in [
         "let state={expanded:a};const initial=state;let dispatch=()=>choose(state.expanded===a?1:0,b);state={expanded:b};return dispatch()+(initial===state?10:20);",

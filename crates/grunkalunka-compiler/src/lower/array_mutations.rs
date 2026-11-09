@@ -3,6 +3,7 @@ use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Operation {
+    Push,
     Pop,
     Shift,
     Reverse,
@@ -11,12 +12,14 @@ pub(super) enum Operation {
 impl Operation {
     pub(super) fn result(self) -> Type {
         match self {
+            Self::Push => Type::Number,
             Self::Pop | Self::Shift => Type::ManagedValue,
             Self::Reverse | Self::ToReversed => Type::ManagedArray,
         }
     }
     pub(super) fn name(self) -> &'static str {
         match self {
+            Self::Push => "push",
             Self::Pop => "pop",
             Self::Shift => "shift",
             Self::Reverse => "reverse",
@@ -46,6 +49,7 @@ pub(super) fn operation<'e, 'a>(
     };
     Some((
         match name {
+            "push" => Operation::Push,
             "pop" => Operation::Pop,
             "shift" => Operation::Shift,
             "reverse" => Operation::Reverse,
@@ -54,4 +58,32 @@ pub(super) fn operation<'e, 'a>(
         },
         receiver,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn append_is_admitted_only_on_source_proven_arrays() {
+        for body in [
+            "const xs=[];return xs.push(a);",
+            "const xs=[a];return xs.push(b,a);",
+            "const xs=[a];xs.push(b);return xs.length;",
+            "const xs=[a];return xs['push'](b);",
+            "const xs=[a];return xs.push()===1?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+        for body in [
+            "return a.push(b);",
+            "const xs=[a];return xs.push(...[b]);",
+            "const xs=[a];return xs.push.call(xs,b);",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
+    }
 }
