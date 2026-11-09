@@ -629,3 +629,53 @@ fn numeric_defaults_retain_effect_scope_and_coercion_guards() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn earlier_string_defaults_compose_literal_fragments_and_templates() {
+    for body in [
+        "function f(x,y,z=x+'-'+y){return z.length;}export function run(a,b){return f('up','date')+a;}",
+        "function f(x,y,z=x+y+'!'){return z.length;}export function run(a,b){return f('go','now')+a;}",
+        "function f(x,y,z=(x+' ') + (y+'!')){return z.length;}export function run(a,b){return f('go','now')+a;}",
+        "function f(x,y,z=`${x}:${y}`){return z.length;}export function run(a,b){return f('go','now')+a;}",
+        "function f(x,y,z=`[${x}][${y}]`){return z.length;}export function run(a,b){return f('go','now')+a;}",
+        "function f(x,y,z=`${x}`){return z.length;}export function run(a,b){return f('go','now')+a;}",
+        "function f(x,y,z=x+y){return z.length;}export function run(a,b){return f('ab','cd')+a;}",
+        "export function run(a,b){const f=(x,y=x+'!')=>y.length;return f('ok')+a;}",
+        "export function run(a,b){const o={f:(x,y,z=x+':'+y)=>z.length};return o.f('a','bc')+a;}",
+        "function f(x,y,z=x+'-'+y){return z.length;}export function run(a,b){return f('up','date','abc')+a;}",
+        "function f(x,y,z=`${x}:${y}`){return z.length;}export function run(a,b){return f('up','date',undefined)+a;}",
+        "function f(x,y,z=x+'\\u{1F642}'+y){return z.length;}export function run(a,b){return f('a','b')+a;}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(x,y,z=x+':'+y){return z.length;}export function run(a,b){return f('a','bc')+a;}";
+    let ts = "function f(x:never,y:never,z:unknown=(x as string)+':'+(y as string)){return (z as string).length;}export function run(a:number,b:number):number{return f('a','bc')+a;}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn earlier_string_defaults_reject_unproven_coercion_effects_and_tdz() {
+    for body in [
+        "function f(x,y=x+'!'){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=`${x}`){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x+'!'){return y;}export function run(a,b){return f({});}",
+        "function f(x,y=x+1){return y;}export function run(a,b){return f('text');}",
+        "function f(x,y=x+later,later='!'){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=`${later}`,later='!'){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=`${y}`){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=x+missing){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=`${missing}`){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=x+g()){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=`${x++}`){return y;}export function run(a,b){return f('x');}",
+        "function f(x,y=`${x+'!'}`){return y;}export function run(a,b){return f(1);}",
+        "export function run(a,b){const f=(x,y=`${a}`)=>y;return f('x');}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}
