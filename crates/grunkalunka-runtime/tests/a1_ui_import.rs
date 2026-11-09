@@ -492,6 +492,19 @@ fn imported_handler_builds_repeated_utf16_labels() {
 }
 
 #[test]
+fn imported_handler_preserves_ordinary_object_rest_apply_fields() {
+    for body in [
+        "const source={id:a,apply:x=>x+1};const {id,...rest}=source;return choose(rest.apply(1)===2?a:0,b);",
+        "const source={id:a,label:' ready ',row:{title:' nested '},items:['first'],apply:x=>x+1};const {id,...rest}=source;const {row:{title},items:[first]}=rest;return choose(rest.label.trim()==='ready'&&title.trim()==='nested'&&first.length===5&&rest.apply(1)===2?a:0,b);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_handler_invokes_proven_arrow_empty_apply() {
     for body in [
         "return choose(((x=1)=>x).apply()===1?1:0,b);",
