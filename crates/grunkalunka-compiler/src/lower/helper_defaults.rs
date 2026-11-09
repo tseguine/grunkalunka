@@ -123,6 +123,79 @@ fn pure_operand<'n, 'a>(
     )?))
 }
 
+// Pure numeric expressions in defaults may read initialized earlier parameters.
+// This postorder instruction list has no native recursive descent.
+enum NumericDefaultTerm<'n, 'a> {
+    Constant(f64),
+    Earlier(&'n IdentifierReference<'a>),
+    Negate,
+    Binary(Binary),
+}
+
+fn earlier_numeric<'n, 'a>(
+    initializer: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<Vec<NumericDefaultTerm<'n, 'a>>> {
+    enum Task<'n, 'a> {
+        Visit(&'n Expression<'a>, usize),
+        Negate,
+        Binary(Binary),
+    }
+    let mut pending = vec![Task::Visit(initializer, 0)];
+    let mut program = Vec::new();
+    let mut has_parameter = false;
+    let mut has_binary = false;
+    while let Some(task) = pending.pop() {
+        match task {
+            Task::Visit(expression, depth) => {
+                let (node, depth) = closures::unwrapped_at(expression, depth)?;
+                if depth > 128 {
+                    return None;
+                }
+                if let Some(Constant::Number(value)) = constant(node, semantic) {
+                    program.push(NumericDefaultTerm::Constant(value));
+                    continue;
+                }
+                match node {
+                    Expression::BinaryExpression(binary) => {
+                        let operator = match binary.operator {
+                            BinaryOperator::Addition => Binary::Add,
+                            BinaryOperator::Subtraction => Binary::Subtract,
+                            BinaryOperator::Multiplication => Binary::Multiply,
+                            BinaryOperator::Division => Binary::Divide,
+                            BinaryOperator::Remainder => Binary::Remainder,
+                            _ => return None,
+                        };
+                        has_binary = true;
+                        pending.push(Task::Binary(operator));
+                        pending.push(Task::Visit(&binary.right, depth + 1));
+                        pending.push(Task::Visit(&binary.left, depth + 1));
+                    }
+                    Expression::UnaryExpression(unary)
+                        if matches!(
+                            unary.operator,
+                            UnaryOperator::UnaryPlus | UnaryOperator::UnaryNegation
+                        ) =>
+                    {
+                        if unary.operator == UnaryOperator::UnaryNegation {
+                            pending.push(Task::Negate);
+                        }
+                        pending.push(Task::Visit(&unary.argument, depth + 1));
+                    }
+                    _ => {
+                        let identifier = earlier_identifier(initializer, node, semantic)?;
+                        has_parameter = true;
+                        program.push(NumericDefaultTerm::Earlier(identifier));
+                    }
+                }
+            }
+            Task::Negate => program.push(NumericDefaultTerm::Negate),
+            Task::Binary(operator) => program.push(NumericDefaultTerm::Binary(operator)),
+        }
+    }
+    (has_binary && has_parameter).then_some(program)
+}
+
 // Source-order logical default chains model common A1 policy precedence:
 // value ?? override ?? fallback and enabled && flag && value. Each right
 // operand is a pure constant or a resolved earlier parameter. Only the
@@ -358,6 +431,7 @@ pub(crate) fn validate(
                 && earlier_parameter(initializer, semantic).is_none()
                 && earlier_logical_chain(initializer, semantic).is_none()
                 && earlier_conditional(initializer, semantic).is_none()
+                && earlier_numeric(initializer, semantic).is_none()
             {
                 return Err(unsupported(
                     initializer,
@@ -380,7 +454,8 @@ pub(crate) fn validate_arrow(
                 || (constant(initializer.as_ref(), semantic).is_none()
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
                     && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
-                    && earlier_conditional(initializer.as_ref(), semantic).is_none()))
+                    && earlier_conditional(initializer.as_ref(), semantic).is_none()
+                    && earlier_numeric(initializer.as_ref(), semantic).is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -701,6 +776,101 @@ impl Lowering<'_, '_> {
                 );
                 primitive = true;
             }
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
+        }
+        if let Some(program) = earlier_numeric(initializer, self.semantic) {
+            let mut numbers = Vec::new();
+            for term in program {
+                match term {
+                    NumericDefaultTerm::Constant(value) => {
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Constant { result, value },
+                        );
+                        numbers.push(result);
+                    }
+                    NumericDefaultTerm::Earlier(identifier) => {
+                        if !self.stored.primitive(identifier.node_id()) {
+                            return Err(unsupported(
+                                initializer,
+                                "numeric default requires a proven four-kind primitive parameter",
+                            ));
+                        }
+                        let managed =
+                            self.load_earlier_value(identifier, initializer, &mut consequent)?;
+                        let general = self.value(Type::General);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::ManagedToPrimitive {
+                                result: general,
+                                input: managed,
+                            },
+                        );
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::NumberFromGeneral {
+                                result,
+                                input: general,
+                            },
+                        );
+                        numbers.push(result);
+                    }
+                    NumericDefaultTerm::Negate => {
+                        let input = numbers.pop().expect("validated numeric operand");
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Unary {
+                                result,
+                                operator: Unary::Negate,
+                                input,
+                            },
+                        );
+                        numbers.push(result);
+                    }
+                    NumericDefaultTerm::Binary(operator) => {
+                        let right = numbers.pop().expect("validated numeric right");
+                        let left = numbers.pop().expect("validated numeric left");
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Binary {
+                                result,
+                                operator,
+                                left,
+                                right,
+                            },
+                        );
+                        numbers.push(result);
+                    }
+                }
+            }
+            let number = numbers.pop().expect("validated numeric result");
+            let general = self.value(Type::General);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::Pack {
+                    result: general,
+                    input: number,
+                },
+            );
+            let value = self.value(Type::ManagedValue);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::ManagedPrimitive {
+                    result: value,
+                    input: general,
+                },
+            );
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
         let folded = constant(initializer, self.semantic).ok_or_else(|| {
