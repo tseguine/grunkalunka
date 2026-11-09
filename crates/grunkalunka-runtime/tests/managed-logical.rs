@@ -1,6 +1,48 @@
 #[path = "managed/common.rs"]
 mod common;
 
+// Tests of private named helpers must declare those helpers at module scope:
+// nested function declarations inside the public entry are a separate,
+// deliberately unsupported language feature. Preserve the original native-JS
+// behavior for the capture-free fixture declarations and keep arrows/own-field
+// handlers in their original entry scope.
+fn source_with_module_helper(body: &str) -> String {
+    if !body.starts_with("function f(") {
+        return format!("export function run(a,b){{{body}}}");
+    }
+    let open = body.find("){return").expect("simple helper declaration") + 1;
+    let mut depth = 0_usize;
+    let mut close = None;
+    for (offset, ch) in body[open..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(open + offset + 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let split = close.expect("balanced helper body");
+    let (helper, entry) = body.split_at(split);
+    format!("{helper}export function run(a,b){{{entry}}}")
+}
+
+#[test]
+fn module_helper_fixture_keeps_arrow_scope_and_hoists_only_named_helpers() {
+    assert_eq!(
+        source_with_module_helper("function f(x){return x;}return f(a);"),
+        "function f(x){return x;}export function run(a,b){return f(a);}"
+    );
+    assert_eq!(
+        source_with_module_helper("const f=x=>x;return f(a);"),
+        "export function run(a,b){const f=x=>x;return f(a);}"
+    );
+}
+
 #[test]
 fn final_switch_arms_resume_suffix_without_testing_another_case() {
     for body in [
@@ -915,14 +957,14 @@ fn pure_default_expressions_match_native_js_for_named_arrow_and_stored_calls() {
     for body in [
         "function f(x='stat'+'us'){return x.length;}return f();",
         "function f(x=false||7){return x;}return f(undefined);",
-        "function f(x=NaN??9){return x!==x?a:b;}return f();",
-        "function f(x=true&&'ready'){return x==='ready'?a:b;}return f();",
+        "function f(x=NaN??9){return x!==x;}return f()?a:b;",
+        "function f(x=true&&'ready'){return x==='ready';}return f()?a:b;",
         "const f=(x=!(0/0))=>x;return f()?a:b;",
         "const o={f:(x=(false||true)?'yes':'no')=>x};return o.f()==='yes'?a:b;",
         "function f(x=0?'wrong':'right'){return x;}return f('supplied')==='supplied'?a:b;",
         "const f=(x=(null??'a')+'b')=>x;return f()==='ab'?a:b;",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "export function run(a,b){const f=(x=(false||true)?'active':'idle')=>x;return f()==='active'?a:b;}";
@@ -942,7 +984,7 @@ fn earlier_parameter_logical_fallbacks_preserve_tags_and_supplied_values() {
         "const o={f:(x,y=x??('a'+'b'))=>y};return o.f(undefined)==='ab'?a:b;",
         "function f(x,y=x||5){return y;}return f(a,b)===b?a:b;",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "export function run(a,b){const f=(x,y=x??'ready')=>y;return f(null)==='ready'?a:b;}";
@@ -960,7 +1002,7 @@ fn earlier_parameter_conditional_defaults_match_native_source_oracles() {
         "function f(x,y=x?'yes':'no'){return y;}return f(true,'supplied')==='supplied'?a:b;",
         "const f=(x,y=x?(null??'yes'):(false||'no'))=>y;return f(null)==='no'?a:b;",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "export function run(a,b){const f=(x,y=x?'enabled':'disabled')=>y;return f(a)===(a?'enabled':'disabled')?a:b;}";
@@ -1007,7 +1049,7 @@ fn earlier_parameter_logical_chains_match_native_js_and_ts() {
         "const f=(x,y,z=x??y??'none')=>z;return f(null,null,7)===7?a:b;",
         "const f=(x,y,z=x&&y||'none')=>z;return f(a,b)===(a&&b||'none')?a:b;",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "export function run(a,b){const f=(x,y,z=x??y??'none')=>z;return f(null,b)===b?a:b;}";
@@ -1030,7 +1072,7 @@ fn numeric_defaults_match_native_js_for_helpers_arrows_and_stored_calls() {
         "const o={f:(x,d,y=(x+1)*d)=>y};return o.f(a,b);",
         "const f=(x,d,y=x+d)=>y;return f(a,b,23);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "export function run(a,b){const f=(x,d,y=x+d)=>y;return f(a,b);}";
@@ -1054,7 +1096,7 @@ fn string_and_template_defaults_match_native_js_and_erased_ts() {
         "function f(x,y,z=`${x}:${y}`){return z.length;}return f('up','date',undefined)+a;",
         "function f(x,y,z=x+'\\u{1F642}'+y){return z.length;}return f('a','b')+a;",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(x,y,z=x+':'+y){return z.length;}export function run(a,b){return f('a','bc')+a;}";
@@ -1078,7 +1120,7 @@ fn numeric_comparison_defaults_match_native_js_and_erased_ts() {
         "function f(x,y,z=x>y?x:y){return z;}return f(a,b);",
         "function f(x,y,z=x>y?x:y){return z;}return f(a,b,99);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(x,y,z=x>=y?'high':'low'){return z.length;}export function run(a,b){return f(a,b);}";
@@ -1104,7 +1146,7 @@ fn strict_equality_parameter_defaults_match_native_js_and_erased_ts() {
         "const o={f:(x,y,z=x!==y)=>z?1:0};return o.f(a,b);",
         "function f(x,y,z=x===y){return z?1:0;}return f([a],[a]);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(x,y,z=x===y?'same':'different'){return z.length;}export function run(a,b){return f(a,b);}";
@@ -1128,7 +1170,7 @@ fn earlier_object_field_defaults_match_native_js_and_erased_ts() {
         "function f(row,backup,selected=row.missing??backup){return selected===backup?1:0;}return f({label:a},b);",
         "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}return f({label:a},b,9);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},b);}";
@@ -1156,7 +1198,7 @@ fn earlier_array_parameter_defaults_match_native_js_and_erased_ts() {
         "const f=(xs,want,z=xs[0])=>z===want?1:0;return f([a],a);",
         "const o={f:(xs,n=xs.length)=>n};return o.f([a,b]);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(xs,want,z=xs[0]??want){return z===want?1:0;}export function run(a,b){return f([a],b);}";
@@ -1184,7 +1226,7 @@ fn bitwise_parameter_defaults_match_native_js_and_erased_ts() {
         "function f(x,z=~x){return z;}return f(null);",
         "function f(x,z=~x){return z;}return f(false);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(x,y,z=x>>> (y&31)){return z;}export function run(a,b){return f(a,b);}";
@@ -1206,7 +1248,7 @@ fn nested_action_record_defaults_match_native_js_and_erased_ts() {
         "function f(row,backup,z=row.meta.label){return z===backup?1:0;}return f({meta:{label:a}},b,b);",
         "const f=(row,backup,z=row.meta.label??backup)=>z===backup?1:0;return f({meta:{label:a}},b);",
     ] {
-        let source = format!("export function run(a,b){{{body}}}");
+        let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);
     }
     let js = "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}";
