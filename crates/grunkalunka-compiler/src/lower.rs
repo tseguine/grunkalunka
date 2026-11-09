@@ -826,20 +826,46 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         }
         match statement {
             Statement::ContinueStatement(statement) => {
-                if statement.label.is_some() || !self.in_loop_body {
+                if !self.in_loop_body {
                     return Err(unsupported(
                         statement.as_ref(),
                         "only unlabelled continue inside a loop is admitted",
+                    ));
+                }
+                if let Some(label) = &statement.label
+                    && !source_control::nearest_label(
+                        statement.node_id.get(),
+                        label.name.as_str(),
+                        true,
+                        self.semantic,
+                    )
+                {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "label must name the nearest continue target",
                     ));
                 }
                 region.exit = Exit::Continue;
                 Ok(Completion::CONTINUE)
             }
             Statement::BreakStatement(statement) => {
-                if statement.label.is_some() || !self.in_loop_body {
+                if !self.in_loop_body {
                     return Err(unsupported(
                         statement.as_ref(),
                         "only unlabelled break inside a loop is admitted",
+                    ));
+                }
+                if let Some(label) = &statement.label
+                    && !source_control::nearest_label(
+                        statement.node_id.get(),
+                        label.name.as_str(),
+                        false,
+                        self.semantic,
+                    )
+                {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "label must name the nearest break target",
                     ));
                 }
                 region.exit = Exit::Break;

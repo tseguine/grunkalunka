@@ -1149,7 +1149,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             mut output,
                             depth,
                         } => {
-                            if let Some(node) = ControlNode::of_statement(source) {
+                            if let Statement::LabeledStatement(label) = source {
+                                self.admit_source_statement(label.as_ref(), depth)?;
+                                cursor.next = Some(Next::Statement {
+                                    source: &label.body,
+                                    output,
+                                    depth: depth + 1,
+                                });
+                            } else if let Some(node) = ControlNode::of_statement(source) {
                                 cursor.next = Some(Next::Enter {
                                     source: node,
                                     output,

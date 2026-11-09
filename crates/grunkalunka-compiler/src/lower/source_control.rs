@@ -101,3 +101,66 @@ impl Lowering<'_, '_> {
         }
     }
 }
+
+/// The IR's unlabelled transfers already implement a jump to the closest
+/// target. Multiple consecutive labels can name that same source statement.
+pub(super) fn nearest_label(
+    node: oxc_syntax::node::NodeId,
+    label: &str,
+    is_continue: bool,
+    semantic: &Semantic<'_>,
+) -> bool {
+    use oxc_ast::AstKind;
+    let mut ancestors = semantic.nodes().ancestor_kinds(node);
+    for kind in ancestors.by_ref() {
+        match kind {
+            AstKind::Function(_) | AstKind::ArrowFunctionExpression(_) => return false,
+            AstKind::ForStatement(_)
+            | AstKind::ForOfStatement(_)
+            | AstKind::ForInStatement(_)
+            | AstKind::WhileStatement(_)
+            | AstKind::DoWhileStatement(_) => break,
+            AstKind::SwitchStatement(_) if !is_continue => break,
+            _ => {}
+        }
+    }
+    for kind in ancestors {
+        let AstKind::LabeledStatement(statement) = kind else {
+            break;
+        };
+        if statement.label.name == label {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod label_tests {
+    #[test]
+    fn labels_obey_statement_depth_and_do_not_redirect_outer_jumps() {
+        for (body, admitted) in [
+            (
+                "outer:while(a){switch(b){case 0:continue outer;}break;}",
+                true,
+            ),
+            (
+                "outer:while(a){switch(b){case 0:break outer;}break;}",
+                false,
+            ),
+            ("outer:while(a){do{continue outer;}while(0);break;}", false),
+            ("outer:{while(a){break outer;}}", false),
+        ] {
+            let source = format!("export function run(a,b){{{body}return a;}}");
+            assert_eq!(crate::compile(&source, false).is_ok(), admitted, "{source}");
+        }
+        let labels = (0..70).map(|i| format!("l{i}:")).collect::<String>();
+        let source = format!("export function run(a,b){{{labels}while(0){{}}return a;}}");
+        assert!(
+            crate::compile(&source, false)
+                .err()
+                .expect("deep labels")
+                .contains("nesting")
+        );
+    }
+}

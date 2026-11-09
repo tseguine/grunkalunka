@@ -21,6 +21,11 @@ const cases = [
   ['break-depth-boundary', `${'while(false) '.repeat(64)}break; return a;`],
 ];
 export const numericBreak = cases.map(([id, body]) => [id, body, body]);
+const labelledBody = 'outer: while(1) { break outer; } return a;';
+numericBreak.push(['break-label', labelledBody, labelledBody, undefined, undefined, {
+  sourceJS: `export function run(a,b) { ${labelledBody} }`,
+  sourceTS: `export function run(a:number,b:number):number { ${labelledBody} }`,
+}]);
 numericBreak.push(['ts-break-predicate',
   'for(let i=0;i<3;i++) { if(a) break; b+=i; } return b;',
   'for(let i:number=0;i<3;i++) { if(a as number) break; b+=i; } return b;']);
@@ -30,7 +35,7 @@ const abrupt = 'statements after a guaranteed abrupt completion';
 const expression = 'expression is outside the numeric experiment';
 const negatives = [
   ['break-no-loop', 'break; return a;'],
-  ['break-label', 'outer: while(1) { break outer; } return a;', 'statement is outside'],
+  ['break-outer-loop-label', 'outer: while(a) { while(b) { break outer; } break; } return a;', 'label must name the nearest break target'],
   ['break-do-needs-return', 'do { break; } while(0);', missing],
   ['break-do-mixed-needs-return', 'do { if(a) break; else return b; } while(0);', missing],
   ['break-do-suffix-needs-return', 'do { if(a) break; a++; return b; } while(0);', missing],
