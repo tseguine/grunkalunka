@@ -1164,3 +1164,31 @@ fn earlier_array_parameter_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(xs:unknown[],want:unknown,z:unknown=xs[0]??want){return z===want?1:0;}export function run(a:number,b:number):number{return f([a],b);}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn bitwise_parameter_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(x,y,z=x&y){return z;}return f(a,b);",
+        "function f(x,y,z=x|y){return z;}return f(a,b);",
+        "function f(x,y,z=x^y){return z;}return f(a,b);",
+        "function f(x,y,z=x<<y){return z;}return f(a,b);",
+        "function f(x,y,z=x>>y){return z;}return f(a,b);",
+        "function f(x,y,z=x>>>y){return z;}return f(a,b);",
+        "function f(x,z=~x){return z;}return f(a);",
+        "function f(x,y,z=~(x<<y)){return z;}return f(a,b);",
+        "function f(x,y,z=(x&255)>>>y){return z;}return f(a,b);",
+        "function f(x,y,z=(x|1)^y){return z;}return f(a,b);",
+        "function f(x,y,z=(~x)&y){return z;}return f(a,b);",
+        "function f(x,y,z=x<<y){return z;}return f(a,b,7);",
+        "const f=(x,y,z=x&y)=>z;return f(a,b);",
+        "const o={f:(x,y,z=x^y)=>z};return o.f(a,b);",
+        "function f(x,z=~x){return z;}return f(null);",
+        "function f(x,z=~x){return z;}return f(false);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(x,y,z=x>>> (y&31)){return z;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as number)>>>((y as number)&31)){return z as number;}export function run(a:number,b:number):number{return f(a,b);}";
+    common::compare_sources(js, ts);
+}

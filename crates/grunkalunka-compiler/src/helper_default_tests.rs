@@ -878,3 +878,54 @@ fn earlier_array_defaults_guard_prototypes_dynamic_keys_and_unknown_kinds() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn bitwise_parameter_defaults_handle_flags_shifts_and_primitive_coercion() {
+    for body in [
+        "function f(x,y,z=x&y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x|y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x^y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x<<y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x>>y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x>>>y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,z=~x){return z;}export function run(a,b){return f(a);}",
+        "function f(x,y,z=(x&255)>>>y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=~(x<<y)){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=(~x)&y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,z=~x){return z;}export function run(a,b){return f(null);}",
+        "function f(x,z=~x){return z;}export function run(a,b){return f(false);}",
+        "function f(x,y,z=x>>>y){return z;}export function run(a,b){return f(a,b,7);}",
+        "export function run(a,b){const f=(x,y,z=x^y)=>z;return f(a,b);}",
+        "export function run(a,b){const o={f:(x,y,z=x&y)=>z};return o.f(a,b);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(x,y,z=x>>> (y&31)){return z;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as number)>>>((y as number)&31)){return z as number;}export function run(a:number,b:number):number{return f(a,b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn bitwise_parameter_defaults_reject_effects_unknown_kinds_and_scope() {
+    for body in [
+        "function f(x,z=~x){return z;}export function run(a,b){return f('5');}",
+        "function f(x,z=x&1){return z;}export function run(a,b){return f({});}",
+        "function f(x,z=x>>>1){return z;}export function run(a,b){return f([a]);}",
+        "function f(x,z=z&1){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=later&1,later=2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x&missing){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x&g()){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x++|1){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=~g()){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x**2){return z;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(x,z=~a)=>z;return f(a);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}
