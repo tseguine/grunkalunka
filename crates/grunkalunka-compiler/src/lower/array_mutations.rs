@@ -3,6 +3,7 @@ use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Operation {
+    Push,
     Pop,
     Shift,
     Reverse,
@@ -11,12 +12,14 @@ pub(super) enum Operation {
 impl Operation {
     pub(super) fn result(self) -> Type {
         match self {
+            Self::Push => Type::Number,
             Self::Pop | Self::Shift => Type::ManagedValue,
             Self::Reverse | Self::ToReversed => Type::ManagedArray,
         }
     }
     pub(super) fn name(self) -> &'static str {
         match self {
+            Self::Push => "push",
             Self::Pop => "pop",
             Self::Shift => "shift",
             Self::Reverse => "reverse",
@@ -46,6 +49,7 @@ pub(super) fn operation<'e, 'a>(
     };
     Some((
         match name {
+            "push" => Operation::Push,
             "pop" => Operation::Pop,
             "shift" => Operation::Shift,
             "reverse" => Operation::Reverse,
