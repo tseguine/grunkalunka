@@ -320,6 +320,7 @@ pub(crate) enum Unary {
     Ceil,
     Trunc,
     Fround,
+    Clz32,
     Plus,
     Negate,
     BitNot,

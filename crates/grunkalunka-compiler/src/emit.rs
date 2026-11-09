@@ -1127,6 +1127,10 @@ impl Emitter<'_> {
                         self.get(*input);
                         self.output.push_str("f32.demote_f64\nf64.promote_f32\n");
                     }
+                    Unary::Clz32 => {
+                        self.int32_bits(*input);
+                        self.output.push_str("i32.clz\nf64.convert_i32_u\n");
+                    }
                     Unary::Plus => self.get(*input),
                     Unary::Negate => {
                         self.get(*input);

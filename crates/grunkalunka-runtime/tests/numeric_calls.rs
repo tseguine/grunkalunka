@@ -3,6 +3,52 @@ use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 use wasmtime::Trap;
 
 #[test]
+fn math_clz32_counts_leading_zero_bits_after_numeric_conversion() {
+    compare_helper_sources(&[
+        "export function run(a,b){return Math.clz32(a);}",
+        "export function run(a,b){return Math.clz32();}",
+        "export function run(a,b){return Math.clz32(0);}",
+        "export function run(a,b){return Math.clz32(-0);}",
+        "export function run(a,b){return Math.clz32(1);}",
+        "export function run(a,b){return Math.clz32(2);}",
+        "export function run(a,b){return Math.clz32(3);}",
+        "export function run(a,b){return Math.clz32(0x80000000);}",
+        "export function run(a,b){return Math.clz32(0x7fffffff);}",
+        "export function run(a,b){return Math.clz32(-1);}",
+        "export function run(a,b){return Math.clz32(-2147483648);}",
+        "export function run(a,b){return Math.clz32(4294967296);}",
+        "export function run(a,b){return Math.clz32(4294967297);}",
+        "export function run(a,b){return Math.clz32(Infinity);}",
+        "export function run(a,b){return Math.clz32(-Infinity);}",
+        "export function run(a,b){return Math.clz32(NaN);}",
+        "export function run(a,b){return Math.clz32(1.9);}",
+        "export function run(a,b){return Math.clz32(-1.9);}",
+        "export function run(a,b){return Math.clz32(true);}",
+        "export function run(a,b){return Math.clz32(false);}",
+        "export function run(a,b){return Math.clz32(null);}",
+        "export function run(a,b){return Math.clz32(undefined);}",
+        "export function run(a,b){return Math.clz32(Math.imul(a,b));}",
+        "export function run(a,b){return Math.clz32(Math.max(a,b));}",
+        "export function run(a,b){let n=0;return Math.clz32((n=1,a),n=n*10+2)+n;}",
+    ]);
+}
+
+#[test]
+fn math_clz32_rejects_dynamic_and_spread_invocations() {
+    for body in [
+        "return Math['clz32'](a);",
+        "return Math.clz32(...[a]);",
+        "return Math.clz32?.(a);",
+        "return Math.clz32('2');",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            assert!(compile(&source, typed).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn math_fround_preserves_float32_rounding_signed_zero_and_source_order() {
     compare_helper_sources(&[
         "export function run(a,b){return Math.fround(a);}",

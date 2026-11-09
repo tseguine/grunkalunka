@@ -847,3 +847,18 @@ fn math_fround_preserves_bounded_arguments_on_small_native_stack() {
         assert_eq!(result.is_ok(), count <= 1000, "fround/{count}");
     }
 }
+
+#[test]
+fn math_clz32_keeps_bounded_arguments_and_small_native_stack() {
+    for count in [0, 1, 2, 1000, 1001] {
+        let args = vec!["a"; count].join(",");
+        let source = format!("export function run(a,b){{return Math.clz32({args});}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || crate::compile(&source, false))
+            .expect("small-stack compiler thread")
+            .join()
+            .expect("native compiler thread must not overflow");
+        assert_eq!(result.is_ok(), count <= 1000, "clz32/{count}");
+    }
+}

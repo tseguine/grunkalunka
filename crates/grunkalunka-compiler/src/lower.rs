@@ -156,6 +156,7 @@ fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Una
         "ceil" => Some((Unary::Ceil, "ceil")),
         "trunc" => Some((Unary::Trunc, "trunc")),
         "fround" => Some((Unary::Fround, "fround")),
+        "clz32" => Some((Unary::Clz32, "clz32")),
         _ => None,
     }
 }

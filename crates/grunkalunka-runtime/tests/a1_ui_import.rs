@@ -449,6 +449,20 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 }
 
 #[test]
+fn imported_handler_counts_leading_bits_before_wit_selection() {
+    for body in [
+        "return choose(Math.clz32(a),b);",
+        "return choose(Math.clz32(Math.imul(a,b)),b);",
+        "let n=0;return choose(Math.clz32((n=1,a),n=n*10+2),b)+(n===12?0:1);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_handler_rounds_float32_actions_before_wit_selection() {
     for body in [
         "return choose(Math.fround(a+1/3),b);",

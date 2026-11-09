@@ -153,6 +153,7 @@ import { numericMathUnary, numericMathUnaryRejected } from './numeric-math-unary
 import { numericMathVariadic } from './numeric-math-variadic.mjs';
 import { numericMathImul } from './numeric-math-imul.mjs';
 import { numericMathFround } from './numeric-math-fround.mjs';
+import { numericMathClz32 } from './numeric-math-clz32.mjs';
 import { numericBooleanComplement } from './numeric-boolean-complement.mjs';
 import { discardedValues, discardedValuesRejected } from './discarded-values.mjs';
 import { numericBooleanUnary, numericBooleanUnaryRejected } from './numeric-boolean-unary.mjs';
@@ -300,6 +301,7 @@ programs.push(...numericMathUnary);
 programs.push(...numericMathVariadic);
 programs.push(...numericMathImul);
 programs.push(...numericMathFround);
+programs.push(...numericMathClz32);
 programs.push(...numericBooleanComplement);
 programs.push(...discardedValues);
 programs.push(...constBooleanPrograms);
