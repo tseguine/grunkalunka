@@ -192,6 +192,14 @@ pub(super) enum Work<'e, 'a> {
         input: Option<ValueId>,
         depth: usize,
     },
+    MathFold {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        operator: Binary,
+        index: usize,
+        accumulator: ValueId,
+        depth: usize,
+    },
     LocalCall {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
