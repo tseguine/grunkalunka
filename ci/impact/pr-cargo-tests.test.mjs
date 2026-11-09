@@ -201,10 +201,11 @@ test('production helper bounds discovery, compilation and execution, and fails o
     const line = result.stdout.split('\n').find(line => line.startsWith('CARGO SPAWNS '));
     assert.ok(line, result.stdout + result.stderr);
     const calls = JSON.parse(line.slice('CARGO SPAWNS '.length));
-    const expectedCount = failure === 'metadata' ? 1 : failure === 'compile' ? 2 : 4;
+    const expectedCount = failure === 'metadata' ? 1
+      : failure === 'compile' ? 2 : failure === 'none' ? 5 : 4;
     assert.equal(calls.length, expectedCount);
     assert.deepEqual(calls.map(call => call.timeout),
-      [30_000, 600_000, 600_000, 120_000].slice(0, expectedCount));
+      [30_000, 600_000, 600_000, 120_000, 120_000].slice(0, expectedCount));
     assert.ok(calls.every(call => call.killSignal === 'SIGKILL'));
     assert.deepEqual(calls[0].args,
       ['metadata', '--format-version', '1', '--no-deps', '--locked', '--offline']);
