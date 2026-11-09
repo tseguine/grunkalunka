@@ -386,9 +386,8 @@ fn pure_expression_defaults_reject_unproven_coercion_and_hidden_effects() {
         "x??'fallback'",
         "1?2:Math.random()",
     ] {
-        let source = format!(
-            "function f(x={value}){{return x;}}export function run(a,b){{return f();}}"
-        );
+        let source =
+            format!("function f(x={value}){{return x;}}export function run(a,b){{return f();}}");
         assert!(crate::compile_value(&source, false).is_err(), "{source}");
     }
     let js = "function f(x='on'+'line'){return x.length;}export function run(a,b){return f();}";
@@ -584,7 +583,6 @@ fn earlier_parameter_logical_chains_reject_hidden_reads_and_effects() {
     );
 }
 
-
 #[test]
 fn numeric_defaults_evaluate_prior_parameters_in_source_order() {
     for body in [
@@ -727,7 +725,6 @@ fn numeric_comparison_defaults_reject_unproven_coercion_scope_and_effects() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
-
 
 #[test]
 fn strict_equality_defaults_route_actions_by_value_and_identity() {
