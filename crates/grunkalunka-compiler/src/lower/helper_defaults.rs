@@ -70,13 +70,15 @@ fn earlier_parameter<'n, 'a>(
 // An initializer may read an already initialized parameter in either arm
 // of a pure selection. Resolve identity in this parameter list, never by name:
 // body var aliases, outer captures, self and later parameters are excluded.
+type FieldDefaultPath<'n, 'a> = Vec<(&'n Expression<'a>, Vec<u16>)>;
+
 enum DefaultOperand<'n, 'a> {
     Constant(Constant),
     Earlier(&'n IdentifierReference<'a>),
     // A direct own-property read on a source-proven earlier object argument.
     Field {
         receiver: &'n IdentifierReference<'a>,
-        key: Vec<u16>,
+        path: FieldDefaultPath<'n, 'a>,
     },
 }
 
@@ -123,21 +125,38 @@ fn earlier_field<'n, 'a>(
     initializer: &Expression<'a>,
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
-) -> Option<(&'n IdentifierReference<'a>, Vec<u16>)> {
-    let (node, _) = closures::unwrapped_at(expression, 0)?;
-    let (object, key) = match node {
-        Expression::StaticMemberExpression(member) if !member.optional => {
-            (&member.object, member.property.name.encode_utf16().collect())
+) -> Option<(&'n IdentifierReference<'a>, FieldDefaultPath<'n, 'a>)> {
+    // Walk the source member chain without native recursion. Every key is
+    // literal; every receiver is checked for a positive kind proof at emission.
+    let mut cursor = expression;
+    let mut depth = 0;
+    let mut path = Vec::new();
+    loop {
+        let (node, next_depth) = closures::unwrapped_at(cursor, depth)?;
+        if next_depth > 128 || path.len() >= 128 {
+            return None;
         }
-        Expression::ComputedMemberExpression(member) if !member.optional => {
-            (&member.object, static_keys::literal(&member.expression)?)
+        let (object, key) = match node {
+            Expression::StaticMemberExpression(member) if !member.optional => (
+                &member.object,
+                member.property.name.encode_utf16().collect(),
+            ),
+            Expression::ComputedMemberExpression(member) if !member.optional => {
+                (&member.object, static_keys::literal(&member.expression)?)
+            }
+            _ => return None,
+        };
+        if crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key) {
+            return None;
         }
-        _ => return None,
-    };
-    if crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key) {
-        return None;
+        path.push((object, key));
+        if let Some(receiver) = earlier_identifier(initializer, object, semantic) {
+            path.reverse();
+            return Some((receiver, path));
+        }
+        cursor = object;
+        depth = next_depth + 1;
     }
-    Some((earlier_identifier(initializer, object, semantic)?, key))
 }
 
 fn pure_operand<'n, 'a>(
@@ -148,11 +167,13 @@ fn pure_operand<'n, 'a>(
     if let Some(value) = constant(operand, semantic) {
         return Some(DefaultOperand::Constant(value));
     }
-    if let Some((receiver, key)) = earlier_field(initializer, operand, semantic) {
-        return Some(DefaultOperand::Field { receiver, key });
+    if let Some((receiver, path)) = earlier_field(initializer, operand, semantic) {
+        return Some(DefaultOperand::Field { receiver, path });
     }
     Some(DefaultOperand::Earlier(earlier_identifier(
-        initializer, operand, semantic,
+        initializer,
+        operand,
+        semantic,
     )?))
 }
 
@@ -341,7 +362,9 @@ fn comparison_operand<'n, 'a>(
         };
     }
     Some(NumericComparisonOperand::Earlier(earlier_identifier(
-        initializer, operand, semantic,
+        initializer,
+        operand,
+        semantic,
     )?))
 }
 
@@ -391,9 +414,13 @@ fn earlier_strict_equality<'n, 'a>(
     };
     let left = pure_operand(initializer, &binary.left, semantic)?;
     let right = pure_operand(initializer, &binary.right, semantic)?;
-    if !matches!(&left, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. })
-        && !matches!(&right, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. })
-    {
+    if !matches!(
+        &left,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) && !matches!(
+        &right,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) {
         return None;
     }
     Some((negated, left, right))
@@ -444,7 +471,10 @@ fn earlier_logical_chain<'n, 'a>(
         return None;
     }
     let original = pure_operand(expression, node, semantic)?;
-    if !matches!(&original, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }) {
+    if !matches!(
+        &original,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) {
         return None;
     }
     steps.reverse();
@@ -465,9 +495,13 @@ fn earlier_conditional<'n, 'a>(
     let Expression::ConditionalExpression(conditional) = node else {
         return None;
     };
-    let test = if let Some(operand) = pure_operand(expression, &conditional.test, semantic)
-        .filter(|operand| matches!(operand, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }))
-    {
+    let test = if let Some(operand) =
+        pure_operand(expression, &conditional.test, semantic).filter(|operand| {
+            matches!(
+                operand,
+                DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+            )
+        }) {
         DefaultCondition::Truthy(operand)
     } else if let Some((operator, left, right)) =
         earlier_comparison(expression, &conditional.test, semantic)
@@ -686,15 +720,20 @@ pub(crate) fn validate_arrow(
             && (!allowed
                 || (constant(initializer.as_ref(), semantic).is_none()
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
-                    && earlier_field(initializer.as_ref(), initializer.as_ref(), semantic).is_none()
+                    && earlier_field(initializer.as_ref(), initializer.as_ref(), semantic)
+                        .is_none()
                     && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
                     && earlier_conditional(initializer.as_ref(), semantic).is_none()
                     && earlier_numeric(initializer.as_ref(), semantic).is_none()
                     && earlier_string(initializer.as_ref(), semantic).is_none()
                     && earlier_comparison(initializer.as_ref(), initializer.as_ref(), semantic)
                         .is_none()
-                    && earlier_strict_equality(initializer.as_ref(), initializer.as_ref(), semantic)
-                        .is_none()))
+                    && earlier_strict_equality(
+                        initializer.as_ref(),
+                        initializer.as_ref(),
+                        semantic,
+                    )
+                    .is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -798,8 +837,7 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
-        if let Some((test, when_true, when_false)) =
-            earlier_conditional(initializer, self.semantic)
+        if let Some((test, when_true, when_false)) = earlier_conditional(initializer, self.semantic)
         {
             let condition = match test {
                 DefaultCondition::Truthy(operand) => {
@@ -816,28 +854,14 @@ impl Lowering<'_, '_> {
                     );
                     result
                 }
-                DefaultCondition::NumericComparison(operator, left, right) => {
-                    self.emit_numeric_comparison(
-                        initializer,
-                        &mut consequent,
-                        operator,
-                        left,
-                        right,
-                    )?
-                }
+                DefaultCondition::NumericComparison(operator, left, right) => self
+                    .emit_numeric_comparison(initializer, &mut consequent, operator, left, right)?,
                 DefaultCondition::StrictEquality(negated, left, right) => {
-                    self.emit_strict_equality(
-                        initializer,
-                        &mut consequent,
-                        negated,
-                        left,
-                        right,
-                    )?
+                    self.emit_strict_equality(initializer, &mut consequent, negated, left, right)?
                 }
             };
             let mut true_region = self.region(initializer);
-            let true_value =
-                self.emit_default_operand(initializer, &mut true_region, when_true)?;
+            let true_value = self.emit_default_operand(initializer, &mut true_region, when_true)?;
             true_region.exit = Exit::Yield(true_value);
             let mut false_region = self.region(initializer);
             let false_value =
@@ -898,12 +922,12 @@ impl Lowering<'_, '_> {
                 );
                 original = result;
             }
-            return Ok(self.finish_binding_default(
-                parameter, output, pending, consequent, original,
-            ));
+            return Ok(
+                self.finish_binding_default(parameter, output, pending, consequent, original)
+            );
         }
-        if let Some((receiver, key)) = earlier_field(initializer, initializer, self.semantic) {
-            let value = self.emit_default_field(initializer, &mut consequent, receiver, key)?;
+        if let Some((receiver, path)) = earlier_field(initializer, initializer, self.semantic) {
+            let value = self.emit_default_field(initializer, &mut consequent, receiver, path)?;
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
         if let Some((identifier, operators)) = earlier_parameter(initializer, self.semantic) {
@@ -1094,13 +1118,8 @@ impl Lowering<'_, '_> {
         if let Some((operator, left, right)) =
             earlier_comparison(initializer, initializer, self.semantic)
         {
-            let condition = self.emit_numeric_comparison(
-                initializer,
-                &mut consequent,
-                operator,
-                left,
-                right,
-            )?;
+            let condition =
+                self.emit_numeric_comparison(initializer, &mut consequent, operator, left, right)?;
             let general = self.value(Type::General);
             Self::push(
                 &mut consequent,
@@ -1124,13 +1143,8 @@ impl Lowering<'_, '_> {
         if let Some((negated, left, right)) =
             earlier_strict_equality(initializer, initializer, self.semantic)
         {
-            let condition = self.emit_strict_equality(
-                initializer,
-                &mut consequent,
-                negated,
-                left,
-                right,
-            )?;
+            let condition =
+                self.emit_strict_equality(initializer, &mut consequent, negated, left, right)?;
             let general = self.value(Type::General);
             Self::push(
                 &mut consequent,
@@ -1157,11 +1171,7 @@ impl Lowering<'_, '_> {
                 match term {
                     NumericDefaultTerm::Constant(value) => {
                         let result = self.value(Type::Number);
-                        Self::push(
-                            &mut consequent,
-                            initializer,
-                            Op::Constant { result, value },
-                        );
+                        Self::push(&mut consequent, initializer, Op::Constant { result, value });
                         numbers.push(result);
                     }
                     NumericDefaultTerm::Earlier(identifier) => {
@@ -1427,64 +1437,67 @@ impl Lowering<'_, '_> {
         node: &Expression<'_>,
         region: &mut Region,
         receiver: &IdentifierReference<'_>,
-        key: Vec<u16>,
+        path: Vec<(&Expression<'_>, Vec<u16>)>,
     ) -> Result<ValueId, String> {
-        // A positive source-origin proof excludes nullish/primitive receivers.
-        // Arrays and ordinary objects have own data slots; inherited accessors
-        // and methods are not the same operation as an own-property lookup.
-        let kind = self.stored.container(receiver.node_id()).ok_or_else(|| {
-            unsupported(node, "property parameter defaults require a proven object or array")
-        })?;
-        if !matches!(kind, Type::ManagedObject | Type::ManagedArray) {
-            return Err(unsupported(
+        // An own read is safe only for a proven source-owned container at
+        // every step. Do not silently turn nullable or prototype reads into
+        // unchecked managed projections.
+        let mut boxed = self.load_earlier_value(receiver, node, region)?;
+        for (object, key) in path {
+            let kind = self.stored.container(object.node_id()).ok_or_else(|| {
+                unsupported(node, "nested property defaults require proven containers")
+            })?;
+            if !matches!(kind, Type::ManagedObject | Type::ManagedArray) {
+                return Err(unsupported(
+                    node,
+                    "nested property defaults require proven objects or arrays",
+                ));
+            }
+            if kind == Type::ManagedArray
+                && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key)
+            {
+                return Err(unsupported(
+                    node,
+                    "array prototype properties are not pure own-property defaults",
+                ));
+            }
+            let container = self.value(kind);
+            Self::push(
+                region,
                 node,
-                "property parameter defaults require a proven object or array",
-            ));
-        }
-        if kind == Type::ManagedArray
-            && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key)
-        {
-            return Err(unsupported(
+                if kind == Type::ManagedArray {
+                    Op::ManagedToArray {
+                        result: container,
+                        input: boxed,
+                    }
+                } else {
+                    Op::ManagedToObject {
+                        result: container,
+                        input: boxed,
+                    }
+                },
+            );
+            let value = self.value(Type::ManagedValue);
+            Self::push(
+                region,
                 node,
-                "array prototype properties are not pure own-property defaults",
-            ));
+                if kind == Type::ManagedArray {
+                    Op::ManagedArrayGetOwn {
+                        result: value,
+                        array: container,
+                        key,
+                    }
+                } else {
+                    Op::ManagedGetOwn {
+                        result: value,
+                        object: container,
+                        key,
+                    }
+                },
+            );
+            boxed = value;
         }
-        let boxed = self.load_earlier_value(receiver, node, region)?;
-        let container = self.value(kind);
-        Self::push(
-            region,
-            node,
-            if kind == Type::ManagedArray {
-                Op::ManagedToArray {
-                    result: container,
-                    input: boxed,
-                }
-            } else {
-                Op::ManagedToObject {
-                    result: container,
-                    input: boxed,
-                }
-            },
-        );
-        let value = self.value(Type::ManagedValue);
-        Self::push(
-            region,
-            node,
-            if kind == Type::ManagedArray {
-                Op::ManagedArrayGetOwn {
-                    result: value,
-                    array: container,
-                    key,
-                }
-            } else {
-                Op::ManagedGetOwn {
-                    result: value,
-                    object: container,
-                    key,
-                }
-            },
-        );
-        Ok(value)
+        Ok(boxed)
     }
 
     fn emit_default_operand(
@@ -1495,9 +1508,11 @@ impl Lowering<'_, '_> {
     ) -> Result<ValueId, String> {
         match operand {
             DefaultOperand::Constant(value) => Ok(self.emit_constant_default(node, region, value)),
-            DefaultOperand::Earlier(identifier) => self.load_earlier_value(identifier, node, region),
-            DefaultOperand::Field { receiver, key } => {
-                self.emit_default_field(node, region, receiver, key)
+            DefaultOperand::Earlier(identifier) => {
+                self.load_earlier_value(identifier, node, region)
+            }
+            DefaultOperand::Field { receiver, path } => {
+                self.emit_default_field(node, region, receiver, path)
             }
         }
     }

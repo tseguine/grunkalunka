@@ -985,7 +985,8 @@ fn earlier_parameter_selection_arms_read_initialized_values_and_preserve_identit
         let source = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&source, &source);
     }
-    let source = "function f(x,y,z=x??y){return z;}export function run(a,b){return f(null,b)===b?a:b;}";
+    let source =
+        "function f(x,y,z=x??y){return z;}export function run(a,b){return f(null,b)===b?a:b;}";
     common::compare_sources(source, source);
     let js = "export function run(a,b){const f=(flag,yes,no,z=flag?yes:no)=>z;return f(a,b,4)===(a?b:4)?a:b;}";
     let ts = "export function run(a:number,b:number){const f=(flag:unknown,yes:unknown,no:unknown,z:unknown=(flag as never)?yes:no)=>z;return f(a,b,4)===(a?b:4)?a:b;}";
@@ -1013,7 +1014,6 @@ fn earlier_parameter_logical_chains_match_native_js_and_ts() {
     let ts = "export function run(a:number,b:number):number{const f=(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)??'none')=>z;return f(null,b)===b?a:b;}";
     common::compare_sources(js, ts);
 }
-
 
 #[test]
 fn numeric_defaults_match_native_js_for_helpers_arrows_and_stored_calls() {
@@ -1085,7 +1085,6 @@ fn numeric_comparison_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)>=(y as never)?'high':'low'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
     common::compare_sources(js, ts);
 }
-
 
 #[test]
 fn strict_equality_parameter_defaults_match_native_js_and_erased_ts() {
@@ -1190,5 +1189,27 @@ fn bitwise_parameter_defaults_match_native_js_and_erased_ts() {
     }
     let js = "function f(x,y,z=x>>> (y&31)){return z;}export function run(a,b){return f(a,b);}";
     let ts = "function f(x:unknown,y:unknown,z:unknown=(x as number)>>>((y as number)&31)){return z as number;}export function run(a:number,b:number):number{return f(a,b);}";
+    common::compare_sources(js, ts);
+}
+
+#[test]
+fn nested_action_record_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(row,expected,z=row.meta.label){return z===expected?1:0;}return f({meta:{label:a}},a);",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}return f({meta:{label:undefined}},a);",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}return f({meta:{label:a}},b);",
+        "function f(row,backup,z=row.meta.label||backup){return z===backup?1:0;}return f({meta:{label:0}},b);",
+        "function f(row,backup,z=row.meta.label?row.meta.label:backup){return z===backup?1:0;}return f({meta:{label:false}},b);",
+        "function f(row,backup,z=row.meta.label===backup?'match':'other'){return z.length;}return f({meta:{label:a}},a);",
+        "function f(row,backup,z=row.meta.deep.label){return z===backup?1:0;}return f({meta:{deep:{label:a}}},a);",
+        "function f(row,backup,z=row.items[0].label){return z===backup?1:0;}return f({items:[{label:a}]},a);",
+        "function f(row,backup,z=row.meta.label){return z===backup?1:0;}return f({meta:{label:a}},b,b);",
+        "const f=(row,backup,z=row.meta.label??backup)=>z===backup?1:0;return f({meta:{label:a}},b);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}";
+    let ts = "function f(row:unknown,backup:unknown,z:unknown=(row as {meta:{label:unknown}}).meta.label??backup){return z===backup?1:0;}export function run(a:number,b:number):number{return f({meta:{label:a}},b);}";
     common::compare_sources(js, ts);
 }

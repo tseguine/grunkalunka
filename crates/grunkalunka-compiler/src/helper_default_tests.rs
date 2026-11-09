@@ -262,7 +262,7 @@ fn arithmetic_parameter_defaults_preserve_number_semantics_and_source_limits() {
             "function f(Infinity,x=Infinity+1){return x;}export function run(a,b){return f(a);}",
             false
         )
-        .is_err()
+        .is_ok()
     );
     let js = "function f(x=2*(3+4)){return x;}export function run(a,b){return f();}";
     let ts = "function f(x:string=(2*((3 as boolean)+4) as never)):Wrong{return x as number;}export function run(a:string,b:boolean):never{return f();}";
@@ -360,10 +360,14 @@ fn pure_expression_defaults_select_string_boolean_and_numeric_values() {
     ] {
         for source in [
             format!(
-                "function f(x={expression}){{return x;}}export function run(a,b){{return f();}}"
+                "function f(x={expression}){{return x===undefined?0:1;}}export function run(a,b){{return f();}}"
             ),
-            format!("export function run(a,b){{const f=(x={expression})=>x;return f();}}"),
-            format!("export function run(a,b){{const o={{f:(x={expression})=>x}};return o.f();}}"),
+            format!(
+                "export function run(a,b){{const f=(x={expression})=>x===undefined?0:1;return f();}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x={expression})=>x===undefined?0:1}};return o.f();}}"
+            ),
         ] {
             for ts in [false, true] {
                 let result = crate::compile_value(&source, ts);
@@ -386,9 +390,8 @@ fn pure_expression_defaults_reject_unproven_coercion_and_hidden_effects() {
         "x??'fallback'",
         "1?2:Math.random()",
     ] {
-        let source = format!(
-            "function f(x={value}){{return x;}}export function run(a,b){{return f();}}"
-        );
+        let source =
+            format!("function f(x={value}){{return x;}}export function run(a,b){{return f();}}");
         assert!(crate::compile_value(&source, false).is_err(), "{source}");
     }
     let js = "function f(x='on'+'line'){return x.length;}export function run(a,b){return f();}";
@@ -411,11 +414,13 @@ fn earlier_parameter_logical_defaults_admit_pure_fallbacks() {
     ] {
         for source in [
             format!(
-                "function f(x,y={expression}){{return y;}}export function run(a,b){{return f(a);}}"
+                "function f(x,y={expression}){{return y===undefined?0:1;}}export function run(a,b){{return f(a);}}"
             ),
-            format!("export function run(a,b){{const f=(x,y={expression})=>y;return f(a);}}"),
             format!(
-                "export function run(a,b){{const o={{f:(x,y={expression})=>y}};return o.f(a);}}"
+                "export function run(a,b){{const f=(x,y={expression})=>y===undefined?0:1;return f(a);}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,y={expression})=>y===undefined?0:1}};return o.f(a);}}"
             ),
         ] {
             for ts in [false, true] {
@@ -461,11 +466,13 @@ fn earlier_parameter_conditional_defaults_admit_pure_branch_values() {
     ] {
         for source in [
             format!(
-                "function f(x,y={expression}){{return y;}}export function run(a,b){{return f(a);}}"
+                "function f(x,y={expression}){{return y===undefined?0:1;}}export function run(a,b){{return f(a);}}"
             ),
-            format!("export function run(a,b){{const f=(x,y={expression})=>y;return f(a);}}"),
             format!(
-                "export function run(a,b){{const o={{f:(x,y={expression})=>y}};return o.f(a);}}"
+                "export function run(a,b){{const f=(x,y={expression})=>y===undefined?0:1;return f(a);}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,y={expression})=>y===undefined?0:1}};return o.f(a);}}"
             ),
         ] {
             for ts in [false, true] {
@@ -494,23 +501,24 @@ fn earlier_parameter_conditional_defaults_reject_scope_reads_and_branch_effects(
 #[test]
 fn earlier_parameter_branches_admit_other_initialized_parameters() {
     for body in [
-        "function f(x,backup,y=x??backup){return y;}export function run(a,b){return f(a,b);}",
-        "function f(x,backup,y=x||backup){return y;}export function run(a,b){return f(a,b);}",
-        "function f(x,backup,y=x&&backup){return y;}export function run(a,b){return f(a,b);}",
-        "function f(flag,yes,no,y=flag?yes:no){return y;}export function run(a,b){return f(a,b,3);}",
-        "function f(flag,yes,no,y=flag?yes:'off'){return y;}export function run(a,b){return f(a,b,3);}",
-        "function f(flag,yes,no,y=flag?'on':no){return y;}export function run(a,b){return f(a,b,3);}",
-        "export function run(a,b){const f=(x,backup,y=x??backup)=>y;return f(null,b);}",
-        "export function run(a,b){const f=(flag,yes,no,y=flag?yes:no)=>y;return f(a,a,b);}",
-        "export function run(a,b){const o={f:(flag,x,y,z=flag?x:y)=>z};return o.f(a,b,3);}",
+        "function f(x,backup,y=x??backup){return y===undefined?0:1;}export function run(a,b){return f(a,b);}",
+        "function f(x,backup,y=x||backup){return y===undefined?0:1;}export function run(a,b){return f(a,b);}",
+        "function f(x,backup,y=x&&backup){return y===undefined?0:1;}export function run(a,b){return f(a,b);}",
+        "function f(flag,yes,no,y=flag?yes:no){return y===undefined?0:1;}export function run(a,b){return f(a,b,3);}",
+        "function f(flag,yes,no,y=flag?yes:'off'){return y===undefined?0:1;}export function run(a,b){return f(a,b,3);}",
+        "function f(flag,yes,no,y=flag?'on':no){return y===undefined?0:1;}export function run(a,b){return f(a,b,3);}",
+        "export function run(a,b){const f=(x,backup,y=x??backup)=>y===undefined?0:1;return f(null,b);}",
+        "export function run(a,b){const f=(flag,yes,no,y=flag?yes:no)=>y===undefined?0:1;return f(a,a,b);}",
+        "export function run(a,b){const o={f:(flag,x,y,z=flag?x:y)=>z===undefined?0:1};return o.f(a,b,3);}",
     ] {
         for ts in [false, true] {
             let result = crate::compile_value(body, ts);
             assert!(result.is_ok(), "{body}: {:?}", result.err());
         }
     }
-    let js = "function f(x,y,z=x??y){return z;}export function run(a,b){return f(a,b);}";
-    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)){return z as never;}export function run(a:unknown,b:unknown):unknown{return f(a,b);}";
+    let js =
+        "function f(x,y,z=x??y){return z===undefined?0:1;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)){return z===undefined?0:1;}export function run(a:unknown,b:unknown):unknown{return f(a,b);}";
     assert_eq!(
         crate::compile_value(js, false).unwrap().wasm,
         crate::compile_value(ts, true).unwrap().wasm
@@ -546,13 +554,13 @@ fn earlier_parameter_logical_chains_admit_policy_precedence() {
     ] {
         for source in [
             format!(
-                "function f(x,backup,alt,result={expression}){{return result;}}export function run(a,b){{return f(a,b,3);}}"
+                "function f(x,backup,alt,result={expression}){{return result===undefined?0:1;}}export function run(a,b){{return f(a,b,3);}}"
             ),
             format!(
-                "export function run(a,b){{const f=(x,backup,alt,result={expression})=>result;return f(a,b,3);}}"
+                "export function run(a,b){{const f=(x,backup,alt,result={expression})=>result===undefined?0:1;return f(a,b,3);}}"
             ),
             format!(
-                "export function run(a,b){{const o={{f:(x,backup,alt,result={expression})=>result}};return o.f(a,b,3);}}"
+                "export function run(a,b){{const o={{f:(x,backup,alt,result={expression})=>result===undefined?0:1}};return o.f(a,b,3);}}"
             ),
         ] {
             for ts in [false, true] {
@@ -584,7 +592,6 @@ fn earlier_parameter_logical_chains_reject_hidden_reads_and_effects() {
     );
 }
 
-
 #[test]
 fn numeric_defaults_evaluate_prior_parameters_in_source_order() {
     for body in [
@@ -593,8 +600,8 @@ fn numeric_defaults_evaluate_prior_parameters_in_source_order() {
         "function f(x,d,y=2*x-d){return y;}export function run(a,b){return f(a,b);}",
         "function f(x,d,y=(x+1)*(d-2)){return y;}export function run(a,b){return f(a,b);}",
         "function f(x,d,y=x%(d+1)){return y;}export function run(a,b){return f(a,b);}",
-        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(null,b);}",
-        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(true,b);}",
+        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(null,b)===b?1:0;}",
+        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(true,b)===b+1?1:0;}",
         "export function run(a,b){const f=(x,d,y=x+d)=>y;return f(a,b);}",
         "export function run(a,b){const o={f:(x,d,y=x+d)=>y};return o.f(a,b);}",
         "export function run(a,b){const f=(x,d,y=x+d)=>y;return f(a,b,9);}",
@@ -719,7 +726,7 @@ fn numeric_comparison_defaults_reject_unproven_coercion_scope_and_effects() {
         "function f(x,z=x<missing){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=x<g()){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=x++<2){return z;}export function run(a,b){return f(a);}",
-        "function f(x,z=x===2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x===g()){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=x<2?'yes':g()){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=x<2?'yes':later,later='no'){return z;}export function run(a,b){return f(a);}",
         "export function run(a,b){const f=(x,z=a<2)=>z;return f(a);}",
@@ -727,7 +734,6 @@ fn numeric_comparison_defaults_reject_unproven_coercion_scope_and_effects() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
-
 
 #[test]
 fn strict_equality_defaults_route_actions_by_value_and_identity() {
@@ -811,7 +817,7 @@ fn earlier_object_field_defaults_reject_unknown_receivers_and_effects() {
     for body in [
         "function f(row,selected=row.label){return selected;}export function run(a,b){return f(a);}",
         "function f(row,selected=row.label){return selected;}export function run(a,b){return f(null);}",
-        "function f(row,selected=row.label){return selected;}export function run(a,b){return f([a]);}",
+        "function f(row,selected=row.label){return selected;}export function run(a,b){return f(a?[a]:null);}",
         "function f(row,selected=row.toString){return selected;}export function run(a,b){return f({});}",
         "function f(row,selected=row.__proto__){return selected;}export function run(a,b){return f({});}",
         "function f(row,selected=row[key]){return selected;}export function run(a,b){return f({label:a});}",
@@ -837,13 +843,13 @@ fn earlier_array_elements_and_length_supply_lazy_parameter_defaults() {
         "function f(xs,want,z=xs[0]&&want){return z===want?1:0;}export function run(a,b){return f([true,b],a);}",
         "function f(xs,want,z=xs[0]?xs[0]:want){return z===want?1:0;}export function run(a,b){return f([false,b],a);}",
         "function f(xs,want,z=xs[0]===want?1:0){return z;}export function run(a,b){return f([a,b],a);}",
-        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([a,b]);}",
-        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([a,,b]);}",
-        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([]);}",
-        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([a,b],7);}",
+        "function f(xs,n=xs.length){return n===undefined?0:1;}export function run(a,b){return f([a,b]);}",
+        "function f(xs,n=xs.length){return n===undefined?0:1;}export function run(a,b){return f([a,,b]);}",
+        "function f(xs,n=xs.length){return n===undefined?0:1;}export function run(a,b){return f([]);}",
+        "function f(xs,n=xs.length){return n===undefined?0:1;}export function run(a,b){return f([a,b],7);}",
         "function f(xs,want,z=xs[0]){return z===want?1:0;}export function run(a,b){const o={v:a};return f([o],o);}",
         "export function run(a,b){const f=(xs,want,z=xs[0])=>z===want?1:0;return f([a],a);}",
-        "export function run(a,b){const o={f:(xs,n=xs.length)=>n};return o.f([a,b]);}",
+        "export function run(a,b){const o={f:(xs,n=xs.length)=>n===undefined?0:1};return o.f([a,b]);}",
         "function f(xs,want,z=xs[0]??want){return z===want?1:0;}export function run(a,b){return f([undefined],a);}",
     ] {
         for ts in [false, true] {
@@ -925,6 +931,52 @@ fn bitwise_parameter_defaults_reject_effects_unknown_kinds_and_scope() {
         "function f(x,z=~g()){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=x**2){return z;}export function run(a,b){return f(a);}",
         "export function run(a,b){const f=(x,z=~a)=>z;return f(a);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}
+
+#[test]
+fn nested_action_record_default_paths_admit_proven_objects_and_arrays() {
+    for body in [
+        "function f(row,expected,z=row.meta.label){return z===expected?1:0;}export function run(a,b){return f({meta:{label:a}},a);}",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:undefined}},a);}",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}",
+        "function f(row,backup,z=row.meta.label||backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:0}},b);}",
+        "function f(row,backup,z=row.meta.label?row.meta.label:backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:false}},b);}",
+        "function f(row,backup,z=row.meta.label===backup?'match':'other'){return z.length;}export function run(a,b){return f({meta:{label:a}},a);}",
+        "function f(row,backup,z=row.meta.deep.label){return z===backup?1:0;}export function run(a,b){return f({meta:{deep:{label:a}}},a);}",
+        "function f(row,backup,z=row.items[0].label){return z===backup?1:0;}export function run(a,b){return f({items:[{label:a}]},a);}",
+        "function f(row,backup,z=row.meta.label){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b,b);}",
+        "export function run(a,b){const f=(row,backup,z=row.meta.label??backup)=>z===backup?1:0;return f({meta:{label:a}},b);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}";
+    let ts = "function f(row:unknown,backup:unknown,z:unknown=(row as {meta:{label:unknown}}).meta.label??backup){return z===backup?1:0;}export function run(a:number,b:number):number{return f({meta:{label:a}},b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn nested_action_record_defaults_reject_unknown_intermediates_and_effects() {
+    for body in [
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){return f(a);}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){return f({meta:null});}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){return f({meta:a});}",
+        "function f(row,z=row.meta[key]){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta[read()]){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.toString){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.__proto__){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta?.label){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){const x={meta:{label:a}};return f(b?x:{meta:null});}",
+        "function f(row,z=later.meta.label,later={meta:{label:1}}){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){const f2=(x,y=a.meta.label)=>y;return f2(row);}",
     ] {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }

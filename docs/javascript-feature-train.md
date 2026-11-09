@@ -717,3 +717,15 @@ primitive proof for every earlier parameter; String/object coercion,
 self/later/outer reads, effects and arbitrary source expressions stay guarded.
 Compiler admission/rejection cases and native JS/TS-Wasm differential fixtures
 are included; Rust and Wasm execution evidence is still pending.
+
+Nested static own-property paths now compose within private helper/arrow
+parameter defaults, including A1 metadata such as `record.meta.label` and
+`record.items[0].label`. The compiler walks the path iteratively and requires
+positive source-origin container proofs at **every** hop; it uses the existing
+managed own-read operations in source order. Missing terminal fields still
+produce Undefined and can use lazy fallbacks; explicit arguments bypass the
+entire path. Unproven/nullable intermediate receivers, dynamic keys, inherited
+prototype names, optional access, effects, self/later/outer references and
+public/async defaults remain guarded. Compiler admission and rejection tests
+and JS/TS-to-Wasm differential fixtures are included; native Rust execution
+and hosted CI have not been run at creation time.
