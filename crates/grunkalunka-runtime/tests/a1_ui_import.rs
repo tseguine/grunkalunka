@@ -451,11 +451,14 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 #[test]
 fn imported_handler_invokes_defaulted_helpers_via_empty_apply() {
     for body in [
-        "function f(x=1){return x;}return choose(f.apply()===1?1:0,b);",
-        "function f(x=1){return x;}let n=0;const result=f['apply'](n=1);return choose(n===1&&result===1?1:0,b);",
+        "return choose(f.apply()===1?1:0,b);",
+        "let n=0;const result=f['apply'](n=1);return choose(n===1&&result===1?1:0,b);",
     ] {
+        // The A1 entry's function-statement profile is deliberately narrower
+        // than the named module-helper profile. Test the latter directly.
         compare_composed_source(&format!(
             "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             function f(x=1){{return x;}}\n\
              export function run(a, b) {{ {body} }}"
         ));
     }
