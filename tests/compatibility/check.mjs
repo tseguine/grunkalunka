@@ -146,8 +146,8 @@ for (const [name, , , expectedResult, , metadata] of programs) {
     await writeFile(sourcePath, source, { flag: 'wx' });
     const retainedSource = await readFile(sourcePath);
     assert.equal(sha256(retainedSource), sha256(source), `${name}: retained source changed`);
-    invoke(['compile', sourcePath, wasmPath]);
-    await writeFile(join(output, `${name}-${extension}.wat`), invoke(['wat', sourcePath]).stdout, { flag: 'wx' });
+    const { stdout: wat } = invoke(['compile', sourcePath, wasmPath, '--print-wat']);
+    await writeFile(join(output, `${name}-${extension}.wat`), wat, { flag: 'wx' });
     const wasm = await readFile(wasmPath);
     assert.ok(WebAssembly.validate(wasm));
     const module = new WebAssembly.Module(wasm);

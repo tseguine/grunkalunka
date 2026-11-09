@@ -14,7 +14,10 @@ exit status 1. Per-command help flags and combined short options are not introdu
 The numeric commands are `compile`, `wat` and `eval`; the primitive-return commands
 are `compile-value`, `wat-value` and `eval-value`. Both use the same two numeric
 inputs. Source extension selects JS or TS. Compilation refuses existing output
-files, and WAT output goes to stdout.
+files. To save Wasm and capture its WAT in a single compilation, run
+`grunkalunka compile input.js output.wasm --print-wat`. This option also
+works with `compile-value` and sends only WAT to stdout after the binary write
+succeeds.
 
 Evaluation's stdin protocol is not decimal input: each line contains two 16-digit
 hexadecimal binary64 bit patterns, with at most 4096 input pairs. The numeric output

@@ -65,6 +65,37 @@ fn stderr(output: &Output) -> String {
 }
 
 #[test]
+fn compile_print_wat_writes_both_outputs_from_the_same_artifact() {
+    let source = Fixture::new("js", b"export function run(a,b){return a+b;}");
+    for (command, wat_command) in [("compile", "wat"), ("compile-value", "wat-value")] {
+        let output = source.0.with_extension(wat_command);
+        let path = output.to_str().unwrap();
+        let args = [command, source.path(), path, "--print-wat"];
+        let result = invoke(&args, true, b"");
+        assert!(result.status.success(), "{}", stderr(&result));
+        assert_eq!(
+            stderr(&result).matches("phase=compile event=start").count(),
+            1
+        );
+        let wat = invoke(&[wat_command, source.path()], false, b"");
+        assert!(wat.status.success());
+        assert_eq!(result.stdout, wat.stdout);
+        let expected = if command == "compile" {
+            grunkalunka_compiler::compile
+        } else {
+            grunkalunka_compiler::compile_value
+        };
+        let artifact = expected("export function run(a,b){return a+b;}", false).unwrap();
+        assert_eq!(fs::read(path).unwrap(), artifact.wasm);
+        let collision = invoke(&args, false, b"");
+        assert!(!collision.status.success());
+        assert!(collision.stdout.is_empty());
+        assert_eq!(fs::read(path).unwrap(), artifact.wasm);
+        fs::remove_file(path).unwrap();
+    }
+}
+
+#[test]
 fn compile_diagnostics_are_opt_in_and_preserve_wat_output() {
     let source = Fixture::new("js", b"export function run(a,b){ return a+b; }");
     let quiet = invoke(&["wat", source.path()], false, b"");
