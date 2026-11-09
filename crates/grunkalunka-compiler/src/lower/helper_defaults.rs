@@ -857,7 +857,15 @@ impl Lowering<'_, '_> {
             }
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
-        if let Some(program) = earlier_string(initializer, self.semantic) {
+        // Both Number and String additions share + syntax. Only select the
+        // String planner with positive source proofs; otherwise allow the
+        // existing numeric planner to handle primitive numeric expressions.
+        if let Some(program) = earlier_string(initializer, self.semantic).filter(|program| {
+            program.iter().all(|term| match term {
+                StringDefaultTerm::Earlier(identifier) => self.stored.string(identifier.node_id()),
+                _ => true,
+            })
+        }) {
             let mut strings = Vec::new();
             for term in program {
                 match term {
@@ -869,14 +877,6 @@ impl Lowering<'_, '_> {
                         ));
                     }
                     StringDefaultTerm::Earlier(identifier) => {
-                        // The source kinds are independently checked even for
-                        // branches that current call sites might not exercise.
-                        if !self.stored.string(identifier.node_id()) {
-                            return Err(unsupported(
-                                initializer,
-                                "String default requires a proven String parameter",
-                            ));
-                        }
                         strings.push(self.load_earlier_value(
                             identifier,
                             initializer,
