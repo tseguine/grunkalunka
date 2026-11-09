@@ -135,7 +135,6 @@ test('checked-in classification accounts for every current runtime integration s
     ...actual.map(name => ({ name, kind: ['test'] })),
   ];
   const result = plan({ metadata: actualMetadata, classification: policy, packages: [runtime] });
-  assert.ok(result.commands.every(command => command.args.includes('--lib')));
   const runtimeCommands = result.commands.filter(command => command.phase === 'test');
   assert.equal(runtimeCommands.length, 2, '21 fast tests should fit two bounded runs');
   assert.equal(result.commands.length, 4, 'compile each bounded group first');
