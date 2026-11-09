@@ -9,6 +9,7 @@ pub(super) struct Task<'e, 'a> {
     pub depth: usize,
     pub push_values: Vec<ValueId>,
     pub awaiting_push: bool,
+    pub push_arguments: Option<invocation::Arguments<'e, 'a>>,
 }
 
 impl Lowering<'_, '_> {
@@ -27,20 +28,44 @@ impl Lowering<'_, '_> {
                 .push(values.pop().expect("array push argument").id());
             task.awaiting_push = false;
         }
-        if task.call.arguments.len() > 1000 {
-            return Err(unsupported(
-                task.node,
-                &format!(
-                    "at most 1000 {} arguments are admitted",
-                    task.operation.name()
-                ),
-            ));
-        }
-        if let Some(argument) = task.call.arguments.get(task.argument) {
-            let argument = argument
-                .as_expression()
-                .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
-            let depth = task.depth + 1;
+        let argument = if task.operation == Operation::Push {
+            // Only fresh Array literals are statically spread; their borrowed
+            // elements run under the same ordered argument cursor.
+            let projected = task
+                .push_arguments
+                .get_or_insert_with(|| invocation::all_arguments(task.call));
+            if projected.len() > 1000 {
+                return Err(unsupported(
+                    task.node,
+                    "at most 1000 push arguments are admitted",
+                ));
+            }
+            projected
+                .get(task.argument)
+                .map(|actual| (actual.as_expression(), actual.depth))
+        } else {
+            if task.call.arguments.len() > 1000 {
+                return Err(unsupported(
+                    task.node,
+                    &format!(
+                        "at most 1000 {} arguments are admitted",
+                        task.operation.name()
+                    ),
+                ));
+            }
+            task.call
+                .arguments
+                .get(task.argument)
+                .map(|arg| (arg.as_expression(), 0))
+        };
+        if let Some((argument, extra_depth)) = argument {
+            let argument = argument.ok_or_else(|| {
+                unsupported(
+                    task.node,
+                    "dynamic or elided spread call arguments are not admitted",
+                )
+            })?;
+            let depth = task.depth + 1 + extra_depth;
             task.argument += 1;
             task.awaiting_push = task.operation == Operation::Push;
             let mode = if task.awaiting_push {

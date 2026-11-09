@@ -535,9 +535,12 @@ managed-value carrier. A dedicated GC Array append helper rejects maximum-length
 overflow before mutating storage.
 
 This first source profile admits only the built-in Array method, with static
-or literal-computed keys and at most 1,000 non-spread arguments. Arbitrary
-array-like receivers, overridden methods, argument spreads and catchable
-RangeError at the maximum possible length remain outside the contract.
+or literal-computed keys and at most 1,000 fixed arguments. Nested fresh
+Array-literal spreads (`xs.push(...[one, two])`) are expanded without a new
+iterator or synthetic AST; arguments and their effects retain source order.
+Arbitrary array-like receivers, overridden methods, dynamic iterables or
+array-variable spreads, and catchable RangeError at the maximum possible length
+remain outside the contract.
 
 ## Ordinary-object property storage
 

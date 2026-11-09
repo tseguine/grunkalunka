@@ -893,6 +893,7 @@ impl Lowering<'_, '_> {
                 depth,
                 push_values: Vec::new(),
                 awaiting_push: false,
+                push_arguments: None,
             }));
             work.push(Work::Eval(receiver, depth + 1, Mode::Array));
             return Ok(true);

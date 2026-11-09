@@ -58,6 +58,10 @@ fn array_push_appends_after_argument_effects_and_returns_length() {
         "export function run(a,b){const xs=[a];const alias=xs;alias.push(b);return xs.length===2&&xs===alias?1:0;}",
         "export function run(a,b){const xs=[a];xs.push('text',null,false,undefined);return xs.length===5&&xs[1]==='text'&&xs[2]===null&&xs[3]===false&&xs[4]===undefined?1:0;}",
         "export function run(a,b){const xs=[a];return xs['push'](b)===2&&xs.length===2?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push(...[b,a])===3&&xs[1]===b&&xs[2]===a?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push(...[...[b],a])===3&&xs.length===3?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.push(...[])===1&&xs.length===1?1:0;}",
+        "export function run(a,b){const xs=[a];let n=0;const len=xs.push(...[(n=1,b),(n=n*10+2,a)],n=n*10+3);return len===4&&n===123&&xs[1]===b&&xs[2]===a&&xs[3]===123?1:0;}",
     ] {
         common::compare_sources(source, source);
     }
