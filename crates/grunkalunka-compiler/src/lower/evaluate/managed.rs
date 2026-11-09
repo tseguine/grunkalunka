@@ -261,6 +261,15 @@ impl Lowering<'_, '_> {
                 "stored function field requires a complete agreeing signature",
             ));
         }
+        if let Expression::ComputedMemberExpression(member) = node
+            && self.runtime_member_receiver(member, depth + 1).is_some()
+        {
+            work.push(Work::Managed(ManagedWork::FunctionProjection {
+                node,
+                signature,
+            }));
+            return self.schedule_dictionary_read(node, depth, work);
+        }
         let Some((object, key)) = member(
             node,
             self.member_array(node, depth),

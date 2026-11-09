@@ -26,7 +26,7 @@ impl Members<'_, '_> {
         &self,
         receiver: NodeId,
         key: NodeId,
-        own_name: bool,
+        domain: &record_names::Domain,
     ) -> Alternatives {
         let Some(keys) = self.values.get(&key).filter(|origins| !origins.is_empty()) else {
             return Alternatives::new();
@@ -42,10 +42,17 @@ impl Members<'_, '_> {
             || !keys.contains(&Origin::String)
             || !receivers.iter().all(|origin| {
                 matches!(origin, Origin::NullObject(_))
-                    || (own_name && matches!(origin, Origin::Object(_)))
+                    || (!matches!(domain, record_names::Domain::Unknown)
+                        && matches!(origin, Origin::Object(_)))
             })
         {
             return BTreeSet::from([Origin::Other]);
+        }
+        if let record_names::Domain::Fields(fields) = domain {
+            return fields
+                .iter()
+                .flat_map(|key| self.select(receiver, key))
+                .collect();
         }
         let mut found = self.enumerable_values(receiver);
         // A runtime name may select no own field even after a known write.
@@ -57,7 +64,7 @@ impl Members<'_, '_> {
         &self,
         receiver: NodeId,
         key: NodeId,
-        own_name: bool,
+        domain: &record_names::Domain,
     ) -> Alternatives {
         let Some(keys) = self.values.get(&key).filter(|v| !v.is_empty()) else {
             return Alternatives::new();
@@ -76,9 +83,16 @@ impl Members<'_, '_> {
                 matches!(
                     origin,
                     Origin::NullObject(_) | Origin::Null | Origin::Undefined
-                ) || (own_name && matches!(origin, Origin::Object(_)))
+                ) || (!matches!(domain, record_names::Domain::Unknown)
+                    && matches!(origin, Origin::Object(_)))
             })
         {
+            if let record_names::Domain::Fields(fields) = domain {
+                return fields
+                    .iter()
+                    .flat_map(|key| self.optional_select(receiver, key))
+                    .collect();
+            }
             let mut found = self.enumerable_values_for(receiver, true);
             found.insert(Origin::Undefined);
             found

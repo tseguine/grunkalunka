@@ -39,12 +39,12 @@ enum Rule {
     OptionalComputedMember {
         receiver: NodeId,
         key: NodeId,
-        own_name: bool,
+        domain: record_names::Domain,
     },
     StringKeyMember {
         receiver: NodeId,
         key: NodeId,
-        own_name: bool,
+        domain: record_names::Domain,
     },
     UnsignedMember(NodeId),
     PatternUnsignedMember(NodeId),
@@ -142,7 +142,7 @@ fn pattern_definitions(
                                 .then(|| Rule::StringKeyMember {
                                     receiver: id,
                                     key: key.node_id(),
-                                    own_name: true,
+                                    domain: record_names.domain(key, 0),
                                 })
                         })
                         .unwrap_or(Rule::Known(Origin::Other));
@@ -1298,7 +1298,7 @@ impl Fields {
                                         Rule::StringKeyMember {
                                             receiver: a.right.node_id(),
                                             key: key.node_id(),
-                                            own_name: record_names.contains(key, 0),
+                                            domain: record_names.domain(key, 0),
                                         }
                                     }
                                 };
@@ -1420,7 +1420,7 @@ impl Fields {
                                 Rule::OptionalComputedMember {
                                     receiver: receiver.node_id(),
                                     key: key.node_id(),
-                                    own_name: record_names.contains(key, 0),
+                                    domain: record_names.domain(key, 0),
                                 }
                             }
                             evaluate::optional_member::Key::Uint32(_) => {
@@ -1446,7 +1446,7 @@ impl Fields {
                         Some(Rule::StringKeyMember {
                             receiver: m.object.node_id(),
                             key: m.expression.node_id(),
-                            own_name: record_names.contains(&m.expression, 0),
+                            domain: record_names.domain(&m.expression, 0),
                         })
                     }
                 }
@@ -1753,8 +1753,8 @@ impl Fields {
                     Rule::OptionalComputedMember {
                         receiver,
                         key,
-                        own_name,
-                    } => members.optional_computed(*receiver, *key, *own_name),
+                        domain,
+                    } => members.optional_computed(*receiver, *key, domain),
                     Rule::OptionalUnsignedMember(receiver) => {
                         members.optional_unsigned_value(*receiver)
                     }
@@ -1765,8 +1765,8 @@ impl Fields {
                     Rule::StringKeyMember {
                         receiver,
                         key,
-                        own_name,
-                    } => members.string_key_value(*receiver, *key, *own_name),
+                        domain,
+                    } => members.string_key_value(*receiver, *key, domain),
                 };
                 additions.push((*id, found));
             }

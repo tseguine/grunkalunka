@@ -3,6 +3,18 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn finite_record_names_select_compatible_callbacks_before_arguments() {
+    for body in [
+        "const t={inc:x=>x+1,dec:x=>x-1,label:'choices'};const k=a?'inc':'dec';return t[k](b);",
+        "const t={first:x=>x+3,last:x=>x*2};let k='first';if(a)k='last';return t[k]((k='first',b));",
+        "const t={x:v=>v+a,y:v=>v-b};const k=a?'x':'y';const f=t[k];return f(3);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn object_enumeration_literal_spreads_observe_sources_after_extra_effects() {
     for source in [
         "export function run(a,b){return Object.keys(...[{x:a,y:b}]).length;}",
