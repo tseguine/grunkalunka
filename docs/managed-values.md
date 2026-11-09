@@ -1621,3 +1621,8 @@ Optional reads such as `settings?.[key]` use the same name proof for
 ordinary records. A nullish receiver skips the entire key expression,
 including its effects and awaits. A present receiver is saved before the
 key runs, so rebinding its source variable cannot redirect the lookup.
+
+Object binding and assignment patterns also admit these runtime names.
+In `const {[key]: value, ...rest} = record`, the key runs once, selects
+the field, and excludes that same name from the rest copy. Defaults retain
+their usual missing-or-Undefined behavior.

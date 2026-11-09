@@ -943,7 +943,7 @@ fn chained_object_rest_copies_keep_field_proofs_on_a_small_stack() {
 }
 
 #[test]
-fn computed_binding_keys_require_dictionary_and_string_proofs() {
+fn computed_binding_keys_require_a_safe_receiver_and_key() {
     for (body, admitted) in [
         (
             "const d=Object.create(null);const k='x';const {[k]:v,...rest}=d;return Object.keys(rest).length;",
@@ -953,10 +953,14 @@ fn computed_binding_keys_require_dictionary_and_string_proofs() {
             "const d=Object.create(null);const k=a?'x':'y';const {[k]:v}=d;return v===undefined?1:0;",
             true,
         ),
-        ("const d={x:a};const k='x';const {[k]:v}=d;return a;", false),
+        (
+            "const d={x:'value'},k=a?'x':'y';const {[k]:v,...rest}=d;return rest.x.length;",
+            false,
+        ),
+        ("const d={x:a};const k='x';const {[k]:v}=d;return a;", true),
         (
             "const d=a?Object.create(null):{};const k='x';const {[k]:v}=d;return a;",
-            false,
+            true,
         ),
         (
             "const d=Object.create(null);const k=a?'x':b;const {[k]:v}=d;return a;",
@@ -964,7 +968,7 @@ fn computed_binding_keys_require_dictionary_and_string_proofs() {
         ),
         (
             "const d=Object.create(null);const k='x';const {[k]:v='ok'}=d;return v.trim().length;",
-            false,
+            true,
         ),
         (
             "const d=Object.create(null);const k='x';const {[k]:v,...rest}=d;const {label='ok'}=rest;return label.trim().length;",
@@ -985,7 +989,7 @@ fn computed_binding_keys_require_dictionary_and_string_proofs() {
             if admitted {
                 assert!(result.is_ok(), "{source}: {result:?}");
             } else {
-                let error = result.unwrap_err();
+                let error = result.err().unwrap_or_else(|| panic!("admitted {source}"));
                 assert!(
                     error.contains("unsupported") && !error.contains("internal IR"),
                     "{source}: {error}"

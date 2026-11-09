@@ -394,12 +394,18 @@ impl Lowering<'_, '_> {
                         }
                         iteration::PropertyKey::Runtime(key) => {
                             let uint32 = self.stored.uint32_keys.contains(key, depth + 1);
-                            if !uint32
-                                && (string || !(dictionary && self.stored.string(key.node_id())))
-                            {
+                            let string_key = self.stored.string(key.node_id())
+                                && (dictionary
+                                    || (receiver == Some(Type::ManagedObject)
+                                        && static_keys::own_string_name(
+                                            key,
+                                            self.semantic,
+                                            depth + 1,
+                                        )));
+                            if !uint32 && !string_key {
                                 return Err(unsupported(
                                     node,
-                                    "computed assignment source keys require unsigned syntax or a dictionary String",
+                                    "computed assignment source keys require an unsigned index or a proven record name",
                                 ));
                             }
                             Selection::Computed(key, uint32)
@@ -1131,7 +1137,7 @@ mod tests {
             ("let x='';({x='text'}={});return a;", true),
             (
                 "let x='';const key='x';({[key]:x}={x:'text'});return a;",
-                false,
+                true,
             ),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -1435,7 +1441,7 @@ mod computed_selection_tests {
                 true,
             ),
             ("let x;({[a]:x}=[b]);return a;", false),
-            ("const k='x';let x;({[k]:x}={x:b});return a;", false),
+            ("const k='x';let x;({[k]:x}={x:b});return a;", true),
             (
                 "const d=Object.create(null);let x;({[a]:x}=d);return a;",
                 false,
@@ -1509,6 +1515,10 @@ mod computed_rest_tests {
             ),
             (
                 "const k='k';let rest={};let x;({[k]:x,...rest}={k:b});return a;",
+                true,
+            ),
+            (
+                "const k=a?'k':'constructor';let x;({[k]:x}={k:b});return a;",
                 false,
             ),
             (

@@ -316,7 +316,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     } else if property.computed
                         && let Some(key) = property.key.as_expression()
                         && (self.stored.uint32_keys.contains(key, depth)
-                            || (dictionary && self.stored.string(key.node_id())))
+                            || (self.stored.string(key.node_id())
+                                && (dictionary
+                                    || (receiver == Type::ManagedObject
+                                        && static_keys::own_string_name(
+                                            key,
+                                            self.semantic,
+                                            depth,
+                                        )))))
                     {
                         mark_live_arrays(&containers, &mut steps);
                         steps.push(BindingStep::ComputedField {
@@ -328,7 +335,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     } else {
                         return Err(unsupported(
                             property,
-                            "dynamic object binding keys require a proven dictionary and String key",
+                            "computed binding keys require an unsigned index or a proven record name",
                         ));
                     }
                     pending.push(Work::Pattern(
@@ -419,6 +426,10 @@ mod unsigned_binding_tests {
             ("const {[a>>>0]:x='?'}='abc';return x.length;", true),
             ("const {[a]:x}=[b];return a;", false),
             ("const {[a>>>0]:x}=b;return a;", true),
+            (
+                "const k=a?'k':'__proto__';const {[k]:x}={k:b};return a;",
+                false,
+            ),
             ("const k='0';const {[k]:x}=[b];return a;", false),
             ("const {[a>>>0]:x}=[a?'text':b];return x.length;", false),
         ] {

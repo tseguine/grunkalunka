@@ -5,6 +5,18 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn record_patterns_select_and_exclude_runtime_names() {
+    for body in [
+        "const k=a?'x':'y';const row={x:11,y:22};const {[k]:v,...rest}=row;return +v+Object.keys(rest).length;",
+        "const k=a?'x':'missing';const row={x:b,z:3};let n=0,v,rest={};({[k]:v=(n++,7),...rest}=row);return n*10+Object.keys(rest).length;",
+        "let n=0;const row={x:a,y:b};const {[(n++,'x')]:v,...rest}=row;return n===1&&v===a&&rest.y===b&&!Object.hasOwn(rest,'x')?1:0;",
+        "const k=a?'left':'right';const row={left:a,right:b};let v,rest={};return ({[k]:v,...rest}=row)===row&&Object.keys(rest).length===1?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn optional_record_keys_skip_effects_and_save_the_non_null_receiver() {
     for body in [
         "const o=a?{x:b,y:a}:null;let n=0;const key=b?'x':'y';const value=o?.[(n++,key)];return n*10+(value===undefined?1:0);",
