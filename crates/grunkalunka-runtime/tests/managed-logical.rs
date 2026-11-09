@@ -967,3 +967,27 @@ fn earlier_parameter_conditional_defaults_match_native_source_oracles() {
     let ts = "export function run(a:number,b:number){const f=(x:unknown,y:unknown=(x as never)?'enabled':'disabled')=>y;return f(a)===(a?'enabled':'disabled')?a:b;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn earlier_parameter_selection_arms_read_initialized_values_and_preserve_identity() {
+    for body in [
+        "const f=(x,y,z=x??y)=>z;return f(null,b)===b?a:b;",
+        "const f=(x,y,z=x??y)=>z;return f(0,b)===0?a:b;",
+        "const f=(x,y,z=x||y)=>z;return f('',b)===b?a:b;",
+        "const f=(x,y,z=x&&y)=>z;return f(false,b)===false?a:b;",
+        "const f=(flag,yes,no,z=flag?yes:no)=>z;return f(1,a,b)===a?a:b;",
+        "const f=(flag,yes,no,z=flag?yes:no)=>z;return f(0,a,b)===b?a:b;",
+        "const f=(flag,yes,no,z=flag?yes:no)=>z;return f(0,a,b,99)===99?a:b;",
+        "const f=(x,y,z=x||y)=>z;const first={v:a};return f(first,{v:b})===first?a:b;",
+        "const f=(x,y,z=x||y)=>z;const other={v:b};return f('',other)===other?a:b;",
+        "const o={f:(flag,yes,no,z=flag?yes:no)=>z};return o.f(a,b,7)===(a?b:7)?a:b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let source = "function f(x,y,z=x??y){return z;}export function run(a,b){return f(null,b)===b?a:b;}";
+    common::compare_sources(source, source);
+    let js = "export function run(a,b){const f=(flag,yes,no,z=flag?yes:no)=>z;return f(a,b,4)===(a?b:4)?a:b;}";
+    let ts = "export function run(a:number,b:number){const f=(flag:unknown,yes:unknown,no:unknown,z:unknown=(flag as never)?yes:no)=>z;return f(a,b,4)===(a?b:4)?a:b;}";
+    common::compare_sources(js, ts);
+}

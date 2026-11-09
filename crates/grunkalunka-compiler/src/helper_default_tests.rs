@@ -490,3 +490,45 @@ fn earlier_parameter_conditional_defaults_reject_scope_reads_and_branch_effects(
         assert!(crate::compile_value(source, false).is_err(), "{source}");
     }
 }
+
+#[test]
+fn earlier_parameter_branches_admit_other_initialized_parameters() {
+    for body in [
+        "function f(x,backup,y=x??backup){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,backup,y=x||backup){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,backup,y=x&&backup){return y;}export function run(a,b){return f(a,b);}",
+        "function f(flag,yes,no,y=flag?yes:no){return y;}export function run(a,b){return f(a,b,3);}",
+        "function f(flag,yes,no,y=flag?yes:'off'){return y;}export function run(a,b){return f(a,b,3);}",
+        "function f(flag,yes,no,y=flag?'on':no){return y;}export function run(a,b){return f(a,b,3);}",
+        "export function run(a,b){const f=(x,backup,y=x??backup)=>y;return f(null,b);}",
+        "export function run(a,b){const f=(flag,yes,no,y=flag?yes:no)=>y;return f(a,a,b);}",
+        "export function run(a,b){const o={f:(flag,x,y,z=flag?x:y)=>z};return o.f(a,b,3);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(x,y,z=x??y){return z;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)){return z as never;}export function run(a:unknown,b:unknown):unknown{return f(a,b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn earlier_parameter_branches_reject_self_later_scope_and_effectful_arms() {
+    for body in [
+        "function f(x,y=x??y){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x||z,z=3){return y;}export function run(a,b){return f(a);}",
+        "function f(flag,x,y=flag?x:later,later=3){return y;}export function run(a,b){return f(a,b);}",
+        "function f(flag,x,y=flag?y:x){return y;}export function run(a,b){return f(a,b);}",
+        "function f(flag,x,y=flag?x:g()){return y;}export function run(a,b){return f(a,b);}",
+        "function f(flag,x,y=flag?(x++):x){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,y=x||missing){return y;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(x,y=a??x)=>y;return f(a,b);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}

@@ -67,89 +67,97 @@ fn earlier_parameter<'n, 'a>(
     }).then_some((identifier,operators))
 }
 
-// A direct reference to an already initialized parameter may select a pure
-// fallback. Resolve the symbol in this parameter list, not by its spelling:
-// a body var, outer capture, self read or later parameter is not initialized.
+// An initializer may read an already initialized parameter in either arm
+// of a pure selection. Resolve identity in this parameter list, never by name:
+// body var aliases, outer captures, self and later parameters are excluded.
+enum DefaultOperand<'n, 'a> {
+    Constant(Constant),
+    Earlier(&'n IdentifierReference<'a>),
+}
+
+fn earlier_identifier<'n, 'a>(
+    initializer: &Expression<'a>,
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<&'n IdentifierReference<'a>> {
+    let (node, _) = closures::unwrapped_at(expression, 0)?;
+    let Expression::Identifier(identifier) = node else {
+        return None;
+    };
+    let identifier = identifier.as_ref();
+    let symbol = semantic
+        .scoping()
+        .get_reference(identifier.reference_id.get()?)
+        .symbol_id()?;
+    let parameters = semantic
+        .nodes()
+        .ancestor_kinds(initializer.node_id())
+        .find_map(|kind| match kind {
+            AstKind::FormalParameters(parameters) => Some(parameters),
+            _ => None,
+        })?;
+    let index = parameters.items.iter().position(|parameter| {
+        parameter
+            .initializer
+            .as_ref()
+            .is_some_and(|value| value.node_id() == initializer.node_id())
+    })?;
+    parameters.items[..index]
+        .iter()
+        .any(|parameter| {
+            matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
+        })
+        .then_some(identifier)
+}
+
+fn pure_operand<'n, 'a>(
+    initializer: &Expression<'a>,
+    operand: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<DefaultOperand<'n, 'a>> {
+    if let Some(value) = constant(operand, semantic) {
+        return Some(DefaultOperand::Constant(value));
+    }
+    Some(DefaultOperand::Earlier(earlier_identifier(
+        initializer, operand, semantic,
+    )?))
+}
+
+// For logical selection the left source must be earlier; its right arm may
+// be a pure constant expression or another earlier parameter.
 fn earlier_logical<'n, 'a>(
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
-) -> Option<(&'n IdentifierReference<'a>, LogicalOperator, Constant)> {
-    let (node, depth) = closures::unwrapped_at(expression, 0)?;
+) -> Option<(&'n IdentifierReference<'a>, LogicalOperator, DefaultOperand<'n, 'a>)> {
+    let (node, _) = closures::unwrapped_at(expression, 0)?;
     let Expression::LogicalExpression(logical) = node else {
         return None;
     };
-    let (left, _) = closures::unwrapped_at(&logical.left, depth + 1)?;
-    let Expression::Identifier(identifier) = left else {
-        return None;
-    };
-    let identifier = identifier.as_ref();
-    let symbol = semantic
-        .scoping()
-        .get_reference(identifier.reference_id.get()?)
-        .symbol_id()?;
-    let parameters = semantic
-        .nodes()
-        .ancestor_kinds(expression.node_id())
-        .find_map(|kind| match kind {
-            AstKind::FormalParameters(parameters) => Some(parameters),
-            _ => None,
-        })?;
-    let index = parameters.items.iter().position(|parameter| {
-        parameter
-            .initializer
-            .as_ref()
-            .is_some_and(|value| value.node_id() == expression.node_id())
-    })?;
-    if !parameters.items[..index].iter().any(|parameter| {
-        matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
-    }) {
-        return None;
-    }
-    Some((identifier, logical.operator, constant(&logical.right, semantic)?))
+    Some((
+        earlier_identifier(expression, &logical.left, semantic)?,
+        logical.operator,
+        pure_operand(expression, &logical.right, semantic)?,
+    ))
 }
 
-// A conditional test can refer to an earlier parameter while both chosen
-// values remain pure defaults. The parameter identity check is deliberately
-// identical to the logical-fallback check.
+// A conditional can select either an earlier source value or a pure
+// constant. Both arms are validated before emitting runtime selection.
 fn earlier_conditional<'n, 'a>(
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
-) -> Option<(&'n IdentifierReference<'a>, Constant, Constant)> {
-    let (node, depth) = closures::unwrapped_at(expression, 0)?;
+) -> Option<(
+    &'n IdentifierReference<'a>,
+    DefaultOperand<'n, 'a>,
+    DefaultOperand<'n, 'a>,
+)> {
+    let (node, _) = closures::unwrapped_at(expression, 0)?;
     let Expression::ConditionalExpression(conditional) = node else {
         return None;
     };
-    let (test, _) = closures::unwrapped_at(&conditional.test, depth + 1)?;
-    let Expression::Identifier(identifier) = test else {
-        return None;
-    };
-    let identifier = identifier.as_ref();
-    let symbol = semantic
-        .scoping()
-        .get_reference(identifier.reference_id.get()?)
-        .symbol_id()?;
-    let parameters = semantic
-        .nodes()
-        .ancestor_kinds(expression.node_id())
-        .find_map(|kind| match kind {
-            AstKind::FormalParameters(parameters) => Some(parameters),
-            _ => None,
-        })?;
-    let index = parameters.items.iter().position(|parameter| {
-        parameter
-            .initializer
-            .as_ref()
-            .is_some_and(|value| value.node_id() == expression.node_id())
-    })?;
-    if !parameters.items[..index].iter().any(|parameter| {
-        matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
-    }) {
-        return None;
-    }
     Some((
-        identifier,
-        constant(&conditional.consequent, semantic)?,
-        constant(&conditional.alternate, semantic)?,
+        earlier_identifier(expression, &conditional.test, semantic)?,
+        pure_operand(expression, &conditional.consequent, semantic)?,
+        pure_operand(expression, &conditional.alternate, semantic)?,
     ))
 }
 
@@ -468,11 +476,12 @@ impl Lowering<'_, '_> {
                 },
             );
             let mut true_region = self.region(initializer);
-            let true_value = self.emit_constant_default(initializer, &mut true_region, when_true);
+            let true_value =
+                self.emit_default_operand(initializer, &mut true_region, when_true)?;
             true_region.exit = Exit::Yield(true_value);
             let mut false_region = self.region(initializer);
             let false_value =
-                self.emit_constant_default(initializer, &mut false_region, when_false);
+                self.emit_default_operand(initializer, &mut false_region, when_false)?;
             false_region.exit = Exit::Yield(false_value);
             let result = self.value(Type::ManagedValue);
             Self::push(
@@ -509,7 +518,7 @@ impl Lowering<'_, '_> {
                 },
             );
             let mut selected = self.region(initializer);
-            let fallback = self.emit_constant_default(initializer, &mut selected, fallback);
+            let fallback = self.emit_default_operand(initializer, &mut selected, fallback)?;
             selected.exit = Exit::Yield(fallback);
             let mut kept = self.region(initializer);
             kept.exit = Exit::Yield(original);
@@ -732,6 +741,18 @@ impl Lowering<'_, '_> {
             result
         };
         Ok(original)
+    }
+
+    fn emit_default_operand(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        operand: DefaultOperand<'_, '_>,
+    ) -> Result<ValueId, String> {
+        match operand {
+            DefaultOperand::Constant(value) => Ok(self.emit_constant_default(node, region, value)),
+            DefaultOperand::Earlier(identifier) => self.load_earlier_value(identifier, node, region),
+        }
     }
 
     fn emit_constant_default(
