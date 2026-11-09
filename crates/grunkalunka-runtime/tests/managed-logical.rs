@@ -956,7 +956,7 @@ fn var_patterns_preserve_order_defaults_redeclarations_and_rest() {
 fn pure_default_expressions_match_native_js_for_named_arrow_and_stored_calls() {
     for body in [
         "function f(x='stat'+'us'){return x.length;}return f();",
-        "function f(x=false||7){return x;}return f(undefined);",
+        "function f(x=false||7){return x;}return f(undefined)===7?1:0;",
         "function f(x=NaN??9){return x!==x;}return f()?a:b;",
         "function f(x=true&&'ready'){return x==='ready';}return f()?a:b;",
         "const f=(x=!(0/0))=>x;return f()?a:b;",
@@ -1064,9 +1064,9 @@ fn numeric_defaults_match_native_js_for_helpers_arrows_and_stored_calls() {
         "function f(x,d,y=2*x-d){return y;}return f(a,b);",
         "function f(x,d,y=(x+1)*(d-2)){return y;}return f(a,b);",
         "function f(x,d,y=x/(d+1)){return y;}return f(a,b);",
-        "function f(x,y=x+1){return y;}return f(null);",
-        "function f(x,y=x+1){return y;}return f(true);",
-        "function f(x,y=x+1){return y;}return f(undefined,7);",
+        "function f(x,y=x+1){return y;}return f(null)===1?1:0;",
+        "function f(x,y=x+1){return y;}return f(true)===2?1:0;",
+        "function f(x,y=x+1){return y;}return f(undefined,7)===7?1:0;",
         "function f(x,d,y=x+d){return y;}return f(a,b,0);",
         "const f=(x,d,y=x+d)=>y;return f(a,b);",
         "const o={f:(x,d,y=(x+1)*d)=>y};return o.f(a,b);",
@@ -1190,13 +1190,13 @@ fn earlier_array_parameter_defaults_match_native_js_and_erased_ts() {
         "function f(xs,want,z=xs[0]&&want){return z===want?1:0;}return f([true,b],a);",
         "function f(xs,want,z=xs[0]?xs[0]:want){return z===want?1:0;}return f([false,b],a);",
         "function f(xs,want,z=xs[0]===want?1:0){return z;}return f([a,b],a);",
-        "function f(xs,n=xs.length){return n;}return f([a,b]);",
-        "function f(xs,n=xs.length){return n;}return f([a,,b]);",
-        "function f(xs,n=xs.length){return n;}return f([]);",
-        "function f(xs,n=xs.length){return n;}return f([a,b],7);",
+        "function f(xs,n=xs.length){return n;}return f([a,b])===2?1:0;",
+        "function f(xs,n=xs.length){return n;}return f([a,,b])===3?1:0;",
+        "function f(xs,n=xs.length){return n;}return f([])===0?1:0;",
+        "function f(xs,n=xs.length){return n;}return f([a,b],7)===7?1:0;",
         "function f(xs,want,z=xs[0]){return z===want?1:0;}const o={v:a};return f([o],o);",
         "const f=(xs,want,z=xs[0])=>z===want?1:0;return f([a],a);",
-        "const o={f:(xs,n=xs.length)=>n};return o.f([a,b]);",
+        "const o={f:(xs,n=xs.length)=>n};return o.f([a,b])===2?1:0;",
     ] {
         let source = source_with_module_helper(body);
         common::compare_sources(&source, &source);

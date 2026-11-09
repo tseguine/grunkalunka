@@ -463,6 +463,23 @@ fn imported_handler_builds_lists_with_array_push() {
 }
 
 #[test]
+fn imported_service_observes_private_default_results_through_primitive_comparisons() {
+    for source in [
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function f(xs,n=xs.length){return n;}
+           export function run(a, b) { return choose(f([a,b])===2?1:0,b); }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function f(x,y=x+1){return y;}
+           export function run(a, b) { return choose(f(null)===1?1:0,b); }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function f(x=false||7){return x;}
+           export function run(a, b) { return choose(f(undefined)===7?1:0,b); }"#,
+    ] {
+        compare_composed_source(source);
+    }
+}
+
+#[test]
 fn imported_service_composes_with_gc_captures_and_function_identities() {
     for body in [
         "let state={expanded:a};const initial=state;let dispatch=()=>choose(state.expanded===a?1:0,b);state={expanded:b};return dispatch()+(initial===state?10:20);",
