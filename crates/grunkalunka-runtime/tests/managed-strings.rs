@@ -66,10 +66,7 @@ fn string_repeat_keeps_receiver_coercion_and_dynamic_invocation_guarded() {
         for typed in [false, true] {
             let result = grunkalunka_compiler::compile(&source, typed);
             assert!(result.is_err(), "unexpectedly compiled {source}");
-            assert!(
-                !result.unwrap_err().contains("internal IR"),
-                "{source}"
-            );
+            assert!(!result.unwrap_err().contains("internal IR"), "{source}");
         }
     }
 }
