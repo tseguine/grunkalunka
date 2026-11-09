@@ -800,3 +800,22 @@ fn nested_function_signature_queries_keep_source_call_limits_on_small_stack() {
         }
     }
 }
+
+#[test]
+fn variadic_math_folds_respect_argument_limits_and_small_native_stacks() {
+    for method in ["min", "max"] {
+        for count in [0, 1, 2, 1000, 1001] {
+            let args = vec!["a"; count].join(",");
+            let source = format!(
+                "export function run(a,b){{return Math.{method}({args});}}"
+            );
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || crate::compile(&source, false))
+                .expect("small-stack compiler thread")
+                .join()
+                .expect("native compiler thread must not overflow");
+            assert_eq!(result.is_ok(), count <= 1000, "{method}/{count}");
+        }
+    }
+}
