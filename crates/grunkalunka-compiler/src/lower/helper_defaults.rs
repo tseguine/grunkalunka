@@ -196,6 +196,83 @@ fn earlier_numeric<'n, 'a>(
     (has_binary && has_parameter).then_some(program)
 }
 
+// String defaults are built from source-proven String parameters and literal
+// fragments. Reuse the ordinary managed String concatenation operation; do not
+// silently apply ToPrimitive/ToString to unknown parameters or objects.
+enum StringDefaultTerm<'n, 'a> {
+    Constant(Vec<u16>),
+    Earlier(&'n IdentifierReference<'a>),
+    Concat,
+}
+
+fn earlier_string<'n, 'a>(
+    initializer: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<Vec<StringDefaultTerm<'n, 'a>>> {
+    enum Task<'n, 'a> {
+        Visit(&'n Expression<'a>, usize),
+        Literal(Vec<u16>),
+        Concat,
+    }
+    let mut pending = vec![Task::Visit(initializer, 0)];
+    let mut program = Vec::new();
+    let mut has_parameter = false;
+    let mut has_concat = false;
+    while let Some(task) = pending.pop() {
+        match task {
+            Task::Visit(expression, depth) => {
+                let (node, depth) = closures::unwrapped_at(expression, depth)?;
+                if depth > 128 {
+                    return None;
+                }
+                if let Some(Constant::String(units)) = constant(node, semantic) {
+                    program.push(StringDefaultTerm::Constant(units));
+                    continue;
+                }
+                match node {
+                    Expression::BinaryExpression(binary)
+                        if binary.operator == BinaryOperator::Addition =>
+                    {
+                        has_concat = true;
+                        pending.push(Task::Concat);
+                        pending.push(Task::Visit(&binary.right, depth + 1));
+                        pending.push(Task::Visit(&binary.left, depth + 1));
+                    }
+                    Expression::TemplateLiteral(template) => {
+                        if template.quasis.len() != template.expressions.len() + 1 {
+                            return None;
+                        }
+                        let mut parts = Vec::new();
+                        for (index, quasi) in template.quasis.iter().enumerate() {
+                            let cooked = quasi.value.cooked.as_ref()?;
+                            parts.push(Task::Literal(cooked.encode_utf16().collect()));
+                            if let Some(expression) = template.expressions.get(index) {
+                                parts.push(Task::Visit(expression, depth + 1));
+                            }
+                        }
+                        has_concat |= parts.len() > 1;
+                        // Postorder concatenation emits every fragment and expression
+                        // in left-to-right order, without recursive source traversal.
+                        for part in parts.drain(1..).rev() {
+                            pending.push(Task::Concat);
+                            pending.push(part);
+                        }
+                        pending.push(parts.pop()?);
+                    }
+                    _ => {
+                        let identifier = earlier_identifier(initializer, node, semantic)?;
+                        has_parameter = true;
+                        program.push(StringDefaultTerm::Earlier(identifier));
+                    }
+                }
+            }
+            Task::Literal(units) => program.push(StringDefaultTerm::Constant(units)),
+            Task::Concat => program.push(StringDefaultTerm::Concat),
+        }
+    }
+    (has_parameter && has_concat).then_some(program)
+}
+
 // Source-order logical default chains model common A1 policy precedence:
 // value ?? override ?? fallback and enabled && flag && value. Each right
 // operand is a pure constant or a resolved earlier parameter. Only the
@@ -432,6 +509,7 @@ pub(crate) fn validate(
                 && earlier_logical_chain(initializer, semantic).is_none()
                 && earlier_conditional(initializer, semantic).is_none()
                 && earlier_numeric(initializer, semantic).is_none()
+                && earlier_string(initializer, semantic).is_none()
             {
                 return Err(unsupported(
                     initializer,
@@ -455,7 +533,8 @@ pub(crate) fn validate_arrow(
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
                     && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
                     && earlier_conditional(initializer.as_ref(), semantic).is_none()
-                    && earlier_numeric(initializer.as_ref(), semantic).is_none()))
+                    && earlier_numeric(initializer.as_ref(), semantic).is_none()
+                    && earlier_string(initializer.as_ref(), semantic).is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -776,6 +855,52 @@ impl Lowering<'_, '_> {
                 );
                 primitive = true;
             }
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
+        }
+        if let Some(program) = earlier_string(initializer, self.semantic) {
+            let mut strings = Vec::new();
+            for term in program {
+                match term {
+                    StringDefaultTerm::Constant(units) => {
+                        strings.push(self.emit_constant_default(
+                            initializer,
+                            &mut consequent,
+                            Constant::String(units),
+                        ));
+                    }
+                    StringDefaultTerm::Earlier(identifier) => {
+                        // The source kinds are independently checked even for
+                        // branches that current call sites might not exercise.
+                        if !self.stored.string(identifier.node_id()) {
+                            return Err(unsupported(
+                                initializer,
+                                "String default requires a proven String parameter",
+                            ));
+                        }
+                        strings.push(self.load_earlier_value(
+                            identifier,
+                            initializer,
+                            &mut consequent,
+                        )?);
+                    }
+                    StringDefaultTerm::Concat => {
+                        let right = strings.pop().expect("validated String right");
+                        let left = strings.pop().expect("validated String left");
+                        let result = self.value(Type::ManagedValue);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::ManagedStringConcat {
+                                result,
+                                left,
+                                right,
+                            },
+                        );
+                        strings.push(result);
+                    }
+                }
+            }
+            let value = strings.pop().expect("validated String result");
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
         if let Some(program) = earlier_numeric(initializer, self.semantic) {
