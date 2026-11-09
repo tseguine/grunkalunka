@@ -4,6 +4,7 @@ use super::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Operation {
     Push,
+    Unshift,
     Pop,
     Shift,
     Reverse,
@@ -12,7 +13,7 @@ pub(super) enum Operation {
 impl Operation {
     pub(super) fn result(self) -> Type {
         match self {
-            Self::Push => Type::Number,
+            Self::Push | Self::Unshift => Type::Number,
             Self::Pop | Self::Shift => Type::ManagedValue,
             Self::Reverse | Self::ToReversed => Type::ManagedArray,
         }
@@ -20,6 +21,7 @@ impl Operation {
     pub(super) fn name(self) -> &'static str {
         match self {
             Self::Push => "push",
+            Self::Unshift => "unshift",
             Self::Pop => "pop",
             Self::Shift => "shift",
             Self::Reverse => "reverse",
@@ -50,6 +52,7 @@ pub(super) fn operation<'e, 'a>(
     Some((
         match name {
             "push" => Operation::Push,
+            "unshift" => Operation::Unshift,
             "pop" => Operation::Pop,
             "shift" => Operation::Shift,
             "reverse" => Operation::Reverse,
@@ -70,6 +73,10 @@ mod tests {
             "const xs=[a];return xs.push(...[b]);",
             "const xs=[a];return xs.push(...[...[b],a]);",
             "const xs=[a];return xs.push(...[]);",
+            "const xs=[];return xs.unshift(a);",
+            "const xs=[a];return xs.unshift(b,a);",
+            "const xs=[a];return xs.unshift(...[b,a]);",
+            "const xs=[a];return xs.unshift()===1?1:0;",
             "const xs=[a];xs.push(b);return xs.length;",
             "const xs=[a];return xs['push'](b);",
             "const xs=[a];return xs.push()===1?1:0;",
@@ -86,6 +93,9 @@ mod tests {
             "const xs=[a];return xs.push(...'abc');",
             "const xs=[a];return xs.push(...[,]);",
             "const xs=[a];return xs.push.call(xs,b);",
+            "const xs=[a];const other=[b];return xs.unshift(...other);",
+            "const xs=[a];return xs.unshift(...[,]);",
+            "const xs=[a];return xs.unshift.call(xs,b);",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             assert!(crate::compile(&source, false).is_err(), "{source}");

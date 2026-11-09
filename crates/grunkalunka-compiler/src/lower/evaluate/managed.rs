@@ -871,13 +871,18 @@ impl Lowering<'_, '_> {
                         | crate::lower::array_mutations::Operation::ToReversed,
                     Mode::Array
                 ) | (
-                    crate::lower::array_mutations::Operation::Push,
+                    crate::lower::array_mutations::Operation::Push
+                        | crate::lower::array_mutations::Operation::Unshift,
                     Mode::Number | Mode::General | Mode::Predicate | Mode::Managed | Mode::Discard
                 )
             )
             && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
         {
-            if operation == crate::lower::array_mutations::Operation::Push {
+            if matches!(
+                operation,
+                crate::lower::array_mutations::Operation::Push
+                    | crate::lower::array_mutations::Operation::Unshift
+            ) {
                 if matches!(mode, Mode::Discard) {
                     work.push(Work::Forget);
                 } else {

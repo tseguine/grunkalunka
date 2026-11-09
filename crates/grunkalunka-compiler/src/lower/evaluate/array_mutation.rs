@@ -28,16 +28,16 @@ impl Lowering<'_, '_> {
                 .push(values.pop().expect("array push argument").id());
             task.awaiting_push = false;
         }
-        let argument = if task.operation == Operation::Push {
-            // Only fresh Array literals are statically spread; their borrowed
-            // elements run under the same ordered argument cursor.
+        let argument = if matches!(task.operation, Operation::Push | Operation::Unshift) {
+            // Fresh Array-literal spreads borrow their elements for append
+            // and prepend, preserving source-ordered argument evaluation.
             let projected = task
                 .push_arguments
                 .get_or_insert_with(|| invocation::all_arguments(task.call));
             if projected.len() > 1000 {
                 return Err(unsupported(
                     task.node,
-                    "at most 1000 push arguments are admitted",
+                    "at most 1000 array mutation arguments are admitted",
                 ));
             }
             projected
@@ -67,7 +67,7 @@ impl Lowering<'_, '_> {
             })?;
             let depth = task.depth + 1 + extra_depth;
             task.argument += 1;
-            task.awaiting_push = task.operation == Operation::Push;
+            task.awaiting_push = matches!(task.operation, Operation::Push | Operation::Unshift);
             let mode = if task.awaiting_push {
                 Mode::Managed
             } else {
@@ -79,9 +79,25 @@ impl Lowering<'_, '_> {
         }
         // All argument effects finish before mutating the saved receiver.
         let array = task.array.expect("completed array mutation receiver");
-        if task.operation == Operation::Push {
+        if matches!(task.operation, Operation::Push | Operation::Unshift) {
+            // In the represented own-data Array domain, reverse + append in
+            // reversed argument order + reverse preserves sparse indexed slots.
+            let prepend = task.operation == Operation::Unshift;
+            let mut arguments = task.push_values;
+            if prepend && !arguments.is_empty() {
+                let reversed = self.value(Type::ManagedArray);
+                Self::push(
+                    regions.current(),
+                    task.node,
+                    Op::ManagedArrayReverse {
+                        result: reversed,
+                        array,
+                    },
+                );
+                arguments.reverse();
+            }
             let mut last = None;
-            for value in task.push_values {
+            for value in arguments {
                 let result = self.value(Type::Number);
                 Self::push(
                     regions.current(),
@@ -93,6 +109,17 @@ impl Lowering<'_, '_> {
                     },
                 );
                 last = Some(result);
+            }
+            if prepend && last.is_some() {
+                let restored = self.value(Type::ManagedArray);
+                Self::push(
+                    regions.current(),
+                    task.node,
+                    Op::ManagedArrayReverse {
+                        result: restored,
+                        array,
+                    },
+                );
             }
             let result = if let Some(result) = last {
                 result
@@ -141,7 +168,7 @@ impl Lowering<'_, '_> {
                 Op::ManagedArrayReverse { result, array },
                 Value::Array(result),
             ),
-            Operation::Push => unreachable!("handled above"),
+            Operation::Push | Operation::Unshift => unreachable!("handled above"),
         };
         Self::push(regions.current(), task.node, op);
         values.push(value);
