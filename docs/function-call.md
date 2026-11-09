@@ -1,4 +1,4 @@
-# Represented Function.call invocations
+# Represented Function.call and fixed-literal Function.apply invocations
 
 The scalar and async lowerers admit direct, non-optional `f.call(thisArg, ...args)`
 syntax for already represented local/runtime functions and module helpers in their
@@ -40,3 +40,21 @@ Maintained native-JS/Node-Wasm/Wasmtime regressions cover saved callees, live ca
 cells, receiver/argument effects, callbacks and factories, raw Promise identities,
 async failures and reaction traces, rejection notifications, typed byte identity,
 wide calls, callee-depth boundaries and compilation on the existing 2 MiB stack.
+
+## Fixed Array-literal `apply` (source-compiled functions)
+
+The ordinary function/callback source route additionally recognizes
+`f.apply(thisArg, [first, second])` when the second argument is a fresh
+literal Array. Fixed, non-elided nested Array-literal spreads are covered by the
+same bounded source-argument expansion as an ordinary `f(...[args])` call.
+Named helpers, local arrows and source-known own-field callables use their
+existing signatures and captured cells; the `thisArg` expression is evaluated
+once and discarded because dynamic `this` is not admitted by these bodies.
+Arguments evaluate in order and the selected callee is saved before those effects.
+
+This is **not general** `Function.prototype.apply`: arbitrary Array variables,
+iterables, array-like objects, non-literal second arguments, omitted argument
+lists, elisions, extra arguments, and observing dynamic `this` are not admitted.
+The compiler must reject such programs rather than pretending that the argument
+Array is one forwarded argument. Unsupported spreads and resource limits retain
+the same diagnostic and validation boundary as existing literal call spreads.
