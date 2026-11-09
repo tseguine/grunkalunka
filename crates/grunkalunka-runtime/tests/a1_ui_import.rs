@@ -453,7 +453,7 @@ fn imported_handler_clamps_numeric_actions_with_math_minmax() {
     for body in [
         "return choose(Math.min(3,Math.max(0,a)),b);",
         "return choose(Math.max(-0,Math.min(a,4)),b);",
-        "let n=0;const result=choose(Math.max((n=1,a),(n=n*10+2,0)),b);return result+(n===12?0:1);",
+        "let n=0;return choose(Math.max((n=1,a),(n=n*10+2,0)),b)+(n===12?0:1);",
     ] {
         compare_composed_source(&format!(
             "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
