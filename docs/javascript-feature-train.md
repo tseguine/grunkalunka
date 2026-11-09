@@ -590,3 +590,14 @@ and existing default length reflection are preserved. Unselected fallback
 branches must still be pure; effectful expressions, outside/later/self reads,
 nonliteral left operands and async/public defaults remain guarded. Compiler
 admission and JS/TS differential tests cover the source forms.
+
+
+An earlier parameter can also be a direct Boolean test in a pure conditional
+parameter default: `function action(enabled, label=enabled?'on':'off')`.
+Each branch is compiled from proven primitive constants and only the selected
+branch executes; the parameter source is read once, after earlier defaults.
+Null/Undefined, empty String, NaN and signed-zero truthiness use the managed
+value lane. Non-prior or effectful tests, effectful or scope-dependent branches,
+public/async defaults and broader parameter expressions remain guarded.
+The existing compiler and JS/TS differential suites exercise named helpers,
+arrows, stored methods and explicit override arguments.
