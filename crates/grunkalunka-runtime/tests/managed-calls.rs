@@ -48,11 +48,26 @@ fn fixed_array_literal_has_own_spreads_preserve_keys_receivers_and_effects() {
 fn fixed_literal_apply_preserves_function_arguments_and_effects() {
     for source in [
         "function add(x,y){return x+y;}export function run(a,b){return add.apply(null,[a,b]);}",
+        "function add(x,y){return x+y;}export function run(a,b){return add['apply'](null,[a,b]);}",
+        "function add(x,y){return x+y;}export function run(a,b){return add['call'](null,a,b);}",
+        "export function run(a,b){const add=(x,y)=>x+y;return add['call'](null,a,b);}",
+        "export function run(a,b){const obj={add:(x,y)=>x+y};return obj.add['apply'](null,[a,b]);}",
+        "function identity(v){return v;}export function run(a,b){const o={v:a};return identity['call'](null,o)===o?1:0;",
         "function add(x,y){return x+y;}export function run(a,b){return add.apply(null,[...[],a,...[b]]);}",
         "export function run(a,b){const add=(x,y)=>x+y;return add.apply(null,[a,b]);}",
         "export function run(a,b){const obj={add:(x,y)=>x+y};return obj.add.apply(null,[a,b]);}",
         "function f(x=3){return x;}export function run(a,b){return f.apply(null,[]);}",
         "function identity(o){return o;}export function run(a,b){const o={};return identity.apply(null,[o])===o?a:b;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
+fn literal_computed_function_methods_preserve_argument_evaluation_order() {
+    for source in [
+        "function f(x){return x;}export function run(a,b){let n=0;const result=f['call'](n=1,n=n*10+2);return n===12&&result===12?1:0;}",
+        "function f(x){return x;}export function run(a,b){let n=0;const result=f['apply'](n=1,[(n=n*10+2,a)]);return n===12&&result===a?1:0;}",
     ] {
         compare_sources(source, source);
     }

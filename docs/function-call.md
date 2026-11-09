@@ -15,6 +15,12 @@ does not await, adopt or handle it. This follows
 [Function.prototype.call](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-function.prototype.call)
 within the represented function/body domains; it does not add general `this`.
 
+Static and literal-computed method names are recognized, including
+`f["call"](...)` and `f["apply"](...)`. Literal keys require no
+coercion and preserve the pristine represented Function-method contract;
+runtime-computed keys, property overrides and extracted method values remain
+outside admission.
+
 A shared view of the original AST selects the target and forwarded arguments for
 input, callback, result and Promise provenance queries. The evaluator retains the
 raw argument list so it can discard `thisArg` in the correct position. Intrinsic
@@ -30,7 +36,7 @@ remain charged to the existing source-depth bound. Await, signature, factory,
 native-stack and guest resource limits remain separate.
 
 The profile assumes pristine represented function properties. Function property
-writes, extracted call-method values, computed access, unrepresented builtin
+writes, extracted call-method values, dynamic computed access, unrepresented builtin
 function objects, arbitrary dynamic `this` and general prototype behavior remain
 separate gaps. Module helpers retain Number inputs; primitive and async profiles
 also admit their represented primitive results. The numeric entry profile keeps

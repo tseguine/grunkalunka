@@ -11,15 +11,24 @@ enum Method {
 
 fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, usize, Method)> {
     let (callee, depth) = closures::unwrapped_at(&call.callee, 0)?;
-    let Expression::StaticMemberExpression(member) = callee else {
-        return None;
+    let (receiver, name) = match callee {
+        Expression::StaticMemberExpression(member) if !member.optional => {
+            (&member.object, member.property.name.as_str())
+        }
+        Expression::ComputedMemberExpression(member) if !member.optional => {
+            // Literal method names need no dynamic property-key conversion.
+            let (Expression::StringLiteral(name), _) =
+                closures::unwrapped_at(&member.expression, depth + 1)?
+            else {
+                return None;
+            };
+            (&member.object, name.value.as_str()?)
+        }
+        _ => return None,
     };
-    if member.optional {
-        return None;
-    }
-    let kind = if member.property.name == "call" {
+    let kind = if name == "call" {
         Method::Call
-    } else if member.property.name == "apply" {
+    } else if name == "apply" {
         // The original literal Array is newly constructed and unobservable
         // after this call. Its ordinary element evaluation can use the same
         // source-ordered argument cursor as a fixed literal spread.
@@ -34,7 +43,7 @@ fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, u
     } else {
         return None;
     };
-    Some((&member.object, depth + 1, kind))
+    Some((receiver, depth + 1, kind))
 }
 
 pub(super) fn callee<'e, 'a>(call: &'e CallExpression<'a>) -> &'e Expression<'a> {
@@ -173,6 +182,9 @@ mod tests {
             "function f(x=3){return x;}export function run(a,b){return +f(...[]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,b]);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f['call'](null,a,b);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f['apply'](null,[a,b]);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f[('call')](null,a,b);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,...[b]]);}",
             "export function run(a,b){const f=(x,y)=>x+y;return f.apply(null,[a,b]);}",
             "export function run(a,b){const o={f:(x,y)=>x+y};return o.f.apply(null,[a,b]);}",
@@ -189,6 +201,8 @@ mod tests {
             "function f(x){return x;}export function run(a,b){return f(...'abc');}",
             "function f(x){return x;}export function run(a,b){return f.call(...[null,a]);}",
             "function f(x){return x;}export function run(a,b){const xs=[a];return f.apply(null,xs);}",
+            "function f(x){return x;}export function run(a,b){const key='call';return f[key](null,a);}",
+            "function f(x){return x;}export function run(a,b){return f['bind'](null,a);}",
             "function f(x){return x;}export function run(a,b){return f.apply(null,[a],b);}",
         ] {
             assert!(crate::compile(source, false).is_err(), "{source}");
