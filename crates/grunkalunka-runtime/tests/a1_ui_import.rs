@@ -452,7 +452,7 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 fn imported_handler_clamps_numeric_actions_with_math_minmax() {
     for body in [
         "return choose(Math.min(3,Math.max(0,a)),b);",
-        "const visible=Math.max(-0,Math.min(a,4));return choose(visible,b);",
+        "return choose(Math.max(-0,Math.min(a,4)),b);",
         "let n=0;const adjusted=Math.max((n=1,a),(n=n*10+2,0));return choose(n===12?adjusted:0,b);",
     ] {
         compare_composed_source(&format!(
