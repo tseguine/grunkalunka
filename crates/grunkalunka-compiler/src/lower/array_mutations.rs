@@ -59,3 +59,31 @@ pub(super) fn operation<'e, 'a>(
         receiver,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn append_is_admitted_only_on_source_proven_arrays() {
+        for body in [
+            "const xs=[];return xs.push(a);",
+            "const xs=[a];return xs.push(b,a);",
+            "const xs=[a];xs.push(b);return xs.length;",
+            "const xs=[a];return xs['push'](b);",
+            "const xs=[a];return xs.push()===1?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+        for body in [
+            "return a.push(b);",
+            "const xs=[a];return xs.push(...[b]);",
+            "const xs=[a];return xs.push.call(xs,b);",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
+    }
+}
