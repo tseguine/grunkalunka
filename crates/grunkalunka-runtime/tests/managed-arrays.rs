@@ -2,6 +2,22 @@
 mod common;
 
 #[test]
+fn unit_assignment_steps_keep_index_order_and_per_iteration_captures() {
+    for step in ["i+=1", "i=i+1"] {
+        let source = format!(
+            "export function run(a,b){{const xs=[1,2,3];let n=0;for(let i=0;i<xs.length;{step}){{n=n*10+(+xs[i]);}}return n;}}"
+        );
+        common::compare_sources(&source, &source);
+    }
+    for step in ["i-=1", "i=i-1"] {
+        let source = format!(
+            "export function run(a,b){{const xs=[11,22];let f=()=>0;for(let i=xs.length-1;i>=0;{step}){{if(i===1)f=()=>+xs[i];}}return f();}}"
+        );
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn reverse_loops_index_the_current_element_and_skip_empty_arrays() {
     for body in [
         "const xs=[1,2,3];let n=0;for(let i=xs.length-1;i>=0;--i)n=n*10+(+xs[i]);return n;",

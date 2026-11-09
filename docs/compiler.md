@@ -2832,7 +2832,10 @@ only write, including in closures. The test still reads the live upper bound
 on every iteration. Descending loops can start at `xs.length - 1` with
 `i >= 0; --i`, or start at `xs.length` and test `i-- > 0`. The body sees
 only the indices visited, including zero when present. Empty arrays skip the
-body. Annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
+body. Header steps may also use `i += 1`, `i -= 1`, `i = i + 1`, or
+`i = i - 1` in the matching direction. The assignment form must read and
+write the same loop binding. Annotations and opaque helper results do not
+prove the range. Existing source depth/size limits still apply.
 
 Objects, dictionaries and Arrays evaluate and save the receiver before the key.
 ManagedKey::Uint32 explicitly means the decimal property key of ToUint32(input);

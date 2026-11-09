@@ -117,17 +117,15 @@ impl Uint32Keys {
         let scope = semantic.scoping();
         let limit = closures::unwrapped(&test.right, 1)?;
         let bound = static_keys::number(limit);
-        let update = if let Some(step) = &source.update {
+        let step = if let Some(step) = &source.update {
             let Expression::Identifier(left) = left else {
                 return None;
             };
             if scope.get_reference(left.reference_id.get()?).symbol_id() != Some(symbol) {
                 return None;
             }
-            let Expression::UpdateExpression(update) = closures::unwrapped(step, 0)? else {
-                return None;
-            };
-            match (update.operator, test.operator) {
+            let (step, direction) = Self::unit_step(step, semantic, symbol)?;
+            match (direction, test.operator) {
                 (UpdateOperator::Increment, BinaryOperator::LessThan)
                     if self.unsigned_value(init) && self.unsigned_value(limit) => {}
                 (UpdateOperator::Decrement, BinaryOperator::GreaterEqualThan)
@@ -136,7 +134,7 @@ impl Uint32Keys {
                     if (bound == Some(-1.0) || bound == Some(0.0)) && self.reverse_start(init) => {}
                 _ => return None,
             }
-            update
+            step
         } else {
             // for (let i = xs.length; i-- > 0;) visits length - 1 through 0.
             let Expression::UpdateExpression(update) = left else {
@@ -150,9 +148,8 @@ impl Uint32Keys {
             {
                 return None;
             }
-            update
+            target_identifier(&update.argument, 0).ok()??
         };
-        let step = target_identifier(&update.argument, 0).ok()??;
         if scope.get_reference(step.reference_id.get()?).symbol_id() != Some(symbol)
             || scope
                 .get_resolved_references(symbol)
@@ -161,6 +158,59 @@ impl Uint32Keys {
             return None;
         }
         Some(symbol)
+    }
+
+    fn unit_step<'e, 'a>(
+        expression: &'e Expression<'a>,
+        semantic: &Semantic<'_>,
+        symbol: SymbolId,
+    ) -> Option<(&'e IdentifierReference<'a>, UpdateOperator)> {
+        let step = closures::unwrapped(expression, 0)?;
+        if let Expression::UpdateExpression(update) = step {
+            return Some((
+                target_identifier(&update.argument, 0).ok()??,
+                update.operator,
+            ));
+        }
+        let Expression::AssignmentExpression(assignment) = step else {
+            return None;
+        };
+        let target =
+            target_identifier(assignment.left.as_simple_assignment_target()?, 0).ok()??;
+        let right = closures::unwrapped(&assignment.right, 1)?;
+        let direction = match assignment.operator {
+            AssignmentOperator::Addition if static_keys::number(right) == Some(1.0) => {
+                UpdateOperator::Increment
+            }
+            AssignmentOperator::Subtraction if static_keys::number(right) == Some(1.0) => {
+                UpdateOperator::Decrement
+            }
+            AssignmentOperator::Assign => {
+                let Expression::BinaryExpression(binary) = right else {
+                    return None;
+                };
+                let Expression::Identifier(read) = closures::unwrapped(&binary.left, 2)? else {
+                    return None;
+                };
+                if semantic
+                    .scoping()
+                    .get_reference(read.reference_id.get()?)
+                    .symbol_id()
+                    != Some(symbol)
+                    || closures::unwrapped(&binary.right, 2).and_then(static_keys::number)
+                        != Some(1.0)
+                {
+                    return None;
+                }
+                match binary.operator {
+                    BinaryOperator::Addition => UpdateOperator::Increment,
+                    BinaryOperator::Subtraction => UpdateOperator::Decrement,
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        };
+        Some((target, direction))
     }
 
     fn reverse_start(&self, init: &Expression<'_>) -> bool {
@@ -233,6 +283,15 @@ mod tests {
         for (header, body, admitted) in [
             ("let i=0;i<xs.length;i++", "", true),
             ("let i=1;i<3;++i", "", true),
+            ("let i=0;i<xs.length;i+=1", "", true),
+            ("let i=0;i<xs.length;i=i+1", "", true),
+            ("let i=xs.length-1;i>=0;i-=1", "", true),
+            ("let i=xs.length-1;i>=0;i=i-1", "", true),
+            ("let i=0;i<xs.length;i+=0.5", "", false),
+            ("let i=0;i<xs.length;i+=2", "", false),
+            ("let i=0;i<xs.length;i=b+1", "", false),
+            ("let i=0;i<xs.length;i=1-i", "", false),
+            ("let i=0;i<xs.length;i+=(a=1)", "", false),
             ("let i=xs.length-1;i>=0;--i", "", true),
             ("let i=xs.length;i-- > 0;", "", true),
             ("let i=xs.length;i-- >= 0;", "", false),
