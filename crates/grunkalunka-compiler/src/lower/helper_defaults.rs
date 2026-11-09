@@ -138,9 +138,10 @@ fn earlier_field<'n, 'a>(
             return None;
         }
         let (object, key) = match node {
-            Expression::StaticMemberExpression(member) if !member.optional => {
-                (&member.object, member.property.name.encode_utf16().collect())
-            }
+            Expression::StaticMemberExpression(member) if !member.optional => (
+                &member.object,
+                member.property.name.encode_utf16().collect(),
+            ),
             Expression::ComputedMemberExpression(member) if !member.optional => {
                 (&member.object, static_keys::literal(&member.expression)?)
             }
@@ -171,7 +172,9 @@ fn pure_operand<'n, 'a>(
         return Some(DefaultOperand::Field { receiver, path });
     }
     Some(DefaultOperand::Earlier(earlier_identifier(
-        initializer, operand, semantic,
+        initializer,
+        operand,
+        semantic,
     )?))
 }
 
@@ -360,7 +363,9 @@ fn comparison_operand<'n, 'a>(
         };
     }
     Some(NumericComparisonOperand::Earlier(earlier_identifier(
-        initializer, operand, semantic,
+        initializer,
+        operand,
+        semantic,
     )?))
 }
 
@@ -410,9 +415,13 @@ fn earlier_strict_equality<'n, 'a>(
     };
     let left = pure_operand(initializer, &binary.left, semantic)?;
     let right = pure_operand(initializer, &binary.right, semantic)?;
-    if !matches!(&left, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. })
-        && !matches!(&right, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. })
-    {
+    if !matches!(
+        &left,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) && !matches!(
+        &right,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) {
         return None;
     }
     Some((negated, left, right))
@@ -463,7 +472,10 @@ fn earlier_logical_chain<'n, 'a>(
         return None;
     }
     let original = pure_operand(expression, node, semantic)?;
-    if !matches!(&original, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }) {
+    if !matches!(
+        &original,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) {
         return None;
     }
     steps.reverse();
@@ -484,9 +496,13 @@ fn earlier_conditional<'n, 'a>(
     let Expression::ConditionalExpression(conditional) = node else {
         return None;
     };
-    let test = if let Some(operand) = pure_operand(expression, &conditional.test, semantic)
-        .filter(|operand| matches!(operand, DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }))
-    {
+    let test = if let Some(operand) =
+        pure_operand(expression, &conditional.test, semantic).filter(|operand| {
+            matches!(
+                operand,
+                DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+            )
+        }) {
         DefaultCondition::Truthy(operand)
     } else if let Some((operator, left, right)) =
         earlier_comparison(expression, &conditional.test, semantic)
@@ -705,15 +721,20 @@ pub(crate) fn validate_arrow(
             && (!allowed
                 || (constant(initializer.as_ref(), semantic).is_none()
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
-                    && earlier_field(initializer.as_ref(), initializer.as_ref(), semantic).is_none()
+                    && earlier_field(initializer.as_ref(), initializer.as_ref(), semantic)
+                        .is_none()
                     && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
                     && earlier_conditional(initializer.as_ref(), semantic).is_none()
                     && earlier_numeric(initializer.as_ref(), semantic).is_none()
                     && earlier_string(initializer.as_ref(), semantic).is_none()
                     && earlier_comparison(initializer.as_ref(), initializer.as_ref(), semantic)
                         .is_none()
-                    && earlier_strict_equality(initializer.as_ref(), initializer.as_ref(), semantic)
-                        .is_none()))
+                    && earlier_strict_equality(
+                        initializer.as_ref(),
+                        initializer.as_ref(),
+                        semantic,
+                    )
+                    .is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -817,8 +838,7 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
-        if let Some((test, when_true, when_false)) =
-            earlier_conditional(initializer, self.semantic)
+        if let Some((test, when_true, when_false)) = earlier_conditional(initializer, self.semantic)
         {
             let condition = match test {
                 DefaultCondition::Truthy(operand) => {
@@ -835,28 +855,14 @@ impl Lowering<'_, '_> {
                     );
                     result
                 }
-                DefaultCondition::NumericComparison(operator, left, right) => {
-                    self.emit_numeric_comparison(
-                        initializer,
-                        &mut consequent,
-                        operator,
-                        left,
-                        right,
-                    )?
-                }
+                DefaultCondition::NumericComparison(operator, left, right) => self
+                    .emit_numeric_comparison(initializer, &mut consequent, operator, left, right)?,
                 DefaultCondition::StrictEquality(negated, left, right) => {
-                    self.emit_strict_equality(
-                        initializer,
-                        &mut consequent,
-                        negated,
-                        left,
-                        right,
-                    )?
+                    self.emit_strict_equality(initializer, &mut consequent, negated, left, right)?
                 }
             };
             let mut true_region = self.region(initializer);
-            let true_value =
-                self.emit_default_operand(initializer, &mut true_region, when_true)?;
+            let true_value = self.emit_default_operand(initializer, &mut true_region, when_true)?;
             true_region.exit = Exit::Yield(true_value);
             let mut false_region = self.region(initializer);
             let false_value =
@@ -917,9 +923,9 @@ impl Lowering<'_, '_> {
                 );
                 original = result;
             }
-            return Ok(self.finish_binding_default(
-                parameter, output, pending, consequent, original,
-            ));
+            return Ok(
+                self.finish_binding_default(parameter, output, pending, consequent, original)
+            );
         }
         if let Some((receiver, path)) = earlier_field(initializer, initializer, self.semantic) {
             let value = self.emit_default_field(initializer, &mut consequent, receiver, path)?;
@@ -1113,13 +1119,8 @@ impl Lowering<'_, '_> {
         if let Some((operator, left, right)) =
             earlier_comparison(initializer, initializer, self.semantic)
         {
-            let condition = self.emit_numeric_comparison(
-                initializer,
-                &mut consequent,
-                operator,
-                left,
-                right,
-            )?;
+            let condition =
+                self.emit_numeric_comparison(initializer, &mut consequent, operator, left, right)?;
             let general = self.value(Type::General);
             Self::push(
                 &mut consequent,
@@ -1143,13 +1144,8 @@ impl Lowering<'_, '_> {
         if let Some((negated, left, right)) =
             earlier_strict_equality(initializer, initializer, self.semantic)
         {
-            let condition = self.emit_strict_equality(
-                initializer,
-                &mut consequent,
-                negated,
-                left,
-                right,
-            )?;
+            let condition =
+                self.emit_strict_equality(initializer, &mut consequent, negated, left, right)?;
             let general = self.value(Type::General);
             Self::push(
                 &mut consequent,
@@ -1176,11 +1172,7 @@ impl Lowering<'_, '_> {
                 match term {
                     NumericDefaultTerm::Constant(value) => {
                         let result = self.value(Type::Number);
-                        Self::push(
-                            &mut consequent,
-                            initializer,
-                            Op::Constant { result, value },
-                        );
+                        Self::push(&mut consequent, initializer, Op::Constant { result, value });
                         numbers.push(result);
                     }
                     NumericDefaultTerm::Earlier(identifier) => {
@@ -1517,7 +1509,9 @@ impl Lowering<'_, '_> {
     ) -> Result<ValueId, String> {
         match operand {
             DefaultOperand::Constant(value) => Ok(self.emit_constant_default(node, region, value)),
-            DefaultOperand::Earlier(identifier) => self.load_earlier_value(identifier, node, region),
+            DefaultOperand::Earlier(identifier) => {
+                self.load_earlier_value(identifier, node, region)
+            }
             DefaultOperand::Field { receiver, path } => {
                 self.emit_default_field(node, region, receiver, path)
             }
