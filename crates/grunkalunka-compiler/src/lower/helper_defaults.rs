@@ -324,6 +324,33 @@ fn earlier_comparison<'n, 'a>(
     Some((operator, left, right))
 }
 
+// Strict equality is useful for routing A1 actions by name, flag and identity.
+// Both operands must be pure literals or resolved earlier parameters. Keep
+// coercive == / != separate: they do not share strict identity semantics.
+fn earlier_strict_equality<'n, 'a>(
+    initializer: &Expression<'a>,
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<(bool, DefaultOperand<'n, 'a>, DefaultOperand<'n, 'a>)> {
+    let (node, _) = closures::unwrapped_at(expression, 0)?;
+    let Expression::BinaryExpression(binary) = node else {
+        return None;
+    };
+    let negated = match binary.operator {
+        BinaryOperator::StrictEquality => false,
+        BinaryOperator::StrictInequality => true,
+        _ => return None,
+    };
+    let left = pure_operand(initializer, &binary.left, semantic)?;
+    let right = pure_operand(initializer, &binary.right, semantic)?;
+    if !matches!(&left, DefaultOperand::Earlier(_))
+        && !matches!(&right, DefaultOperand::Earlier(_))
+    {
+        return None;
+    }
+    Some((negated, left, right))
+}
+
 enum DefaultCondition<'n, 'a> {
     Earlier(&'n IdentifierReference<'a>),
     NumericComparison(
@@ -331,6 +358,7 @@ enum DefaultCondition<'n, 'a> {
         NumericComparisonOperand<'n, 'a>,
         NumericComparisonOperand<'n, 'a>,
     ),
+    StrictEquality(bool, DefaultOperand<'n, 'a>, DefaultOperand<'n, 'a>),
 }
 
 // Source-order logical default chains model common A1 policy precedence:
@@ -390,10 +418,14 @@ fn earlier_conditional<'n, 'a>(
         earlier_identifier(expression, &conditional.test, semantic)
     {
         DefaultCondition::Earlier(identifier)
-    } else {
-        let (operator, left, right) =
-            earlier_comparison(expression, &conditional.test, semantic)?;
+    } else if let Some((operator, left, right)) =
+        earlier_comparison(expression, &conditional.test, semantic)
+    {
         DefaultCondition::NumericComparison(operator, left, right)
+    } else {
+        let (negated, left, right) =
+            earlier_strict_equality(expression, &conditional.test, semantic)?;
+        DefaultCondition::StrictEquality(negated, left, right)
     };
     Some((
         test,
@@ -580,6 +612,7 @@ pub(crate) fn validate(
                 && earlier_numeric(initializer, semantic).is_none()
                 && earlier_string(initializer, semantic).is_none()
                 && earlier_comparison(initializer, initializer, semantic).is_none()
+                && earlier_strict_equality(initializer, initializer, semantic).is_none()
             {
                 return Err(unsupported(
                     initializer,
@@ -606,6 +639,8 @@ pub(crate) fn validate_arrow(
                     && earlier_numeric(initializer.as_ref(), semantic).is_none()
                     && earlier_string(initializer.as_ref(), semantic).is_none()
                     && earlier_comparison(initializer.as_ref(), initializer.as_ref(), semantic)
+                        .is_none()
+                    && earlier_strict_equality(initializer.as_ref(), initializer.as_ref(), semantic)
                         .is_none()))
         {
             return Err(unsupported(
@@ -733,6 +768,15 @@ impl Lowering<'_, '_> {
                         initializer,
                         &mut consequent,
                         operator,
+                        left,
+                        right,
+                    )?
+                }
+                DefaultCondition::StrictEquality(negated, left, right) => {
+                    self.emit_strict_equality(
+                        initializer,
+                        &mut consequent,
+                        negated,
                         left,
                         right,
                     )?
@@ -1020,6 +1064,36 @@ impl Lowering<'_, '_> {
             );
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
+        if let Some((negated, left, right)) =
+            earlier_strict_equality(initializer, initializer, self.semantic)
+        {
+            let condition = self.emit_strict_equality(
+                initializer,
+                &mut consequent,
+                negated,
+                left,
+                right,
+            )?;
+            let general = self.value(Type::General);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::Pack {
+                    result: general,
+                    input: condition,
+                },
+            );
+            let value = self.value(Type::ManagedValue);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::ManagedPrimitive {
+                    result: value,
+                    input: general,
+                },
+            );
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
+        }
         if let Some(program) = earlier_numeric(initializer, self.semantic) {
             let mut numbers = Vec::new();
             for term in program {
@@ -1120,6 +1194,44 @@ impl Lowering<'_, '_> {
         })?;
         let value = self.emit_constant_default(initializer, &mut consequent, folded);
         Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
+    }
+
+    fn emit_strict_equality(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        negated: bool,
+        left: DefaultOperand<'_, '_>,
+        right: DefaultOperand<'_, '_>,
+    ) -> Result<ValueId, String> {
+        // The operands are already proven pure. Nonetheless, materialize them
+        // in source order so references retain identity and no coercion occurs.
+        let left = self.emit_default_operand(node, region, left)?;
+        let right = self.emit_default_operand(node, region, right)?;
+        let equal = self.value(Type::Predicate);
+        Self::push(
+            region,
+            node,
+            Op::ManagedEqual {
+                result: equal,
+                left,
+                right,
+            },
+        );
+        if negated {
+            let result = self.value(Type::Predicate);
+            Self::push(
+                region,
+                node,
+                Op::Not {
+                    result,
+                    input: equal,
+                },
+            );
+            Ok(result)
+        } else {
+            Ok(equal)
+        }
     }
 
     fn emit_numeric_comparison_operand(
