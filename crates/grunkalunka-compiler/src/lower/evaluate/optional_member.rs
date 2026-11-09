@@ -75,7 +75,7 @@ impl Lowering<'_, '_> {
         let string = receiver == Some(Type::ManagedValue);
         let dictionary = self.stored.optional_dictionary(object.node_id());
         let string_key = matches!(&key, Key::Runtime(key)
-            if self.stored.string(key.node_id()) && (dictionary || (receiver == Some(Type::ManagedObject) && static_keys::own_string_name(key, self.semantic, depth+2))));
+            if self.stored.string(key.node_id()) && (dictionary || (receiver == Some(Type::ManagedObject) && self.stored.record_names.contains(key,depth+2))));
         if let Key::Runtime(key) = &key
             && !string_key
             && (!string || !self.stored.number(key.node_id()))

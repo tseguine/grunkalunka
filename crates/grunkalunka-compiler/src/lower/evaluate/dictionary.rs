@@ -56,9 +56,7 @@ impl Lowering<'_, '_> {
             Type::ManagedObject | Type::ManagedArray if uint32 => {
                 Some((Mode::managed(receiver), true))
             }
-            Type::ManagedObject
-                if static_keys::own_string_name(&member.expression, self.semantic, depth) =>
-            {
+            Type::ManagedObject if self.stored.record_names.contains(&member.expression, depth) => {
                 Some((Mode::Object, false))
             }
             _ => None,

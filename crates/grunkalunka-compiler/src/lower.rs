@@ -51,11 +51,13 @@ mod object_intrinsics;
 pub(super) use module_functions::plan as plan_module_functions;
 mod pending;
 mod promises;
+mod record_names;
 #[cfg(test)]
 mod source_block_tests;
 mod source_control;
 mod source_errors;
 mod static_keys;
+use record_names::RecordNames;
 mod uint32_keys;
 use uint32_keys::Uint32Keys;
 mod storage;

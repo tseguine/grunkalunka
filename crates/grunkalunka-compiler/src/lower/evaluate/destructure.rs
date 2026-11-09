@@ -397,11 +397,7 @@ impl Lowering<'_, '_> {
                             let string_key = self.stored.string(key.node_id())
                                 && (dictionary
                                     || (receiver == Some(Type::ManagedObject)
-                                        && static_keys::own_string_name(
-                                            key,
-                                            self.semantic,
-                                            depth + 1,
-                                        )));
+                                        && self.stored.record_names.contains(key, depth + 1)));
                             if !uint32 && !string_key {
                                 return Err(unsupported(
                                     node,

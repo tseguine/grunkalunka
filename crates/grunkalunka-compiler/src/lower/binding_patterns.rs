@@ -319,11 +319,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             || (self.stored.string(key.node_id())
                                 && (dictionary
                                     || (receiver == Type::ManagedObject
-                                        && static_keys::own_string_name(
-                                            key,
-                                            self.semantic,
-                                            depth,
-                                        )))))
+                                        && self.stored.record_names.contains(key, depth)))))
                     {
                         mark_live_arrays(&containers, &mut steps);
                         steps.push(BindingStep::ComputedField {
