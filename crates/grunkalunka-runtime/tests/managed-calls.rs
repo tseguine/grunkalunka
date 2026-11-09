@@ -45,6 +45,20 @@ fn fixed_array_literal_has_own_spreads_preserve_keys_receivers_and_effects() {
 }
 
 #[test]
+fn fixed_literal_apply_preserves_function_arguments_and_effects() {
+    for source in [
+        "function add(x,y){return x+y;}export function run(a,b){return add.apply(null,[a,b]);}",
+        "function add(x,y){return x+y;}export function run(a,b){return add.apply(null,[...[],a,...[b]]);}",
+        "export function run(a,b){const add=(x,y)=>x+y;return add.apply(null,[a,b]);}",
+        "export function run(a,b){const obj={add:(x,y)=>x+y};return obj.add.apply(null,[a,b]);}",
+        "function f(x=3){return x;}export function run(a,b){return f.apply(null,[]);}",
+        "function identity(o){return o;}export function run(a,b){const o={};return identity.apply(null,[o])===o?a:b;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
 fn literal_call_spreads_preserve_reference_and_callback_inputs() {
     for source in [
         "function f(x,y){x.v=y;return x;}export function run(a,b){const o={v:a};return f(...[o,b])===o&&o.v===b?1:0;}",
