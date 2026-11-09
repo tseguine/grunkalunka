@@ -3,6 +3,49 @@ use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 use wasmtime::Trap;
 
 #[test]
+fn math_min_and_max_preserve_js_number_order_and_signed_zero() {
+    compare_helper_sources(&[
+        "export function run(a,b){return Math.min(a,b);}",
+        "export function run(a,b){return Math.max(a,b);}",
+        "export function run(a,b){return Math.min();}",
+        "export function run(a,b){return Math.max();}",
+        "export function run(a,b){return Math.min(-0,+0);}",
+        "export function run(a,b){return Math.max(-0,+0);}",
+        "export function run(a,b){return Math.min(+0,-0);}",
+        "export function run(a,b){return Math.max(+0,-0);}",
+        "export function run(a,b){return Math.min(a);}",
+        "export function run(a,b){return Math.max(b);}",
+        "export function run(a,b){return Math.min(NaN,a);}",
+        "export function run(a,b){return Math.max(a,NaN,b);}",
+        "export function run(a,b){return Math.min(Infinity,a,b);}",
+        "export function run(a,b){return Math.max(-Infinity,a,b);}",
+        "export function run(a,b){return Math.min(true,b,0);}",
+        "export function run(a,b){return Math.max(null,a);}",
+        "export function run(a,b){return Math.min(undefined,a);}",
+        "export function run(a,b){return Math.max(a,b,Math.min(b,a));}",
+        "export function run(a,b){return Math.min(Math.abs(-a),b);}",
+        "export function run(a,b){let n=0;return Math.max(n=n*10+1,a,n=n*10+2,b,n=n*10+3)+n;}",
+        "export function run(a,b){let a0=a;return Math.min(a0,(a0=b),a0)+a0;}",
+    ]);
+}
+
+#[test]
+fn math_minmax_reject_unrepresented_dynamic_and_spread_calls() {
+    for body in [
+        "return Math['min'](a,b);",
+        "return Math.max(...[a,b]);",
+        "return Math.min(a,...[b]);",
+        "return Math.max?.(a,b);",
+        "return Math.min('2',a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn direct_calls_preserve_argument_snapshots_and_parameter_isolation() {
     let artifact = compile(
         "function pack(x,y) { x=x*10+y; return x; } export function run(a,b) { let x=5; const result=pack(x,x=3); return result*10+x; }",
