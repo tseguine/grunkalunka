@@ -68,6 +68,28 @@ fn array_push_appends_after_argument_effects_and_returns_length() {
 }
 
 #[test]
+fn array_unshift_prepends_after_arguments_and_preserves_sparse_slots() {
+    for source in [
+        "export function run(a,b){const xs=[];return xs.unshift()===0&&xs.length===0?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.unshift()===1&&xs[0]===a?1:0;}",
+        "export function run(a,b){const xs=[a,b];return xs.unshift(b,a)===4&&xs[0]===b&&xs[1]===a&&xs[2]===a&&xs[3]===b?1:0;}",
+        "export function run(a,b){const xs=[,a,,b];const n=xs.unshift(b);return n===5&&xs[0]===b&&!Object.hasOwn(xs,1)&&xs[2]===a&&!Object.hasOwn(xs,3)&&xs[4]===b?1:0;}",
+        "export function run(a,b){const xs=[a];let n=0;const count=xs.unshift((n=1,b),(n=n*10+2,a));return count===3&&n===12&&xs[0]===b&&xs[1]===a?1:0;}",
+        "export function run(a,b){const xs=[a];const alias=xs;const count=xs.unshift(b);return count===2&&xs===alias&&alias[0]===b&&alias[1]===a?1:0;}",
+        "export function run(a,b){const xs=[a];const count=xs.unshift((xs.length=0,b));return count===1&&xs[0]===b?1:0;}",
+        "export function run(a,b){const xs=[a];const count=xs.unshift(xs.unshift(b));return count===3&&xs[0]===2&&xs[1]===b&&xs[2]===a?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.unshift(...[b,a])===3&&xs[0]===b&&xs[1]===a?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.unshift(...[...[b],a])===3&&xs[0]===b&&xs[1]===a?1:0;}",
+        "export function run(a,b){const xs=[a];return xs.unshift('x',null,false,undefined)===5&&xs[0]==='x'&&xs[1]===null&&xs[2]===false&&xs[3]===undefined?1:0;}",
+        "export function run(a,b){const xs=[a,b];xs.unshift(a);return xs.shift()===a&&xs.shift()===a&&xs.shift()===b&&xs.length===0?1:0;}",
+        "export function run(a,b){const xs=[a];xs['01']=b;xs.unshift(b);return xs['01']===b&&xs[0]===b&&xs[1]===a?1:0;}",
+        "export function run(a,b){const xs=[a];xs.length=4294967295;return xs.unshift()===4294967295&&xs.length===4294967295?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
 fn array_pop_removes_current_elements_holes_and_sparse_extremes() {
     for source in [
         "export function run(a,b){const x=[];return x.pop()===undefined&&x.length===0?1:0;}",

@@ -463,6 +463,19 @@ fn imported_handler_builds_lists_with_array_push() {
 }
 
 #[test]
+fn imported_handler_prioritizes_actions_with_array_unshift() {
+    for body in [
+        "const actions=[a,b];const count=actions.unshift(b);return choose(count===3&&actions[0]===b?a:0,b);",
+        "const actions=[a];let step=0;const count=actions.unshift((step=1,b),(step=step*10+2,a));return choose(count===3&&step===12&&actions[0]===b?a:0,b);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_service_observes_private_default_results_through_primitive_comparisons() {
     for source in [
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";

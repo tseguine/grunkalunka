@@ -46,9 +46,11 @@ pub(super) fn call(call: &CallExpression<'_>) -> Option<Mutation> {
     let (operation, receiver) = array_mutations::operation(call)?;
     match operation {
         array_mutations::Operation::ToReversed => None,
-        // A push writes a runtime-selected index; invalidate stale element
-        // proofs conservatively when it may be observed through aliases.
-        array_mutations::Operation::Push => Some(Mutation::AnyKeyDelete(receiver.node_id())),
+        // Appends and prepends can change runtime-selected indexed elements;
+        // conservatively invalidate stale element proofs through aliases.
+        array_mutations::Operation::Push | array_mutations::Operation::Unshift => {
+            Some(Mutation::AnyKeyDelete(receiver.node_id()))
+        }
         array_mutations::Operation::Pop | array_mutations::Operation::Shift => {
             Some(Mutation::IndexDelete(receiver.node_id()))
         }

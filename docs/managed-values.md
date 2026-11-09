@@ -542,6 +542,22 @@ Arbitrary array-like receivers, overridden methods, dynamic iterables or
 array-variable spreads, and catchable RangeError at the maximum possible length
 remain outside the contract.
 
+### Prepending to source-proven Arrays
+
+`Array.prototype.unshift` prepends zero or more values on the same Array and
+returns its new length. The receiver is captured first, and all argument
+expressions (including nested fixed Array-literal spreads) run left to right
+before indexed properties change. In the admitted own-data Array domain,
+the compiler reuses sparse-preserving reverse and checked append operations
+with reversed argument order, then restores the Array's orientation. Holes
+remain holes, non-index properties retain their keys, and aliases retain
+the same Array identity. An empty argument list simply reads the length.
+
+As with `push`, this slice requires a source-proven built-in Array
+receiver and at most 1,000 fixed arguments. Borrowed methods, overwritten
+intrinsics, general iterables and catchable length-overflow RangeErrors are
+outside the contract; unsupported programs must not be treated as admitted.
+
 ## Ordinary-object property storage
 
 Property keys are lossless UTF-16 vectors, including NUL and lone surrogates.
