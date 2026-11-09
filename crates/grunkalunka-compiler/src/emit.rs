@@ -1123,6 +1123,10 @@ impl Emitter<'_> {
                         self.get(*input);
                         self.output.push_str("f64.trunc\n");
                     }
+                    Unary::Fround => {
+                        self.get(*input);
+                        self.output.push_str("f32.demote_f64\nf64.promote_f32\n");
+                    }
                     Unary::Plus => self.get(*input),
                     Unary::Negate => {
                         self.get(*input);

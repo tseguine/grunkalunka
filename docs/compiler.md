@@ -544,7 +544,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   renew it. The existing engine stack guard also remains in place. Neither is a
   static termination proof or a guarantee for arbitrary host-thread stacks.
 - The self-contained numeric execution profile provides pristine specified
-  Math.abs, Math.sqrt, Math.floor, Math.ceil and Math.trunc intrinsics, rather than
+  Math.abs, Math.sqrt, Math.floor, Math.ceil, Math.trunc and Math.fround intrinsics, rather than
   references to an external JavaScript realm's mutable Math object. Each requires
   a nonoptional static call and an actual unresolved semantic value reference for
   Math. An omitted first argument produces Number NaN. A supplied first operand
@@ -557,7 +557,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   after all arguments finish. Missing inputs do not read a source `undefined` or
   `NaN` binding.
   With a supplied primitive, abs emits `f64.abs` after conversion;
-  sqrt/floor/ceil/trunc emit their corresponding `f64` opcode. Conversion is pure
+  sqrt/floor/ceil/trunc emit their corresponding `f64` opcode; fround emits
+  `f32.demote_f64` followed by `f64.promote_f32` for correctly rounded
+  Float32 results represented as JavaScript binary64 Numbers. Conversion is pure
   for these admitted primitive kinds; effectful object conversion is not admitted.
   No integer conversion or generated arithmetic helper is added.
   Non-NaNs compare exact binary64 bits; NaNs compare by class, not payload/sign.
@@ -573,6 +575,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   [Math.floor](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.floor),
   [Math.ceil](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.ceil),
   [Math.trunc](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.trunc)
+  [Math.fround](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.fround)
   and [Wasm floating numerics](https://webassembly.github.io/spec/core/exec/numerics.html#op-fsqrt).
 - The same pristine numeric Math profile also admits `Math.min` and
   `Math.max` with zero to 1,000 arguments. The zero-argument results are
