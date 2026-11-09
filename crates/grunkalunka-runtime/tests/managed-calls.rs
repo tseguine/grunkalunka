@@ -57,6 +57,10 @@ fn fixed_literal_apply_preserves_function_arguments_and_effects() {
         "export function run(a,b){const add=(x,y)=>x+y;return add.apply(null,[a,b]);}",
         "export function run(a,b){const obj={add:(x,y)=>x+y};return obj.add.apply(null,[a,b]);}",
         "function f(x=3){return x;}export function run(a,b){return f.apply(null,[]);}",
+        "function f(x=3){return x;}export function run(a,b){return f.apply();}",
+        "function f(x=3){return x;}export function run(a,b){return f.apply(null);}",
+        "export function run(a,b){const f=(x=3)=>x;return f['apply']();}",
+        "export function run(a,b){const f=(x=3)=>x;let n=0;const result=f['apply'](n=1);return n===1&&result===3?1:0;}",
         "function identity(o){return o;}export function run(a,b){const o={};return identity.apply(null,[o])===o?a:b;}",
     ] {
         compare_sources(source, source);

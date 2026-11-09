@@ -29,15 +29,16 @@ fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, u
     let kind = if name == "call" {
         Method::Call
     } else if name == "apply" {
-        // The original literal Array is newly constructed and unobservable
-        // after this call. Its ordinary element evaluation can use the same
-        // source-ordered argument cursor as a fixed literal spread.
-        if call.arguments.len() != 2 {
-            return None;
-        }
-        let (array, _) = closures::unwrapped_at(call.arguments[1].as_expression()?, 0)?;
-        if !matches!(array, Expression::ArrayExpression(_)) {
-            return None;
+        // A missing argument list is empty in Function.prototype.apply.
+        // A supplied fresh literal Array can use the ordered argument cursor.
+        if let Some(list) = call.arguments.get(1) {
+            if call.arguments.len() != 2 {
+                return None;
+            }
+            let (array, _) = closures::unwrapped_at(list.as_expression()?, 0)?;
+            if !matches!(array, Expression::ArrayExpression(_)) {
+                return None;
+            }
         }
         Method::Apply
     } else {
@@ -182,6 +183,9 @@ mod tests {
             "function f(x=3){return x;}export function run(a,b){return +f(...[]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,b]);}",
+            "function f(x=3){return x;}export function run(a,b){return f.apply();}",
+            "function f(x=3){return x;}export function run(a,b){return f.apply(null);}",
+            "export function run(a,b){const f=(x=3)=>x;return f['apply']();}",
             "function f(x,y){return x+y;}export function run(a,b){return f['call'](null,a,b);}",
             "function f(x,y){return x+y;}export function run(a,b){return f['apply'](null,[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f[('call')](null,a,b);}",

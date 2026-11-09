@@ -58,9 +58,14 @@ existing signatures and captured cells; the `thisArg` expression is evaluated
 once and discarded because dynamic `this` is not admitted by these bodies.
 Arguments evaluate in order and the selected callee is saved before those effects.
 
+An omitted argument array is admitted as an empty argument list:
+`f.apply()` and `f.apply(thisArg)` call the function with no forwarded
+arguments. A supplied `thisArg` is still evaluated once in source order,
+and parameter defaults run normally.
+
 This is **not general** `Function.prototype.apply`: arbitrary Array variables,
-iterables, array-like objects, non-literal second arguments, omitted argument
-lists, elisions, extra arguments, and observing dynamic `this` are not admitted.
+iterables, array-like objects, non-literal second arguments, elisions,
+extra arguments, and observing dynamic `this` are not admitted.
 The compiler must reject such programs rather than pretending that the argument
 Array is one forwarded argument. Unsupported spreads and resource limits retain
 the same diagnostic and validation boundary as existing literal call spreads.

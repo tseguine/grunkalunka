@@ -1231,8 +1231,8 @@ test('unary earlier defaults retain the exact former numeric compiler guard',()=
 
 test('literal call spreads retain exact former helper and runtime compiler guards',()=>{
  const hashes=["afd7ccddb732386dda2b269148a67fb67c7311726f86751e7a63822500e66ebe", "38f22449c74a1bff368ddab459108565f2d7e2c873144ab3bfeb7040337b6864"];
- // Keep the original two source hashes, while counting newly admitted cases.
- assert.equal(literalCallSpreadPrograms.length,18);
+ // Keep the two original source hashes, plus computed and empty-apply variants.
+ assert.equal(literalCallSpreadPrograms.length,20);
  for(const [index,[id,source]]of literalCallSpreadOriginals.entries()) {
   const pair=programSources(literalCallSpreadPrograms.find(row=>row[0]==='literal-call-spread-'+id));
   assert.equal(createHash('sha256').update(source).digest('hex'),hashes[index]);
