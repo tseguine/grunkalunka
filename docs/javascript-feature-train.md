@@ -677,3 +677,18 @@ the default. Self/later/outer parameter reads, effects, nonprimitive constants,
 coercive equality and async/public defaults remain guarded. Focused compiler
 admission/rejection and JS/TS differential fixtures cover these cases, pending
 compiled execution verification.
+
+Earlier-parameter defaults can now read a static own property from a
+source-proven ordinary object parameter, including `record.label` and
+`record['label']`. A1 action helpers can take a label from a record,
+fall back with `??` or `||`, choose a field with a conditional, or test it
+using strict equality. The actual object reference is loaded from the earlier
+parameter cell, projected through the checked managed-object operation, and
+read through existing own-data-property IR. Missing own keys yield Undefined;
+the read and any fallback remain lazy when the default argument is provided.
+Only earlier resolved parameters with positive object-origin proofs qualify.
+Dynamic keys, inherited prototype names, accessors, optional members, nullable
+or unproven objects, self/later/outer reads, effects and async/public helper
+defaults remain outside the admitted slice. Compiler admission/guard tests and
+Node-Wasm/Wasmtime differential fixtures are included; their hosted execution
+is pending.

@@ -1112,3 +1112,27 @@ fn strict_equality_parameter_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(x:unknown,y:unknown,z:unknown=x===y?'same':'different'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn earlier_object_field_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(row,expected,selected=row.label){return selected===expected?1:0;}return f({label:a},a);",
+        "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}return f({label:undefined},a);",
+        "function f(row,backup,selected=row.label||backup){return selected===backup?1:0;}return f({label:''},a);",
+        "function f(row,backup,selected=row.label&&backup){return selected===backup?1:0;}return f({label:true},a);",
+        "function f(row,backup,selected=row.label?row.label:backup){return selected===backup?1:0;}return f({label:false},a);",
+        "function f(row,backup,selected=row.label===backup?'same':'other'){return selected.length;}return f({label:a},a);",
+        "function f(row,backup,selected=row.label!==backup?row.label:backup){return selected===backup?1:0;}return f({label:a},a);",
+        "function f(row,backup,selected=row['label']??backup){return selected===backup?1:0;}return f({label:a},b);",
+        "const f=(row,backup,selected=row.label??backup)=>selected===backup?1:0;return f({label:a},b);",
+        "const o={f:(row,backup,selected=row.label?row.label:backup)=>selected===backup?1:0};return o.f({label:a},b);",
+        "function f(row,backup,selected=row.missing??backup){return selected===backup?1:0;}return f({label:a},b);",
+        "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}return f({label:a},b,9);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},b);}";
+    let ts = "function f(row:unknown,backup:unknown,selected:unknown=(row as {label:unknown}).label??backup){return selected===backup?1:0;}export function run(a:number,b:number):number{return f({label:a},b);}";
+    common::compare_sources(js, ts);
+}
