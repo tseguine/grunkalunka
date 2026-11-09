@@ -11,6 +11,8 @@ for(const[id,source]of [
  ["effects","function f(x){return x;}export function run(a,b){let n=0;const x=f(...[(n=1,a),(n=n*10+2,b)],n=n*10+3);return n;}"],
  ["callee-snapshot","export function run(a,b){let f=x=>x;return f(...[a,f=x=>b]);}"],
  ["call","function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}"],
+ ["computed-call","function f(x,y){return x+y;}export function run(a,b){return f['call'](null,a,b);}"],
+ ["computed-apply","function f(x,y){return x+y;}export function run(a,b){return f['apply'](null,[a,b]);}"],
  ["nested","function f(x,y){return x+y;}export function run(a,b){return f(...[...[a],b]);}"],
  ["null","function f(x=0){return x;}export function run(a,b){return +f(...[null]);}"],
  ["false","function f(x=0){return x;}export function run(a,b){return +f(...[false]);}"],
