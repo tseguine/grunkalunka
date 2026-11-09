@@ -177,7 +177,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 196;
+export const corpusVersion = 197;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -282,6 +282,11 @@ programs.push(...predicateConditional);
 programs.push(...emptyStatementPrograms);
 programs.push(...multipleDeclarators);
 programs.push(...intrinsicNumberPrograms);
+const arrayInstanceBody = 'return [] instanceof Array ? 1 : 0;';
+programs.push(['instanceof-array', arrayInstanceBody, arrayInstanceBody, 1, undefined, {
+  sourceJS: `export function run(a,b) { ${arrayInstanceBody} }`,
+  sourceTS: `export function run(a:number,b:number):number { ${arrayInstanceBody} }`,
+}]);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
 programs.push(...directivePrograms);

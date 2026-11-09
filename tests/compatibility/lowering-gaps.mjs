@@ -24,7 +24,7 @@ function add(id, category, body, expected, diagnostic, options = {}) {
 for (const [id, body, expected, diagnostic] of [
   ['power', 'return a ** b;', 16, binary],
   ['loose-equality-coercion', 'return a == "4" ? 1 : 0;', 1, expression],
-  ['instanceof', 'return [] instanceof Array ? 1 : 0;', 1, binary],
+  ['instanceof', 'return [] instanceof (a ? Array : Object) ? 1 : 0;', 1, binary],
 ]) add(id, 'operators', body, expected, diagnostic);
 
 for (const [id, body, expected, diagnostic] of [

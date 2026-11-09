@@ -214,6 +214,7 @@ fn boolean_shape(mut expression: &Expression<'_>, mut depth: usize) -> bool {
                         | BinaryOperator::Inequality
                         | BinaryOperator::StrictInequality
                         | BinaryOperator::In
+                        | BinaryOperator::Instanceof
                 ),
                 _ => false,
             };
@@ -255,6 +256,7 @@ fn discarded_boolean_shape(expression: &Expression<'_>, depth: usize) -> bool {
                         | BinaryOperator::Inequality
                         | BinaryOperator::StrictInequality
                         | BinaryOperator::In
+                        | BinaryOperator::Instanceof
                 ) =>
             {
                 return true;

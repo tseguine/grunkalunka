@@ -1,6 +1,21 @@
 //! Intrinsic recognition is independent of representation planning.
 use super::*;
 
+pub(super) fn global_name(
+    id: &IdentifierReference<'_>,
+    semantic: &Semantic<'_>,
+    owner: &str,
+) -> bool {
+    id.name == owner
+        && id.reference_id.get().is_some_and(|r| {
+            semantic
+                .scoping()
+                .get_reference(r)
+                .symbol_id()
+                .is_none_or(|s| !semantic.scoping().symbol_flags(s).is_value())
+        })
+}
+
 fn method_name<'e>(
     call: &'e CallExpression<'_>,
     semantic: &Semantic<'_>,
@@ -26,13 +41,7 @@ fn method_name<'e>(
     let (Expression::Identifier(id), _) = closures::unwrapped_at(object, 0)? else {
         return None;
     };
-    (id.name == owner
-        && id
-            .reference_id
-            .get()
-            .and_then(|r| semantic.scoping().get_reference(r).symbol_id())
-            .is_none_or(|s| !semantic.scoping().symbol_flags(s).is_value()))
-    .then_some(name)
+    global_name(id, semantic, owner).then_some(name)
 }
 
 pub(super) fn is_method(call: &CallExpression<'_>, semantic: &Semantic<'_>, name: &str) -> bool {
@@ -52,5 +61,27 @@ pub(super) fn enumeration(
         "values" => Some(ir::OwnEnumeration::Values),
         "entries" => Some(ir::OwnEnumeration::Entries),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn instanceof_requires_a_resolved_intrinsic_constructor() {
+        for source in [
+            "export function run(a,b){const Array=x=>x;return [] instanceof Array?1:0;}",
+            "export function run(a,b){return [] instanceof (a?Array:Object)?1:0;}",
+            "export function run(a,b){return [] instanceof (a=b,Array)?1:0;}",
+            "export function run(a,b){return [] instanceof Array.prototype?1:0;}",
+            "export function run(a,b){Array.prototype={};return [] instanceof Array?1:0;}",
+        ] {
+            assert!(crate::compile(source, false).is_err(), "{source}");
+        }
+        let js = "export function run(a,b){const x=a?[b]:{};return x instanceof Array?1:0;}";
+        let ts = "type Array=never;export function run(a:string,b:boolean):never{const x=a?[b]:{};return x instanceof (Array as never)?1:0;}";
+        assert_eq!(
+            crate::compile(js, false).unwrap().wasm,
+            crate::compile(ts, true).unwrap().wasm
+        );
     }
 }

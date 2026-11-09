@@ -5,6 +5,20 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn instanceof_array_uses_the_actual_saved_array_brand() {
+    for body in [
+        "return [] instanceof Array?1:0;",
+        "const x=a?[b]:{length:1};return x instanceof Array?1:0;",
+        "const x=a?'abc':null;return x instanceof Array?1:0;",
+        "const x=a?[b]:Object.create(null);return +(x instanceof Array);",
+        "let n=0;const f=()=>{n++;return a?[]:{};};const yes=f() instanceof Array;return n*10+(yes?1:0);",
+        "const f=x=>x;return f instanceof Array?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn finite_key_sets_exclude_unselected_field_kinds_but_keep_misses() {
     for body in [
         "const o={left:'hello',right:'hi',other:0};const k=a?'left':'right';return o[k].length;",

@@ -1079,7 +1079,7 @@
       "id": "gap-instanceof",
       "extension": "js",
       "sourceMode": "module-strict",
-      "sourceSha256": "60bb329b7203c0372a4e973ae9339787ec49e2f014a1c8579865e91cdd17dddd",
+      "sourceSha256": "e6d8833d56b1e77fc56a0b7ef46ff0a74e00a810707f80c329d4ee1370685db7",
       "group": "instanceof"
     },
     {

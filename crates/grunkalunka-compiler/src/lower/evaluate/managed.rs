@@ -720,6 +720,21 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if let Expression::BinaryExpression(binary) = node
+            && binary.operator == BinaryOperator::Instanceof
+            && let Some(Expression::Identifier(rhs)) = closures::unwrapped(&binary.right, depth + 1)
+            && object_intrinsics::global_name(rhs, self.semantic, "Array")
+        {
+            // Represented arrays all have the pristine realm's Array prototype.
+            // The RHS identifier has no evaluation effects in this profile.
+            boolean_consumer(node, mode, "instanceof produces a Boolean", work)?;
+            work.push(Work::ArrayIsArray {
+                node,
+                has_input: true,
+            });
+            work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+            return Ok(true);
+        }
+        if let Expression::BinaryExpression(binary) = node
             && binary.operator == BinaryOperator::In
             && matches!(
                 mode,
