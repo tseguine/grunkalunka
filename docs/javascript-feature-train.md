@@ -662,4 +662,18 @@ unproven object coercion, equality operators, scope/TDZ reads, effects and
 public/async defaults remain guarded. Compiler admission/rejection and
 Node-Wasm/Wasmtime differential fixtures cover the admitted forms; fixture
 presence does not establish hosted execution.
-true
+
+Strict equality and inequality are now admitted in private synchronous helper
+and arrow parameter defaults: an earlier initialized parameter may be compared
+with another earlier parameter or a pure primitive constant using strict equality
+or strict inequality. A1 handlers can select a label by action name or policy
+flag and test whether two supplied records are the same reference without
+extracting fields. The implementation reuses managed strict-equality operations,
+preserving NaN, signed-zero, String code units, primitive tags and reference
+identity without loose equality coercion. A comparison may directly initialize
+a Boolean default or serve as the test of a lazy conditional default. Operands
+are materialized in source order, and an explicitly supplied argument bypasses
+the default. Self/later/outer parameter reads, effects, nonprimitive constants,
+coercive equality and async/public defaults remain guarded. Focused compiler
+admission/rejection and JS/TS differential fixtures cover these cases, pending
+compiled execution verification.
