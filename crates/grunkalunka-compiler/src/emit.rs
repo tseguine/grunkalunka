@@ -724,6 +724,16 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_array_pop\n");
                 self.set(*result);
             }
+            Op::ManagedArrayPush {
+                result,
+                array,
+                value,
+            } => {
+                self.get(*array);
+                self.get(*value);
+                self.output.push_str("call $gc_array_push\n");
+                self.set(*result);
+            }
             Op::ManagedArrayRest {
                 result,
                 array,
@@ -1853,6 +1863,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
         output.push_str(include_str!("emit/array_search.wat"));
     }
     indexed(output, array_pop::runtime(module));
+    if module.functions.iter().any(|f| {
+        ir::any_operation(&f.body, &mut |op| {
+            matches!(op, Op::ManagedArrayPush { .. })
+        })
+    }) {
+        indexed(output, include_str!("emit/array_push.wat"));
+    }
     if module.functions.iter().any(|f| {
         ir::any_operation(&f.body, &mut |op| {
             matches!(op, Op::ManagedArrayShift { .. })
