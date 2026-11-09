@@ -75,7 +75,7 @@ impl Lowering<'_, '_> {
         let string = receiver == Some(Type::ManagedValue);
         let dictionary = self.stored.optional_dictionary(object.node_id());
         let string_key = matches!(&key, Key::Runtime(key)
-            if dictionary && self.stored.string(key.node_id()));
+            if self.stored.string(key.node_id()) && (dictionary || (receiver == Some(Type::ManagedObject) && static_keys::own_string_name(key, self.semantic, depth+2))));
         if let Key::Runtime(key) = &key
             && !string_key
             && (!string || !self.stored.number(key.node_id()))
@@ -418,11 +418,16 @@ mod tests {
                 true,
             ),
             ("const k='x';return null?.[k]===undefined?1:0;", true),
-            ("const d={x:b};const k='x';return +(d?.[k]);", false),
+            ("const d={x:b};const k='x';return +(d?.[k]);", true),
             (
                 "const d=a?Object.create(null):{};const k='x';return +(d?.[k]);",
+                true,
+            ),
+            (
+                "const o=a?{x:b}:null;const k=b?'x':'constructor';return +(o?.[k]);",
                 false,
             ),
+            ("const o=a?[b]:null;const k='x';return +(o?.[k]);", false),
             ("const d=Object.create(null);return +(d?.[b]);", false),
             (
                 "const d=Object.create(null);const k=a?'x':1;return +(d?.[k]);",
@@ -453,7 +458,7 @@ mod tests {
             }
         }
         for source in [
-            "export function run(a,b){const d={x:a};const k='x';return +((d as never)?.[k]);}",
+            "export function run(a,b){const d={x:a};const k=a as 'x';return +((d as never)?.[k]);}",
             "export function run(a,b){const d=Object.create(null);return +(d?.[(b as string)]);}",
         ] {
             assert!(crate::compile(source, true).is_err(), "{source}");

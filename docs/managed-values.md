@@ -1616,3 +1616,8 @@ aliases and sequence tails can establish those names. The receiver is saved
 before key evaluation, and the key is saved before the assigned value.
 An absent field reads as Undefined. Null-prototype dictionaries continue to
 accept arbitrary source-proven Strings, including intrinsic names.
+
+Optional reads such as `settings?.[key]` use the same name proof for
+ordinary records. A nullish receiver skips the entire key expression,
+including its effects and awaits. A present receiver is saved before the
+key runs, so rebinding its source variable cannot redirect the lookup.
