@@ -704,3 +704,16 @@ Explicitly supplied defaulted arguments still bypass the read. Prototype
 methods/inherited names, runtime keys, optional member chains, unknown kinds,
 effects and self/later/outer reads remain guarded. Compiler tests and native
 JS/TS-vs-Wasm differential fixtures are included but need hosted execution.
+
+Pure numeric defaults derived from earlier primitive parameters now support
+the usual JavaScript bitwise flag and shift operators: `&`, `|`, `^`, `<<`,
+`>>`, `>>>` and unary `~`. These compose with the existing `+`, `-`, `*`,
+`/` and `%` planner, including nested, source-ordered operands and explicit
+argument overrides. The existing numeric IR implements JS ToInt32/ToUint32,
+shift-count masking and unsigned-right-shift Number results, rather than
+reinterpreting signed or fractional source inputs as Rust integers. The
+iterative planner retains its 128-level bound and requires a positive four-kind
+primitive proof for every earlier parameter; String/object coercion,
+self/later/outer reads, effects and arbitrary source expressions stay guarded.
+Compiler admission/rejection cases and native JS/TS-Wasm differential fixtures
+are included; Rust and Wasm execution evidence is still pending.

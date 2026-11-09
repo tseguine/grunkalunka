@@ -156,12 +156,12 @@ fn pure_operand<'n, 'a>(
     )?))
 }
 
-// Pure numeric expressions in defaults may read initialized earlier parameters.
+// Pure numeric and bitwise expressions may read initialized earlier parameters.
 // This postorder instruction list has no native recursive descent.
 enum NumericDefaultTerm<'n, 'a> {
     Constant(f64),
     Earlier(&'n IdentifierReference<'a>),
-    Negate,
+    Unary(Unary),
     Binary(Binary),
 }
 
@@ -171,13 +171,13 @@ fn earlier_numeric<'n, 'a>(
 ) -> Option<Vec<NumericDefaultTerm<'n, 'a>>> {
     enum Task<'n, 'a> {
         Visit(&'n Expression<'a>, usize),
-        Negate,
+        Unary(Unary),
         Binary(Binary),
     }
     let mut pending = vec![Task::Visit(initializer, 0)];
     let mut program = Vec::new();
     let mut has_parameter = false;
-    let mut has_binary = false;
+    let mut has_operator = false;
     while let Some(task) = pending.pop() {
         match task {
             Task::Visit(expression, depth) => {
@@ -197,9 +197,15 @@ fn earlier_numeric<'n, 'a>(
                             BinaryOperator::Multiplication => Binary::Multiply,
                             BinaryOperator::Division => Binary::Divide,
                             BinaryOperator::Remainder => Binary::Remainder,
+                            BinaryOperator::BitwiseAnd => Binary::BitAnd,
+                            BinaryOperator::BitwiseOR => Binary::BitOr,
+                            BinaryOperator::BitwiseXOR => Binary::BitXor,
+                            BinaryOperator::ShiftLeft => Binary::ShiftLeft,
+                            BinaryOperator::ShiftRight => Binary::ShiftRight,
+                            BinaryOperator::ShiftRightZeroFill => Binary::ShiftRightUnsigned,
                             _ => return None,
                         };
-                        has_binary = true;
+                        has_operator = true;
                         pending.push(Task::Binary(operator));
                         pending.push(Task::Visit(&binary.right, depth + 1));
                         pending.push(Task::Visit(&binary.left, depth + 1));
@@ -207,11 +213,20 @@ fn earlier_numeric<'n, 'a>(
                     Expression::UnaryExpression(unary)
                         if matches!(
                             unary.operator,
-                            UnaryOperator::UnaryPlus | UnaryOperator::UnaryNegation
+                            UnaryOperator::UnaryPlus
+                                | UnaryOperator::UnaryNegation
+                                | UnaryOperator::BitwiseNot
                         ) =>
                     {
-                        if unary.operator == UnaryOperator::UnaryNegation {
-                            pending.push(Task::Negate);
+                        match unary.operator {
+                            UnaryOperator::UnaryNegation => {
+                                pending.push(Task::Unary(Unary::Negate));
+                            }
+                            UnaryOperator::BitwiseNot => {
+                                has_operator = true;
+                                pending.push(Task::Unary(Unary::BitNot));
+                            }
+                            _ => {}
                         }
                         pending.push(Task::Visit(&unary.argument, depth + 1));
                     }
@@ -222,11 +237,11 @@ fn earlier_numeric<'n, 'a>(
                     }
                 }
             }
-            Task::Negate => program.push(NumericDefaultTerm::Negate),
+            Task::Unary(operator) => program.push(NumericDefaultTerm::Unary(operator)),
             Task::Binary(operator) => program.push(NumericDefaultTerm::Binary(operator)),
         }
     }
-    (has_binary && has_parameter).then_some(program)
+    (has_operator && has_parameter).then_some(program)
 }
 
 // String defaults are built from source-proven String parameters and literal
@@ -1178,7 +1193,7 @@ impl Lowering<'_, '_> {
                         );
                         numbers.push(result);
                     }
-                    NumericDefaultTerm::Negate => {
+                    NumericDefaultTerm::Unary(operator) => {
                         let input = numbers.pop().expect("validated numeric operand");
                         let result = self.value(Type::Number);
                         Self::push(
@@ -1186,7 +1201,7 @@ impl Lowering<'_, '_> {
                             initializer,
                             Op::Unary {
                                 result,
-                                operator: Unary::Negate,
+                                operator,
                                 input,
                             },
                         );
