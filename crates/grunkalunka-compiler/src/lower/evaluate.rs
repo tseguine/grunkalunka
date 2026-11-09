@@ -4313,7 +4313,11 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                         node,
                                         Op::Constant {
                                             result,
-                                            value: f64::NAN,
+                                            value: if matches!(operator, Unary::Clz32) {
+                                                32.0
+                                            } else {
+                                                f64::NAN
+                                            },
                                         },
                                     );
                                     values.push(Value::Number(result));
