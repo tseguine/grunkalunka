@@ -369,7 +369,11 @@ fn dictionary_scalar_reads_require_primitive_value_domains_and_string_keys() {
             false,
         ),
         ("const d=Object.create(null);d.x=a;return +d[a];", false),
-        ("const d={x:a};const k='x';return +d[k];", false),
+        ("const d={x:a};const k='x';return +d[k];", true),
+        (
+            "const d={x:a};const k=a?'x':'constructor';return +d[k];",
+            false,
+        ),
         (
             "const d=Object.create(null);const k='x';d[k]=a?'text':b;return +d[k];",
             false,
@@ -384,7 +388,7 @@ fn dictionary_scalar_reads_require_primitive_value_domains_and_string_keys() {
         ),
         (
             "const d=a?Object.create(null):{x:b};const k='x';return +d[k];",
-            false,
+            true,
         ),
     ] {
         let source = format!("export function run(a,b){{{body}}}");

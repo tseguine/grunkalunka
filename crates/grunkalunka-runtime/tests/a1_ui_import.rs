@@ -560,6 +560,18 @@ fn imported_handler_invokes_proven_arrow_empty_apply() {
 }
 
 #[test]
+fn imported_handler_selects_policy_by_runtime_record_key() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             const policy = { expanded: 1, collapsed: 0 };
+             const mode = a > 0 ? "expanded" : "collapsed";
+             return choose(+policy[mode], b);
+           }"#,
+    );
+}
+
+#[test]
 fn imported_handler_scans_action_ids_with_a_counted_loop() {
     compare_composed_source(
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";

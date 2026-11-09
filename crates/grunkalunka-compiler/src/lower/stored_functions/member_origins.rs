@@ -22,7 +22,12 @@ pub(super) struct Members<'a, 'ast> {
 }
 
 impl Members<'_, '_> {
-    pub(super) fn dictionary_value(&self, receiver: NodeId, key: NodeId) -> Alternatives {
+    pub(super) fn string_key_value(
+        &self,
+        receiver: NodeId,
+        key: NodeId,
+        own_name: bool,
+    ) -> Alternatives {
         let Some(keys) = self.values.get(&key).filter(|origins| !origins.is_empty()) else {
             return Alternatives::new();
         };
@@ -35,9 +40,10 @@ impl Members<'_, '_> {
         };
         if keys.len() != 1
             || !keys.contains(&Origin::String)
-            || !receivers
-                .iter()
-                .all(|origin| matches!(origin, Origin::NullObject(_)))
+            || !receivers.iter().all(|origin| {
+                matches!(origin, Origin::NullObject(_))
+                    || (own_name && matches!(origin, Origin::Object(_)))
+            })
         {
             return BTreeSet::from([Origin::Other]);
         }

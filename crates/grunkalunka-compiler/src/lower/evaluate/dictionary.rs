@@ -35,6 +35,36 @@ pub(super) enum Task<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    fn runtime_member_receiver(
+        &self,
+        member: &oxc_ast::ast::ComputedMemberExpression<'_>,
+        depth: usize,
+    ) -> Option<(Mode, bool)> {
+        if member.optional
+            || closures::unwrapped(&member.expression, depth)
+                .and_then(static_keys::literal)
+                .is_some()
+        {
+            return None;
+        }
+        let uint32 = self.stored.uint32_keys.contains(&member.expression, depth);
+        if self.stored.dictionary(member.object.node_id()) {
+            return Some((Mode::Object, uint32));
+        }
+        let receiver = self.receiver_type(&member.object, depth)?;
+        match receiver {
+            Type::ManagedObject | Type::ManagedArray if uint32 => {
+                Some((Mode::managed(receiver), true))
+            }
+            Type::ManagedObject
+                if static_keys::own_string_name(&member.expression, self.semantic, depth) =>
+            {
+                Some((Mode::Object, false))
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn schedule_dictionary_read<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -44,24 +74,9 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        let uint32 = self
-            .stored
-            .uint32_keys
-            .contains(&member.expression, depth + 1);
-        let dictionary = self.stored.dictionary(member.object.node_id());
-        let receiver = self.receiver_type(&member.object, depth + 1);
-        if member.optional
-            || !(dictionary
-                || (uint32 && matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))))
-        {
+        let Some((mode, uint32)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
-        }
-        if closures::unwrapped(&member.expression, depth + 1)
-            .and_then(static_keys::literal)
-            .is_some()
-        {
-            return Ok(false);
-        }
+        };
         if !uint32 && !self.stored.string(member.expression.node_id()) {
             return Err(unsupported(
                 node,
@@ -74,15 +89,7 @@ impl Lowering<'_, '_> {
             depth: depth + 1,
             uint32,
         }));
-        work.push(Work::Eval(
-            &member.object,
-            depth + 1,
-            if dictionary {
-                Mode::Object
-            } else {
-                Mode::managed(receiver.expect("validated read receiver"))
-            },
-        ));
+        work.push(Work::Eval(&member.object, depth + 1, mode));
         Ok(true)
     }
 
@@ -100,24 +107,9 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let uint32 = self
-            .stored
-            .uint32_keys
-            .contains(&member.expression, depth + 1);
-        let dictionary = self.stored.dictionary(member.object.node_id());
-        let receiver = self.receiver_type(&member.object, depth + 1);
-        if member.optional
-            || !(dictionary
-                || (uint32 && matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))))
-        {
+        let Some((mode, uint32)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
-        }
-        if closures::unwrapped(&member.expression, depth + 1)
-            .and_then(static_keys::literal)
-            .is_some()
-        {
-            return Ok(false);
-        }
+        };
         if assignment.operator != AssignmentOperator::Assign {
             return Err(unsupported(
                 node,
@@ -137,15 +129,7 @@ impl Lowering<'_, '_> {
             depth: depth + 1,
             uint32,
         }));
-        work.push(Work::Eval(
-            &member.object,
-            depth + 1,
-            if dictionary {
-                Mode::Object
-            } else {
-                Mode::managed(receiver.expect("validated unsigned write receiver"))
-            },
-        ));
+        work.push(Work::Eval(&member.object, depth + 1, mode));
         Ok(true)
     }
 

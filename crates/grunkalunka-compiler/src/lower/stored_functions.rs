@@ -37,7 +37,11 @@ enum Rule {
     OptionalMember(NodeId, Key),
     OptionalUnsignedMember(NodeId),
     OptionalComputedMember(NodeId, NodeId),
-    DictionaryMember(NodeId, NodeId),
+    StringKeyMember {
+        receiver: NodeId,
+        key: NodeId,
+        own_name: bool,
+    },
     UnsignedMember(NodeId),
     PatternUnsignedMember(NodeId),
     Call(
@@ -1272,7 +1276,11 @@ impl Fields {
                                     }
                                     iteration::PropertyKey::Runtime(key) => {
                                         dynamic_excluded = true;
-                                        Rule::DictionaryMember(a.right.node_id(), key.node_id())
+                                        Rule::StringKeyMember {
+                                            receiver: a.right.node_id(),
+                                            key: key.node_id(),
+                                            own_name: false,
+                                        }
                                     }
                                 };
                                 if let Some(identifier) = identifier {
@@ -1410,13 +1418,13 @@ impl Fields {
                     } else if uint32_keys.contains(&m.expression, 0) {
                         Some(Rule::UnsignedMember(m.object.node_id()))
                     } else {
-                        // Null-prototype dictionaries have no inherited values.
-                        // The solver checks the receiver/key before collecting
-                        // all possible own values plus a missing alternative.
-                        Some(Rule::DictionaryMember(
-                            m.object.node_id(),
-                            m.expression.node_id(),
-                        ))
+                        // The solver checks the receiver and key before combining
+                        // possible own values and a missing-field alternative.
+                        Some(Rule::StringKeyMember {
+                            receiver: m.object.node_id(),
+                            key: m.expression.node_id(),
+                            own_name: static_keys::own_string_name(&m.expression, semantic, 0),
+                        })
                     }
                 }
                 _ => {
@@ -1461,7 +1469,7 @@ impl Fields {
         let has_dictionary_selection = rules.iter().any(|(_, rule)| {
             matches!(
                 rule,
-                Rule::DictionaryMember(..)
+                Rule::StringKeyMember { .. }
                     | Rule::UnsignedMember(..)
                     | Rule::PatternUnsignedMember(..)
                     | Rule::OptionalMember(..)
@@ -1729,9 +1737,11 @@ impl Fields {
                     Rule::PatternUnsignedMember(receiver) => {
                         members.pattern_unsigned_value(*receiver)
                     }
-                    Rule::DictionaryMember(receiver, key) => {
-                        members.dictionary_value(*receiver, *key)
-                    }
+                    Rule::StringKeyMember {
+                        receiver,
+                        key,
+                        own_name,
+                    } => members.string_key_value(*receiver, *key, *own_name),
                 };
                 additions.push((*id, found));
             }

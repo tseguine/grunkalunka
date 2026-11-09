@@ -1607,3 +1607,12 @@ unsigned Number; a spread cannot launder unknown kinds or receiver proofs.
 Opaque iterable spreads, sparse literal holes and more than 1,000 flattened
 arguments remain guarded. This does not add general iterable or standard
 library call-spread semantics.
+
+Ordinary records support computed reads and plain assignments when the key
+can only select String names outside the Object prototype. For example,
+`const key = enabled ? "active" : "idle"; states[key] = next` selects the
+property at runtime. String literals, substitution-free templates, const
+aliases and sequence tails can establish those names. The receiver is saved
+before key evaluation, and the key is saved before the assigned value.
+An absent field reads as Undefined. Null-prototype dictionaries continue to
+accept arbitrary source-proven Strings, including intrinsic names.
