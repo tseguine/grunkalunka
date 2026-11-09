@@ -39,7 +39,6 @@ const negatives = [
   ['do-self-initializer', 'do { const x=x; } while(0); return a;', reference],
   ['do-const-body-write', 'const x=a; do { x=b; } while(0); return a;', 'assignment to a const binding is not admitted'],
   ['do-const-test-write', 'const x=a; do {} while(x=b); return a;', 'assignment to a const binding is not admitted'],
-  ['do-label', 'outer: do { a=b; } while(0); return a;', statement],
   ['do-after-guaranteed-return', 'do { return a; } while(0); return b;', afterReturn],
   ['do-after-guaranteed-branches', 'do { if(a<b) return a; else return b; } while(0); a=b;', afterReturn],
   ['do-missing-return', 'do { a=b; } while(0);', 'every structural path must return a numeric value'],

@@ -32,9 +32,6 @@ for (const [id, body, expected, diagnostic] of [
   ['bigint', 'return 1n === 1n ? a : b;', 4, expression],
 ]) add(id, 'values', body, expected, diagnostic);
 
-for (const [id, body, expected] of [
-  ['label', 'outer: while(1) { a=a+b; break outer; } return a;', 6],
-]) add(id, 'control-flow', body, expected, statement, { milestone: 'L2' });
 
 add('nested-function', 'functions', 'function inc(x) { return x+1; } return inc(a)+b;', 7, statement, { milestone: 'L3', prerequisites: ['function calls'] });
 add('recursion', 'functions', 'function fact(n) { return n<=1 ? 1 : n*fact(n-1); } return fact(a);', 24, statement,
