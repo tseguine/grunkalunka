@@ -1154,6 +1154,7 @@ impl Emitter<'_> {
                         ("call $number_remainder\n", false)
                     }
                     Binary::BitAnd => ("i32.and\n", true),
+                    Binary::Imul => ("i32.mul\n", true),
                     Binary::BitOr => ("i32.or\n", true),
                     Binary::BitXor => ("i32.xor\n", true),
                     Binary::ShiftLeft => ("i32.shl\n", true),

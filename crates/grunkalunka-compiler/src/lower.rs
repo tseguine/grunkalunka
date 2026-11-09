@@ -169,6 +169,10 @@ fn math_variadic(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(
     }
 }
 
+fn math_integer_product(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> bool {
+    math_name(call, semantic) == Some("imul")
+}
+
 // One wrapper at a time keeps each erased source node in the nesting budget.
 // These type-only forms do not convert or validate their runtime operand.
 pub(super) fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression<'a>> {

@@ -200,6 +200,13 @@ pub(super) enum Work<'e, 'a> {
         accumulator: ValueId,
         depth: usize,
     },
+    MathImul {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        index: usize,
+        operands: [Option<ValueId>; 2],
+        depth: usize,
+    },
     LocalCall {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,

@@ -2992,6 +2992,68 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         work.push(Work::Eval(argument, depth, Mode::Numeric));
                     }
                 }
+                Work::MathImul {
+                    node,
+                    call,
+                    index,
+                    mut operands,
+                    depth,
+                } => {
+                    // Only the first two arguments participate in imul.
+                    // Surplus expressions still execute after both snapshots.
+                    if index != 0 && index <= 2 {
+                        operands[index - 1] =
+                            Some(values.pop().expect("Math.imul argument").number());
+                    }
+                    if index == call.arguments.len() {
+                        for operand in &mut operands {
+                            if operand.is_none() {
+                                let zero = self.value(Type::Number);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::Constant {
+                                        result: zero,
+                                        value: 0.0,
+                                    },
+                                );
+                                *operand = Some(zero);
+                            }
+                        }
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::Binary {
+                                result,
+                                operator: Binary::Imul,
+                                left: operands[0].expect("filled first imul operand"),
+                                right: operands[1].expect("filled second imul operand"),
+                            },
+                        );
+                        values.push(Value::Number(result));
+                    } else {
+                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
+                            unsupported(node, "spread call arguments are not admitted")
+                        })?;
+                        work.push(Work::MathImul {
+                            node,
+                            call,
+                            index: index + 1,
+                            operands,
+                            depth,
+                        });
+                        work.push(Work::Eval(
+                            argument,
+                            depth,
+                            if index < 2 {
+                                Mode::Numeric
+                            } else {
+                                Mode::Discard
+                            },
+                        ));
+                    }
+                }
                 Work::Sequence {
                     remaining,
                     last,
@@ -4295,6 +4357,20 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                     operator,
                                     index: 0,
                                     accumulator,
+                                    depth: depth + 1,
+                                });
+                            } else if math_integer_product(call, self.semantic) {
+                                if call.arguments.len() > 1000 {
+                                    return Err(unsupported(
+                                        node,
+                                        "at most 1000 ordinary Math arguments are admitted",
+                                    ));
+                                }
+                                work.push(Work::MathImul {
+                                    node,
+                                    call,
+                                    index: 0,
+                                    operands: [None; 2],
                                     depth: depth + 1,
                                 });
                             } else {

@@ -3,6 +3,46 @@ use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 use wasmtime::Trap;
 
 #[test]
+fn math_imul_matches_32bit_wraparound_with_primitive_number_inputs() {
+    compare_helper_sources(&[
+        "export function run(a,b){return Math.imul(a,b);}",
+        "export function run(a,b){return Math.imul();}",
+        "export function run(a,b){return Math.imul(a);}",
+        "export function run(a,b){return Math.imul(-1,2);}",
+        "export function run(a,b){return Math.imul(2147483647,2);}",
+        "export function run(a,b){return Math.imul(4294967295,5);}",
+        "export function run(a,b){return Math.imul(2147483648,2);}",
+        "export function run(a,b){return Math.imul(4294967297,3);}",
+        "export function run(a,b){return Math.imul(3.9,2.2);}",
+        "export function run(a,b){return Math.imul(-3.9,2.2);}",
+        "export function run(a,b){return Math.imul(Infinity,NaN);}",
+        "export function run(a,b){return Math.imul(true,3);}",
+        "export function run(a,b){return Math.imul(null,3);}",
+        "export function run(a,b){return Math.imul(undefined,a);}",
+        "export function run(a,b){return Math.imul(-0,b);}",
+        "export function run(a,b){let n=0;const v=Math.imul((n=1,a),(n=n*10+2,b),n=n*10+3);return v+n;}",
+        "export function run(a,b){let first=a;const value=Math.imul(first,(first=b),first);return value+first;}",
+        "export function run(a,b){return Math.imul(Math.min(a,b),Math.max(a,b));}",
+    ]);
+}
+
+#[test]
+fn math_imul_rejects_dynamic_and_spread_invocations() {
+    for body in [
+        "return Math['imul'](a,b);",
+        "return Math.imul(...[a,b]);",
+        "return Math.imul(a,...[b]);",
+        "return Math.imul?.(a,b);",
+        "return Math.imul('2',a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn math_min_and_max_preserve_js_number_order_and_signed_zero() {
     compare_helper_sources(&[
         "export function run(a,b){return Math.min(a,b);}",
