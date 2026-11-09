@@ -29,8 +29,11 @@ fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, u
     let kind = if name == "call" {
         Method::Call
     } else if name == "apply" {
-        // A missing argument list is empty in Function.prototype.apply.
-        // A supplied fresh literal Array can use the ordered argument cursor.
+        // The missing-argument shortcut is only sound when the receiver is
+        // syntactically a function. Otherwise `object.apply(value)` may call
+        // an ordinary own method rather than Function.prototype.apply.
+        // Proving stored/named function origins requires semantic information,
+        // which this original-source projection does not have.
         if let Some(list) = call.arguments.get(1) {
             if call.arguments.len() != 2 {
                 return None;
@@ -39,6 +42,11 @@ fn method<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, u
             if !matches!(array, Expression::ArrayExpression(_)) {
                 return None;
             }
+        } else if !matches!(
+            closures::unwrapped_at(receiver, depth + 1),
+            Some((Expression::ArrowFunctionExpression(_), _))
+        ) {
+            return None;
         }
         Method::Apply
     } else {
@@ -183,9 +191,9 @@ mod tests {
             "function f(x=3){return x;}export function run(a,b){return +f(...[]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,b]);}",
-            "function f(x=3){return x;}export function run(a,b){return f.apply();}",
-            "function f(x=3){return x;}export function run(a,b){return f.apply(null);}",
-            "export function run(a,b){const f=(x=3)=>x;return f['apply']();}",
+            "export function run(a,b){return ((x=3)=>x).apply();}",
+            "export function run(a,b){return ((x=3)=>x).apply(null);}",
+            "export function run(a,b){return ((x=3)=>x)['apply']();}",
             "function f(x,y){return x+y;}export function run(a,b){return f['call'](null,a,b);}",
             "function f(x,y){return x+y;}export function run(a,b){return f['apply'](null,[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f[('call')](null,a,b);}",
@@ -205,6 +213,8 @@ mod tests {
             "function f(x){return x;}export function run(a,b){return f(...'abc');}",
             "function f(x){return x;}export function run(a,b){return f.call(...[null,a]);}",
             "function f(x){return x;}export function run(a,b){const xs=[a];return f.apply(null,xs);}",
+            "function f(x=3){return x;}export function run(a,b){return f.apply();}",
+            "function f(x=3){return x;}export function run(a,b){return f.apply(null);}",
             "function f(x){return x;}export function run(a,b){const key='call';return f[key](null,a);}",
             "function f(x){return x;}export function run(a,b){return f['bind'](null,a);}",
             "function f(x){return x;}export function run(a,b){return f.apply(null,[a],b);}",

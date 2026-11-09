@@ -58,10 +58,15 @@ existing signatures and captured cells; the `thisArg` expression is evaluated
 once and discarded because dynamic `this` is not admitted by these bodies.
 Arguments evaluate in order and the selected callee is saved before those effects.
 
-An omitted argument array is admitted as an empty argument list:
-`f.apply()` and `f.apply(thisArg)` call the function with no forwarded
-arguments. A supplied `thisArg` is still evaluated once in source order,
-and parameter defaults run normally.
+An omitted argument array is admitted as an empty argument list only
+when the receiver syntax itself proves an immediate arrow function, for
+example `((x=3)=>x).apply()` or `((x=3)=>x).apply(thisArg)`.
+A supplied `thisArg` is evaluated once in source order and defaults run
+normally. This intentionally does not reinterpret `record.apply(value)`,
+which may be an ordinary own-field callable rather than Function.prototype.apply.
+The syntax-only call projection cannot yet establish callable origins for
+named helpers or stored function aliases in this omitted-list form; those
+calls remain guarded until they have a positive semantic origin proof.
 
 This is **not general** `Function.prototype.apply`: arbitrary Array variables,
 iterables, array-like objects, non-literal second arguments, elisions,

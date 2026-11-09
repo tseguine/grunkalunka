@@ -57,10 +57,10 @@ fn fixed_literal_apply_preserves_function_arguments_and_effects() {
         "export function run(a,b){const add=(x,y)=>x+y;return add.apply(null,[a,b]);}",
         "export function run(a,b){const obj={add:(x,y)=>x+y};return obj.add.apply(null,[a,b]);}",
         "function f(x=3){return x;}export function run(a,b){return f.apply(null,[]);}",
-        "function f(x=3){return x;}export function run(a,b){return f.apply();}",
-        "function f(x=3){return x;}export function run(a,b){return f.apply(null);}",
-        "export function run(a,b){const f=(x=3)=>x;return f['apply']();}",
-        "export function run(a,b){const f=(x=3)=>x;let n=0;const result=f['apply'](n=1);return n===1&&result===3?1:0;}",
+        "export function run(a,b){return ((x=3)=>x).apply();}",
+        "export function run(a,b){return ((x=3)=>x).apply(null);}",
+        "export function run(a,b){return ((x=3)=>x)['apply']();}",
+        "export function run(a,b){let n=0;const result=((x=3)=>x)['apply'](n=1);return n===1&&result===3?1:0;}",
         "function identity(o){return o;}export function run(a,b){const o={};return identity.apply(null,[o])===o?a:b;}",
     ] {
         compare_sources(source, source);
@@ -72,6 +72,18 @@ fn literal_computed_function_methods_preserve_argument_evaluation_order() {
     for source in [
         "function f(x){return x;}export function run(a,b){let n=0;const result=f['call'](n=1,n=n*10+2);return n===12&&result===12?1:0;}",
         "function f(x){return x;}export function run(a,b){let n=0;const result=f['apply'](n=1,[(n=n*10+2,a)]);return n===12&&result===a?1:0;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
+fn ordinary_own_apply_fields_are_not_function_intrinsics() {
+    for source in [
+        "export function run(a,b){const o={apply:x=>x+1};return o.apply(a);}",
+        "export function run(a,b){const src={id:a,apply:x=>x+1};const {id,...rest}=src;return rest.apply(1)===2?1:0;}",
+        "export function run(a,b){const o={apply:(x,y)=>x+y};return o.apply(a,b);}",
+        "export function run(a,b){const o={apply:()=>a};return o['apply']();}",
     ] {
         compare_sources(source, source);
     }

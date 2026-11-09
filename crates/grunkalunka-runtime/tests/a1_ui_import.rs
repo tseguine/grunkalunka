@@ -492,16 +492,13 @@ fn imported_handler_builds_repeated_utf16_labels() {
 }
 
 #[test]
-fn imported_handler_invokes_defaulted_helpers_via_empty_apply() {
+fn imported_handler_invokes_proven_arrow_empty_apply() {
     for body in [
-        "return choose(f.apply()===1?1:0,b);",
-        "let n=0;const result=f['apply'](n=1);return choose(n===1&&result===1?1:0,b);",
+        "return choose(((x=1)=>x).apply()===1?1:0,b);",
+        "let n=0;const result=((x=1)=>x)['apply'](n=1);return choose(n===1&&result===1?1:0,b);",
     ] {
-        // The A1 entry's function-statement profile is deliberately narrower
-        // than the named module-helper profile. Test the latter directly.
         compare_composed_source(&format!(
             "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
-             function f(x=1){{return x;}}\n\
              export function run(a, b) {{ {body} }}"
         ));
     }
