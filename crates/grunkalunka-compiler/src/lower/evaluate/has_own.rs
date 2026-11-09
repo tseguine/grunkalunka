@@ -228,19 +228,8 @@ pub(super) fn literal_property_name(
     if let Some(units) = static_keys::literal(key) {
         return Some(units);
     }
-    let name = match key {
-        Expression::BooleanLiteral(value) => {
-            if value.value {
-                "true"
-            } else {
-                "false"
-            }
-        }
-        Expression::NullLiteral(_) => "null",
-        _ if crate::lower::string_methods::undefined(key, semantic) => "undefined",
-        _ => return None,
-    };
-    Some(name.encode_utf16().collect())
+    crate::lower::string_methods::undefined(key, semantic)
+        .then(|| "undefined".encode_utf16().collect())
 }
 
 #[cfg(test)]

@@ -196,7 +196,7 @@ fn computed_key(
     static_keys::literal(key).ok_or_else(|| {
         unsupported(
             node,
-            "managed property keys require a String or numeric literal",
+            "managed property access requires a supported literal key",
         )
     })
 }
