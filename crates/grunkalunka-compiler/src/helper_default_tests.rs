@@ -680,7 +680,6 @@ fn earlier_string_defaults_reject_unproven_coercion_effects_and_tdz() {
     }
 }
 
-
 #[test]
 fn numeric_comparison_defaults_admit_thresholds_and_policy_selection() {
     for body in [
