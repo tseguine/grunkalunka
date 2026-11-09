@@ -1136,3 +1136,31 @@ fn earlier_object_field_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(row:unknown,backup:unknown,selected:unknown=(row as {label:unknown}).label??backup){return selected===backup?1:0;}export function run(a:number,b:number):number{return f({label:a},b);}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn earlier_array_parameter_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(xs,want,z=xs[0]){return z===want?1:0;}return f([a,b],a);",
+        "function f(xs,want,z=xs[1]){return z===want?1:0;}return f([a,b],b);",
+        "function f(xs,want,z=xs['0']){return z===want?1:0;}return f([a,b],a);",
+        "function f(xs,want,z=xs[8]??want){return z===want?1:0;}return f([a,b],a);",
+        "function f(xs,want,z=xs[0]??want){return z===want?1:0;}return f([undefined,b],a);",
+        "function f(xs,want,z=xs[0]||want){return z===want?1:0;}return f([0,b],a);",
+        "function f(xs,want,z=xs[0]&&want){return z===want?1:0;}return f([true,b],a);",
+        "function f(xs,want,z=xs[0]?xs[0]:want){return z===want?1:0;}return f([false,b],a);",
+        "function f(xs,want,z=xs[0]===want?1:0){return z;}return f([a,b],a);",
+        "function f(xs,n=xs.length){return n;}return f([a,b]);",
+        "function f(xs,n=xs.length){return n;}return f([a,,b]);",
+        "function f(xs,n=xs.length){return n;}return f([]);",
+        "function f(xs,n=xs.length){return n;}return f([a,b],7);",
+        "function f(xs,want,z=xs[0]){return z===want?1:0;}const o={v:a};return f([o],o);",
+        "const f=(xs,want,z=xs[0])=>z===want?1:0;return f([a],a);",
+        "const o={f:(xs,n=xs.length)=>n};return o.f([a,b]);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(xs,want,z=xs[0]??want){return z===want?1:0;}export function run(a,b){return f([a],b);}";
+    let ts = "function f(xs:unknown[],want:unknown,z:unknown=xs[0]??want){return z===want?1:0;}export function run(a:number,b:number):number{return f([a],b);}";
+    common::compare_sources(js, ts);
+}

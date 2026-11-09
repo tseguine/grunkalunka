@@ -825,3 +825,56 @@ fn earlier_object_field_defaults_reject_unknown_receivers_and_effects() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn earlier_array_elements_and_length_supply_lazy_parameter_defaults() {
+    for body in [
+        "function f(xs,want,z=xs[0]){return z===want?1:0;}export function run(a,b){return f([a,b],a);}",
+        "function f(xs,want,z=xs[1]){return z===want?1:0;}export function run(a,b){return f([a,b],b);}",
+        "function f(xs,want,z=xs['0']){return z===want?1:0;}export function run(a,b){return f([a,b],a);}",
+        "function f(xs,want,z=xs[9]??want){return z===want?1:0;}export function run(a,b){return f([a,b],a);}",
+        "function f(xs,want,z=xs[0]||want){return z===want?1:0;}export function run(a,b){return f([0,b],a);}",
+        "function f(xs,want,z=xs[0]&&want){return z===want?1:0;}export function run(a,b){return f([true,b],a);}",
+        "function f(xs,want,z=xs[0]?xs[0]:want){return z===want?1:0;}export function run(a,b){return f([false,b],a);}",
+        "function f(xs,want,z=xs[0]===want?1:0){return z;}export function run(a,b){return f([a,b],a);}",
+        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([a,b]);}",
+        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([a,,b]);}",
+        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([]);}",
+        "function f(xs,n=xs.length){return n;}export function run(a,b){return f([a,b],7);}",
+        "function f(xs,want,z=xs[0]){return z===want?1:0;}export function run(a,b){const o={v:a};return f([o],o);}",
+        "export function run(a,b){const f=(xs,want,z=xs[0])=>z===want?1:0;return f([a],a);}",
+        "export function run(a,b){const o={f:(xs,n=xs.length)=>n};return o.f([a,b]);}",
+        "function f(xs,want,z=xs[0]??want){return z===want?1:0;}export function run(a,b){return f([undefined],a);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(xs,want,z=xs[0]??want){return z===want?1:0;}export function run(a,b){return f([a],b);}";
+    let ts = "function f(xs:unknown[],want:unknown,z:unknown=xs[0]??want){return z===want?1:0;}export function run(a:number,b:number):number{return f([a],b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn earlier_array_defaults_guard_prototypes_dynamic_keys_and_unknown_kinds() {
+    for body in [
+        "function f(xs,z=xs[0]){return z;}export function run(a,b){return f(a);}",
+        "function f(xs,z=xs[0]){return z;}export function run(a,b){return f(null);}",
+        "function f(xs,z=xs.map){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=xs.slice){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=xs.toString){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=xs.__proto__){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=xs[key]){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=xs[read()]){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=xs?.[0]){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=z[0]){return z;}export function run(a,b){return f([a]);}",
+        "function f(xs,z=later[0],later=[a]){return z;}export function run(a,b){return f([a]);}",
+        "export function run(a,b){const f=(xs,z=a[0])=>z;return f([a]);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}

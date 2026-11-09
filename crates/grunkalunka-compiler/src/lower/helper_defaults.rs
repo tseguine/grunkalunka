@@ -1414,32 +1414,59 @@ impl Lowering<'_, '_> {
         receiver: &IdentifierReference<'_>,
         key: Vec<u16>,
     ) -> Result<ValueId, String> {
-        // A positive source-origin proof excludes nullish/non-object receivers.
-        // All admitted ordinary objects have own data properties, no getters.
-        if self.stored.container(receiver.node_id()) != Some(Type::ManagedObject) {
+        // A positive source-origin proof excludes nullish/primitive receivers.
+        // Arrays and ordinary objects have own data slots; inherited accessors
+        // and methods are not the same operation as an own-property lookup.
+        let kind = self.stored.container(receiver.node_id()).ok_or_else(|| {
+            unsupported(node, "property parameter defaults require a proven object or array")
+        })?;
+        if !matches!(kind, Type::ManagedObject | Type::ManagedArray) {
             return Err(unsupported(
                 node,
-                "property parameter defaults require a proven object receiver",
+                "property parameter defaults require a proven object or array",
+            ));
+        }
+        if kind == Type::ManagedArray
+            && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key)
+        {
+            return Err(unsupported(
+                node,
+                "array prototype properties are not pure own-property defaults",
             ));
         }
         let boxed = self.load_earlier_value(receiver, node, region)?;
-        let object = self.value(Type::ManagedObject);
+        let container = self.value(kind);
         Self::push(
             region,
             node,
-            Op::ManagedToObject {
-                result: object,
-                input: boxed,
+            if kind == Type::ManagedArray {
+                Op::ManagedToArray {
+                    result: container,
+                    input: boxed,
+                }
+            } else {
+                Op::ManagedToObject {
+                    result: container,
+                    input: boxed,
+                }
             },
         );
         let value = self.value(Type::ManagedValue);
         Self::push(
             region,
             node,
-            Op::ManagedGetOwn {
-                result: value,
-                object,
-                key,
+            if kind == Type::ManagedArray {
+                Op::ManagedArrayGetOwn {
+                    result: value,
+                    array: container,
+                    key,
+                }
+            } else {
+                Op::ManagedGetOwn {
+                    result: value,
+                    object: container,
+                    key,
+                }
             },
         );
         Ok(value)

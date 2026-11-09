@@ -692,3 +692,15 @@ or unproven objects, self/later/outer reads, effects and async/public helper
 defaults remain outside the admitted slice. Compiler admission/guard tests and
 Node-Wasm/Wasmtime differential fixtures are included; their hosted execution
 is pending.
+
+Array-origin arguments now participate in the same lazy earlier-parameter
+property defaults as ordinary objects. A source-proven array can supply a
+static index (`items[0]`, `items['1']`) or its own `length` to a later
+helper or arrow parameter, including inside nullish/logical selections,
+conditionals and strict comparisons. The compiler projects the saved argument
+through the checked managed-array path and reads an own slot, retaining sparse
+holes as Undefined and reading current length without a separate host call.
+Explicitly supplied defaulted arguments still bypass the read. Prototype
+methods/inherited names, runtime keys, optional member chains, unknown kinds,
+effects and self/later/outer reads remain guarded. Compiler tests and native
+JS/TS-vs-Wasm differential fixtures are included but need hosted execution.
