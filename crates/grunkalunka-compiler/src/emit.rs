@@ -1146,6 +1146,8 @@ impl Emitter<'_> {
                     Binary::Add => ("f64.add\n", false),
                     Binary::Subtract => ("f64.sub\n", false),
                     Binary::Multiply => ("f64.mul\n", false),
+                    Binary::Min => ("f64.min\n", false),
+                    Binary::Max => ("f64.max\n", false),
                     Binary::Divide => ("f64.div\n", false),
                     Binary::Remainder => {
                         self.needs_remainder = true;
