@@ -113,9 +113,9 @@ impl Lowering<'_, '_> {
                 } else if property.computed
                     && let Some(key) = property.key.as_expression()
                     && (self.stored.string(key.node_id())
-                        || property_delete::uint32_key(key, depth))
+                        || self.stored.uint32_keys.contains(key, depth))
                 {
-                    let uint32 = property_delete::uint32_key(key, depth);
+                    let uint32 = self.stored.uint32_keys.contains(key, depth);
                     if uint32 {
                         mode = Mode::Number;
                     }
@@ -160,7 +160,8 @@ mod uint32_tests {
             ("const o={[a>>0]:b};return a;", false),
             ("const o={[a?(0>>>0):b]:a};return a;", false),
             ("const o={[(Math.random(),a>>>0)]:b};return a;", false),
-            ("const key=a>>>0;const o={[key]:b};return a;", false),
+            ("const key=a>>>0;const o={[key]:b};return a;", true),
+            ("let key=a>>>0;key=a;const o={[key]:b};return a;", false),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {

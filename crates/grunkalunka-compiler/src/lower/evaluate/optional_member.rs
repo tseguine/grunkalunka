@@ -12,6 +12,7 @@ pub(in crate::lower) enum Key<'e, 'a> {
 pub(in crate::lower) fn parts<'e, 'a>(
     chain: &'e ChainExpression<'a>,
     depth: usize,
+    uint32_keys: &Uint32Keys,
 ) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
     if depth + 2 > 128 {
         return None;
@@ -25,7 +26,7 @@ pub(in crate::lower) fn parts<'e, 'a>(
             let (key, _) = closures::unwrapped_at(&member.expression, depth + 2)?;
             if let Some(key) = static_keys::literal(key) {
                 Some((&member.object, Key::Literal(key)))
-            } else if property_delete::uint32_key(&member.expression, depth + 2) {
+            } else if uint32_keys.contains(&member.expression, depth + 2) {
                 Some((&member.object, Key::Uint32(&member.expression)))
             } else {
                 Some((&member.object, Key::Runtime(&member.expression)))
@@ -63,7 +64,7 @@ impl Lowering<'_, '_> {
         let Expression::ChainExpression(chain) = node else {
             return Ok(false);
         };
-        let Some((object, key)) = parts(chain, depth) else {
+        let Some((object, key)) = parts(chain, depth, &self.stored.uint32_keys) else {
             return Ok(false);
         };
         let receiver = self.stored.optional_receiver(object.node_id());

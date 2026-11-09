@@ -21,50 +21,6 @@ pub(super) enum Task<'e, 'a> {
     },
 }
 
-// An AND clears the sign bit if either operand is an integer literal in
-// the nonnegative i32 range. Both original operands still execute.
-fn nonnegative_i32_mask(expression: &Expression<'_>, depth: usize) -> bool {
-    closures::unwrapped(expression, depth)
-        .and_then(static_keys::number)
-        .is_some_and(|n| (0.0..=f64::from(i32::MAX)).contains(&n) && n.fract() == 0.0)
-}
-
-// Source operators, never annotations, prove the key's numeric range. The
-// ordinary evaluator still validates every operand and effect of these forms.
-pub(in crate::lower) fn uint32_key(expression: &Expression<'_>, depth: usize) -> bool {
-    let mut pending = vec![(expression, depth)];
-    while let Some((expression, depth)) = pending.pop() {
-        let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
-            return false;
-        };
-        match expression {
-            Expression::BinaryExpression(binary)
-                if binary.operator == BinaryOperator::ShiftRightZeroFill => {}
-            Expression::BinaryExpression(binary)
-                if binary.operator == BinaryOperator::BitwiseAnd
-                    && (nonnegative_i32_mask(&binary.left, depth + 1)
-                        || nonnegative_i32_mask(&binary.right, depth + 1)) => {}
-            Expression::SequenceExpression(sequence) => {
-                let Some(last) = sequence.expressions.last() else {
-                    return false;
-                };
-                pending.push((last, depth + 1));
-            }
-            Expression::AssignmentExpression(assignment)
-                if assignment.operator == AssignmentOperator::Assign =>
-            {
-                pending.push((&assignment.right, depth + 1))
-            }
-            Expression::ConditionalExpression(conditional) => {
-                pending.push((&conditional.consequent, depth + 1));
-                pending.push((&conditional.alternate, depth + 1));
-            }
-            _ => return false,
-        }
-    }
-    true
-}
-
 impl Lowering<'_, '_> {
     pub(super) fn schedule_property_delete<'e, 'a>(
         &self,
@@ -124,7 +80,8 @@ impl Lowering<'_, '_> {
                 "delete requires a proven Number, Boolean, object or array receiver",
             ));
         }
-        let uint32 = dynamic.is_some_and(|key| uint32_key(key, member_depth + 1));
+        let uint32 =
+            dynamic.is_some_and(|key| self.stored.uint32_keys.contains(key, member_depth + 1));
         if let Some(key) = dynamic
             && literal.is_none()
             && !uint32

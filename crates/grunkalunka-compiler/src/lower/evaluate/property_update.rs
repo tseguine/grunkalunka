@@ -107,7 +107,11 @@ impl Lowering<'_, '_> {
                     .and_then(|(key, _)| static_keys::literal(key));
                 if let Some(key) = key {
                     (&member.object, Key::Literal(key))
-                } else if property_delete::uint32_key(&member.expression, depth + 2) {
+                } else if self
+                    .stored
+                    .uint32_keys
+                    .contains(&member.expression, depth + 2)
+                {
                     (&member.object, Key::Uint32(&member.expression))
                 } else if self.stored.dictionary(member.object.node_id())
                     && self.stored.string(member.expression.node_id())
@@ -176,7 +180,7 @@ impl Lowering<'_, '_> {
                 let object = values.pop().expect("numeric write receiver").id();
                 match key {
                     Key::Uint32(key) | Key::String(key) => {
-                        let uint32 = property_delete::uint32_key(key, depth + 1);
+                        let uint32 = self.stored.uint32_keys.contains(key, depth + 1);
                         work.push(Work::PropertyUpdate(Task::Key {
                             uint32,
                             node,

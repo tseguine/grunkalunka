@@ -315,12 +315,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         });
                     } else if property.computed
                         && let Some(key) = property.key.as_expression()
-                        && (evaluate::property_delete::uint32_key(key, depth)
+                        && (self.stored.uint32_keys.contains(key, depth)
                             || (dictionary && self.stored.string(key.node_id())))
                     {
                         mark_live_arrays(&containers, &mut steps);
                         steps.push(BindingStep::ComputedField {
-                            uint32: evaluate::property_delete::uint32_key(key, depth),
+                            uint32: self.stored.uint32_keys.contains(key, depth),
                             source: property,
                             key,
                             depth,

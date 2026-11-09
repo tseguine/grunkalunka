@@ -55,7 +55,10 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let uint32 = property_delete::uint32_key(&member.expression, depth + 1);
+        let uint32 = self
+            .stored
+            .uint32_keys
+            .contains(&member.expression, depth + 1);
         let dictionary = self.stored.dictionary(member.object.node_id());
         let receiver = self.receiver_type(&member.object, depth + 1);
         if member.optional

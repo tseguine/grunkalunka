@@ -9,7 +9,10 @@ pub(super) enum Mutation {
     AnyKeyWrite { receiver: NodeId, value: NodeId },
 }
 
-pub(super) fn delete(unary: &oxc_ast::ast::UnaryExpression<'_>) -> Option<Mutation> {
+pub(super) fn delete(
+    unary: &oxc_ast::ast::UnaryExpression<'_>,
+    uint32_keys: &Uint32Keys,
+) -> Option<Mutation> {
     if unary.operator != UnaryOperator::Delete {
         return None;
     }
@@ -23,7 +26,7 @@ pub(super) fn delete(unary: &oxc_ast::ast::UnaryExpression<'_>) -> Option<Mutati
             closures::unwrapped(&member.expression, 0).and_then(static_keys::literal),
         ),
         Expression::ChainExpression(chain) => {
-            let (receiver, key) = evaluate::optional_member::parts(chain, 0)?;
+            let (receiver, key) = evaluate::optional_member::parts(chain, 0, uint32_keys)?;
             let key = match key {
                 evaluate::optional_member::Key::Literal(key) => Some(key),
                 evaluate::optional_member::Key::Uint32(_)

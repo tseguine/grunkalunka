@@ -31,7 +31,7 @@ impl Lowering<'_, '_> {
     ) -> Result<(), String> {
         boolean_consumer(node, mode, "property presence produces a Boolean", work)?;
         let literal = literal_property_name(&binary.left, self.semantic, depth + 1);
-        let uint32 = property_delete::uint32_key(&binary.left, depth + 1);
+        let uint32 = self.stored.uint32_keys.contains(&binary.left, depth + 1);
         let key_mode = if literal.is_some() {
             Mode::Discard
         } else if uint32 {
@@ -198,7 +198,7 @@ impl Lowering<'_, '_> {
                 task.key = Some(ir::ManagedKey::Literal(units));
                 // In particular, void's operand still runs at the key's position.
                 Mode::Discard
-            } else if property_delete::uint32_key(arg, depth) {
+            } else if self.stored.uint32_keys.contains(arg, depth) {
                 task.uint32_key = true;
                 Mode::Number
             } else if self.stored.string(arg.node_id()) {
