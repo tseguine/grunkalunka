@@ -532,3 +532,54 @@ fn earlier_parameter_branches_reject_self_later_scope_and_effectful_arms() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn earlier_parameter_logical_chains_admit_policy_precedence() {
+    for expression in [
+        "x??backup??'missing'",
+        "x||backup||'missing'",
+        "x&&backup&&'enabled'",
+        "(x??backup)||'none'",
+        "(x||backup)??'missing'",
+        "x??backup??alt",
+        "x&&backup||alt",
+    ] {
+        for source in [
+            format!(
+                "function f(x,backup,alt,result={expression}){{return result;}}export function run(a,b){{return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const f=(x,backup,alt,result={expression})=>result;return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,backup,alt,result={expression})=>result}};return o.f(a,b,3);}}"
+            ),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn earlier_parameter_logical_chains_reject_hidden_reads_and_effects() {
+    for source in [
+        "function f(x,y=x??x??g()){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x||x||missing){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x??x??y){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x??x??later,later=3){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x??g()??3){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x??(x+1)??3){return y;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(x,y=x??x??a)=>y;return f(a);}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+    let js = "function f(x,y,z=x??y??'missing'){return z;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)??'missing'){return z;}export function run(a:unknown,b:unknown):unknown{return f(a,b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}

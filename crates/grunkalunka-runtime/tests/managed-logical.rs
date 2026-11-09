@@ -991,3 +991,25 @@ fn earlier_parameter_selection_arms_read_initialized_values_and_preserve_identit
     let ts = "export function run(a:number,b:number){const f=(flag:unknown,yes:unknown,no:unknown,z:unknown=(flag as never)?yes:no)=>z;return f(a,b,4)===(a?b:4)?a:b;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn earlier_parameter_logical_chains_match_native_js_and_ts() {
+    for body in [
+        "function f(x,y,z=x??y??'none'){return z;}return f(null,b)===b?a:b;",
+        "function f(x,y,z=x||y||'none'){return z;}return f(0,b)===(b||'none')?a:b;",
+        "function f(x,y,z=x&&y&&'done'){return z;}return f(a,b)===(a&&b&&'done')?a:b;",
+        "const f=(x,y,z=(x??y)||'missing')=>z;return f(null,0)==='missing'?a:b;",
+        "const f=(x,y,z=(x||y)??'none')=>z;return f(0,null)===null?a:b;",
+        "const f=(x,y,z=x??y??'none')=>z;return f(null,null)==='none'?a:b;",
+        "const o={f:(x,y,z=x??y??'none')=>z};return o.f(null,b)===b?a:b;",
+        "const fallback={v:a};const f=(x,y,z=x??y??'none')=>z;return f(null,fallback)===fallback?a:b;",
+        "const f=(x,y,z=x??y??'none')=>z;return f(null,null,7)===7?a:b;",
+        "const f=(x,y,z=x&&y||'none')=>z;return f(a,b)===(a&&b||'none')?a:b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const f=(x,y,z=x??y??'none')=>z;return f(null,b)===b?a:b;}";
+    let ts = "export function run(a:number,b:number):number{const f=(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)??'none')=>z;return f(null,b)===b?a:b;}";
+    common::compare_sources(js, ts);
+}
