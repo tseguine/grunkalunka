@@ -929,3 +929,49 @@ fn bitwise_parameter_defaults_reject_effects_unknown_kinds_and_scope() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn nested_action_record_default_paths_admit_proven_objects_and_arrays() {
+    for body in [
+        "function f(row,expected,z=row.meta.label){return z===expected?1:0;}export function run(a,b){return f({meta:{label:a}},a);}",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:undefined}},a);}",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}",
+        "function f(row,backup,z=row.meta.label||backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:0}},b);}",
+        "function f(row,backup,z=row.meta.label?row.meta.label:backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:false}},b);}",
+        "function f(row,backup,z=row.meta.label===backup?'match':'other'){return z.length;}export function run(a,b){return f({meta:{label:a}},a);}",
+        "function f(row,backup,z=row.meta.deep.label){return z===backup?1:0;}export function run(a,b){return f({meta:{deep:{label:a}}},a);}",
+        "function f(row,backup,z=row.items[0].label){return z===backup?1:0;}export function run(a,b){return f({items:[{label:a}]},a);}",
+        "function f(row,backup,z=row.meta.label){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b,b);}",
+        "export function run(a,b){const f=(row,backup,z=row.meta.label??backup)=>z===backup?1:0;return f({meta:{label:a}},b);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}";
+    let ts = "function f(row:unknown,backup:unknown,z:unknown=(row as {meta:{label:unknown}}).meta.label??backup){return z===backup?1:0;}export function run(a:number,b:number):number{return f({meta:{label:a}},b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn nested_action_record_defaults_reject_unknown_intermediates_and_effects() {
+    for body in [
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){return f(a);}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){return f({meta:null});}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){return f({meta:a});}",
+        "function f(row,z=row.meta[key]){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta[read()]){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.toString){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.__proto__){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta?.label){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){const x={meta:{label:a}};return f(b?x:{meta:null});}",
+        "function f(row,z=later.meta.label,later={meta:{label:1}}){return z;}export function run(a,b){return f({meta:{label:a}});}",
+        "function f(row,z=row.meta.label){return z;}export function run(a,b){const f2=(x,y=a.meta.label)=>y;return f2(row);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}

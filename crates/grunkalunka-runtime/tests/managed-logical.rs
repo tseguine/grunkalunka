@@ -1192,3 +1192,25 @@ fn bitwise_parameter_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(x:unknown,y:unknown,z:unknown=(x as number)>>>((y as number)&31)){return z as number;}export function run(a:number,b:number):number{return f(a,b);}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn nested_action_record_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(row,expected,z=row.meta.label){return z===expected?1:0;}return f({meta:{label:a}},a);",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}return f({meta:{label:undefined}},a);",
+        "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}return f({meta:{label:a}},b);",
+        "function f(row,backup,z=row.meta.label||backup){return z===backup?1:0;}return f({meta:{label:0}},b);",
+        "function f(row,backup,z=row.meta.label?row.meta.label:backup){return z===backup?1:0;}return f({meta:{label:false}},b);",
+        "function f(row,backup,z=row.meta.label===backup?'match':'other'){return z.length;}return f({meta:{label:a}},a);",
+        "function f(row,backup,z=row.meta.deep.label){return z===backup?1:0;}return f({meta:{deep:{label:a}}},a);",
+        "function f(row,backup,z=row.items[0].label){return z===backup?1:0;}return f({items:[{label:a}]},a);",
+        "function f(row,backup,z=row.meta.label){return z===backup?1:0;}return f({meta:{label:a}},b,b);",
+        "const f=(row,backup,z=row.meta.label??backup)=>z===backup?1:0;return f({meta:{label:a}},b);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(row,backup,z=row.meta.label??backup){return z===backup?1:0;}export function run(a,b){return f({meta:{label:a}},b);}";
+    let ts = "function f(row:unknown,backup:unknown,z:unknown=(row as {meta:{label:unknown}}).meta.label??backup){return z===backup?1:0;}export function run(a:number,b:number):number{return f({meta:{label:a}},b);}";
+    common::compare_sources(js, ts);
+}
