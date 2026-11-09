@@ -35,7 +35,7 @@ pub(super) enum Task<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
-    fn runtime_member_receiver(
+    pub(super) fn runtime_member_receiver(
         &self,
         member: &oxc_ast::ast::ComputedMemberExpression<'_>,
         depth: usize,

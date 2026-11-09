@@ -286,7 +286,7 @@ mod tests {
         for body in [
             "const xs=[];xs.length||=1;return a;",
             "const o={};o.constructor??=a;return a;",
-            "const o={};const key='x';o[key]??=a;return a;",
+            "const o={};const key=a?'x':'constructor';o[key]??=a;return a;",
             "const o={x:false};o.x&&=1n;return a;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");

@@ -5,6 +5,30 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn numeric_record_updates_preserve_key_and_previous_value() {
+    for body in [
+        "const o={x:2,y:4},k=a?'x':'y';const old=o[k]++;return old*10+(+o[k]);",
+        "const o={x:true,y:null},k=a?'x':'y';return ++o[k];",
+        "const o={x:4},k=a?'x':'missing';const value=o[k]+=(o.x=7,2);return o[k]===value?value:NaN;",
+        "const o={x:3},k='x';let n=0;o[(n++,k)]<<=1;return n*10+(+o[k]);",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn logical_record_writes_observe_the_selected_field_once() {
+    for body in [
+        "const o={x:0,y:3};const k=a?'x':'y';let calls=0;const v=o[k]||=(calls++,b);return calls*10+(o[k]===v?1:0);",
+        "const o={x:false,y:2};const k=a?'x':'y';let n=0;o[(n++,k)]&&=(n++,b);return n;",
+        "let o={x:null};const old=o,k=a?'x':'missing';const v=o[k]??=(o={x:7},b);return old[k]===v&&o.x===7?1:0;",
+        "const o={x:0};const k=a?'x':'missing';let n=0;o[k]??=(n++,b);return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn record_patterns_select_and_exclude_runtime_names() {
     for body in [
         "const k=a?'x':'y';const row={x:11,y:22};const {[k]:v,...rest}=row;return +v+Object.keys(rest).length;",
