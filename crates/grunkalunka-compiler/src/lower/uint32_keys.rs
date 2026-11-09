@@ -49,7 +49,14 @@ impl Uint32Keys {
             let Some(symbol) = name.symbol_id.get() else {
                 continue;
             };
-            if !semantic.scoping().symbol_flags(symbol).is_const_variable() {
+            let AstKind::VariableDeclaration(parent) = semantic.nodes().parent_kind(node.id())
+            else {
+                continue;
+            };
+            if !(parent.kind == VariableDeclarationKind::Const
+                || (parent.kind == VariableDeclarationKind::Let
+                    && !semantic.scoping().symbol_is_mutated(symbol)))
+            {
                 continue;
             }
             let Some(init) = declaration.init.as_ref() else {
@@ -167,7 +174,7 @@ impl Uint32Keys {
     }
 
     // This proof runs before general field-origin analysis, which itself uses
-    // unsigned keys. Only literal receivers and their immutable aliases qualify.
+    // unsigned keys. Only literal receivers and bindings that retain them qualify.
     fn array_or_string(&self, expression: &Expression<'_>, depth: usize) -> bool {
         closures::unwrapped(expression, depth).is_some_and(|expr| match expr {
             Expression::ArrayExpression(_)
@@ -237,7 +244,9 @@ mod tests {
             ("let i=0;i<a;i++", "", false),
             ("let i=-1;i<xs.length;i++", "", false),
             ("let i=0;i<xs.length;i--", "", false),
-            ("let i=0;i<xs.length;a++", "", false),
+            // A different step leaves i provably equal to its initializer.
+            ("let i=0;i<xs.length;a++", "", true),
+            ("let i=0;i<xs.length;a++", "i=b;", false),
             ("let i=0;a<xs.length;i++", "", false),
             ("let i=0;i<xs.length;i++", "i=b;", false),
             ("let i=0;i<xs.length;i++", "const f=()=>i=b;f();", false),
@@ -274,6 +283,37 @@ mod tests {
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             let result = crate::compile(&source, true);
+            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+        }
+    }
+
+    #[test]
+    fn let_keys_keep_the_initializer_proof_only_without_writes() {
+        for (body, admitted) in [
+            (
+                "let i=a>>>0;const xs=[a];return Object.hasOwn(xs,i)?1:0;",
+                true,
+            ),
+            (
+                "let xs=[a],alias=xs;return Object.hasOwn(xs,alias.length)?1:0;",
+                true,
+            ),
+            (
+                "let i=a>>>0;const f=()=>i=-1;return Object.hasOwn([a],i)?1:0;",
+                false,
+            ),
+            ("let i=0;[i]=[a];return Object.hasOwn([b],i)?1:0;", false),
+            (
+                "let i=0;for(i of [-1]){}return Object.hasOwn([a],i)?1:0;",
+                false,
+            ),
+            (
+                "let i=0;for(i in {x:a}){}return Object.hasOwn([b],i)?1:0;",
+                false,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let result = crate::compile(&source, false);
             assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
         }
     }

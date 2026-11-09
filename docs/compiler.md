@@ -2818,8 +2818,11 @@ such as `slots[cursor & 255]`, writes, and computed destructuring through the
 same key path. The ordinary evaluator still checks
 all operands and effects. A simple `const` initialized with a proven unsigned
 expression or a uint32 integer literal retains the proof at subsequent reads,
-including through further const aliases. Its initializer executes once.
-Array and String literals, and const aliases of those receivers, also supply an
+including through further const aliases. A lexical `let` with no writes to
+its resolved binding has the same property. A write in a closure,
+destructuring assignment, or iteration head disqualifies that initializer
+proof. The initializer executes once per declaration evaluation.
+Array and String literals, and unreassigned aliases of those receivers, also supply an
 unsigned `.length` or `["length"]`. Each read observes the current length, so
 `xs[xs.length] = value` snapshots the append position before RHS effects.
 A single `let` counter with an unsigned initializer can index a counted loop:
