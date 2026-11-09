@@ -75,6 +75,53 @@ pub(super) fn length_receiver<'e, 'a>(
     }
 }
 
+// Keep the prototype names consistent with each fixed fragment's position.
+// Unknown operands may contribute any String. A literal below an operator
+// other than concatenation provides no evidence about the resulting name.
+fn constructed_own_name(expression: &Expression<'_>, depth: usize) -> bool {
+    let mut candidates = crate::prototype_keys::OBJECT.to_vec();
+    let mut pending = vec![(expression, depth, true, true)];
+    while let Some((node, depth, first, last)) = pending.pop() {
+        let Some((node, depth)) = closures::unwrapped_at(node, depth) else {
+            return false;
+        };
+        let mut fragment = |text: Option<&str>, prefix: bool, suffix: bool| {
+            candidates.retain(|name| {
+                text.is_some_and(|text| match (prefix, suffix) {
+                    (true, true) => *name == text,
+                    (true, false) => name.starts_with(text),
+                    (false, true) => name.ends_with(text),
+                    (false, false) => name.contains(text),
+                })
+            });
+        };
+        match node {
+            Expression::StringLiteral(s) => fragment(s.value.as_str(), first, last),
+            Expression::TemplateLiteral(t) => {
+                for (i, quasi) in t.quasis.iter().enumerate() {
+                    let Some(cooked) = &quasi.value.cooked else {
+                        return false;
+                    };
+                    fragment(
+                        cooked.as_str(),
+                        first && i == 0,
+                        last && i + 1 == t.quasis.len(),
+                    );
+                }
+            }
+            Expression::BinaryExpression(b) if b.operator == BinaryOperator::Addition => {
+                pending.push((&b.right, depth + 1, false, last));
+                pending.push((&b.left, depth + 1, first, false));
+            }
+            _ => {}
+        }
+        if candidates.is_empty() {
+            return true;
+        }
+    }
+    false
+}
+
 // A plain record can use its own-property table when every possible String
 // key misses the pristine Object prototype. Validate operands separately;
 // this walk only describes the result of a successful key evaluation.
@@ -93,7 +140,7 @@ pub(super) fn own_string_name(
             return false;
         };
         match node {
-            Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
+            Expression::StringLiteral(_) => {
                 let Some(name) = literal(node) else {
                     return false;
                 };
@@ -101,6 +148,8 @@ pub(super) fn own_string_name(
                     return false;
                 }
             }
+            Expression::TemplateLiteral(_) | Expression::BinaryExpression(_)
+                if constructed_own_name(node, depth) => {}
             Expression::ConditionalExpression(c) => {
                 pending.push((&c.consequent, depth + 1));
                 pending.push((&c.alternate, depth + 1));
@@ -156,11 +205,20 @@ mod tests {
             ("a?'x':'__proto__'", false),
             ("a?'toString':'x'", false),
             ("a?`constructor`:'x'", false),
+            ("'user:'+s", true),
+            ("s+'.row'", true),
+            ("s+'!'+s", true),
+            ("`user:${s}`", true),
+            ("`to${s}`", false),
+            ("'to'+s", false),
+            ("s+'String'", false),
+            ("`${s}`", false),
+            ("(':'+s).length", false),
             ("a as 'x'", false),
             ("(Math.random(),'x')", false),
         ] {
             let source = format!(
-                "export function run(a,b){{const o={{x:a}},name={key};return o[name]===a?1:0;}}"
+                "export function run(a,b){{const o={{x:a}},s=a?'String':'x',name={key};return o[name]===a?1:0;}}"
             );
             assert_eq!(crate::compile(&source, true).is_ok(), admitted, "{source}");
         }

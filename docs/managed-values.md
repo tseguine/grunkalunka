@@ -1633,3 +1633,9 @@ assignment leaves the field untouched.
 Numeric compound assignments and prefix/postfix updates use the same saved
 key when the old value has a proven primitive numeric-coercion domain.
 Postfix returns the converted old value and prefix returns the stored result.
+
+Runtime field names can also be constructed by String concatenation and
+template interpolation. Fixed prefixes, suffixes, and interior fragments
+must together rule out every name on the Object prototype. For example,
+`record["user:" + name]` can use an arbitrary supported String, while
+`record["to" + name]` can still select an inherited method.
