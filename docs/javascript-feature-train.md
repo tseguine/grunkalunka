@@ -662,3 +662,4 @@ unproven object coercion, equality operators, scope/TDZ reads, effects and
 public/async defaults remain guarded. Compiler admission/rejection and
 Node-Wasm/Wasmtime differential fixtures cover the admitted forms; fixture
 presence does not establish hosted execution.
+true

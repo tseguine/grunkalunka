@@ -727,3 +727,52 @@ fn numeric_comparison_defaults_reject_unproven_coercion_scope_and_effects() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+
+#[test]
+fn strict_equality_defaults_route_actions_by_value_and_identity() {
+    for body in [
+        "function f(x,y,z=x===y){return z?11:13;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x!==y){return z?17:19;}export function run(a,b){return f(a,b);}",
+        "function f(x,z=x===2){return z?3:5;}export function run(a,b){return f(a);}",
+        "function f(x,z=x!==undefined){return z?7:9;}export function run(a,b){return f(a);}",
+        "function f(x,y,z=x===y?'match':'other'){return z.length;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x!==y?x:y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x===y){return z?1:0;}export function run(a,b){return f(a,b,false);}",
+        "function f(x,y,z=x===y){return z?1:0;}export function run(a,b){const o={v:a};return f(o,o);}",
+        "function f(x,y,z=x!==y){return z?1:0;}export function run(a,b){return f('go','go');}",
+        "function f(x,y,z=x===y){return z?1:0;}export function run(a,b){return f(null,undefined);}",
+        "export function run(a,b){const f=(x,y,z=x===y)=>z?1:0;return f(a,b);}",
+        "export function run(a,b){const o={f:(x,y,z=x!==y)=>z?1:0};return o.f(a,b);}",
+        "function f(x,y,z=x!==y?'different':'same'){return z.length;}export function run(a,b){return f(a,b);}",
+    ] {
+        for ts in [false, true] {
+            let compiled = crate::compile_value(body, ts);
+            assert!(compiled.is_ok(), "{body}: {:?}", compiled.err());
+        }
+    }
+    let js = "function f(x,y,z=x===y?'same':'different'){return z.length;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=x===y?'same':'different'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn strict_equality_defaults_reject_coercion_side_effects_and_tdz() {
+    for body in [
+        "function f(x,y,z=x==y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x!=y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,z=x===later,later=2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=z===x){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x===missing){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x===g()){return z;}export function run(a,b){return f(a);}",
+        "function f(x,y,z=x++===y){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,z=x==={v:1}){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x===2||false){return z;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(x,z=a===x)=>z;return f(a);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}

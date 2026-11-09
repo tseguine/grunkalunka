@@ -1085,3 +1085,30 @@ fn numeric_comparison_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)>=(y as never)?'high':'low'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
     common::compare_sources(js, ts);
 }
+
+
+#[test]
+fn strict_equality_parameter_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(x,y,z=x===y){return z?11:13;}return f(a,b);",
+        "function f(x,y,z=x!==y){return z?17:19;}return f(a,b);",
+        "function f(x,z=x===2){return z?3:5;}return f(a);",
+        "function f(x,z=x!==undefined){return z?7:9;}return f(a);",
+        "function f(x,y,z=x===y?'match':'other'){return z.length;}return f(a,b);",
+        "function f(x,y,z=x!==y?x:y){return z;}return f(a,b);",
+        "function f(x,y,z=x===y){return z?1:0;}return f(a,b,false);",
+        "function f(x,y,z=x===y){return z?1:0;}const o={v:a};return f(o,o);",
+        "function f(x,y,z=x!==y){return z?1:0;}const o={v:a};return f(o,{v:a});",
+        "function f(x,y,z=x===y){return z?1:0;}return f('go','go');",
+        "function f(x,y,z=x===y){return z?1:0;}return f(null,undefined);",
+        "const f=(x,y,z=x===y)=>z?1:0;return f(a,b);",
+        "const o={f:(x,y,z=x!==y)=>z?1:0};return o.f(a,b);",
+        "function f(x,y,z=x===y){return z?1:0;}return f([a],[a]);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(x,y,z=x===y?'same':'different'){return z.length;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=x===y?'same':'different'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
+    common::compare_sources(js, ts);
+}
