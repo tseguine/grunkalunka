@@ -565,3 +565,15 @@ supply the behavior without new IR operations or host APIs. Arbitrary keys,
 unsupported receivers/coercions and invalidated narrow field projections remain
 guarded. Annotations cannot prove unsigned range. Corpus 165 adds twelve JS/TS
 pairs; all 796 retained compatibility negatives remain.
+
+
+Pure expression defaults now combine literal String concatenation, primitive
+logical selection, ternaries and Boolean negation with existing numeric constant
+arithmetic in private synchronous helper and arrow parameters. They are folded
+only when **all** operands (including untaken arms) are proven effect-free,
+caller-independent constants, preserving the existing 128-level source limit and
+lazy selection of an omitted/Undefined argument. Object coercions, implicit
+String/Number conversions, effects, scope reads and async/public defaults remain
+guarded. Compiler admission tests and the managed-logical JS/TS differential
+suite cover named helpers, local arrows, stored calls, selected values and
+explicitly supplied arguments.

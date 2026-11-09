@@ -909,3 +909,23 @@ fn var_patterns_preserve_order_defaults_redeclarations_and_rest() {
         common::compare_sources(&source, &source);
     }
 }
+
+#[test]
+fn pure_default_expressions_match_native_js_for_named_arrow_and_stored_calls() {
+    for body in [
+        "function f(x='stat'+'us'){return x.length;}return f();",
+        "function f(x=false||7){return x;}return f(undefined);",
+        "function f(x=NaN??9){return x!==x?a:b;}return f();",
+        "function f(x=true&&'ready'){return x==='ready'?a:b;}return f();",
+        "const f=(x=!(0/0))=>x;return f()?a:b;",
+        "const o={f:(x=(false||true)?'yes':'no')=>x};return o.f()==='yes'?a:b;",
+        "function f(x=0?'wrong':'right'){return x;}return f('supplied')==='supplied'?a:b;",
+        "const f=(x=(null??'a')+'b')=>x;return f()==='ab'?a:b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const f=(x=(false||true)?'active':'idle')=>x;return f()==='active'?a:b;}";
+    let ts = "export function run(a:number,b:number):number{const f=(x=((false as never)||(true as unknown))?'active':'idle')=>x;return f()==='active'?a:b;}";
+    common::compare_sources(js, ts);
+}
