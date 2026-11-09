@@ -1061,3 +1061,28 @@ fn string_and_template_defaults_match_native_js_and_erased_ts() {
     let ts = "function f(x:never,y:never,z:unknown=(x as string)+':'+(y as string)){return (z as string).length;}export function run(a:number,b:number):number{return f('a','bc')+a;}";
     common::compare_sources(js, ts);
 }
+
+
+#[test]
+fn numeric_comparison_defaults_match_native_js_and_erased_ts() {
+    for body in [
+        "function f(x,y,z=x<y){return z?1:0;}return f(a,b);",
+        "function f(x,y,z=x<=y){return z?10:20;}return f(a,b);",
+        "function f(x,y,z=x>y){return z?3:7;}return f(a,b);",
+        "function f(x,y,z=x>=y){return z?5:8;}return f(a,b);",
+        "function f(x,y,z=x>=y?'high':'low'){return z.length;}return f(a,b);",
+        "const f=(x,y,z=x<y?'on':'off')=>z.length;return f(a,b);",
+        "const o={f:(x,y,z=x>y)=>z?11:13};return o.f(a,b);",
+        "function f(x,y,z=x<y){return z?1:0;}return f(a,b,false);",
+        "function f(x,z=x<2){return z?31:37;}return f(a);",
+        "function f(x,z=x>NaN){return z?31:37;}return f(a);",
+        "function f(x,y,z=x>y?x:y){return z;}return f(a,b);",
+        "function f(x,y,z=x>y?x:y){return z;}return f(a,b,99);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(x,y,z=x>=y?'high':'low'){return z.length;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)>=(y as never)?'high':'low'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
+    common::compare_sources(js, ts);
+}

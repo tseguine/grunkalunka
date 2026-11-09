@@ -679,3 +679,52 @@ fn earlier_string_defaults_reject_unproven_coercion_effects_and_tdz() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+
+#[test]
+fn numeric_comparison_defaults_admit_thresholds_and_policy_selection() {
+    for body in [
+        "function f(x,y,z=x<y){return z?1:0;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x<=y){return z?10:20;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x>y){return z?3:7;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x>=y){return z?5:8;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x>=y?'high':'low'){return z.length;}export function run(a,b){return f(a,b);}",
+        "function f(x,z=x>1?'large':'small'){return z.length;}export function run(a,b){return f(a);}",
+        "function f(x,z=0<x){return z?1:0;}export function run(a,b){return f(a);}",
+        "function f(x,z=x<NaN){return z?1:0;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(x,y,z=x<y)=>z?1:0;return f(a,b);}",
+        "export function run(a,b){const o={f:(x,y,z=x>y?'yes':'no')=>z.length};return o.f(a,b);}",
+        "export function run(a,b){const f=(x,y,z=x<y)=>z?1:0;return f(a,b,false);}",
+        "function f(x,y,z=x>y?x:y){return z;}export function run(a,b){return f(a,b);}",
+    ] {
+        for ts in [false, true] {
+            let compiled = crate::compile_value(body, ts);
+            assert!(compiled.is_ok(), "{body}: {:?}", compiled.err());
+        }
+    }
+    let js = "function f(x,y,z=x>=y?'high':'low'){return z.length;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)>=(y as never)?'high':'low'){return (z as string).length;}export function run(a:number,b:number):number{return f(a,b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn numeric_comparison_defaults_reject_unproven_coercion_scope_and_effects() {
+    for body in [
+        "function f(x,z=x<2){return z;}export function run(a,b){return f('1');}",
+        "function f(x,z=x<2){return z;}export function run(a,b){return f({});}",
+        "function f(x,z=x<later,later=2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=z<2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x<missing){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x<g()){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x++<2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x===2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x<2?'yes':g()){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x<2?'yes':later,later='no'){return z;}export function run(a,b){return f(a);}",
+        "export function run(a,b){const f=(x,z=a<2)=>z;return f(a);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}

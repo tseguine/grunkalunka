@@ -273,6 +273,66 @@ fn earlier_string<'n, 'a>(
     (has_parameter && has_concat).then_some(program)
 }
 
+// Numeric policy comparisons are intentionally restricted to four-kind
+// primitive parameters and pure Number constants. Source-proven Strings use
+// lexicographic relational comparison, so they must never enter this lane.
+enum NumericComparisonOperand<'n, 'a> {
+    Constant(f64),
+    Earlier(&'n IdentifierReference<'a>),
+}
+
+fn comparison_operand<'n, 'a>(
+    initializer: &Expression<'a>,
+    operand: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<NumericComparisonOperand<'n, 'a>> {
+    if let Some(value) = constant(operand, semantic) {
+        return match value {
+            Constant::Number(number) => Some(NumericComparisonOperand::Constant(number)),
+            _ => None,
+        };
+    }
+    Some(NumericComparisonOperand::Earlier(earlier_identifier(
+        initializer, operand, semantic,
+    )?))
+}
+
+fn earlier_comparison<'n, 'a>(
+    initializer: &Expression<'a>,
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<(
+    Compare,
+    NumericComparisonOperand<'n, 'a>,
+    NumericComparisonOperand<'n, 'a>,
+)> {
+    let (node, _) = closures::unwrapped_at(expression, 0)?;
+    let Expression::BinaryExpression(binary) = node else {
+        return None;
+    };
+    let operator = match binary.operator {
+        BinaryOperator::LessThan => Compare::Less,
+        BinaryOperator::LessEqualThan => Compare::LessEqual,
+        BinaryOperator::GreaterThan => Compare::Greater,
+        BinaryOperator::GreaterEqualThan => Compare::GreaterEqual,
+        // Equality requires same-kind and loose-coercion rules, not merely
+        // Number conversion. Keep it in the general expression lowering.
+        _ => return None,
+    };
+    let left = comparison_operand(initializer, &binary.left, semantic)?;
+    let right = comparison_operand(initializer, &binary.right, semantic)?;
+    Some((operator, left, right))
+}
+
+enum DefaultCondition<'n, 'a> {
+    Earlier(&'n IdentifierReference<'a>),
+    NumericComparison(
+        Compare,
+        NumericComparisonOperand<'n, 'a>,
+        NumericComparisonOperand<'n, 'a>,
+    ),
+}
+
 // Source-order logical default chains model common A1 policy precedence:
 // value ?? override ?? fallback and enabled && flag && value. Each right
 // operand is a pure constant or a resolved earlier parameter. Only the
@@ -318,7 +378,7 @@ fn earlier_conditional<'n, 'a>(
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
 ) -> Option<(
-    &'n IdentifierReference<'a>,
+    DefaultCondition<'n, 'a>,
     DefaultOperand<'n, 'a>,
     DefaultOperand<'n, 'a>,
 )> {
@@ -326,8 +386,17 @@ fn earlier_conditional<'n, 'a>(
     let Expression::ConditionalExpression(conditional) = node else {
         return None;
     };
+    let test = if let Some(identifier) =
+        earlier_identifier(expression, &conditional.test, semantic)
+    {
+        DefaultCondition::Earlier(identifier)
+    } else {
+        let (operator, left, right) =
+            earlier_comparison(expression, &conditional.test, semantic)?;
+        DefaultCondition::NumericComparison(operator, left, right)
+    };
     Some((
-        earlier_identifier(expression, &conditional.test, semantic)?,
+        test,
         pure_operand(expression, &conditional.consequent, semantic)?,
         pure_operand(expression, &conditional.alternate, semantic)?,
     ))
@@ -510,6 +579,7 @@ pub(crate) fn validate(
                 && earlier_conditional(initializer, semantic).is_none()
                 && earlier_numeric(initializer, semantic).is_none()
                 && earlier_string(initializer, semantic).is_none()
+                && earlier_comparison(initializer, initializer, semantic).is_none()
             {
                 return Err(unsupported(
                     initializer,
@@ -534,7 +604,9 @@ pub(crate) fn validate_arrow(
                     && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
                     && earlier_conditional(initializer.as_ref(), semantic).is_none()
                     && earlier_numeric(initializer.as_ref(), semantic).is_none()
-                    && earlier_string(initializer.as_ref(), semantic).is_none()))
+                    && earlier_string(initializer.as_ref(), semantic).is_none()
+                    && earlier_comparison(initializer.as_ref(), initializer.as_ref(), semantic)
+                        .is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -638,19 +710,34 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
-        if let Some((identifier, when_true, when_false)) =
+        if let Some((test, when_true, when_false)) =
             earlier_conditional(initializer, self.semantic)
         {
-            let source = self.load_earlier_value(identifier, initializer, &mut consequent)?;
-            let condition = self.value(Type::Predicate);
-            Self::push(
-                &mut consequent,
-                initializer,
-                Op::ManagedTruthy {
-                    result: condition,
-                    input: source,
-                },
-            );
+            let condition = match test {
+                DefaultCondition::Earlier(identifier) => {
+                    let source =
+                        self.load_earlier_value(identifier, initializer, &mut consequent)?;
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::ManagedTruthy {
+                            result,
+                            input: source,
+                        },
+                    );
+                    result
+                }
+                DefaultCondition::NumericComparison(operator, left, right) => {
+                    self.emit_numeric_comparison(
+                        initializer,
+                        &mut consequent,
+                        operator,
+                        left,
+                        right,
+                    )?
+                }
+            };
             let mut true_region = self.region(initializer);
             let true_value =
                 self.emit_default_operand(initializer, &mut true_region, when_true)?;
@@ -903,6 +990,36 @@ impl Lowering<'_, '_> {
             let value = strings.pop().expect("validated String result");
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
+        if let Some((operator, left, right)) =
+            earlier_comparison(initializer, initializer, self.semantic)
+        {
+            let condition = self.emit_numeric_comparison(
+                initializer,
+                &mut consequent,
+                operator,
+                left,
+                right,
+            )?;
+            let general = self.value(Type::General);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::Pack {
+                    result: general,
+                    input: condition,
+                },
+            );
+            let value = self.value(Type::ManagedValue);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::ManagedPrimitive {
+                    result: value,
+                    input: general,
+                },
+            );
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
+        }
         if let Some(program) = earlier_numeric(initializer, self.semantic) {
             let mut numbers = Vec::new();
             for term in program {
@@ -1003,6 +1120,80 @@ impl Lowering<'_, '_> {
         })?;
         let value = self.emit_constant_default(initializer, &mut consequent, folded);
         Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
+    }
+
+    fn emit_numeric_comparison_operand(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        operand: NumericComparisonOperand<'_, '_>,
+    ) -> Result<ValueId, String> {
+        match operand {
+            NumericComparisonOperand::Constant(number) => {
+                let result = self.value(Type::Number);
+                Self::push(
+                    region,
+                    node,
+                    Op::Constant {
+                        result,
+                        value: number,
+                    },
+                );
+                Ok(result)
+            }
+            NumericComparisonOperand::Earlier(identifier) => {
+                if !self.stored.primitive(identifier.node_id()) {
+                    return Err(unsupported(
+                        node,
+                        "numeric comparison default requires a proven four-kind primitive parameter",
+                    ));
+                }
+                let managed = self.load_earlier_value(identifier, node, region)?;
+                let general = self.value(Type::General);
+                Self::push(
+                    region,
+                    node,
+                    Op::ManagedToPrimitive {
+                        result: general,
+                        input: managed,
+                    },
+                );
+                let result = self.value(Type::Number);
+                Self::push(
+                    region,
+                    node,
+                    Op::NumberFromGeneral {
+                        result,
+                        input: general,
+                    },
+                );
+                Ok(result)
+            }
+        }
+    }
+
+    fn emit_numeric_comparison(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        operator: Compare,
+        left: NumericComparisonOperand<'_, '_>,
+        right: NumericComparisonOperand<'_, '_>,
+    ) -> Result<ValueId, String> {
+        let left = self.emit_numeric_comparison_operand(node, region, left)?;
+        let right = self.emit_numeric_comparison_operand(node, region, right)?;
+        let result = self.value(Type::Predicate);
+        Self::push(
+            region,
+            node,
+            Op::Compare {
+                result,
+                operator,
+                left,
+                right,
+            },
+        );
+        Ok(result)
     }
 
     fn load_earlier_value(

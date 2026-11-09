@@ -649,3 +649,4 @@ later reads, effects, tagged templates and async/public defaults confer no new
 admission. Compiler positive/negative tests and managed-logical JS/TS differential
 fixtures exercise nested concatenation, templates, helpers, arrows and stored
 callables. The new fixture coverage is not a claim that CI has executed yet.
+false
