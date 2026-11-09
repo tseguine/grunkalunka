@@ -1062,7 +1062,6 @@ fn string_and_template_defaults_match_native_js_and_erased_ts() {
     common::compare_sources(js, ts);
 }
 
-
 #[test]
 fn numeric_comparison_defaults_match_native_js_and_erased_ts() {
     for body in [
