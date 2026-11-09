@@ -649,3 +649,16 @@ later reads, effects, tagged templates and async/public defaults confer no new
 admission. Compiler positive/negative tests and managed-logical JS/TS differential
 fixtures exercise nested concatenation, templates, helpers, arrows and stored
 callables. The new fixture coverage is not a claim that CI has executed yet.
+
+
+Numeric relational comparisons now work as private synchronous helper/arrow
+parameter defaults and as tests for conditional defaults. Source-proven earlier
+four-kind primitive parameters and pure Number constants support less-than,
+less-than-or-equal, greater-than and greater-than-or-equal, returning a Boolean
+or selecting an A1 policy label/value. The compiler captures and converts
+operands once in source order, uses existing Number comparisons and lazy
+default selection, and preserves explicit overrides. String lexical ordering,
+unproven object coercion, equality operators, scope/TDZ reads, effects and
+public/async defaults remain guarded. Compiler admission/rejection and
+Node-Wasm/Wasmtime differential fixtures cover the admitted forms; fixture
+presence does not establish hosted execution.
