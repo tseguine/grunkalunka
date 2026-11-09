@@ -398,3 +398,53 @@ fn pure_expression_defaults_reject_unproven_coercion_and_hidden_effects() {
         crate::compile_value(ts, true).unwrap().wasm
     );
 }
+
+#[test]
+fn earlier_parameter_logical_defaults_admit_pure_fallbacks() {
+    for expression in [
+        "x||'missing'",
+        "x&&'enabled'",
+        "x??42",
+        "x||('a'+'b')",
+        "x??(true?3:5)",
+        "x&&(false||7)",
+    ] {
+        for source in [
+            format!(
+                "function f(x,y={expression}){{return y;}}export function run(a,b){{return f(a);}}"
+            ),
+            format!("export function run(a,b){{const f=(x,y={expression})=>y;return f(a);}}"),
+            format!(
+                "export function run(a,b){{const o={{f:(x,y={expression})=>y}};return o.f(a);}}"
+            ),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn earlier_parameter_logical_defaults_keep_scope_purity_and_arity_guards() {
+    for source in [
+        "function f(x=x||'missing'){return x;}export function run(a,b){return f();}",
+        "function f(x,y=y||'missing'){return y;}export function run(a,b){return f();}",
+        "function f(x,y=z||'missing',z=3){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x||g()){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x||missing){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x+1){return y;}export function run(a,b){return f();}",
+        "export function run(a,b){const f=(x,y=a||'wrong')=>y;return f();}",
+        "export function run(a,b){const f=(x,y=(!x)||'wrong')=>y;return f();}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+    assert!(
+        crate::compile_async(
+            "export async function run(a,b){const f=(x,y=x||5)=>y;return f(a);}",
+            false
+        )
+        .is_err()
+    );
+}

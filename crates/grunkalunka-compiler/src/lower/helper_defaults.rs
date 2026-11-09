@@ -66,6 +66,48 @@ fn earlier_parameter<'n, 'a>(
         matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
     }).then_some((identifier,operators))
 }
+
+// A direct reference to an already initialized parameter may select a pure
+// fallback. Resolve the symbol in this parameter list, not by its spelling:
+// a body var, outer capture, self read or later parameter is not initialized.
+fn earlier_logical<'n, 'a>(
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<(&'n IdentifierReference<'a>, LogicalOperator, Constant)> {
+    let (node, depth) = closures::unwrapped_at(expression, 0)?;
+    let Expression::LogicalExpression(logical) = node else {
+        return None;
+    };
+    let (left, _) = closures::unwrapped_at(&logical.left, depth + 1)?;
+    let Expression::Identifier(identifier) = left else {
+        return None;
+    };
+    let identifier = identifier.as_ref();
+    let symbol = semantic
+        .scoping()
+        .get_reference(identifier.reference_id.get()?)
+        .symbol_id()?;
+    let parameters = semantic
+        .nodes()
+        .ancestor_kinds(expression.node_id())
+        .find_map(|kind| match kind {
+            AstKind::FormalParameters(parameters) => Some(parameters),
+            _ => None,
+        })?;
+    let index = parameters.items.iter().position(|parameter| {
+        parameter
+            .initializer
+            .as_ref()
+            .is_some_and(|value| value.node_id() == expression.node_id())
+    })?;
+    if !parameters.items[..index].iter().any(|parameter| {
+        matches!(&parameter.pattern, BindingPattern::BindingIdentifier(binding) if binding.symbol_id.get() == Some(symbol))
+    }) {
+        return None;
+    }
+    Some((identifier, logical.operator, constant(&logical.right, semantic)?))
+}
+
 impl Constant {
     fn truthy(&self) -> bool {
         match self {
@@ -239,6 +281,7 @@ pub(crate) fn validate(
             }
             if constant(initializer, semantic).is_none()
                 && earlier_parameter(initializer, semantic).is_none()
+                && earlier_logical(initializer, semantic).is_none()
             {
                 return Err(unsupported(
                     initializer,
@@ -259,7 +302,8 @@ pub(crate) fn validate_arrow(
         if let Some(initializer) = &parameter.initializer
             && (!allowed
                 || (constant(initializer.as_ref(), semantic).is_none()
-                    && earlier_parameter(initializer.as_ref(), semantic).is_none()))
+                    && earlier_parameter(initializer.as_ref(), semantic).is_none()
+                    && earlier_logical(initializer.as_ref(), semantic).is_none()))
         {
             return Err(unsupported(
                 parameter,
@@ -363,6 +407,96 @@ impl Lowering<'_, '_> {
         let undefined = self.binding_undefined(parameter, output);
         let pending = self.prepare_binding_default(parameter, output, selected, undefined);
         let mut consequent = self.region(initializer);
+        if let Some((identifier, operator, fallback)) =
+            earlier_logical(initializer, self.semantic)
+        {
+            let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
+            let ty = self.slots[slot.0].ty;
+            let input = self.value(ty);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::Load {
+                    result: input,
+                    slot,
+                },
+            );
+            let original = if ty == Type::ManagedValue {
+                input
+            } else {
+                let result = self.value(Type::ManagedValue);
+                let op = match ty {
+                    Type::ManagedArray => Op::ManagedFromArray { result, input },
+                    Type::ManagedObject => Op::ManagedFromObject { result, input },
+                    Type::Number | Type::Predicate | Type::General => {
+                        let primitive = if ty == Type::General {
+                            input
+                        } else {
+                            let packed = self.value(Type::General);
+                            Self::push(
+                                &mut consequent,
+                                initializer,
+                                Op::Pack {
+                                    result: packed,
+                                    input,
+                                },
+                            );
+                            packed
+                        };
+                        Op::ManagedPrimitive {
+                            result,
+                            input: primitive,
+                        }
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            initializer,
+                            "earlier logical default requires a represented parameter",
+                        ));
+                    }
+                };
+                Self::push(&mut consequent, initializer, op);
+                result
+            };
+            let condition = self.value(Type::Predicate);
+            Self::push(
+                &mut consequent,
+                initializer,
+                if operator == LogicalOperator::Coalesce {
+                    Op::ManagedIsNullish {
+                        result: condition,
+                        input: original,
+                    }
+                } else {
+                    Op::ManagedTruthy {
+                        result: condition,
+                        input: original,
+                    }
+                },
+            );
+            let mut selected = self.region(initializer);
+            let fallback = self.emit_constant_default(initializer, &mut selected, fallback);
+            selected.exit = Exit::Yield(fallback);
+            let mut kept = self.region(initializer);
+            kept.exit = Exit::Yield(original);
+            let (if_true, if_false) = if operator == LogicalOperator::Or {
+                (kept, selected)
+            } else {
+                (selected, kept)
+            };
+            let result = self.value(Type::ManagedValue);
+            Self::push(
+                &mut consequent,
+                initializer,
+                Op::If {
+                    result: Some(result),
+                    condition,
+                    consequent: if_true,
+                    alternate: if_false,
+                },
+            );
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, result));
+        }
         if let Some((identifier, operators)) = earlier_parameter(initializer, self.semantic) {
             let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
             let ty = self.slots[slot.0].ty;
@@ -502,14 +636,25 @@ impl Lowering<'_, '_> {
             }
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
-        let value = match constant(initializer, self.semantic).ok_or_else(|| {
+        let folded = constant(initializer, self.semantic).ok_or_else(|| {
             unsupported(initializer, "helper defaults require primitive constants")
-        })? {
+        })?;
+        let value = self.emit_constant_default(initializer, &mut consequent, folded);
+        Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
+    }
+
+    fn emit_constant_default(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        constant: Constant,
+    ) -> ValueId {
+        match constant {
             Constant::String(units) => {
                 let value = self.value(Type::ManagedValue);
                 Self::push(
-                    &mut consequent,
-                    initializer,
+                    region,
+                    node,
                     Op::ManagedString {
                         result: value,
                         units,
@@ -523,16 +668,16 @@ impl Lowering<'_, '_> {
                     Constant::Number(value) => {
                         let scalar = self.value(Type::Number);
                         Self::push(
-                            &mut consequent,
-                            initializer,
+                            region,
+                            node,
                             Op::Constant {
                                 result: scalar,
                                 value,
                             },
                         );
                         Self::push(
-                            &mut consequent,
-                            initializer,
+                            region,
+                            node,
                             Op::Pack {
                                 result: primitive,
                                 input: scalar,
@@ -542,16 +687,16 @@ impl Lowering<'_, '_> {
                     Constant::Boolean(value) => {
                         let scalar = self.value(Type::Predicate);
                         Self::push(
-                            &mut consequent,
-                            initializer,
+                            region,
+                            node,
                             Op::Boolean {
                                 result: scalar,
                                 value,
                             },
                         );
                         Self::push(
-                            &mut consequent,
-                            initializer,
+                            region,
+                            node,
                             Op::Pack {
                                 result: primitive,
                                 input: scalar,
@@ -559,8 +704,8 @@ impl Lowering<'_, '_> {
                         );
                     }
                     Constant::Null | Constant::Undefined => Self::push(
-                        &mut consequent,
-                        initializer,
+                        region,
+                        node,
                         Op::Nullish {
                             result: primitive,
                             value: if matches!(constant, Constant::Null) {
@@ -574,8 +719,8 @@ impl Lowering<'_, '_> {
                 }
                 let value = self.value(Type::ManagedValue);
                 Self::push(
-                    &mut consequent,
-                    initializer,
+                    region,
+                    node,
                     Op::ManagedPrimitive {
                         result: value,
                         input: primitive,
@@ -583,8 +728,7 @@ impl Lowering<'_, '_> {
                 );
                 value
             }
-        };
-        Ok(self.finish_binding_default(parameter, output, pending, consequent, value))
+        }
     }
 
     // Reflection counts parameters before the first default, independently of
