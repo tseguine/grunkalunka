@@ -583,3 +583,49 @@ fn earlier_parameter_logical_chains_reject_hidden_reads_and_effects() {
         crate::compile_value(ts, true).unwrap().wasm
     );
 }
+
+
+#[test]
+fn numeric_defaults_evaluate_prior_parameters_in_source_order() {
+    for body in [
+        "function f(x,y=x+1){return y;}export function run(a,b){return f(a);}",
+        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,d,y=2*x-d){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,d,y=(x+1)*(d-2)){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,d,y=x%(d+1)){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(null,b);}",
+        "function f(x,d,y=x+d){return y;}export function run(a,b){return f(true,b);}",
+        "export function run(a,b){const f=(x,d,y=x+d)=>y;return f(a,b);}",
+        "export function run(a,b){const o={f:(x,d,y=x+d)=>y};return o.f(a,b);}",
+        "export function run(a,b){const f=(x,d,y=x+d)=>y;return f(a,b,9);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(x,d,y=x+d){return y;}export function run(a,b){return f(a,b);}";
+    let ts = "function f(x:unknown,d:unknown,y:unknown=(x as never)+(d as never)){return y as never;}export function run(a:number,b:number):number{return f(a,b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn numeric_defaults_retain_effect_scope_and_coercion_guards() {
+    for body in [
+        "function f(x,y=x+'units'){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x+g()){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x+missing){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=y+1){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x+later,later=3){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x++ + 1){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x**2){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x+1){return y;}export function run(a,b){return f('2');}",
+        "function f(x,y=x+1){return y;}export function run(a,b){return f({valueOf:()=>3});}",
+        "export function run(a,b){const f=(x,y=a+x)=>y;return f(a);}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}

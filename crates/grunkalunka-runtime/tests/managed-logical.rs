@@ -1013,3 +1013,27 @@ fn earlier_parameter_logical_chains_match_native_js_and_ts() {
     let ts = "export function run(a:number,b:number):number{const f=(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)??'none')=>z;return f(null,b)===b?a:b;}";
     common::compare_sources(js, ts);
 }
+
+
+#[test]
+fn numeric_defaults_match_native_js_for_helpers_arrows_and_stored_calls() {
+    for body in [
+        "function f(x,d,y=x+d){return y;}return f(a,b);",
+        "function f(x,d,y=2*x-d){return y;}return f(a,b);",
+        "function f(x,d,y=(x+1)*(d-2)){return y;}return f(a,b);",
+        "function f(x,d,y=x/(d+1)){return y;}return f(a,b);",
+        "function f(x,y=x+1){return y;}return f(null);",
+        "function f(x,y=x+1){return y;}return f(true);",
+        "function f(x,y=x+1){return y;}return f(undefined,7);",
+        "function f(x,d,y=x+d){return y;}return f(a,b,0);",
+        "const f=(x,d,y=x+d)=>y;return f(a,b);",
+        "const o={f:(x,d,y=(x+1)*d)=>y};return o.f(a,b);",
+        "const f=(x,d,y=x+d)=>y;return f(a,b,23);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const f=(x,d,y=x+d)=>y;return f(a,b);}";
+    let ts = "export function run(a:number,b:number):number{const f=(x:unknown,d:unknown,y:unknown=(x as never)+(d as never))=>y;return f(a,b) as number;}";
+    common::compare_sources(js, ts);
+}

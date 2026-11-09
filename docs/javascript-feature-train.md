@@ -623,3 +623,14 @@ fallbacks retain missing-argument semantics, nullish/falsy distinctions and
 reference identity. Effects, unproven coercions and self/later/outer reads are
 still rejected; right-nested selection and dynamic arithmetic remain separate
 work. Compiler admissions and JS/TS differential cases cover the chain.
+
+
+Numeric parameter defaults now combine initialized earlier parameters and pure
+Number constants with nested source-ordered +, -, *, / and % and unary numeric
+signs. An A1 helper may derive counters, offsets and ratios in its signature.
+The iterative postorder lowering reuses existing Number and managed-value IR.
+Earlier operands require a positive four-kind primitive proof; String/object
+coercions, effects, scope reads, self/later parameters, other binary operators
+and async/public defaults remain guarded. Missing/Undefined arguments select
+the initializer; explicit supplied arguments bypass it. Focused compiler
+accept/reject tests and JS/TS differential fixtures cover the admitted slice.
