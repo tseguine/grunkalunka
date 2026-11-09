@@ -776,3 +776,52 @@ fn strict_equality_defaults_reject_coercion_side_effects_and_tdz() {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn earlier_object_fields_supply_direct_logical_conditional_and_equality_defaults() {
+    for body in [
+        "function f(row,expected,selected=row.label){return selected===expected?1:0;}export function run(a,b){return f({label:a},a);}",
+        "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}export function run(a,b){return f({label:undefined},a);}",
+        "function f(row,backup,selected=row.label||backup){return selected===backup?1:0;}export function run(a,b){return f({label:''},a);}",
+        "function f(row,backup,selected=row.label&&backup){return selected===backup?1:0;}export function run(a,b){return f({label:true},a);}",
+        "function f(row,backup,selected=row.label?row.label:backup){return selected===backup?1:0;}export function run(a,b){return f({label:false},a);}",
+        "function f(row,backup,selected=row.label===backup?'same':'other'){return selected.length;}export function run(a,b){return f({label:a},a);}",
+        "function f(row,backup,selected=row.label!==backup?row.label:backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},a);}",
+        "function f(row,backup,selected=row['label']??backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},a);}",
+        "export function run(a,b){const f=(row,backup,selected=row.label??backup)=>selected===backup?1:0;return f({label:a},b);}",
+        "export function run(a,b){const o={f:(row,backup,selected=row.label?row.label:backup)=>selected===backup?1:0};return o.f({label:a},b);}",
+        "function f(row,backup,selected=row.missing??backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},b);}",
+        "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},b,9);}",
+    ] {
+        for ts in [false, true] {
+            let result = crate::compile_value(body, ts);
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let js = "function f(row,backup,selected=row.label??backup){return selected===backup?1:0;}export function run(a,b){return f({label:a},b);}";
+    let ts = "function f(row:unknown,backup:unknown,selected:unknown=(row as {label:unknown}).label??backup){return selected===backup?1:0;}export function run(a:number,b:number):number{return f({label:a},b);}";
+    assert_eq!(
+        crate::compile_value(js, false).unwrap().wasm,
+        crate::compile_value(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn earlier_object_field_defaults_reject_unknown_receivers_and_effects() {
+    for body in [
+        "function f(row,selected=row.label){return selected;}export function run(a,b){return f(a);}",
+        "function f(row,selected=row.label){return selected;}export function run(a,b){return f(null);}",
+        "function f(row,selected=row.label){return selected;}export function run(a,b){return f([a]);}",
+        "function f(row,selected=row.toString){return selected;}export function run(a,b){return f({});}",
+        "function f(row,selected=row.__proto__){return selected;}export function run(a,b){return f({});}",
+        "function f(row,selected=row[key]){return selected;}export function run(a,b){return f({label:a});}",
+        "function f(row,selected=row[read()]){return selected;}export function run(a,b){return f({label:a});}",
+        "function f(row,selected=row?.label){return selected;}export function run(a,b){return f({label:a});}",
+        "function f(row,selected=selected.label){return selected;}export function run(a,b){return f({label:a});}",
+        "function f(row,selected=later.label,later={label:2}){return selected;}export function run(a,b){return f({label:a});}",
+        "function f(row,selected=other.label){return selected;}export function run(a,b){return f({label:a});}",
+        "export function run(a,b){const f=(row,selected=a.label)=>selected;return f({label:a});}",
+    ] {
+        assert!(crate::compile_value(body, false).is_err(), "{body}");
+    }
+}
