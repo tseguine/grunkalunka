@@ -8,6 +8,13 @@ const cases = [
   ['managed-string-unicode', String.raw`return '\ud83d\ude00'==='\u{1f600}'&&'\u00e9'!=='e\u0301'?a:b;`],
 ];
 export const managedStrings = cases.map(([id, body]) => [id, body, body]);
+for (const [id, body] of [
+  ['basic', "const text='ab';return text.repeat(3)==='ababab'?a:b;"],
+  ['count', "return 'xy'.repeat(2.9)==='xyxy'&&'x'.repeat(-0.2)===''?a:b;"],
+  ['empty', "return 'ab'.repeat()=== ''&&''.repeat(13)===''?a:b;"],
+  ['snapshot', "let text='ab';const result=text.repeat((text='x',2));return result==='abab'&&text==='x'?a:b;"],
+  ['utf16', String.raw`return '\ud800\0'.repeat(2)==='\ud800\0\ud800\0'?a:b;`],
+]) managedStrings.push(['managed-string-repeat-'+id, body, body]);
 const helper = "function identity(v){return v;} export function run(a,b){const o={};return identity('x')==='x'&&identity(o)===o&&identity(a)===a?a:b;}";
 managedStrings.push(['managed-string-helper', 'return a;', 'return a;', undefined, undefined,
   {sourceJS: helper, sourceTS: helper}]);

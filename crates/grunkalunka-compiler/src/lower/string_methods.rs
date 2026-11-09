@@ -4,6 +4,7 @@ use super::*;
 #[derive(Clone, Copy)]
 pub(super) enum Method {
     Concat,
+    Repeat,
     Slice,
     Substring,
     CharAt,
@@ -39,6 +40,7 @@ impl Method {
     pub(super) fn result(self) -> Type {
         match self {
             Self::Concat
+            | Self::Repeat
             | Self::Slice
             | Self::Substring
             | Self::At
@@ -64,7 +66,7 @@ impl Method {
             | Self::EndsWith
             | Self::IndexOf
             | Self::LastIndexOf => 2,
-            Self::At | Self::CharAt | Self::CharCodeAt | Self::CodePointAt => 1,
+            Self::At | Self::CharAt | Self::CharCodeAt | Self::CodePointAt | Self::Repeat => 1,
             Self::Concat
             | Self::ToWellFormed
             | Self::IsWellFormed
@@ -110,6 +112,7 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
     };
     let method = match name {
         "concat" => Method::Concat,
+        "repeat" => Method::Repeat,
         "slice" => Method::Slice,
         "substring" => Method::Substring,
         "at" => Method::At,

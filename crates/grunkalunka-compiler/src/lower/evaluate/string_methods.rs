@@ -118,6 +118,11 @@ impl Lowering<'_, '_> {
         let first = || task.inputs[0].expect("completed String first argument");
         let operation = match task.method {
             Method::Concat => unreachable!("concat completed above"),
+            Method::Repeat => Op::ManagedStringRepeat {
+                result,
+                input,
+                count: first(),
+            },
             Method::ToWellFormed => Op::ManagedStringToWellFormed { result, input },
             Method::IsWellFormed => Op::ManagedStringIsWellFormed { result, input },
             Method::Slice | Method::Substring => Op::ManagedStringRange {

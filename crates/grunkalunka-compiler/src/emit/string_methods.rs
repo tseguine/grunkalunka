@@ -26,6 +26,18 @@ pub(super) fn runtime(module: &ir::Module) -> &'static str {
     }
 }
 
+pub(super) fn repeat_runtime(module: &ir::Module) -> &'static str {
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, ir::Op::ManagedStringRepeat { .. })
+        })
+    }) {
+        include_str!("string_repeat.wat")
+    } else {
+        ""
+    }
+}
+
 pub(super) fn iteration_runtime(module: &ir::Module) -> &'static str {
     if module.functions.iter().any(|f| {
         ir::any_operation(&f.body, &mut |op| {

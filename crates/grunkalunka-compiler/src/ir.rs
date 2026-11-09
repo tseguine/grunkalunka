@@ -642,6 +642,12 @@ pub(crate) enum Op {
         left: ValueId,
         right: ValueId,
     },
+    // Bounded UTF-16 repetition with a source-proven Number count.
+    ManagedStringRepeat {
+        result: ValueId,
+        input: ValueId,
+        count: ValueId,
+    },
     // Known-String specialization: unsigned UTF-16 lexicographic ordering.
     ManagedStringCompare {
         result: ValueId,
@@ -1753,6 +1759,15 @@ impl Verifier<'_> {
             Op::ManagedStringToWellFormed { result, input }
             | Op::ManagedStringTrim { result, input, .. } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringRepeat {
+                result,
+                input,
+                count,
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*count, Type::Number, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedStringConcat {

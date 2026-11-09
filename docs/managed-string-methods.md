@@ -5,6 +5,28 @@ source-proven Strings. These methods work through supported named helpers,
 captures, fields and async suspension, using the existing lossless UTF-16
 representation. They add no host imports or public String-valued exports.
 
+## Repeating UTF-16 labels
+
+`String.prototype.repeat(count)` repeats a source-proven String using a
+source-proven Number count. It preserves exact UTF-16 code units, including
+unpaired surrogates, NULs and surrogate pairs. Numeric counts follow
+ToIntegerOrInfinity: NaN, missing/undefined and fractional values between
+-1 and 1 produce zero repeats; other finite fractions truncate toward zero.
+The receiver is evaluated and saved before the count and every surplus
+argument, whose effects run before the repetition. A repeated result remains
+a known String for subsequent length checks, concatenation, helpers, captures
+and A1 action labels.
+
+The guest allocates once and fills by copying the already populated prefix
+in doubling steps; this avoids an O(count) series of growing allocations.
+The total UTF-16 length is checked before converting to Wasm32 indices or
+allocating the result. Negative integer counts, either infinity and oversized
+results currently trap rather than producing a catchable `RangeError`, so
+source programs requiring that exception behavior are outside this first
+execution slice. No `this` coercion, generic Number conversion, dynamic
+method lookup or public String-valued export is introduced. See
+[`String.prototype.repeat`](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat).
+
 ## Trimming
 
 `trim()`, `trimStart()` and `trimEnd()` remove leading and/or trailing
