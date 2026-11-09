@@ -24,6 +24,38 @@ pub(super) fn instance_test(
     global_value(id, semantic).then_some(test)
 }
 
+fn array_constructor(callee: &Expression<'_>, semantic: &Semantic<'_>, depth: usize) -> bool {
+    matches!(closures::unwrapped(callee,depth),Some(Expression::Identifier(id)) if id.name=="Array" && global_value(id,semantic))
+}
+
+pub(super) fn array_constructor_args<'e, 'a>(
+    expr: &'e Expression<'a>,
+    semantic: &Semantic<'_>,
+    depth: usize,
+) -> Option<&'e [oxc_ast::ast::Argument<'a>]> {
+    match expr {
+        Expression::CallExpression(call)
+            if !call.optional && array_constructor(&call.callee, semantic, depth + 1) =>
+        {
+            Some(call.arguments.as_slice())
+        }
+        Expression::NewExpression(call) if array_constructor(&call.callee, semantic, depth + 1) => {
+            Some(call.arguments.as_slice())
+        }
+        _ => None,
+    }
+}
+
+pub(super) fn array_constructor_site(kind: oxc_ast::AstKind<'_>, semantic: &Semantic<'_>) -> bool {
+    match kind {
+        oxc_ast::AstKind::CallExpression(call) => {
+            !call.optional && array_constructor(&call.callee, semantic, 0)
+        }
+        oxc_ast::AstKind::NewExpression(call) => array_constructor(&call.callee, semantic, 0),
+        _ => false,
+    }
+}
+
 fn method_name<'e>(
     call: &'e CallExpression<'_>,
     semantic: &Semantic<'_>,
@@ -74,6 +106,21 @@ pub(super) fn enumeration(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sparse_construction_requires_a_valid_numeric_length() {
+        for body in [
+            "return new Array(-1).length;",
+            "return Array(1.5).length;",
+            "return Array(4294967296).length;",
+            "return new Array(a as 0).length;",
+            "const Array=x=>x;return new Array(0).length;",
+            "return Array(...a).length;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, true).is_err(), "{source}");
+        }
+    }
+
     #[test]
     fn instanceof_requires_a_resolved_intrinsic_constructor() {
         for source in [

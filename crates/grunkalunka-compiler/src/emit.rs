@@ -633,6 +633,12 @@ impl Emitter<'_> {
                 .unwrap();
                 self.set(*result);
             }
+            Op::ManagedArrayNewDynamic { result, length } => {
+                self.get(*length);
+                self.output
+                    .push_str("i32.trunc_f64_u\ncall $gc_array_new\n");
+                self.set(*result);
+            }
             Op::ManagedArrayNew { result, length } => {
                 writeln!(
                     self.output,

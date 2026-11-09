@@ -22,6 +22,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         input: ValueId,
     },
     DictionaryNew(&'e Expression<'a>),
+    SparseArray(&'e Expression<'a>),
     Array(arrays::ArrayWork<'e, 'a>),
     SpreadCopy(&'e Expression<'a>),
     ArrayLength(&'e Expression<'a>),
@@ -385,6 +386,15 @@ impl Lowering<'_, '_> {
                         }
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
                         Expression::ArrayExpression(_) => values.push(Some(Type::ManagedArray)),
+                        _ if object_intrinsics::array_constructor_args(
+                            node,
+                            self.semantic,
+                            depth,
+                        )
+                        .is_some() =>
+                        {
+                            values.push(Some(Type::ManagedArray))
+                        }
                         Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
                             values.push(Some(Type::ManagedValue))
                         }
@@ -1159,6 +1169,40 @@ impl Lowering<'_, '_> {
             if schedule_selection(work, node, depth, mode)? {
                 return Ok(true);
             }
+            if let Some(args) =
+                object_intrinsics::array_constructor_args(node, self.semantic, depth)
+            {
+                match args {
+                    [] => {
+                        let result = self.value(Type::ManagedArray);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::ManagedArrayNew { result, length: 0 },
+                        );
+                        values.push(Value::Array(result));
+                    }
+                    [arg]
+                        if arg
+                            .as_expression()
+                            .is_some_and(|e| self.stored.uint32_keys.unsigned_value(e)) =>
+                    {
+                        work.push(Work::Managed(ManagedWork::SparseArray(node)));
+                        work.push(Work::Eval(
+                            arg.as_expression().expect("validated length"),
+                            depth + 1,
+                            Mode::Number,
+                        ));
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            node,
+                            "Array construction requires no arguments or a proven uint32 length",
+                        ));
+                    }
+                }
+                return Ok(true);
+            }
             if let Expression::ArrayExpression(literal) = node {
                 if let Some(source) = iteration::single_spread(literal) {
                     let mode =
@@ -1479,6 +1523,16 @@ impl Lowering<'_, '_> {
             }
             ManagedWork::OptionalRead(task) => {
                 self.complete_optional_member(task, regions, values, work)
+            }
+            ManagedWork::SparseArray(node) => {
+                let length = values.pop().expect("Array length").number();
+                let result = self.value(Type::ManagedArray);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedArrayNewDynamic { result, length },
+                );
+                values.push(Value::Array(result));
             }
             ManagedWork::DictionaryNew(node) => {
                 let result = self.value(Type::ManagedObject);

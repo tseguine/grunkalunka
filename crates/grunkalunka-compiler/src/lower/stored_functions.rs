@@ -440,7 +440,7 @@ impl Fields {
         let uint32_keys = Uint32Keys::collect(semantic);
         let record_names = RecordNames::collect(semantic);
         if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
-            matches!(
+            object_intrinsics::array_constructor_site(node.kind(),semantic) || matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_) | AstKind::ChainExpression(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
@@ -738,6 +738,12 @@ impl Fields {
                 }
             }
             let rule = match node.kind() {
+                kind if object_intrinsics::array_constructor_site(kind, semantic) => {
+                    fields.insert(id, BTreeMap::new());
+                    elements.sparse_array(id);
+                    values.insert(id, BTreeSet::from([Origin::Array(id)]));
+                    None
+                }
                 AstKind::CallExpression(call)
                     if let Some(kind) = object_intrinsics::enumeration(call, semantic) =>
                 {

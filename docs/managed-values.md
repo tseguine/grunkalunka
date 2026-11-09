@@ -1666,3 +1666,9 @@ inherit from Object; `Object.create(null)` records and scalar primitives
 do not. Null-prototype records use a WasmGC subtype with the same property
 storage layout, so their prototype identity survives aliases and joins.
 Rest and spread copies have an ordinary Object prototype.
+
+The direct intrinsic forms `Array()` and `new Array()` each allocate a
+fresh empty Array. A single proven uint32 Number sets its sparse length.
+Holes have no own index entries, even at length 4294967295. Length
+expressions execute once. Unchecked numeric lengths remain guarded until
+the compiler supports the constructor's catchable RangeError.
