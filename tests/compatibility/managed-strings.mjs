@@ -17,7 +17,7 @@ for (const [id, body] of [
 ]) managedStrings.push(['managed-string-repeat-'+id, body, body]);
 for (const [id, body] of [
   ['whitespace', "const s='  note  ';return s.trimLeft()==='note  '&&s.trimRight()==='  note'?a:b;"],
-  ['composition', "const s='\t x \r';return s.trimLeft().trimRight()==='x'?a:b;"],
+  ['composition', String.raw`const s='\t x \r';return s.trimLeft().trimRight()==='x'?a:b;`],
   ['snapshot', "let s=' old ';const r=s.trimRight((s='new',a));return r===' old'&&s==='new'?a:b;"],
 ]) managedStrings.push(['managed-string-trim-alias-'+id, body, body]);
 const helper = "function identity(v){return v;} export function run(a,b){const o={};return identity('x')==='x'&&identity(o)===o&&identity(a)===a?a:b;}";
