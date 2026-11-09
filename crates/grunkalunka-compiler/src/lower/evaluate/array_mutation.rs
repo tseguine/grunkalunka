@@ -7,6 +7,8 @@ pub(super) struct Task<'e, 'a> {
     pub operation: crate::lower::array_mutations::Operation,
     pub argument: usize,
     pub depth: usize,
+    pub push_values: Vec<ValueId>,
+    pub awaiting_push: bool,
 }
 
 impl Lowering<'_, '_> {
@@ -17,8 +19,13 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
+        use crate::lower::array_mutations::Operation;
         if task.array.is_none() {
             task.array = Some(values.pop().expect("array mutation receiver").id());
+        } else if task.awaiting_push {
+            task.push_values
+                .push(values.pop().expect("array push argument").id());
+            task.awaiting_push = false;
         }
         if task.call.arguments.len() > 1000 {
             return Err(unsupported(
@@ -35,23 +42,58 @@ impl Lowering<'_, '_> {
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
             let depth = task.depth + 1;
             task.argument += 1;
+            task.awaiting_push = task.operation == Operation::Push;
+            let mode = if task.awaiting_push {
+                Mode::Managed
+            } else {
+                Mode::Discard
+            };
             work.push(Work::ArrayMutation(task));
-            work.push(Work::Eval(argument, depth, Mode::Discard));
+            work.push(Work::Eval(argument, depth, mode));
             return Ok(());
         }
-        // All argument effects finish before observing the saved array.
-        let result = self.value(task.operation.result());
+        // All argument effects finish before mutating the saved receiver.
         let array = task.array.expect("completed array mutation receiver");
+        if task.operation == Operation::Push {
+            let mut last = None;
+            for value in task.push_values {
+                let result = self.value(Type::Number);
+                Self::push(
+                    regions.current(),
+                    task.node,
+                    Op::ManagedArrayPush {
+                        result,
+                        array,
+                        value,
+                    },
+                );
+                last = Some(result);
+            }
+            let result = if let Some(result) = last {
+                result
+            } else {
+                let result = self.value(Type::Number);
+                Self::push(
+                    regions.current(),
+                    task.node,
+                    Op::ManagedArrayLength { result, array },
+                );
+                result
+            };
+            values.push(Value::Number(result));
+            return Ok(());
+        }
+        let result = self.value(task.operation.result());
         let (op, value) = match task.operation {
-            crate::lower::array_mutations::Operation::Pop => (
+            Operation::Pop => (
                 Op::ManagedArrayPop { result, array },
                 Value::Managed(result),
             ),
-            crate::lower::array_mutations::Operation::Shift => (
+            Operation::Shift => (
                 Op::ManagedArrayShift { result, array },
                 Value::Managed(result),
             ),
-            crate::lower::array_mutations::Operation::ToReversed => {
+            Operation::ToReversed => {
                 let copy = self.value(Type::ManagedArray);
                 Self::push(
                     regions.current(),
@@ -70,10 +112,11 @@ impl Lowering<'_, '_> {
                     Value::Array(result),
                 )
             }
-            crate::lower::array_mutations::Operation::Reverse => (
+            Operation::Reverse => (
                 Op::ManagedArrayReverse { result, array },
                 Value::Array(result),
             ),
+            Operation::Push => unreachable!("handled above"),
         };
         Self::push(regions.current(), task.node, op);
         values.push(value);
