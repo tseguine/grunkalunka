@@ -172,6 +172,10 @@ mod tests {
             "export function run(a,b){const o={f:(x,y)=>x+y};return o.f(...[a,b]);}",
             "function f(x=3){return x;}export function run(a,b){return +f(...[]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,b]);}",
+            "function f(x,y){return x+y;}export function run(a,b){return f.apply(null,[a,...[b]]);}",
+            "export function run(a,b){const f=(x,y)=>x+y;return f.apply(null,[a,b]);}",
+            "export function run(a,b){const o={f:(x,y)=>x+y};return o.f.apply(null,[a,b]);}",
             "function f(x,y){return x+y;}export function run(a,b){return f(...[...[a],b]);}",
         ] {
             for ts in [false, true] {
@@ -184,6 +188,8 @@ mod tests {
             "function f(x){return x;}export function run(a,b){return f(...[,]);}",
             "function f(x){return x;}export function run(a,b){return f(...'abc');}",
             "function f(x){return x;}export function run(a,b){return f.call(...[null,a]);}",
+            "function f(x){return x;}export function run(a,b){const xs=[a];return f.apply(null,xs);}",
+            "function f(x){return x;}export function run(a,b){return f.apply(null,[a],b);}",
         ] {
             assert!(crate::compile(source, false).is_err(), "{source}");
         }
