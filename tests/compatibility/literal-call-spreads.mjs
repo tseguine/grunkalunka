@@ -13,6 +13,8 @@ for(const[id,source]of [
  ["call","function f(x,y){return x+y;}export function run(a,b){return f.call(null,...[a,b]);}"],
  ["computed-call","function f(x,y){return x+y;}export function run(a,b){return f['call'](null,a,b);}"],
  ["computed-apply","function f(x,y){return x+y;}export function run(a,b){return f['apply'](null,[a,b]);}"],
+ ["apply-empty","function f(x=3){return x;}export function run(a,b){return f.apply();}"],
+ ["apply-this-only","function f(x=3){return x;}export function run(a,b){return f.apply(null);}"],
  ["nested","function f(x,y){return x+y;}export function run(a,b){return f(...[...[a],b]);}"],
  ["null","function f(x=0){return x;}export function run(a,b){return +f(...[null]);}"],
  ["false","function f(x=0){return x;}export function run(a,b){return +f(...[false]);}"],
