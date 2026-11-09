@@ -362,8 +362,12 @@ fn pure_expression_defaults_select_string_boolean_and_numeric_values() {
             format!(
                 "function f(x={expression}){{return x===undefined?0:1;}}export function run(a,b){{return f();}}"
             ),
-            format!("export function run(a,b){{const f=(x={expression})=>x===undefined?0:1;return f();}}"),
-            format!("export function run(a,b){{const o={{f:(x={expression})=>x===undefined?0:1}};return o.f();}}"),
+            format!(
+                "export function run(a,b){{const f=(x={expression})=>x===undefined?0:1;return f();}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x={expression})=>x===undefined?0:1}};return o.f();}}"
+            ),
         ] {
             for ts in [false, true] {
                 let result = crate::compile_value(&source, ts);
@@ -412,7 +416,9 @@ fn earlier_parameter_logical_defaults_admit_pure_fallbacks() {
             format!(
                 "function f(x,y={expression}){{return y===undefined?0:1;}}export function run(a,b){{return f(a);}}"
             ),
-            format!("export function run(a,b){{const f=(x,y={expression})=>y===undefined?0:1;return f(a);}}"),
+            format!(
+                "export function run(a,b){{const f=(x,y={expression})=>y===undefined?0:1;return f(a);}}"
+            ),
             format!(
                 "export function run(a,b){{const o={{f:(x,y={expression})=>y===undefined?0:1}};return o.f(a);}}"
             ),
@@ -462,7 +468,9 @@ fn earlier_parameter_conditional_defaults_admit_pure_branch_values() {
             format!(
                 "function f(x,y={expression}){{return y===undefined?0:1;}}export function run(a,b){{return f(a);}}"
             ),
-            format!("export function run(a,b){{const f=(x,y={expression})=>y===undefined?0:1;return f(a);}}"),
+            format!(
+                "export function run(a,b){{const f=(x,y={expression})=>y===undefined?0:1;return f(a);}}"
+            ),
             format!(
                 "export function run(a,b){{const o={{f:(x,y={expression})=>y===undefined?0:1}};return o.f(a);}}"
             ),
@@ -508,7 +516,8 @@ fn earlier_parameter_branches_admit_other_initialized_parameters() {
             assert!(result.is_ok(), "{body}: {:?}", result.err());
         }
     }
-    let js = "function f(x,y,z=x??y){return z===undefined?0:1;}export function run(a,b){return f(a,b);}";
+    let js =
+        "function f(x,y,z=x??y){return z===undefined?0:1;}export function run(a,b){return f(a,b);}";
     let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)??(y as never)){return z===undefined?0:1;}export function run(a:unknown,b:unknown):unknown{return f(a,b);}";
     assert_eq!(
         crate::compile_value(js, false).unwrap().wasm,
