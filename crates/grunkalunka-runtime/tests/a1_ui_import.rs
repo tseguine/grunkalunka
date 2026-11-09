@@ -436,12 +436,12 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
            export function run(a, b) {
              let offset = 0;
              const relay = (expanded, count) => choose(expanded + offset, count);
-             return relay.apply(offset = 1, [(offset = 2, a), b]);
+             return relay.apply(offset = 1, [(offset = 2, a), b]) ? b : 0;
            }"#,
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
            export function run(a, b) {
              const action = {invoke: (expanded, count) => choose(expanded, count)};
-             return action.invoke.apply(null, [a, b]);
+             return action.invoke.apply(null, [a, b]) ? b : 0;
            }"#,
     ] {
         compare_composed_source(source);
