@@ -127,8 +127,8 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
         "toWellFormed" => Method::ToWellFormed,
         "isWellFormed" => Method::IsWellFormed,
         "trim" => Method::Trim,
-        "trimStart" => Method::TrimStart,
-        "trimEnd" => Method::TrimEnd,
+        "trimStart" | "trimLeft" => Method::TrimStart,
+        "trimEnd" | "trimRight" => Method::TrimEnd,
         _ => return None,
     };
     Some((receiver, method))
