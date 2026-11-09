@@ -29,7 +29,7 @@ method lookup or public String-valued export is introduced. See
 
 ## Trimming
 
-`trim()`, `trimStart()` and `trimEnd()` remove leading and/or trailing
+`trim()`, `trimStart()`/`trimLeft()` and `trimEnd()`/`trimRight()` remove leading and/or trailing
 ECMAScript whitespace and line terminators. Interior code units remain unchanged.
 This includes the byte-order mark U+FEFF and excludes U+0085, U+180E and U+200B;
 the implementation does not substitute Rust's Unicode whitespace predicate.
@@ -92,8 +92,10 @@ receiver origins must be Strings; a TypeScript annotation or one tested array
 element is insufficient. Same-name methods on ordinary objects continue through
 their ordinary callable path. Borrowed, optional and dynamic-name calls,
 spread arguments, prototype mutation and general receiver/needle coercion remain
-outside this intrinsic profile. Legacy `trimLeft`/`trimRight` aliases are not
-part of this slice.
+outside this intrinsic profile. The legacy `trimLeft` and `trimRight` spellings map to the same
+pristine String trimming operations as `trimStart` and `trimEnd`.
+They preserve UTF-16 behavior, receiver snapshots and ignored argument
+effects without new IR or host code.
 
 [`managed-strings.rs`](../crates/grunkalunka-runtime/tests/managed-strings.rs)
 compares actual compiled JS/TS against native JavaScript in Node-Wasm and

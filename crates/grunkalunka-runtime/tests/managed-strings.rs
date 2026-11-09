@@ -402,6 +402,30 @@ fn string_ends_with_rejects_unproven_strings_and_unrepresented_coercions() {
 }
 
 #[test]
+fn string_trim_left_and_right_aliases_share_intrinsic_utf16_behavior() {
+    for body in [
+        "const s='  a b  ';return s.trimLeft()==='a b  '&&s.trimRight()==='  a b'&&s.trimLeft().trimRight()==='a b'?1:0;",
+        "return ''.trimLeft()===''&&'abc'.trimRight()==='abc'?1:0;",
+        r"const s='\t\ufeff\ud800\0\udfff\r';return s.trimLeft()==='\ud800\0\udfff\r'&&s.trimRight()==='\t\ufeff\ud800\0\udfff'?1:0;",
+        "let s=' old ';const left=s.trimLeft((s='next',a));return left==='old '&&s==='next'?1:0;",
+        "let n=0;const right=' x '.trimRight(n=1,n=n*10+2);return n===12&&right===' x'?1:0;",
+        "const record={label:'  heading  '};return record.label['trimLeft']().trimRight()==='heading'?1:0;",
+        "const f=()=> ' trimmed '.trimLeft().trimRight();return f()==='trimmed'?1:0;",
+        "const obj={trimLeft:()=>a,trimRight:()=>b};return obj.trimLeft()+obj.trimRight();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const s=' x ';return s['trimLeft']().length+s.trimRight().length;}";
+    let ts = "export function run(a:number,b:string):number{const s:number=' x ';return (s as string)['trimLeft']().length+(s as boolean).trimRight().length;}";
+    compare_sources(js, ts);
+    assert_eq!(
+        grunkalunka_compiler::compile(js, false).unwrap().wasm,
+        grunkalunka_compiler::compile(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn string_trim_uses_ecmascript_whitespace_and_line_terminators() {
     for body in [
         r"const ws='\t\v\f \u00a0\ufeff\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000\n\r\u2028\u2029';const s=ws+'Heading'+ws;return s.trim()==='Heading'&&s.trimStart()==='Heading'+ws&&s.trimEnd()===ws+'Heading'?1:0;",

@@ -15,6 +15,11 @@ for (const [id, body] of [
   ['snapshot', "let text='ab';const result=text.repeat((text='x',2));return result==='abab'&&text==='x'?a:b;"],
   ['utf16', String.raw`return '\ud800\0'.repeat(2)==='\ud800\0\ud800\0'?a:b;`],
 ]) managedStrings.push(['managed-string-repeat-'+id, body, body]);
+for (const [id, body] of [
+  ['whitespace', "const s='  note  ';return s.trimLeft()==='note  '&&s.trimRight()==='  note'?a:b;"],
+  ['composition', String.raw`const s='\t x \r';return s.trimLeft().trimRight()==='x'?a:b;`],
+  ['snapshot', "let s=' old ';const r=s.trimRight((s='new',a));return r===' old'&&s==='new'?a:b;"],
+]) managedStrings.push(['managed-string-trim-alias-'+id, body, body]);
 const helper = "function identity(v){return v;} export function run(a,b){const o={};return identity('x')==='x'&&identity(o)===o&&identity(a)===a?a:b;}";
 managedStrings.push(['managed-string-helper', 'return a;', 'return a;', undefined, undefined,
   {sourceJS: helper, sourceTS: helper}]);

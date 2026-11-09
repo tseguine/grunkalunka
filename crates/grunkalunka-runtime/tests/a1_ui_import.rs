@@ -449,6 +449,20 @@ fn imported_handler_applies_fixed_literal_arguments_through_the_real_wit_provide
 }
 
 #[test]
+fn imported_handler_trims_legacy_label_aliases() {
+    for body in [
+        "const label='   status  ';return choose(label.trimLeft().length===8&&label.trimRight().length===9?a:0,b);",
+        "const record={title:'   note   '};return choose(record.title.trimLeft().trimRight()==='note'?a:0,b);",
+        "let n=0;const label=' a '.trimLeft(n=1,n=n*10+2);return choose(label==='a '&&n===12?a:0,b);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+}
+
+#[test]
 fn imported_handler_builds_repeated_utf16_labels() {
     for body in [
         "const label='-'.repeat(3);return choose(label.length===3?a:0,b);",
