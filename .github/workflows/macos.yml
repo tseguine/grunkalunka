@@ -34,7 +34,9 @@ jobs:
   verify:
     name: Native macOS (Apple Silicon)
     runs-on: macos-15
-    timeout-minutes: ${{ inputs.pr-checks && 15 || 65 }}
+    # PR fallback queueing can consume the job-level timeout before a macOS runner exists.
+    # Bound actual PR work with per-step limits instead.
+    timeout-minutes: 65
     steps:
       - name: Check out exact master-push or manually selected revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,6 +81,7 @@ jobs:
         run: cargo build --workspace --locked --offline -j 4
       - name: Complete fast PR profile
         if: inputs.pr-checks
+        timeout-minutes: 15
         run: node scripts/check.mjs --profile=pr
       - name: Full canonical tests
         if: ${{ !inputs.pr-checks }}
