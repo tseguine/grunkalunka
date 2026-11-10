@@ -363,6 +363,7 @@ fn unsigned_computed_keys_preserve_keys_before_value_awaits() {
 fn unsigned_in_keys_save_the_key_before_receiver_awaits_and_effects() {
     compare_promises(
         &[
+            "const o={};o[a]=b;let k=a;const present=k in (await b,k=b,o);return present&&Object.hasOwn(o,(await a,a))?1:0;",
             "let key=a;const xs=[b];const found=(await a,key>>>0) in (await b,key=1,xs);await b;return found?1:0;",
             "let n=0;try{const found=(n=1,await Promise.reject(a),0>>>0) in (n=2,[b]);return found?1:0;}catch(e){await b;return n;}",
             "let n=0;try{const found=(n=1,0>>>0) in (await Promise.reject(b),n=2,[a]);return found?1:0;}catch(e){await a;return n;}",

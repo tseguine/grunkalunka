@@ -126,10 +126,10 @@ fn has_own_admits_string_keys_on_known_arrays_and_objects_only() {
             "const {row}={row:[a]};return Object.hasOwn(row,'length')?1:0;",
             true,
         ),
-        ("return Object.hasOwn({},a)?1:0;", false),
+        ("return Object.hasOwn({},a)?1:0;", true),
         ("return Object.hasOwn(a?{}:null,'x')?1:0;", false),
         ("return Object.hasOwn(...[{},'x'])?1:0;", true),
-        ("return Object.hasOwn(...[{},a])?1:0;", false),
+        ("return Object.hasOwn(...[{},a])?1:0;", true),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {

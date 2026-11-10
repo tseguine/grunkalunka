@@ -5,6 +5,20 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn primitive_membership_preserves_presence_prototypes_and_operand_order() {
+    for body in [
+        "const xs=[];xs[a]=undefined;return a in xs&&Object.hasOwn(xs,a)?xs.length+1:0;",
+        "const o=a?{}:Object.create(null);const key=b?false:null;o[key]=a;return key in o&&Object.hasOwn(o,key)?1:0;",
+        "const xs=[];const key=a?'map':b;return key in xs&&!Object.hasOwn(xs,key)?1:0;",
+        "let k=a;const o={};o[a]=0;return (k in (k=b,o))&&Object.hasOwn(o,a,k=b)?1:0;",
+        "const o={};let key=a?'x':b;return Object.hasOwn(o,key,o.x=(key='x',1))?1:0;",
+        "const k=a?false:null;return Object.hasOwn('abc',k)||Object.hasOwn(b,k)?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn primitive_key_updates_save_the_reference_and_old_value() {
     for body in [
         "const xs=[];xs[a]=1;const old=xs[a]++;return old===1&&xs[a]===2?xs.length+1:0;",
@@ -1754,7 +1768,7 @@ fn has_own_rejects_unproven_receivers_keys_and_runtime_spreads() {
     for body in [
         "return Object.hasOwn(null,'x')?1:0;",
         "return Object.hasOwn(a?{}:null,'x')?1:0;",
-        "return Object.hasOwn({x:a},b)?1:0;",
+        "return Object.hasOwn({x:a},{})?1:0;",
         "const args=['x'];return Object.hasOwn({},...args)?1:0;",
         "const args=[];return Object.hasOwn({},'x',...args)?1:0;",
     ] {
@@ -1849,7 +1863,7 @@ fn dictionary_in_saves_the_key_before_evaluating_the_receiver() {
 fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
     for body in [
         "return 'x' in null?1:0;",
-        "return a in Object.create(null)?1:0;",
+        "return (a?{}:b) in Object.create(null)?1:0;",
         "return {} in Object.create(null)?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

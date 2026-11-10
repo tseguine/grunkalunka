@@ -1715,3 +1715,9 @@ Calling the unshadowed `String` function applies the same primitive conversion.
 No arguments produce the empty String. Subsequent arguments still run in order
 and may suspend or throw. Fixed array-literal spreads follow ordinary call
 argument expansion. Boxed String construction and object coercion remain guarded.
+
+`in` and `Object.hasOwn` accept runtime primitive keys. On an array or record,
+a non-String primitive key cannot spell an inherited intrinsic name. Possible
+String keys retain the receiver prototype checks for `in`. The key and receiver
+are evaluated in their original order, and `Object.hasOwn` tests presence
+after its remaining arguments finish.

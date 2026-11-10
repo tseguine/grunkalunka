@@ -291,6 +291,25 @@ impl Uint32Keys {
 }
 
 #[cfg(test)]
+pub(super) fn has_unsigned_presence(source: &str, typed: bool) -> bool {
+    match crate::lower_source(source, typed) {
+        Ok(module) => crate::ir::any_operation(&module.functions[0].body, &mut |op| {
+            matches!(
+                op,
+                crate::ir::Op::ManagedHasOwn {
+                    key: crate::ir::ManagedKey::Uint32(_),
+                    ..
+                }
+            )
+        }),
+        Err(error) => {
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            false
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     #[test]
     fn loop_counter_requires_a_bounded_test_and_a_single_increment() {
@@ -370,8 +389,11 @@ mod tests {
             ),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
-            let result = crate::compile(&source, true);
-            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            assert_eq!(
+                super::has_unsigned_presence(&source, true),
+                admitted,
+                "{source}"
+            );
         }
     }
 
@@ -401,8 +423,11 @@ mod tests {
             ),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
-            let result = crate::compile(&source, false);
-            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            assert_eq!(
+                super::has_unsigned_presence(&source, false),
+                admitted,
+                "{source}"
+            );
         }
     }
 
@@ -423,8 +448,11 @@ mod tests {
             ("const [i]=[-1];return Object.hasOwn([b],i)?1:0;", false),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
-            let result = crate::compile(&source, true);
-            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            assert_eq!(
+                super::has_unsigned_presence(&source, true),
+                admitted,
+                "{source}"
+            );
         }
     }
 }

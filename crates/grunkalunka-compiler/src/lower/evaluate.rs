@@ -1640,26 +1640,23 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::In { node, membership } => {
                     let input = values.pop().expect("in receiver").id();
                     match membership {
-                        has_own::Membership::Own(literal) => {
-                            let key = literal.map(ir::ManagedKey::Literal).unwrap_or_else(|| {
-                                ir::ManagedKey::String(values.pop().expect("in key").id())
-                            });
+                        has_own::Membership::OwnLiteral(key) => {
                             self.finish_property_presence(
                                 node,
                                 regions.current(),
                                 values,
                                 input,
-                                key,
+                                ir::ManagedKey::Literal(key),
                             );
                         }
-                        has_own::Membership::Uint32 => {
-                            let key = values.pop().expect("unsigned in key").id();
+                        has_own::Membership::OwnRuntime(kind) => {
+                            let key = values.pop().expect("runtime in key").id();
                             self.finish_property_presence(
                                 node,
                                 regions.current(),
                                 values,
                                 input,
-                                ir::ManagedKey::Uint32(key),
+                                kind.finish(key),
                             );
                         }
                         has_own::Membership::Prototype => {
