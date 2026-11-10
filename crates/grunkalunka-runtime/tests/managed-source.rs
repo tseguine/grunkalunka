@@ -5,6 +5,24 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_tail_results_feed_managed_locals_and_later_additions() {
+    let source = r#"export function run(a,b) {
+        let state;
+        if (a<0) state={view:{label:'x'}};
+        else if (b<0) state={view:{label:a}};
+        else state={view:{label:b}};
+        const root=a?state:null;
+        let item=root?.view.label??2;
+        item+=b?'y':3;
+        return String(item).concat(...['!']).length+[a,b].indexOf(...[a]);
+    }"#;
+    common::compare_sources(
+        source,
+        &source.replace("run(a,b)", "run(a:number,b:number):number"),
+    );
+}
+
+#[test]
 fn compound_scalar_addition_stores_the_selected_runtime_kind() {
     for body in [
         "let x=a?'x':2;const v=x+=b?'y':3;return x===v?(v===5?5:v==='xy'?1:v==='x3'?2:3):99;",

@@ -80,6 +80,25 @@ pub(super) enum Read<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn optional_read_parts<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        depth: usize,
+    ) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
+        let member = match node {
+            Expression::ChainExpression(chain) => chain.expression.as_member_expression(),
+            _ => node.as_member_expression(),
+        };
+        member.and_then(|m| {
+            member_parts(
+                m,
+                depth,
+                &self.stored.uint32_keys,
+                self.stored.required_chain_reads.contains(&m.node_id()),
+            )
+        })
+    }
+
     pub(super) fn schedule_optional_member<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -87,18 +106,7 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        let member = match node {
-            Expression::ChainExpression(chain) => chain.expression.as_member_expression(),
-            _ => node.as_member_expression(),
-        };
-        let Some((object, key)) = member.and_then(|m| {
-            member_parts(
-                m,
-                depth,
-                &self.stored.uint32_keys,
-                self.stored.required_chain_reads.contains(&m.node_id()),
-            )
-        }) else {
+        let Some((object, key)) = self.optional_read_parts(node, depth) else {
             return Ok(false);
         };
         let receiver = self.stored.optional_receiver(object.node_id());
