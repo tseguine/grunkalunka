@@ -5,6 +5,27 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn logical_assignment_results_keep_selected_containers_and_identity() {
+    for body in [
+        "let row=a?{n:a}:null;const picked=row??={n:b};return +picked.n;",
+        "let xs=a?[a]:null,n=0;const picked=xs||=(n++,[b,b]);return picked.length+n;",
+        "let row=a?{n:a}:null;const picked=row??={n:b};picked.n=7;return row===picked&&picked.n===7?1:0;",
+        "let row=a?{n:a}:null;const picked=row&&={n:b};return +(picked?.n??1);",
+        "let cache=a?{items:[a]}:null;const selected=cache??={items:[b,b]};return selected.items.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "let row=a?{n:b}:null;const picked=row&&={n:b};return +picked.n;",
+        "let row=a?{n:b}:null;const picked=row??=[b];return +picked.n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn local_assignment_results_select_computed_handlers() {
     for body in [
         "const t={x:v=>v+1,y:v=>v-1};let k='';return t[k=a?'x':'y'](b);",

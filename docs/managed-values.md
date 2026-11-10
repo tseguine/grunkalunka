@@ -1788,3 +1788,10 @@ Object literals and `Object.create` accept a null prototype selected through
 a conditional, a sequence, or earlier simple `const` aliases when all possible
 results are null. The original expression still evaluates at the construction
 site, including effects before the selected null value.
+
+
+Local logical assignment keeps the identities and possible contents of its
+selected operands. For example, when `state` contains either a record or
+null, `const row = state ??= {n: 0}` can read `row.n`. Array length and nested
+record fields use the same source facts. A possibly null result of `&&=` cannot
+supply an ordinary property receiver.
