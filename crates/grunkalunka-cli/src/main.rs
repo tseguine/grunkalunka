@@ -174,12 +174,18 @@ fn execute(diagnostics: bool) -> Result<(), Box<dyn Error>> {
         [command] if matches!(command.as_str(), "--version" | "-V") => {
             println!("grunkalunka {}", env!("CARGO_PKG_VERSION"));
         }
-        [command, source, destination] if command == "compile" || command == "compile-value" => {
+        [command, source, destination, options @ ..]
+            if matches!(command.as_str(), "compile" | "compile-value")
+                && (options.is_empty() || options == ["--print-wat"]) => {
             // Finish parsing/admission/encoding before opening the destination.
             // create_new also prevents accidental overwrite and stale-output success.
             let artifact = compile_file(source, command == "compile-value", diagnostics)?;
             OpenOptions::new().write(true).create_new(true).open(destination)?.write_all(&artifact.wasm)?;
-            println!("COMPILED {} bytes: {source} -> {destination}", artifact.wasm.len());
+            if options.is_empty() {
+                println!("COMPILED {} bytes: {source} -> {destination}", artifact.wasm.len());
+            } else {
+                print!("{}", artifact.wat);
+            }
         }
         [command, source] if command == "wat" || command == "wat-value" => print!("{}", compile_file(source, command == "wat-value", diagnostics)?.wat),
         [command, path] if command == "eval" || command == "eval-value" => evaluate(path, command == "eval-value", diagnostics)?,
