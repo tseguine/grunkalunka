@@ -1587,13 +1587,13 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
                 Work::DictionaryLogical(task) => {
-                    self.resume_dictionary_logical(task, regions, values, work)
+                    self.resume_dictionary_logical(task, regions, values, work)?
                 }
                 Work::PropertyDelete(task) => {
                     self.resume_property_delete(task, regions, values, work)
                 }
                 Work::PropertyUpdate(task) => {
-                    self.resume_property_update(task, regions, values, work)
+                    self.resume_property_update(task, regions, values, work)?
                 }
                 Work::PropertyLogical(task) => {
                     self.resume_property_logical(task, regions, values, work)

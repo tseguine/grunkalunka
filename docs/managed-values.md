@@ -1705,3 +1705,8 @@ spelling. For example, `-0` selects index zero, while fractions, negative
 integers, NaN, infinities and 4294967295 name ordinary fields without growing
 an array. Proven uint32 keys retain the smaller unsigned path. Null-prototype
 dictionaries can mix these primitive kinds with arbitrary String keys.
+
+The same primitive keys work in numeric prefix/postfix updates, numeric
+compound assignments, and `&&=`, `||=`, and `??=`. A property reference keeps
+its receiver and key across RHS effects and awaits. Logical RHS expressions run
+only when the saved value selects the assignment.

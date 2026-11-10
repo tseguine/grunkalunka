@@ -297,6 +297,7 @@ fn dictionary_numeric_updates_preserve_string_keys_and_old_values_across_awaits(
 fn unsigned_numeric_updates_preserve_targets_keys_and_old_values_across_awaits() {
     compare_promises(
         &[
+            "let o={};const old=o;o[a]=3;const r=o[(await b,a)]+=(await a,o={},b);return r===old[a]&&o[a]===undefined?1:0;",
             "let xs=[a];const old=xs;let key=0;const v=xs[key>>>0]-=(await a,key=1,xs=[b],b);await b;return old!==xs&&!Object.hasOwn(old,1)?v:99;",
             "const xs=[a];const v=xs[(await b,0>>>0)]++;await a;return v;",
             "const xs=[a];try{xs[0>>>0]-=await Promise.reject(b);}catch(e){await a;return +xs[0>>>0];}return 99;",
@@ -310,6 +311,7 @@ fn unsigned_numeric_updates_preserve_targets_keys_and_old_values_across_awaits()
 fn unsigned_logical_writes_preserve_lazy_rhs_and_await_snapshots() {
     compare_promises(
         &[
+            "const xs=[];let n=0;xs[(await b,a)]??=(await a,n++,b);xs[a]??=(await b,n++);return n;",
             "let xs=[0];const old=xs;let key=0;const v=xs[key>>>0]||=(await a,key=1,xs=[a],b);await b;return old!==xs&&!Object.hasOwn(old,1)&&v===b?1:0;",
             "let n=0;const xs=[false,0];xs[0>>>0]??=(n=1,await Promise.reject(a));xs[1>>>0]&&=(n=2,await Promise.reject(b));return n;",
             "const xs=[];try{xs[0>>>0]??=await Promise.reject(a);}catch(e){await b;return xs.length;}return -1;",

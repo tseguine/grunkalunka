@@ -5,6 +5,20 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn primitive_key_updates_save_the_reference_and_old_value() {
+    for body in [
+        "const xs=[];xs[a]=1;const old=xs[a]++;return old===1&&xs[a]===2?xs.length+1:0;",
+        "const o={};const k=a?null:true;o[k]=3;o[k]*=2;return +o[k];",
+        "let o={};const old=o;o[a]=7;const r=o[a]+=(o={},b);return old[a]===r&&o[a]===undefined?1:0;",
+        "const xs=[];let n=0;xs[(n++,a)]??=(n++,b);xs[(n++,a)]??=(n++,1);return n;",
+        "const o={};const k=a?false:null;o[k]=0;o[k]&&=(o[k]=99);o[k]||=b;return o[k]===b?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':b;d[k]??=2;return ++d[k];",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn primitive_property_keys_preserve_spelling_holes_and_saved_references() {
     for body in [
         "const x=[a];return x[b]===a?a:b;",
