@@ -560,6 +560,20 @@ fn imported_handler_invokes_proven_arrow_empty_apply() {
 }
 
 #[test]
+fn imported_handler_reads_reassigned_namespaced_action() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             const table = { "action:expand": 1, "action:collapse": 0 };
+             const verb = a > 0 ? "expand" : "collapse";
+             let key = "action:collapse";
+             key = `action:${verb}`;
+             return choose(+table[key], b);
+           }"#,
+    );
+}
+
+#[test]
 fn imported_handler_selects_policy_by_runtime_record_key() {
     compare_composed_source(
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";

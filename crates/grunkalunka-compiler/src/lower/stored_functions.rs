@@ -73,6 +73,7 @@ struct FunctionFlow {
 #[derive(Default)]
 pub(crate) struct Fields {
     pub(super) uint32_keys: Uint32Keys,
+    pub(super) record_names: RecordNames,
     values: BTreeMap<NodeId, Alternatives>,
     number_updates: BTreeSet<NodeId>,
     var_symbols: BTreeSet<SymbolId>,
@@ -93,7 +94,7 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
 /// projection. Keeping intermediate nodes makes nested receiver proofs available
 /// without treating a binding's syntax or annotation as a runtime kind.
 fn pattern_definitions(
-    semantic: &Semantic<'_>,
+    record_names: &RecordNames,
     uint32_keys: &Uint32Keys,
     pattern: &BindingPattern<'_>,
     root: Rule,
@@ -136,13 +137,13 @@ fn pattern_definitions(
                         })
                         .or_else(|| {
                             let key = property.key.as_expression()?;
-                            static_keys::own_string_name(key, semantic, 0).then(|| {
-                                Rule::StringKeyMember {
+                            record_names
+                                .contains(key, 0)
+                                .then(|| Rule::StringKeyMember {
                                     receiver: id,
                                     key: key.node_id(),
                                     own_name: true,
-                                }
-                            })
+                                })
                         })
                         .unwrap_or(Rule::Known(Origin::Other));
                     pending.push((&property.value, rule));
@@ -437,6 +438,7 @@ impl Fields {
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
         let uint32_keys = Uint32Keys::collect(semantic);
+        let record_names = RecordNames::collect(semantic);
         if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
@@ -450,7 +452,7 @@ impl Fields {
                 // even when no literal heap container occurs in the module.
                 || matches!(node.kind(), AstKind::BinaryExpression(binary) if matches!(binary.operator, BinaryOperator::Equality | BinaryOperator::Inequality))
         }) {
-            return Self { uint32_keys, ..Self::default() };
+            return Self { uint32_keys, record_names, ..Self::default() };
         }
         let mut values = BTreeMap::new();
         let mut bindings: BTreeMap<SymbolId, Alternatives> = BTreeMap::new();
@@ -567,7 +569,7 @@ impl Fields {
         let mut has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
         for (pattern, rule) in patterned_iterations {
             pattern_definitions(
-                semantic,
+                &record_names,
                 &uint32_keys,
                 pattern,
                 rule,
@@ -1043,7 +1045,7 @@ impl Fields {
                     }
                     if let Some(initializer) = &declaration.init {
                         pattern_definitions(
-                            semantic,
+                            &record_names,
                             &uint32_keys,
                             &declaration.id,
                             Rule::Copy(vec![initializer.node_id()]),
@@ -1296,9 +1298,7 @@ impl Fields {
                                         Rule::StringKeyMember {
                                             receiver: a.right.node_id(),
                                             key: key.node_id(),
-                                            own_name: static_keys::own_string_name(
-                                                key, semantic, 0,
-                                            ),
+                                            own_name: record_names.contains(key, 0),
                                         }
                                     }
                                 };
@@ -1420,7 +1420,7 @@ impl Fields {
                                 Rule::OptionalComputedMember {
                                     receiver: receiver.node_id(),
                                     key: key.node_id(),
-                                    own_name: static_keys::own_string_name(key, semantic, 0),
+                                    own_name: record_names.contains(key, 0),
                                 }
                             }
                             evaluate::optional_member::Key::Uint32(_) => {
@@ -1446,7 +1446,7 @@ impl Fields {
                         Some(Rule::StringKeyMember {
                             receiver: m.object.node_id(),
                             key: m.expression.node_id(),
-                            own_name: static_keys::own_string_name(&m.expression, semantic, 0),
+                            own_name: record_names.contains(&m.expression, 0),
                         })
                     }
                 }
@@ -2013,6 +2013,7 @@ impl Fields {
             }
         }
         Self {
+            record_names,
             uint32_keys,
             values,
             number_updates,

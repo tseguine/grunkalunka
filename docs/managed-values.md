@@ -1639,3 +1639,10 @@ template interpolation. Fixed prefixes, suffixes, and interior fragments
 must together rule out every name on the Object prototype. For example,
 `record["user:" + name]` can use an arbitrary supported String, while
 `record["to" + name]` can still select an inherited method.
+
+A lexical `let` may carry a computed record name across reassignment.
+Its initializer and every write must preserve the safe String domain,
+including writes inside closures. Copies between bindings share that proof.
+Compound writes, destructuring targets, and iteration-head assignments
+cannot establish it. Property operations still load the current value and
+save the key before any later RHS mutation.
