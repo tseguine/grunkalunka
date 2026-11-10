@@ -64,6 +64,7 @@ struct FunctionFlow {
 }
 #[derive(Default)]
 pub(crate) struct Fields {
+    pub(super) uint32_keys: Uint32Keys,
     values: BTreeMap<NodeId, Alternatives>,
     number_updates: BTreeSet<NodeId>,
     var_symbols: BTreeSet<SymbolId>,
@@ -84,6 +85,7 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
 /// projection. Keeping intermediate nodes makes nested receiver proofs available
 /// without treating a binding's syntax or annotation as a runtime kind.
 fn pattern_definitions(
+    uint32_keys: &Uint32Keys,
     pattern: &BindingPattern<'_>,
     root: Rule,
     definitions: &mut Vec<Definition>,
@@ -120,7 +122,7 @@ fn pattern_definitions(
                             property
                                 .key
                                 .as_expression()
-                                .filter(|key| evaluate::property_delete::uint32_key(key, 0))
+                                .filter(|key| uint32_keys.contains(key, 0))
                                 .map(|_| Rule::PatternUnsignedMember(id))
                         })
                         .unwrap_or(Rule::Known(Origin::Other));
@@ -415,6 +417,7 @@ impl Fields {
         (named, arrows)
     }
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
+        let uint32_keys = Uint32Keys::collect(semantic);
         if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
@@ -428,7 +431,7 @@ impl Fields {
                 // even when no literal heap container occurs in the module.
                 || matches!(node.kind(), AstKind::BinaryExpression(binary) if matches!(binary.operator, BinaryOperator::Equality | BinaryOperator::Inequality))
         }) {
-            return Self::default();
+            return Self { uint32_keys, ..Self::default() };
         }
         let mut values = BTreeMap::new();
         let mut bindings: BTreeMap<SymbolId, Alternatives> = BTreeMap::new();
@@ -544,7 +547,13 @@ impl Fields {
             .collect::<Vec<_>>();
         let mut has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
         for (pattern, rule) in patterned_iterations {
-            pattern_definitions(pattern, rule, &mut definitions, &mut pattern_rules);
+            pattern_definitions(
+                &uint32_keys,
+                pattern,
+                rule,
+                &mut definitions,
+                &mut pattern_rules,
+            );
         }
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
         // A spread or untracked property key can introduce an unlisted field.
@@ -599,7 +608,7 @@ impl Fields {
                 }
             }
             if let AstKind::UnaryExpression(unary) = node.kind()
-                && let Some(mutation) = mutations::delete(unary)
+                && let Some(mutation) = mutations::delete(unary, &uint32_keys)
             {
                 mutations.push(mutation);
             }
@@ -1014,6 +1023,7 @@ impl Fields {
                     }
                     if let Some(initializer) = &declaration.init {
                         pattern_definitions(
+                            &uint32_keys,
                             &declaration.id,
                             Rule::Copy(vec![initializer.node_id()]),
                             &mut definitions,
@@ -1255,7 +1265,7 @@ impl Fields {
                                         Rule::Member(a.right.node_id(), key)
                                     }
                                     iteration::PropertyKey::Runtime(key)
-                                        if evaluate::property_delete::uint32_key(key, 0) =>
+                                        if uint32_keys.contains(key, 0) =>
                                     {
                                         dynamic_excluded = true;
                                         Rule::PatternUnsignedMember(a.right.node_id())
@@ -1374,7 +1384,7 @@ impl Fields {
                     Some(Rule::Copy(vec![a.right.node_id()]))
                 }
                 AstKind::ChainExpression(chain) => Some(
-                    evaluate::optional_member::parts(chain, 0)
+                    evaluate::optional_member::parts(chain, 0, &uint32_keys)
                         .map(|(receiver, key)| match key {
                             evaluate::optional_member::Key::Literal(key) => {
                                 Rule::OptionalMember(receiver.node_id(), key)
@@ -1397,7 +1407,7 @@ impl Fields {
                         closures::unwrapped(&m.expression, 0).and_then(static_keys::literal)
                     {
                         Some(Rule::Member(m.object.node_id(), key))
-                    } else if evaluate::property_delete::uint32_key(&m.expression, 0) {
+                    } else if uint32_keys.contains(&m.expression, 0) {
                         Some(Rule::UnsignedMember(m.object.node_id()))
                     } else {
                         // Null-prototype dictionaries have no inherited values.
@@ -1968,6 +1978,7 @@ impl Fields {
             }
         }
         Self {
+            uint32_keys,
             values,
             number_updates,
             var_symbols,

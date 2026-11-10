@@ -56,6 +56,8 @@ mod source_block_tests;
 mod source_control;
 mod source_errors;
 mod static_keys;
+mod uint32_keys;
+use uint32_keys::Uint32Keys;
 mod storage;
 pub(super) mod stored_functions;
 pub(super) use callbacks::infer_callback_parameters;

@@ -28,7 +28,7 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        let Some((object, key)) = parts(chain, depth) else {
+        let Some((object, key)) = parts(chain, depth, &self.stored.uint32_keys) else {
             return Err(unsupported(
                 node,
                 "optional delete requires a single optional member reference",
@@ -146,7 +146,7 @@ impl Lowering<'_, '_> {
                 self.finish_optional_delete(node, condition, skipped, selected, regions, values);
             }
             Key::Uint32(key) | Key::Runtime(key) => {
-                let uint32 = property_delete::uint32_key(key, depth + 2);
+                let uint32 = self.stored.uint32_keys.contains(key, depth + 2);
                 regions.children.push(selected);
                 work.push(Work::PropertyDelete(property_delete::Task::Optional(
                     Task::Key {

@@ -2816,8 +2816,10 @@ compose through a bounded heap traversal. A bitwise AND with a literal integer m
 on either side also proves the result unsigned. This allows ring-buffer reads
 such as `slots[cursor & 255]`, writes, and computed destructuring through the
 same key path. The ordinary evaluator still checks
-all operands and effects; annotations, arbitrary Number cells and opaque helpers
-do not prove the range. Existing source depth/size limits still apply.
+all operands and effects. A simple `const` initialized with a proven unsigned
+expression or a uint32 integer literal retains the proof at subsequent reads,
+including through further const aliases. Its initializer executes once.
+Mutable Number cells, annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
 
 Objects, dictionaries and Arrays evaluate and save the receiver before the key.
 ManagedKey::Uint32 explicitly means the decimal property key of ToUint32(input);

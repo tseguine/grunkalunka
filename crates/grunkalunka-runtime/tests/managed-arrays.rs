@@ -2,6 +2,20 @@
 mod common;
 
 #[test]
+fn const_indices_snapshot_values_across_array_and_record_operations() {
+    for body in [
+        "let n=0;const i=((n=n+1,a)&3),j=i;const xs=[];xs[j]=b;return n*10+xs.length+(Object.hasOwn(xs,i)?10:0);",
+        "const i=a&1;const o={[i]:b};const {[i]:x,...rest}=o;return Object.keys(rest).length===0&&x===b?1:0;",
+        "const i=4294967295;const xs=[a];xs[i]=b;return xs.length===1&&xs[i]===b&&delete xs[i]&&!(i in xs)?1:0;",
+        "const i=a&1;const xs=b?[11,22]:null;return xs?.[i]===22?1:0;",
+        "const i=a&1;const xs=[11,22];const read=()=>xs[i];return read()===11?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn masked_indices_keep_key_effects_and_sparse_array_semantics() {
     for body in [
         "const xs=[11,,33,44];return Object.hasOwn(xs,a&3)?+(xs[a&3]):-1;",

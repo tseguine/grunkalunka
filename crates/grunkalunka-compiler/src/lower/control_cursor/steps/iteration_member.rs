@@ -33,7 +33,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             iteration::PropertyKey::Runtime(key) => {
-                if !evaluate::property_delete::uint32_key(key, 1)
+                if !self.stored.uint32_keys.contains(key, 1)
                     && !(self.stored.dictionary(object.node_id())
                         && self.stored.string(key.node_id()))
                 {
@@ -69,7 +69,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 );
             }
             iteration::PropertyKey::Runtime(key) => {
-                let uint32 = evaluate::property_delete::uint32_key(key, 1);
+                let uint32 = self.stored.uint32_keys.contains(key, 1);
                 cursor.pending.push(Frame::ForOfMemberKey {
                     frame,
                     selected,

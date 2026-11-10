@@ -122,7 +122,7 @@ impl Lowering<'_, '_> {
                     )?)
                 }
                 iteration::PropertyKey::Runtime(key) => {
-                    if !property_delete::uint32_key(key, depth)
+                    if !self.stored.uint32_keys.contains(key, depth)
                         && !(self.stored.dictionary(object.node_id())
                             && self.stored.string(key.node_id()))
                     {
@@ -393,7 +393,7 @@ impl Lowering<'_, '_> {
                             Selection::Field(key)
                         }
                         iteration::PropertyKey::Runtime(key) => {
-                            let uint32 = property_delete::uint32_key(key, depth + 1);
+                            let uint32 = self.stored.uint32_keys.contains(key, depth + 1);
                             if !uint32
                                 && (string || !(dictionary && self.stored.string(key.node_id())))
                             {
@@ -501,7 +501,7 @@ impl Lowering<'_, '_> {
                     }
                     iteration::PropertyKey::Runtime(key) => {
                         let depth = state.depth;
-                        let uint32 = property_delete::uint32_key(key, depth);
+                        let uint32 = self.stored.uint32_keys.contains(key, depth);
                         work.push(Work::Destructure(Task::Key {
                             state,
                             selection,
