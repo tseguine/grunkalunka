@@ -1775,7 +1775,10 @@ to the saved first argument. Omission produces false, and surplus arguments
 still execute in source order, including their effects and rejections.
 
 Array length assignments accept runtime values proven to be uint32, including
-another array's length, a checked loop counter or an unsigned shift. Shrinking
+another array's length, a checked loop counter or an unsigned shift. A conditional
+or logical expression can also select among validated unsigned literals and
+runtime unsigned values. Unsigned shift assignment and a bitwise AND assignment
+with a nonnegative int32 mask also yield validated lengths. Shrinking
 deletes indexed properties, growing creates holes, and the assignment returns
 the original RHS Number (including negative zero).
 

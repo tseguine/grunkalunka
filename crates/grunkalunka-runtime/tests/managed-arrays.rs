@@ -2,6 +2,33 @@
 mod common;
 
 #[test]
+fn array_lengths_accept_unsigned_choices_and_preserve_evaluation() {
+    for body in [
+        "const xs=[a,b];xs.length=a?1:0;return xs.length;",
+        "let n=a;const xs=Array(n>>>=1);return xs.length===n?1:0;",
+        "let n=b;const xs=[a,b];xs.length=n&=3;return xs.length===n?1:0;",
+        "const n=a?2:b>>>0;const xs=new Array(n);return xs.length;",
+        "const xs=[a,b];let n=0;xs.length=(n++,a?2:1);return xs.length+n;",
+        "const xs=[a,b];let n=0;xs.length=(a&1)||(n++,2);return xs.length+n;",
+        "const xs=[a];const v=xs.length=a?-0:1;return 1/v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const xs=[];xs.length=a?1:-1;return xs.length;",
+        "const n=(a>>>0)||0.5;return Array(n).length;",
+        "const xs=[];xs.length=a?0:4294967296;return xs.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn finite_string_keys_select_array_length_elements_and_named_fields() {
     for body in [
         "const xs=[b];const k=a?'length':'0';return +xs[k];",

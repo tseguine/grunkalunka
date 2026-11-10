@@ -93,10 +93,7 @@ impl Uint32Keys {
     }
 
     pub(super) fn unsigned_value(&self, expression: &Expression<'_>) -> bool {
-        closures::unwrapped(expression, 0)
-            .and_then(static_keys::number)
-            .is_some_and(|n| (0.0..=f64::from(u32::MAX)).contains(&n) && n.fract() == 0.0)
-            || self.contains(expression, 0)
+        self.proven(expression, 0, true)
     }
 
     // Facts apply only inside the body, after the test succeeds. In a reverse
@@ -252,11 +249,22 @@ impl Uint32Keys {
     // Source operators, never annotations, prove the key's numeric range. The
     // ordinary evaluator still validates every operand and effect of these forms.
     pub(super) fn contains(&self, expression: &Expression<'_>, depth: usize) -> bool {
-        let mut pending = vec![(expression, depth)];
-        while let Some((expression, depth)) = pending.pop() {
+        // Keep direct literal subscripts on their static property-key path.
+        self.proven(expression, depth, false)
+    }
+
+    fn proven(&self, expression: &Expression<'_>, depth: usize, allow_literal: bool) -> bool {
+        let mut pending = vec![(expression, depth, allow_literal)];
+        while let Some((expression, depth, allow_literal)) = pending.pop() {
             let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
                 return false;
             };
+            if allow_literal
+                && static_keys::number(expression)
+                    .is_some_and(|n| (0.0..=f64::from(u32::MAX)).contains(&n) && n.fract() == 0.0)
+            {
+                continue;
+            }
             match expression {
                 Expression::Identifier(id) if self.reads.contains(&id.node_id()) => {}
                 Expression::StaticMemberExpression(_) | Expression::ComputedMemberExpression(_)
@@ -272,16 +280,24 @@ impl Uint32Keys {
                     let Some(last) = sequence.expressions.last() else {
                         return false;
                     };
-                    pending.push((last, depth + 1));
+                    pending.push((last, depth + 1, true));
                 }
+                Expression::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::ShiftRightZeroFill
+                        || (assignment.operator == AssignmentOperator::BitwiseAnd
+                            && nonnegative_i32_mask(&assignment.right, depth + 1)) => {}
                 Expression::AssignmentExpression(assignment)
                     if assignment.operator == AssignmentOperator::Assign =>
                 {
-                    pending.push((&assignment.right, depth + 1))
+                    pending.push((&assignment.right, depth + 1, true))
+                }
+                Expression::LogicalExpression(logical) => {
+                    pending.push((&logical.left, depth + 1, true));
+                    pending.push((&logical.right, depth + 1, true));
                 }
                 Expression::ConditionalExpression(conditional) => {
-                    pending.push((&conditional.consequent, depth + 1));
-                    pending.push((&conditional.alternate, depth + 1));
+                    pending.push((&conditional.consequent, depth + 1, true));
+                    pending.push((&conditional.alternate, depth + 1, true));
                 }
                 _ => return false,
             }
