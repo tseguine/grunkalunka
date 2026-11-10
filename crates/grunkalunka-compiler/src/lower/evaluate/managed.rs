@@ -1331,15 +1331,14 @@ impl Lowering<'_, '_> {
         if matches!(mode, Mode::Managed) {
             if let Expression::BinaryExpression(binary) = node
                 && binary.operator == BinaryOperator::Addition
-                && self.stored.string(binary.left.node_id())
-                && self.stored.string(binary.right.node_id())
+                && self.stored.string(node.node_id())
             {
                 work.push(Work::Managed(ManagedWork::ConcatRight {
                     node,
                     right: &binary.right,
                     depth: depth + 1,
                 }));
-                work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+                self.schedule_string_operand(&binary.left, depth + 1, work)?;
                 return Ok(true);
             }
             if let Expression::UnaryExpression(u) = node
@@ -1562,7 +1561,7 @@ impl Lowering<'_, '_> {
             ManagedWork::ConcatRight { node, right, depth } => {
                 let left = values.pop().expect("String addition left operand").id();
                 work.push(Work::Managed(ManagedWork::Concat { node, left }));
-                work.push(Work::Eval(right, depth, Mode::Managed));
+                self.schedule_string_operand(right, depth, work)?;
             }
             ManagedWork::Concat { node, left } => {
                 let right = values.pop().expect("String addition right operand").id();

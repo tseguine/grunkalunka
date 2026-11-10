@@ -1061,13 +1061,28 @@ fn string_concat_composes_helpers_captures_and_erased_types() {
 }
 
 #[test]
-fn string_concat_keeps_mixed_coercion_outside_this_slice() {
+fn string_concat_coerces_represented_primitives_in_operand_order() {
     for body in [
         "return ('x'+a).length;",
         "return (a+'x').length;",
         "return ('x'+null).length;",
-        "return ({}+'x').length;",
         "const value=a?'x':b;return (value+'x').length;",
+        "const c='abc'.at(a);return (c+'!').length;",
+        "let n=0;const text=(n++,a)+(n++,'!');return text.length+n;",
+        "let text='value:';const value=text+=(text='other',a);return text===value?text.length:0;",
+        "let o={s:'old'};const prev=o;const text=o.s+=(o={s:'new'},b);return prev.s===text&&o.s==='new'?text.length:0;",
+        "return true+'-'+undefined+'-'+null==='true-undefined-null'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let source =
+        "function label(x,y){return x+y;}export function run(a,b){return label('item-',a).length;}";
+    compare_sources(source, source);
+    for body in [
+        "return ({}+'x').length;",
+        "return (a?{}:'foo')+''===b?1:0;",
+        "let text='';text+={};return text.length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {

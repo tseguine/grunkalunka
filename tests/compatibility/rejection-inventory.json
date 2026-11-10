@@ -1083,13 +1083,6 @@
       "group": "instanceof"
     },
     {
-      "id": "gap-string-coercion",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f62e0982596b138842c8528ee56dbbf8d24e5bb9cabc664c2c7ba76a5609586c",
-      "group": "string-values"
-    },
-    {
       "id": "gap-bigint",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2411,13 +2404,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "f28088d13ed069de8ec24e632443c71ab577503993d495b68d13dd90b557e80c",
       "group": "statement-count"
-    },
-    {
-      "id": "directive-asi-add",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f51fcf8b3a858340a08fb654d6bdbc48f02b86807364041fca227c1f85347b12",
-      "group": "string-values"
     },
     {
       "id": "directive-asi-call",

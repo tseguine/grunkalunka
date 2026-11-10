@@ -1436,7 +1436,7 @@ fn string_at_does_not_prove_a_present_string_or_coerce_arguments() {
     for body in [
         "return 'abc'.at(a).length;",
         "return 'abc'.at(a).trim().length;",
-        "const c='abc'.at(a);return (c+'!').length;",
+        "const c='abc'.at(a);return c.charAt(0).length;",
         "return 'abc'.at('1')===undefined?1:0;",
         "return 'abc'.at(null)===undefined?1:0;",
         "return 'abc'.at(true)===undefined?1:0;",

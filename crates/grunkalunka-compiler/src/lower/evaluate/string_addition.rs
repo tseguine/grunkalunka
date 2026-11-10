@@ -105,7 +105,7 @@ impl Lowering<'_, '_> {
                 destination: Destination::Local(slot),
                 left,
             }));
-            work.push(Work::Eval(&assignment.right, depth + 1, Mode::Managed));
+            self.schedule_string_operand(&assignment.right, depth + 1, work)?;
         } else if let Some((object, key, array)) = property {
             work.push(Work::StringAddition(Task::Receiver {
                 node,
@@ -128,7 +128,7 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
-    ) {
+    ) -> Result<(), String> {
         let (node, destination, left) = match task {
             Task::Receiver {
                 node,
@@ -160,8 +160,8 @@ impl Lowering<'_, '_> {
                     destination: Destination::Property { object, key },
                     left,
                 }));
-                work.push(Work::Eval(right, depth, Mode::Managed));
-                return;
+                self.schedule_string_operand(right, depth, work)?;
+                return Ok(());
             }
             Task::Write {
                 node,
@@ -206,6 +206,7 @@ impl Lowering<'_, '_> {
             },
         );
         values.push(Value::Managed(result));
+        Ok(())
     }
 }
 
@@ -222,7 +223,7 @@ mod tests {
                 "const o=Object.create(null);o.s='x';o.s+='y';return o.s.length;",
                 false,
             ),
-            ("const o={s:'x'};o.s+=a;return o.s.length;", false),
+            ("const o={s:'x'};o.s+=a;return o.s.length;", true),
             ("const o={n:a};o.n+='y';return o.n;", false),
             ("const o={s:a?'x':b};o.s+='y';return o.s.length;", false),
             ("const o={};o.s+='y';return o.s.length;", false),
@@ -252,7 +253,7 @@ mod tests {
                 }
             }
         }
-        assert!(crate::compile("export function run(a,b){const o={s:'x'};o.s+=(a as unknown as string);return o.s.length;}", true).is_err());
+        assert!(crate::compile("export function run(a,b){const o={s:'x'};o.s+=({} as unknown as string);return o.s.length;}", true).is_err());
     }
 
     #[test]
@@ -264,7 +265,7 @@ mod tests {
                 "for(let text of ['x'])return (text+='y').length;return a;",
                 true,
             ),
-            ("let text='x';text+=a;return text.length;", false),
+            ("let text='x';text+=a;return text.length;", true),
             ("let text=a?'x':b;text+='y';return text.length;", false),
             ("const text='x';text+='y';return text.length;", false),
             ("let text='x';text++;text+='y';return text.length;", false),
@@ -275,6 +276,6 @@ mod tests {
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
         }
-        assert!(crate::compile("export function run(a,b){let text='x';text+=(a as unknown as string);return text.length;}", true).is_err());
+        assert!(crate::compile("export function run(a,b){let text='x';text+=({} as unknown as string);return text.length;}", true).is_err());
     }
 }

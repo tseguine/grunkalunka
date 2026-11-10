@@ -12,6 +12,7 @@ add('directive-ordinary-function', '', '"use strict"; ', 'return a;');
 add('directive-module-unknown', '"module hint";\r\n', '');
 add('directive-function-unknown', '', '"body hint"; ');
 add('directive-multiple', '"one";\'two\';"use strict"; ', '"three";"use strict";"use strict"; ');
+add('directive-asi-add', '', '', '"hint"\n+a; return a;');
 add('directive-asi', '"module hint"\n', '"body hint"\n"use strict"\n');
 add('directive-comments', '/* prefix */ "hint"; // next\n', '"one";/* middle */"two"; // body\n');
 add('directive-escaped', '"\\u0075se strict"; ', '"escaped\\ntext"; ');
@@ -34,7 +35,6 @@ export const directiveRejected = [
   ['directive-function-budget-limit', source('"hint";'.repeat(256) + 'return a;'), 'js', 'at most 256 statements'],
   ['directive-mixed-budget-limit', '"hint";'.repeat(128) + source('"hint";'.repeat(128) + 'return a;'), 'js', 'at most 256 statements'],
   ['directive-body-statement-budget', '"hint";' + source(';'.repeat(255) + 'return a;'), 'js', 'at most 256 statements'],
-  ['directive-asi-add', source('"hint"\n+a; return a;'), 'js', expression],
   ['directive-asi-call', source('"hint"\n(a); return a;'), 'js', expression],
   ['directive-post-export', source('return a;') + '"hint";', 'js', top],
   ['directive-extra-export', '"hint";' + source('return a;') + 'export const x=1;', 'js', top],
