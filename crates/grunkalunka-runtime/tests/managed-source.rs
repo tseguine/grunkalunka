@@ -5,6 +5,29 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn mixed_scalar_addition_selects_numeric_or_string_semantics_at_runtime() {
+    for body in [
+        "const x=a?'x':2,y=b?'y':3;const v=x+y;return v===5?5:v==='xy'?1:v==='x3'?2:v==='2y'?3:99;",
+        "const x=a?'n=':a,y=b;const v=x+y;return v==='n='+b?1:v===a+b?2:v!==v?3:99;",
+        "const x=a?'yes':null,y=b?true:undefined;const v=x+y;return v==='yestrue'?1:v==='yesundefined'?2:v===1?3:v!==v?4:99;",
+        "let x=a?'x':2;const v=x+(x='z',b?'y':3);return x==='z'&&(v===5||v==='xy'||v==='2y'||v==='x3')?1:0;",
+        "const x=a?'x':1,y=b?'y':2;return String(x+y)==='3'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let helper = "function sum(x,y){return x+y;}export function run(a,b){const z=sum(a?'x':2,b?'y':3);return z===5?5:z==='xy'?1:z==='2y'?2:z==='x3'?3:99;}";
+    common::compare_sources(helper, helper);
+    for body in [
+        "const x=a?'x':{};return String(x+b).length;",
+        "const x=a?'x':[];return String(b+x).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn sequential_local_stores_select_the_most_recent_completed_value() {
     for body in [
         "let item;item={n:a};const first=item.n;item=[first,b];return item.length+ +item[0];",

@@ -1841,3 +1841,10 @@ Each method applies its ordinary defaults to the expanded argument list.
 When all writes to a lexical local are plain assignments in one statement
 list, later reads in that block use the most recent completed assignment.
 A read inside a subsequent RHS still sees the previous value.
+
+
+Binary `+` on two represented primitive operands can choose its result kind
+at runtime. A String on either side selects UTF-16 concatenation; otherwise
+Numbers, Booleans, null and undefined use numeric addition. Both source
+operands execute once, left to right. Object-to-primitive hooks and BigInt
+remain outside this operation.

@@ -354,6 +354,14 @@ impl Fields {
         })
     }
 
+    pub(super) fn string_or_number(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            values.len() == 2
+                && values.contains(&Origin::String)
+                && values.contains(&Origin::Number)
+        })
+    }
+
     pub(super) fn scalar_string_operand(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()
@@ -1788,6 +1796,20 @@ impl Fields {
                             })
                         {
                             BTreeSet::from([Origin::String])
+                        } else if matches!(semantic.nodes().kind(*id), AstKind::BinaryExpression(_))
+                            && (left.contains(&Origin::String) || right.contains(&Origin::String))
+                            && left.iter().chain(&right).all(|v| {
+                                matches!(
+                                    v,
+                                    Origin::String
+                                        | Origin::Number
+                                        | Origin::Null
+                                        | Origin::Undefined
+                                        | Origin::Boolean
+                                )
+                            })
+                        {
+                            BTreeSet::from([Origin::String, Origin::Number])
                         } else if left
                             .iter()
                             .chain(&right)

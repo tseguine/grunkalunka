@@ -488,6 +488,37 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_string_repeat\n");
                 self.set(*result);
             }
+            Op::ManagedScalarAdd {
+                result,
+                left,
+                right,
+                numbers,
+            } => {
+                for value in [left, right] {
+                    self.get(*value);
+                    self.output
+                        .push_str("struct.get $gc_value 0\ni32.const 5\ni32.eq\n");
+                }
+                self.output
+                    .push_str("i32.or\nif (result (ref null $gc_value))\n");
+                for value in [left, right] {
+                    self.get(*value);
+                    self.output.push_str(if *numbers {
+                        "call $gc_primitive_string\n"
+                    } else {
+                        "call $gc_scalar_string\n"
+                    });
+                }
+                self.output
+                    .push_str("call $gc_string_concat\nelse\ni32.const 3\n");
+                for value in [left, right] {
+                    self.get(*value);
+                    self.output.push_str("call $gc_scalar_number\n");
+                }
+                self.output
+                    .push_str("f64.add\nref.null eq\nstruct.new $gc_value\nend\n");
+                self.set(*result);
+            }
             Op::ManagedStringConcat {
                 result,
                 left,
@@ -1917,18 +1948,30 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     }
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
-            matches!(op, Op::ManagedScalarString { .. })
-                || any_managed_key(op, |key| matches!(key, ir::ManagedKey::Scalar { .. }))
+            matches!(op, Op::ManagedScalarAdd { .. })
+        })
+    }) {
+        output.push_str(include_str!("emit/scalar_number.wat"));
+    }
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(
+                op,
+                Op::ManagedScalarString { .. } | Op::ManagedScalarAdd { .. }
+            ) || any_managed_key(op, |key| matches!(key, ir::ManagedKey::Scalar { .. }))
         })
     }) {
         output.push_str(include_str!("emit/scalar_string.wat"));
     }
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
-            matches!(op, Op::ManagedScalarString { numbers: true, .. })
-                || any_managed_key(op, |key| {
-                    matches!(key, ir::ManagedKey::Scalar { numbers: true, .. })
-                })
+            matches!(
+                op,
+                Op::ManagedScalarString { numbers: true, .. }
+                    | Op::ManagedScalarAdd { numbers: true, .. }
+            ) || any_managed_key(op, |key| {
+                matches!(key, ir::ManagedKey::Scalar { numbers: true, .. })
+            })
         })
     }) {
         output.push_str(include_str!(concat!(env!("OUT_DIR"), "/ryu-tables.wat")));

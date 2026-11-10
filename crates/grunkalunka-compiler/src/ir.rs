@@ -665,6 +665,13 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    // Primitive addition selects concatenation at runtime when either operand is a String.
+    ManagedScalarAdd {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+        numbers: bool,
+    },
     ManagedStringConcat {
         result: ValueId,
         left: ValueId,
@@ -1814,7 +1821,13 @@ impl Verifier<'_> {
                 self.value(*count, Type::Number, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
-            Op::ManagedStringConcat {
+            Op::ManagedScalarAdd {
+                result,
+                left,
+                right,
+                ..
+            }
+            | Op::ManagedStringConcat {
                 result,
                 left,
                 right,
