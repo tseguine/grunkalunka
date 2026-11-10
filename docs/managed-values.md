@@ -568,7 +568,7 @@ simple implementation has linear lookup/append costs. It is not a chosen long-te
 shape/cache/hash-table strategy or an ECMAScript enumeration implementation.
 
 The ordinary-object operations are explicitly **own data-property** operations.
-They do not implement JS prototype lookup, getters/setters, proxies, `__proto__` initializer semantics or
+They do not implement JS prototype lookup, getters/setters, proxies, arbitrary prototype chains or
 array exotic behavior. Future source lowering must implement the necessary semantic
 operation or reject a case; it must not translate arbitrary `o[k]` into own-only
 lookup and silently discard inherited behavior.
@@ -584,8 +584,11 @@ definition with the same key updates the existing position. When the possible
 names are known, each candidate field includes the value it could receive;
 unrelated fields retain their types. A single possible name defines a definite
 field, and a later definite definition replaces earlier alternatives. A computed
-`["__proto__"]` defines an own data field. The uncomputed prototype-setting
-form keeps its existing admission guard. Values can contain
+`["__proto__"]` defines an own data field. A shorthand `__proto__` does the same. The colon form `__proto__: null`
+creates a null-prototype dictionary, including when a sequence ends in literal
+null. A proven non-null primitive setter value leaves the ordinary prototype
+in place. Setter operands execute in source order. Reference-valued prototypes
+remain guarded. Values can contain
 the four primitive kinds, Strings or other constructed objects and arrays. Properties evaluate left to
 right; duplicate keys retain the last value. Static reads/writes preserve aliases,
 receiver snapshots, RHS results and prior saved reads. Known-object bindings can be

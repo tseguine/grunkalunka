@@ -312,6 +312,18 @@ impl Fields {
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::String))
     }
+    pub(super) fn non_null_primitive(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|v| {
+                    matches!(
+                        v,
+                        Origin::Boolean | Origin::Number | Origin::String | Origin::Undefined
+                    )
+                })
+        })
+    }
+
     pub(super) fn scalar_string_operand(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()
@@ -936,9 +948,15 @@ impl Fields {
                 }
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
+                    let mut dictionary = false;
                     let mut possible = BTreeMap::<Key, Vec<NodeId>>::new();
                     for property in &object.properties {
                         if let ObjectPropertyKind::ObjectProperty(property) = property {
+                            if object_create::prototype_setter(property) {
+                                dictionary =
+                                    object_create::null_prototype_value(&property.value, 0);
+                                continue;
+                            }
                             let value = property.value.node_id();
                             let mut exact =
                                 static_keys::property(&property.key, property.computed, 0);
@@ -979,7 +997,14 @@ impl Fields {
                         );
                     }
                     fields.insert(id, own);
-                    values.insert(id, BTreeSet::from([Origin::Object(id)]));
+                    values.insert(
+                        id,
+                        BTreeSet::from([if dictionary {
+                            Origin::NullObject(id)
+                        } else {
+                            Origin::Object(id)
+                        }]),
+                    );
                     None
                 }
                 AstKind::ArrayExpression(array)

@@ -41,3 +41,36 @@ pub(super) fn argument<'e, 'a>(
     )
     .then_some(argument)
 }
+
+// Only the colon form denotes a prototype setter. A shorthand or computed
+// "__proto__" is an ordinary data property, including in a dictionary.
+pub(super) fn prototype_setter(property: &oxc_ast::ast::ObjectProperty<'_>) -> bool {
+    use oxc_ast::ast::{PropertyKey, PropertyKind};
+    !property.computed
+        && !property.shorthand
+        && !property.method
+        && property.kind == PropertyKind::Init
+        && match &property.key {
+            PropertyKey::StaticIdentifier(id) => id.name == "__proto__",
+            PropertyKey::StringLiteral(name) => name.value == "__proto__",
+            _ => false,
+        }
+}
+
+pub(super) fn null_prototype_value(mut value: &Expression<'_>, mut depth: usize) -> bool {
+    // Earlier sequence operands still run at the setter's source position.
+    while let Some((expr, at)) = closures::unwrapped_at(value, depth) {
+        match expr {
+            Expression::NullLiteral(_) => return true,
+            Expression::SequenceExpression(seq) => {
+                let Some(last) = seq.expressions.last() else {
+                    return false;
+                };
+                value = last;
+                depth = at + 1;
+            }
+            _ => return false,
+        }
+    }
+    false
+}
