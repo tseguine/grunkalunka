@@ -125,6 +125,9 @@ impl Lowering<'_, '_> {
         }
         let array = receiver == Some(Type::ManagedArray);
         let key = match key {
+            Key::Literal(key) if array && key.iter().copied().eq("length".encode_utf16()) => {
+                return Err(unsupported(node, "array length requires plain assignment"));
+            }
             Key::Literal(key) => Key::Literal(managed_member_key(
                 node,
                 key,
