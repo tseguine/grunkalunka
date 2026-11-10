@@ -4,6 +4,18 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn primitive_binding_keys_select_and_exclude_the_same_field() {
+    for body in [
+        "const o={[a]:b,keep:3};const {[a]:x,...rest}=o;return x===b&&rest.keep===3&&!Object.hasOwn(rest,a)?1:0;",
+        "const k=a?null:true;const {nested:{[k]:x}}={nested:{[k]:7}};return x===7?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':b;d[k]=1;const {[k]:v,...rest}=d;return v===1&&!Object.hasOwn(rest,k)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn computed_record_destinations_save_keys_before_defaults_and_rest() {
     for body in [
         "const xs=[];let k=a;[xs[k]=(k=b,7)]=[];return xs[a]===7?1:0;",

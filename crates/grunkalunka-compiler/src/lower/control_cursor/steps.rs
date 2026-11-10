@@ -297,12 +297,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 resume,
                 state,
                 source,
+                kind,
             } => self.resume_pattern_binding_key(
                 resume,
                 *state,
                 source,
                 output_region,
-                value.expect("computed binding key"),
+                kind.finish(value.expect("computed binding key")),
                 cursor,
             ),
             Frame::PatternBindingDefault { resume, active } => self.resume_pattern_binding_default(
@@ -458,14 +459,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 frame,
                 selected,
                 object,
-                uint32,
+                kind,
             } => {
-                let key = value.expect("iteration member key");
-                let key = if uint32 {
-                    ir::ManagedKey::Uint32(key)
-                } else {
-                    ir::ManagedKey::String(key)
-                };
+                let key = kind.finish(value.expect("iteration member key"));
                 self.finish_iteration_member(frame, output_region, selected, object, key, cursor);
                 Ok(())
             }

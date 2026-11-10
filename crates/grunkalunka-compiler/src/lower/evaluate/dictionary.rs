@@ -52,20 +52,6 @@ pub(super) enum Task<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
-    pub(in crate::lower) fn accepts_runtime_destination_key(
-        &self,
-        object: &Expression<'_>,
-        receiver: Type,
-        key: &Expression<'_>,
-        depth: usize,
-    ) -> bool {
-        self.stored.uint32_keys.contains(key, depth)
-            || (self.stored.string(key.node_id())
-                && (self.stored.dictionary(object.node_id())
-                    || (receiver == Type::ManagedObject
-                        && self.stored.record_names.contains(key, depth))))
-    }
-
     pub(in crate::lower) fn runtime_key(
         &self,
         key: &Expression<'_>,
@@ -100,6 +86,23 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    pub(in crate::lower) fn runtime_key_cursor<'e, 'a>(
+        &self,
+        output: Region,
+        key: &'e Expression<'a>,
+        depth: usize,
+        kind: RuntimeKey,
+    ) -> Result<(EvaluationCursor<'e, 'a>, Mode), String> {
+        let mut work = Vec::new();
+        self.schedule_runtime_key(key, depth, kind, &mut work)?;
+        let mode = match kind {
+            RuntimeKey::Uint32 => Mode::Number,
+            RuntimeKey::Scalar { .. } => Mode::General,
+            RuntimeKey::String => Mode::Managed,
+        };
+        Ok((EvaluationCursor::with_work(output, work), mode))
+    }
+
     pub(super) fn runtime_member_receiver(
         &self,
         member: &oxc_ast::ast::ComputedMemberExpression<'_>,
@@ -124,6 +127,21 @@ impl Lowering<'_, '_> {
         key: &Expression<'_>,
         depth: usize,
     ) -> Option<RuntimeKey> {
+        self.binding_key_kind(
+            receiver,
+            self.stored.dictionary(object.node_id()),
+            key,
+            depth,
+        )
+    }
+
+    pub(in crate::lower) fn binding_key_kind(
+        &self,
+        receiver: Type,
+        dictionary: bool,
+        key: &Expression<'_>,
+        depth: usize,
+    ) -> Option<RuntimeKey> {
         let kind = self.runtime_key(key, depth)?;
         match (receiver, kind) {
             (
@@ -131,7 +149,7 @@ impl Lowering<'_, '_> {
                 RuntimeKey::Uint32 | RuntimeKey::Scalar { .. },
             ) => Some(kind),
             (Type::ManagedObject, RuntimeKey::String)
-                if self.stored.dictionary(object.node_id())
+                if dictionary
                     || (self.stored.string(key.node_id())
                         && self.stored.record_names.contains(key, depth)) =>
             {

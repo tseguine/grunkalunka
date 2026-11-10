@@ -405,6 +405,7 @@ enum Frame<'n, 'a> {
         resume: bindings::BindingResume<'n, 'a>,
         state: Box<bindings::BindingState<'n, 'a>>,
         source: &'n oxc_ast::ast::BindingProperty<'a>,
+        kind: evaluate::RuntimeKey,
     },
     /// A default retains every enclosing receiver and independent iterator
     /// state until its expression completes. Later fields remain unread.
@@ -526,7 +527,7 @@ enum Frame<'n, 'a> {
         frame: Box<ForOfFrame<'n, 'a>>,
         selected: ValueId,
         object: ValueId,
-        uint32: bool,
+        kind: evaluate::RuntimeKey,
     },
     /// The loop body has finished; an update expression must run before
     /// captured let-header renewal and final loop IR assembly.
@@ -1264,6 +1265,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         } => {
                             let expression =
                                 evaluate::EvaluationCursor::new(output, source, depth, mode);
+                            self.advance_owned_expression(expression, mode, &mut cursor)?;
+                        }
+                        Next::ComputedKey {
+                            source,
+                            output,
+                            depth,
+                            kind,
+                        } => {
+                            let (expression, mode) =
+                                self.runtime_key_cursor(output, source, depth, kind)?;
                             self.advance_owned_expression(expression, mode, &mut cursor)?;
                         }
                         Next::ResumeExpression {

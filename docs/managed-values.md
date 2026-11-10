@@ -1733,3 +1733,7 @@ name the non-configurable Array length remain guarded.
 Destructuring assignments use the same primitive keys to select a property,
 exclude it from object rest, or write a saved member destination. Defaults
 and subsequent assignments retain the original receiver and key.
+
+Lexical binding patterns also share primitive-key conversion, including nested
+records, rest exclusions, and per-iteration bindings. Member targets in
+`for...of` and `for...in` evaluate the receiver and computed key on each visit.

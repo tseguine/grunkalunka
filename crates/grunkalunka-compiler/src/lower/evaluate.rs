@@ -10,6 +10,7 @@ mod array_search;
 mod array_slice;
 mod destructure;
 mod dictionary;
+pub(super) use dictionary::RuntimeKey;
 mod dictionary_logical;
 mod has_own;
 mod local_logical;
@@ -241,12 +242,16 @@ impl<'e, 'a> EvaluationCursor<'e, 'a> {
         depth: usize,
         mode: Mode,
     ) -> Self {
+        Self::with_work(root, vec![Work::Eval(expression, depth, mode)])
+    }
+
+    fn with_work(root: Region, work: Vec<Work<'e, 'a>>) -> Self {
         Self {
             regions: Regions {
                 root,
                 children: Vec::new(),
             },
-            work: vec![Work::Eval(expression, depth, mode)],
+            work,
             values: Vec::new(),
             #[cfg(test)]
             _entry: crate::evaluator_tests::entry(),
