@@ -1812,5 +1812,6 @@ supports lazy initialization such as `let cached; const item = cached ??= {n: 0}
 After a standalone, unconditional assignment to a `let` binding with a single
 write, later reads in the same function use the assigned value's known kind.
 For example, `let row; row = {n: 1}; return row.n;` reads a proven record.
-Conditional writes, loop writes, and reads in nested functions retain their
-existing conservative checks.
+A standalone assignment in a branch, loop body, or try block also establishes
+the value for later reads inside that block. Reads after a possibly skipped
+block and reads in nested functions retain their conservative checks.

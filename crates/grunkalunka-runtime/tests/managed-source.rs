@@ -8,6 +8,9 @@ mod common;
 fn definite_lexical_assignment_allows_later_plain_member_reads() {
     for body in [
         "let row;row={v:b};return +row.v;",
+        "let row;if(a){row={v:b};if(b)return +row.v;return 1;}return 2;",
+        "let xs;let n=0;for(const v of [a,b]){xs=[v];n+=xs.length;}return n;",
+        "let row;try{row={v:a};return +row.v;}finally{b;}",
         "let xs=null;xs=[a,b];return xs.length;",
         "let row;const before=row===undefined;row={v:b};if(before)return +row.v;return a;",
         "let xs;xs=[a];let n=0;for(const x of xs)n+=x;return n;",
@@ -17,6 +20,8 @@ fn definite_lexical_assignment_allows_later_plain_member_reads() {
     }
     for body in [
         "let row;if(a)row={v:b};return +row.v;",
+        "let row;if(a){row={v:b};}else{return +row.v;}return 2;",
+        "let row;try{if(a)throw b;row={v:b};}catch(e){return +row.v;}return 0;",
         "let row;const x=row.v;row={v:b};return +x;",
         "let row;row={v:b};const clear=()=>row=null;clear();return +row.v;",
         "let row;const set=()=>{row={v:b};};return +row.v;",
