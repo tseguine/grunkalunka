@@ -1333,6 +1333,17 @@ impl Emitter<'_> {
         match key {
             ir::ManagedKey::Literal(units) => self.managed_key(units),
             ir::ManagedKey::String(input) => self.managed_key_value(*input),
+            ir::ManagedKey::Scalar { input, numbers } => {
+                self.get(*input);
+                self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
+                self.output.push_str(if *numbers {
+                    "call $gc_primitive_string\n"
+                } else {
+                    "call $gc_scalar_string\n"
+                });
+                self.output
+                    .push_str("struct.get $gc_value 2\nref.cast (ref $gc_key)\n");
+            }
             ir::ManagedKey::Uint32(input) => {
                 self.int32_bits(*input);
                 self.output.push_str("call $gc_spread_index\n");
@@ -1873,6 +1884,17 @@ fn emit_verified(
     Ok(output)
 }
 
+fn any_managed_key(op: &Op, predicate: impl Fn(&ir::ManagedKey) -> bool) -> bool {
+    match op {
+        Op::ManagedDeleteOwn { key, .. }
+        | Op::ManagedHasOwn { key, .. }
+        | Op::ManagedSetOwnDynamic { key, .. }
+        | Op::ManagedGetOwnDynamic { key, .. } => predicate(key),
+        Op::ManagedObjectRest { excluded, .. } => excluded.iter().any(predicate),
+        _ => false,
+    }
+}
+
 fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
@@ -1884,6 +1906,7 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
             matches!(op, Op::ManagedScalarString { .. })
+                || any_managed_key(op, |key| matches!(key, ir::ManagedKey::Scalar { .. }))
         })
     }) {
         output.push_str(include_str!("emit/scalar_string.wat"));
@@ -1891,6 +1914,9 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
             matches!(op, Op::ManagedScalarString { numbers: true, .. })
+                || any_managed_key(op, |key| {
+                    matches!(key, ir::ManagedKey::Scalar { numbers: true, .. })
+                })
         })
     }) {
         output.push_str(include_str!(concat!(env!("OUT_DIR"), "/ryu-tables.wat")));
@@ -1901,17 +1927,8 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     let mut emitted_index = false;
     // All ManagedKey consumers may use the normalized numeric-key variant.
     if module.functions.iter().any(|function| {
-        ir::any_operation(&function.body, &mut |op| match op {
-            Op::ManagedDeleteOwn { key, .. }
-            | Op::ManagedHasOwn { key, .. }
-            | Op::ManagedSetOwnDynamic { key, .. }
-            | Op::ManagedGetOwnDynamic { key, .. } => {
-                matches!(key, ir::ManagedKey::Uint32(_))
-            }
-            Op::ManagedObjectRest { excluded, .. } => excluded
-                .iter()
-                .any(|key| matches!(key, ir::ManagedKey::Uint32(_))),
-            _ => false,
+        ir::any_operation(&function.body, &mut |op| {
+            any_managed_key(op, |key| matches!(key, ir::ManagedKey::Uint32(_)))
         })
     }) {
         output.push_str(include_str!("emit/managed_index.wat"));

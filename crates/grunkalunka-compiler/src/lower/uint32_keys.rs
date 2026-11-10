@@ -328,8 +328,23 @@ mod tests {
             let source = format!(
                 "export function run(a,b){{const xs=[a,b];for({header}){{{body}xs[i]=1;}}return xs.length;}}"
             );
-            let result = crate::compile(&source, false);
-            assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
+            let result = crate::lower_source(&source, false);
+            let uses_unsigned = match result {
+                Ok(module) => crate::ir::any_operation(&module.functions[0].body, &mut |op| {
+                    matches!(
+                        op,
+                        crate::ir::Op::ManagedSetOwnDynamic {
+                            key: crate::ir::ManagedKey::Uint32(_),
+                            ..
+                        }
+                    )
+                }),
+                Err(error) => {
+                    assert!(error.contains("unsupported"), "{source}: {error}");
+                    false
+                }
+            };
+            assert_eq!(uses_unsigned, admitted, "{source}");
         }
     }
 

@@ -1,31 +1,48 @@
 //! Runtime dictionary keys are snapshots on the ordinary expression cursor.
 use super::*;
 
+#[derive(Clone, Copy)]
+pub(in crate::lower) enum RuntimeKey {
+    Uint32,
+    Scalar { numbers: bool },
+    String,
+}
+
+impl RuntimeKey {
+    pub(in crate::lower) fn finish(self, input: ValueId) -> ir::ManagedKey {
+        match self {
+            Self::Uint32 => ir::ManagedKey::Uint32(input),
+            Self::Scalar { numbers } => ir::ManagedKey::Scalar { input, numbers },
+            Self::String => ir::ManagedKey::String(input),
+        }
+    }
+}
+
 pub(super) enum Task<'e, 'a> {
     ReadReceiver {
         node: &'e Expression<'a>,
         key: &'e Expression<'a>,
         depth: usize,
-        uint32: bool,
+        kind: RuntimeKey,
     },
     ReadKey {
         node: &'e Expression<'a>,
         object: ValueId,
-        uint32: bool,
+        kind: RuntimeKey,
     },
     SetReceiver {
         node: &'e Expression<'a>,
         key: &'e Expression<'a>,
         right: &'e Expression<'a>,
         depth: usize,
-        uint32: bool,
+        kind: RuntimeKey,
     },
     SetKey {
         node: &'e Expression<'a>,
         object: ValueId,
         right: &'e Expression<'a>,
         depth: usize,
-        uint32: bool,
+        kind: RuntimeKey,
     },
     SetValue {
         node: &'e Expression<'a>,
@@ -49,11 +66,45 @@ impl Lowering<'_, '_> {
                         && self.stored.record_names.contains(key, depth))))
     }
 
+    pub(in crate::lower) fn runtime_key(
+        &self,
+        key: &Expression<'_>,
+        depth: usize,
+    ) -> Option<RuntimeKey> {
+        if self.stored.uint32_keys.contains(key, depth) {
+            Some(RuntimeKey::Uint32)
+        } else if self.stored.primitive(key.node_id()) {
+            Some(RuntimeKey::Scalar {
+                numbers: self.stored.may_be_number(key.node_id()),
+            })
+        } else {
+            self.stored
+                .scalar_string_operand(key.node_id())
+                .then_some(RuntimeKey::String)
+        }
+    }
+
+    pub(super) fn schedule_runtime_key<'e, 'a>(
+        &self,
+        key: &'e Expression<'a>,
+        depth: usize,
+        kind: RuntimeKey,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        let mode = match kind {
+            RuntimeKey::Uint32 => Mode::Number,
+            RuntimeKey::Scalar { .. } => Mode::General,
+            RuntimeKey::String => return self.schedule_string_operand(key, depth, work),
+        };
+        work.push(Work::Eval(key, depth, mode));
+        Ok(())
+    }
+
     pub(super) fn runtime_member_receiver(
         &self,
         member: &oxc_ast::ast::ComputedMemberExpression<'_>,
         depth: usize,
-    ) -> Option<(Mode, bool)> {
+    ) -> Option<(Mode, RuntimeKey)> {
         if member.optional
             || closures::unwrapped(&member.expression, depth)
                 .and_then(static_keys::literal)
@@ -61,17 +112,21 @@ impl Lowering<'_, '_> {
         {
             return None;
         }
-        let uint32 = self.stored.uint32_keys.contains(&member.expression, depth);
+        let kind = self.runtime_key(&member.expression, depth)?;
         if self.stored.dictionary(member.object.node_id()) {
-            return Some((Mode::Object, uint32));
+            return Some((Mode::Object, kind));
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        match receiver {
-            Type::ManagedObject | Type::ManagedArray if uint32 => {
-                Some((Mode::managed(receiver), true))
-            }
-            Type::ManagedObject if self.stored.record_names.contains(&member.expression, depth) => {
-                Some((Mode::Object, false))
+        match (receiver, kind) {
+            (
+                Type::ManagedArray | Type::ManagedObject,
+                RuntimeKey::Uint32 | RuntimeKey::Scalar { .. },
+            ) => Some((Mode::managed(receiver), kind)),
+            (Type::ManagedObject, RuntimeKey::String)
+                if self.stored.string(member.expression.node_id())
+                    && self.stored.record_names.contains(&member.expression, depth) =>
+            {
+                Some((Mode::Object, kind))
             }
             _ => None,
         }
@@ -86,20 +141,14 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        let Some((mode, uint32)) = self.runtime_member_receiver(member, depth + 1) else {
+        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
         };
-        if !uint32 && !self.stored.string(member.expression.node_id()) {
-            return Err(unsupported(
-                node,
-                "runtime dictionary keys require a known String",
-            ));
-        }
         work.push(Work::Dictionary(Task::ReadReceiver {
             node,
             key: &member.expression,
             depth: depth + 1,
-            uint32,
+            kind,
         }));
         work.push(Work::Eval(&member.object, depth + 1, mode));
         Ok(true)
@@ -119,7 +168,7 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((mode, uint32)) = self.runtime_member_receiver(member, depth + 1) else {
+        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
         };
         if assignment.operator != AssignmentOperator::Assign {
@@ -128,18 +177,12 @@ impl Lowering<'_, '_> {
                 "dictionary properties require plain assignment",
             ));
         }
-        if !uint32 && !self.stored.string(member.expression.node_id()) {
-            return Err(unsupported(
-                node,
-                "runtime dictionary keys require a known String",
-            ));
-        }
         work.push(Work::Dictionary(Task::SetReceiver {
             node,
             key: &member.expression,
             right: &assignment.right,
             depth: depth + 1,
-            uint32,
+            kind,
         }));
         work.push(Work::Eval(&member.object, depth + 1, mode));
         Ok(true)
@@ -157,25 +200,13 @@ impl Lowering<'_, '_> {
                 node,
                 key,
                 depth,
-                uint32,
+                kind,
             } => {
                 let object = values.pop().expect("dictionary receiver").id();
-                work.push(Work::Dictionary(Task::ReadKey {
-                    node,
-                    object,
-                    uint32,
-                }));
-                work.push(Work::Eval(
-                    key,
-                    depth,
-                    if uint32 { Mode::Number } else { Mode::Managed },
-                ));
+                work.push(Work::Dictionary(Task::ReadKey { node, object, kind }));
+                self.schedule_runtime_key(key, depth, kind, work)?;
             }
-            Task::ReadKey {
-                node,
-                object,
-                uint32,
-            } => {
+            Task::ReadKey { node, object, kind } => {
                 let key = values.pop().expect("dictionary key").id();
                 let result = self.value(Type::ManagedValue);
                 Self::push(
@@ -184,11 +215,7 @@ impl Lowering<'_, '_> {
                     Op::ManagedGetOwnDynamic {
                         result,
                         object,
-                        key: if uint32 {
-                            ir::ManagedKey::Uint32(key)
-                        } else {
-                            ir::ManagedKey::String(key)
-                        },
+                        key: kind.finish(key),
                     },
                 );
                 values.push(Value::Managed(result));
@@ -198,7 +225,7 @@ impl Lowering<'_, '_> {
                 key,
                 right,
                 depth,
-                uint32,
+                kind,
             } => {
                 let object = values.pop().expect("dictionary assignment receiver").id();
                 work.push(Work::Dictionary(Task::SetKey {
@@ -206,27 +233,19 @@ impl Lowering<'_, '_> {
                     object,
                     right,
                     depth,
-                    uint32,
+                    kind,
                 }));
-                work.push(Work::Eval(
-                    key,
-                    depth,
-                    if uint32 { Mode::Number } else { Mode::Managed },
-                ));
+                self.schedule_runtime_key(key, depth, kind, work)?;
             }
             Task::SetKey {
                 node,
                 object,
                 right,
                 depth,
-                uint32,
+                kind,
             } => {
                 let key = values.pop().expect("dictionary assignment key").id();
-                let key = if uint32 {
-                    ir::ManagedKey::Uint32(key)
-                } else {
-                    ir::ManagedKey::String(key)
-                };
+                let key = kind.finish(key);
                 work.push(Work::Dictionary(Task::SetValue { node, object, key }));
                 work.push(Work::Eval(right, depth, Mode::Managed));
             }
@@ -258,8 +277,8 @@ mod uint32_write_tests {
                 "const xs=[];xs[a?(0>>>0):(1>>>0)]=b;return xs.length;",
                 true,
             ),
-            ("const xs=[];xs[a]=b;return a;", false),
-            ("const xs=[];xs[a>>0]=b;return a;", false),
+            ("const xs=[];xs[a]=b;return a;", true),
+            ("const xs=[];xs[a>>0]=b;return a;", true),
             ("const xs=[];xs[a>>>0]+=b;return a;", true),
             ("const xs=[];const key='length';xs[key]=b;return a;", false),
             (
@@ -298,9 +317,9 @@ mod unsigned_read_tests {
         for (body, ok) in [
             ("const xs=[a];return +xs[b>>>0];", true),
             ("const o={0:a};return +o[b>>>0];", true),
-            ("const xs=[a];return +xs[b];", false),
-            ("const xs=[a];return +xs[b>>0];", false),
-            ("const xs=[a];return +xs[b?(0>>>0):a];", false),
+            ("const xs=[a];return +xs[b];", true),
+            ("const xs=[a];return +xs[b>>0];", true),
+            ("const xs=[a];return +xs[b?(0>>>0):a];", true),
             ("return +a[b>>>0];", false),
             (
                 "const xs=['text'];const alias=xs;alias[0]=a;return xs[b>>>0].trim().length;",

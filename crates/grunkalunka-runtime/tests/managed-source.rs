@@ -5,6 +5,27 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn primitive_property_keys_preserve_spelling_holes_and_saved_references() {
+    for body in [
+        "const x=[a];return x[b]===a?a:b;",
+        "const d=Object.create(null);return d[a]===undefined?a:b;",
+        "const d=Object.create(null);const key=a?'x':b;return d[key]===undefined?a:b;",
+        "const d=Object.create(null);const key=['x'].at(a);return d[key]===undefined?a:b;",
+        "const d=Object.create(null);d[a]=b;return a;",
+        "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
+        "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",
+        "const xs=[];xs[a]=b;const k=`${a}`;return xs[a]===b&&Object.hasOwn(xs,k)?xs.length:0;",
+        "const xs=[];const k=-1.5;xs[k]=a;xs[-0]=b;return xs.length===1&&xs['-1.5']===a&&xs[0]===b?1:0;",
+        "const xs=[];let k=4294967294;xs[k]=a;k=4294967295;xs[k]=b;return xs.length===4294967295&&xs[4294967295]===b?1:0;",
+        "const o={};const k=a?true:null;o[k]=b;return o[k]===b&&Object.hasOwn(o,a?'true':'null')?1:0;",
+        "let o={};const old=o;o[(o={},a)]=(o.x=1,b);return old[a]===b&&o.x===1?1:0;",
+        "const xs=[a,b];let n=0;for(let i=0;i<xs.length;i++)n+=+xs[i];return n;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn finite_record_mutations_preserve_unrelated_field_kinds() {
     for body in [
         "const row={label:'foo',x:0,y:1},k=a?'x':'y';row[k]=b;return row.label.length;",
@@ -1182,9 +1203,6 @@ fn dictionary_reads_evaluate_receiver_then_key_and_keep_both_effects() {
 #[test]
 fn dictionary_reads_keep_unknown_values_and_receivers_unproven() {
     for body in [
-        "const d=Object.create(null);return d[a]===undefined?a:b;",
-        "const d=Object.create(null);const key=a?'x':b;return d[key]===undefined?a:b;",
-        "const d=Object.create(null);const key=['x'].at(a);return d[key]===undefined?a:b;",
         "const d=a?Object.create(null):{};const key=a?'x':'__proto__';return d[key]===undefined?a:b;",
         "const d=Object.create(null);d.x=a;const key='x';const s=b?'ok':d[key];return s.length;",
         "const d=Object.create(null);const key='x';const o=a?{}:d[key];return o.x===undefined?a:b;",
@@ -1192,7 +1210,7 @@ fn dictionary_reads_keep_unknown_values_and_receivers_unproven() {
         // The source admits this named array property, although key provenance
         // recognizes only canonical array indices below u32::MAX.
         "const xs=[a];const value=b?'s':xs[4294967295];return value.length;",
-        "const d=Object.create(null);const key='x';const s:string=a;return d[s]===undefined?a:b;",
+        "const d=Object.create(null);const key='x';const s:string={};return d[s]===undefined?a:b;",
     ] {
         let typed_only = body.contains(":string");
         for typed in [false, true] {
@@ -1262,9 +1280,6 @@ fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
     for body in [
         "const d={};const key=a?'x':'__proto__';d[key]=a;return a;",
         "const d=a?Object.create(null):{};const key=a?'x':'__proto__';d[key]=a;return a;",
-        "const d=Object.create(null);d[a]=b;return a;",
-        "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
-        "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",
         "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
         "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
         "const d=Object.create(null);const key='x';d.x=()=>a;const alias=d;alias[key]=b;return d.x();",
@@ -1612,7 +1627,7 @@ fn source_object_annotations_do_not_change_runtime_identity() {
 #[test]
 fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
     for body in [
-        "const o={};return o[a]?a:b;",
+        "const o={};return o[{}]?a:b;",
         "const o={get x(){return a;}};return o.x?a:b;",
         "const o={x(){return a;}};return a;",
         "const o={x:Promise.resolve(a)};return o.x===a?a:b;",

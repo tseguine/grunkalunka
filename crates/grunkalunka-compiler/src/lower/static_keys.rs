@@ -93,8 +93,8 @@ mod tests {
             ("'to'+s", false),
             ("s+'String'", false),
             ("`${s}`", false),
-            ("(':'+s).length", false),
-            ("a as 'x'", false),
+            ("(':'+s).length", true),
+            ("({}) as 'x'", false),
             ("(Math.random(),'x')", false),
         ] {
             let source = format!(

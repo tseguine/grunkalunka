@@ -560,7 +560,7 @@ fn numeric_literal_array_properties_only_grow_length_for_array_indices() {
 #[test]
 fn unsupported_array_semantics_reject_before_ir_validation() {
     for body in [
-        "const x=[a];return x[b]===a?a:b;",
+        "const x=[a];return x[{}]===a?a:b;",
         "const x=[];x.length=0.5;return a;",
         "const x=[];x.length=-1;return a;",
         "const x=[];x.length=4294967296;return a;",

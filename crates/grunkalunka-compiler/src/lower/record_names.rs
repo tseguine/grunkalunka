@@ -311,7 +311,7 @@ mod tests {
             ("let k='x';for(k of ['toString']){}", false),
             ("let k='x';for(k in {constructor:1}){}", false),
             ("let k='to';k+='String';", false),
-            ("let k=a as 'x';", false),
+            ("let k={} as 'x';", false),
         ] {
             let source = format!(
                 "export function run(a,b){{{bindings}const o={{x:b}};return o[k]===b?1:0;}}"

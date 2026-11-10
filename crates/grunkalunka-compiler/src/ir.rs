@@ -561,6 +561,8 @@ pub(crate) enum ManagedKey {
     String(ValueId),
     // Decimal property key of ToUint32(input), never the non-configurable length key.
     Uint32(ValueId),
+    // A tagged Undefined, Null, Boolean or Number. None can spell Array length.
+    Scalar { input: ValueId, numbers: bool },
 }
 
 #[derive(Debug)]
@@ -1437,6 +1439,7 @@ impl Verifier<'_> {
                     .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
                 Ok(())
             }
+            ManagedKey::Scalar { input, .. } => self.value(*input, Type::General, visible, span),
             ManagedKey::String(value) => self.value(*value, Type::ManagedValue, visible, span),
             ManagedKey::Uint32(value) => self.value(*value, Type::Number, visible, span),
         }
@@ -1620,8 +1623,10 @@ impl Verifier<'_> {
                     .ok_or_else(|| invalid(span, "dynamic read requires an object or Array"))?;
                 self.value(*object, ty, visible, span)?;
                 self.managed_key(key, visible, span)?;
-                if ty == Type::ManagedArray && !matches!(key, ManagedKey::Uint32(_)) {
-                    return Err(invalid(span, "dynamic Array reads require unsigned keys"));
+                if ty == Type::ManagedArray
+                    && !matches!(key, ManagedKey::Uint32(_) | ManagedKey::Scalar { .. })
+                {
+                    return Err(invalid(span, "dynamic Array reads must exclude length"));
                 }
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
@@ -1649,7 +1654,7 @@ impl Verifier<'_> {
                 self.value(*value, Type::ManagedValue, visible, span)?;
                 if ty == Type::ManagedArray
                     && !match key {
-                        ManagedKey::Uint32(_) => true,
+                        ManagedKey::Uint32(_) | ManagedKey::Scalar { .. } => true,
                         ManagedKey::Literal(key) => {
                             key.as_slice() != [108, 101, 110, 103, 116, 104]
                         }
@@ -1710,7 +1715,7 @@ impl Verifier<'_> {
                 self.managed_key(key, visible, span)?;
                 let configurable = match key {
                     ManagedKey::Literal(key) => key.as_slice() != [108, 101, 110, 103, 116, 104],
-                    ManagedKey::Uint32(_) => true,
+                    ManagedKey::Uint32(_) | ManagedKey::Scalar { .. } => true,
                     ManagedKey::String(_) => false,
                 };
                 if ty == Type::ManagedArray && !configurable {
