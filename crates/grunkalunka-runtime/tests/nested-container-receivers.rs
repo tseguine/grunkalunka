@@ -7,6 +7,29 @@ fn compare(body: &str) {
 }
 
 #[test]
+fn loop_tests_guard_receivers_in_the_body_and_for_update() {
+    for body in [
+        "const row=a?{child:{v:b}}:null;let i=0,n=0;while(row&&i<2){n+=+row.child.v;i++;}return n;",
+        "const xs=a?[b,b]:null;let n=0;for(;xs&&n<3;n+=xs.length){continue;}return n;",
+        "const xs=a?[b,b]:{n:b};let n=0;for(;Array.isArray(xs);){n=xs.length;break;}return n;",
+    ] {
+        compare(body);
+    }
+    for body in [
+        "const row=a?{v:b}:null;do{return +row.v;}while(row);return 0;",
+        "const row=a?{v:b}:null;for(let n=+row.v;row;){return n;}return 0;",
+        "const row=a?{v:b}:null;while(row){break;}return +row.v;",
+        "let row=a?{v:b}:null;while(row){row=null;return +row.v;}return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_object_fields_can_act_as_receivers() {
     let source = "export function run(a,b){const o={child:{x:a}};return o.child.x===a?1:0;}";
     common::compare_sources(source, source);

@@ -213,6 +213,17 @@ pub(super) fn collect(
             AstKind::ConditionalExpression(c) => {
                 (&c.test, Some(c.consequent.span()), Some(c.alternate.span()))
             }
+            AstKind::WhileStatement(w) => (&w.test, Some(w.body.span()), None),
+            AstKind::ForStatement(f) => {
+                let Some(test) = &f.test else { continue };
+                // The update and body are adjacent in source and both require a
+                // truthy test. The initializer and the test precede this range.
+                let mut span = f.body.span();
+                if let Some(update) = &f.update {
+                    span.start = update.span().start;
+                }
+                (test, Some(span), None)
+            }
             AstKind::LogicalExpression(l) if l.operator == LogicalOperator::And => {
                 (&l.left, Some(l.right.span()), None)
             }
