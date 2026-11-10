@@ -688,7 +688,7 @@
     {
       "id": "uninitialized-bindings",
       "kind": "open-requirement",
-      "assessment": "Bare let identifier declarations initialize canonical Undefined at declaration evaluation, preserving source order and TDZ. Mutable cells then admit represented reads, assignment, coercion and numeric updates. Numeric-profile General-cell returns remain restricted, including the original curated bare-let reference. TS definite-assignment assertions, var and remaining destructuring forms remain separate requirements; successful rejection is not support.",
+      "assessment": "Bare let identifiers initialize to undefined at declaration evaluation. A definitely assigned Number can be read from its General cell in the numeric profile. The remaining TypeScript definite-assignment assertions are outside this syntax profile.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations",
@@ -708,7 +708,7 @@
         "typescript-syntax"
       ],
       "observableDone": [
-        "Admit uninitialized let/definite syntax with initialization, Undefined and TDZ tests."
+        "Admit the remaining definite-assignment declarations with source-order, undefined and TDZ tests."
       ]
     },
     {
@@ -1109,13 +1109,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "4599f4fdd69ab96c946b00a413ba2f83cd2fdc8db5b22276c74932531c11cfe2",
       "group": "modules"
-    },
-    {
-      "id": "gap-uninitialized-let",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d3d6244a1b7c62f6aca211c70f4e40c895b6756835b8bf156d7da8566dd19833",
-      "group": "uninitialized-bindings"
     },
     {
       "id": "gap-defaults",

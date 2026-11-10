@@ -35,6 +35,10 @@ export const implicitLetPromotions = [
   ]
 ];
 export const implicitLet=implicitLetPromotions.map(([id,_extension,_source,_hash,sourceJS,sourceTS])=>[id,'','',undefined,undefined,{sourceJS,sourceTS,oracleSource:sourceJS}]);
+implicitLet.push(['gap-uninitialized-let', '', '', undefined, undefined, {
+  sourceJS: 'export function run(a,b) { let x; x=a; return x; }',
+  sourceTS: 'export function run(a:number,b:number):number { let x; x=a; return x; }',
+}]);
 const add=(id,js,ts=js)=>implicitLet.push(['implicit-let-'+id,js,ts]);
 add('undefined','let value; return value===undefined?1:0;');
 add('undefined-shadow','let undefined=a; let value; return value===undefined?1:0;');
