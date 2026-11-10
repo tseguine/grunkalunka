@@ -186,8 +186,9 @@ import { localExportEntries } from './module-entries.mjs';
 import { literalPowers } from './numeric-powers.mjs';
 
 import { unreachableCopyPrograms } from './unreachable-copies.mjs';
+import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
 
-export const corpusVersion = 216;
+export const corpusVersion = 217;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -311,6 +312,7 @@ programs.push(...selectedInstancePrograms);
 programs.push(...literalNumericPrograms);
 programs.push(...localExportEntries);
 programs.push(...unreachableCopyPrograms);
+programs.push(...unreachableNumberPrograms);
 programs.push(...literalPowers);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
@@ -484,7 +486,6 @@ export const rejected = [
   ['if-sibling-binding', 'export function run(a,b) { if (a<b) { const x=a; return x; } else { return x; } }'],
   ['if-forward-local', 'export function run(a,b) { if(a<b) { return x; } const x=a; return x; }'],
   ['if-unselected-call', 'export function run(a,b) { if(a===a) return a; else return Math.random(); }'],
-  ['if-following-total-return', 'export function run(a,b) { if(a<b) return a; else return b; return 0; }'],
   ['if-depth', `export function run(a,b) { ${'if(a<b) '.repeat(66)}a=b; return a; }`],
   ['malformed', 'export function ('],
   ['duplicate-parameter', 'export function run(a, a) { return a; }'],

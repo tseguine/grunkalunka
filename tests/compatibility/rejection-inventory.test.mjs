@@ -1,4 +1,5 @@
 import { primitiveObjectAssignmentPrograms } from './primitive-object-assignments.mjs';
+import { unreachableNumberPrograms, unreachableNumberPromotions } from './unreachable-number-values.mjs';
 import { primitiveObjectBindingPrograms } from './primitive-object-bindings.mjs';
 import { unsignedHasOwnPrograms } from './unsigned-has-own.mjs';
 import { unsignedBindingPrograms } from './unsigned-binding-keys.mjs';
@@ -369,7 +370,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 745);
+  assert.equal(inventory.records.size, 738);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -392,6 +393,18 @@ test('unreachable numeric stores execute all twelve former rejection sources', (
     const source = programSources(programs.find(row => row[0] === id));
     assert.equal(createHash('sha256').update(source[field]).digest('hex'), hash);
     assert.equal(source.oracleSource, source.sourceJS);
+  }
+});
+
+test('unreachable numeric values execute exact former catalog and Rust rejection sources', () => {
+  for (const [id, original, hash] of unreachableNumberPromotions) {
+    const source = programSources(unreachableNumberPrograms.find(row => row[0] === id));
+    assert.equal(source.sourceJS, original);
+    assert.equal(source.sourceTS, original);
+    assert.equal(source.oracleSource, original);
+    assert.equal(createHash('sha256').update(original).digest('hex'), hash);
+    assert.ok(!rejected.some(row => row[0] === id));
+    assert.ok(!catalog.records.some(row => row.id === id));
   }
 });
 

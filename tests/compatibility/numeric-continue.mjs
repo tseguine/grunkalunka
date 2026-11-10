@@ -45,7 +45,6 @@ numericContinue.push(['ts-continue-predicate',
   'let g:number=0; for(;g++<3;) { if(a as number) continue; b+=g; } return b;']);
 
 const missing = 'every structural path must return a numeric value';
-const abrupt = 'statements after a guaranteed abrupt completion';
 const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized';
 const negatives = [
@@ -56,8 +55,6 @@ const negatives = [
   ['continue-do-suffix-needs-return', 'do { if(a) continue; a++; return b; } while(0);', missing],
   ['continue-while-needs-return', 'while(0) { continue; }', missing],
   ['continue-for-needs-return', 'for(;0;) { continue; }', missing],
-  ['continue-after-block', 'while(0) { { continue; } return a; } return b;', abrupt],
-  ['continue-after-both-arms', 'while(0) { if(a) continue; else continue; return a; } return b;', abrupt],
   ['continue-unselected-arm', 'while(0) { if(a) continue; else Math.random(); } return b;', expression],
   ['continue-unselected-step', 'for(;0;Math.random()) { continue; } return a;', expression],
   ['continue-unselected-do-test', 'do { continue; } while(Math.random()); return a;', expression],

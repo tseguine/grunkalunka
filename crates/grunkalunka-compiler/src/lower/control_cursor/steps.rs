@@ -11,16 +11,85 @@ mod iteration_member;
 pub(super) mod switch;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    // Validate only scalar expressions whose evaluation cannot invoke user code.
+    // The path is already complete, so these expressions are checked but never
+    // emitted. Keep the scan iterative and bounded like ordinary evaluation.
+    fn dead_number_value(&self, expression: &Expression<'_>, depth: usize) -> bool {
+        let mut pending = vec![(expression, depth)];
+        while let Some((expression, depth)) = pending.pop() {
+            if depth > 128 {
+                return false;
+            }
+            if let Some(inner) = erased_inner(expression) {
+                pending.push((inner, depth + 1));
+                continue;
+            }
+            match expression {
+                Expression::ParenthesizedExpression(wrapper) => {
+                    pending.push((&wrapper.expression, depth + 1));
+                }
+                Expression::NumericLiteral(_) => {}
+                Expression::Identifier(id) => {
+                    let Ok(binding) = numeric_binding(id, self.semantic, &self.bindings) else {
+                        return false;
+                    };
+                    if self.slots[binding.slot.0].ty != Type::Number {
+                        return false;
+                    }
+                }
+                Expression::UnaryExpression(unary)
+                    if matches!(
+                        unary.operator,
+                        UnaryOperator::UnaryPlus
+                            | UnaryOperator::UnaryNegation
+                            | UnaryOperator::BitwiseNot
+                    ) =>
+                {
+                    pending.push((&unary.argument, depth + 1));
+                }
+                Expression::BinaryExpression(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Addition
+                            | BinaryOperator::Subtraction
+                            | BinaryOperator::Exponential
+                            | BinaryOperator::Multiplication
+                            | BinaryOperator::Division
+                            | BinaryOperator::Remainder
+                            | BinaryOperator::BitwiseAnd
+                            | BinaryOperator::BitwiseOR
+                            | BinaryOperator::BitwiseXOR
+                            | BinaryOperator::ShiftLeft
+                            | BinaryOperator::ShiftRight
+                            | BinaryOperator::ShiftRightZeroFill
+                    ) =>
+                {
+                    pending.push((&binary.right, depth + 1));
+                    pending.push((&binary.left, depth + 1));
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
     // A plain write to an initialized Number cell has no observable effects
     // on an already completed path. Keep target, binding and depth checks.
-    fn dead_number_store(&self, statement: &Statement<'_>) -> bool {
+    fn dead_number_statement(&self, statement: &Statement<'_>) -> bool {
+        if let Statement::ReturnStatement(source) = statement {
+            return source
+                .argument
+                .as_ref()
+                .is_some_and(|value| self.dead_number_value(value, 0));
+        }
         let Statement::ExpressionStatement(source) = statement else {
             return false;
         };
-        let Some((Expression::AssignmentExpression(assignment), depth)) =
-            closures::unwrapped_at(&source.expression, 0)
-        else {
+        let Some((expression, depth)) = closures::unwrapped_at(&source.expression, 0) else {
             return false;
+        };
+        let Expression::AssignmentExpression(assignment) = expression else {
+            return self.dead_number_value(expression, depth);
         };
         if assignment.operator != AssignmentOperator::Assign {
             return false;
@@ -37,12 +106,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if !binding.mutable || self.slots[binding.slot.0].ty != Type::Number {
             return false;
         }
-        match closures::unwrapped(&assignment.right, depth + 1) {
-            Some(Expression::NumericLiteral(_)) => true,
-            Some(Expression::Identifier(id)) => numeric_binding(id, self.semantic, &self.bindings)
-                .is_ok_and(|binding| self.slots[binding.slot.0].ty == Type::Number),
-            _ => false,
-        }
+        self.dead_number_value(&assignment.right, depth + 1)
     }
 
     fn finish_pretest_loop(
@@ -877,7 +941,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let next_index = index + 1;
                 if !completion.normal {
                     for statement in &statements[next_index..] {
-                        if !inert_tail(statement) && !self.dead_number_store(statement) {
+                        if !inert_tail(statement) && !self.dead_number_statement(statement) {
                             return Err(unsupported(
                                 statement,
                                 if completion == Completion::RETURN {

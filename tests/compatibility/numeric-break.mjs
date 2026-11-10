@@ -42,7 +42,6 @@ numericBreak.push(['ts-break-predicate',
   'for(let i:number=0;i<3;i++) { if(a as number) break; b+=i; } return b;']);
 
 const missing = 'every structural path must return a numeric value';
-const abrupt = 'statements after a guaranteed abrupt completion';
 const expression = 'expression is outside the numeric experiment';
 const negatives = [
   ['break-no-loop', 'break; return a;'],
@@ -50,8 +49,6 @@ const negatives = [
   ['break-do-needs-return', 'do { break; } while(0);', missing],
   ['break-do-mixed-needs-return', 'do { if(a) break; else return b; } while(0);', missing],
   ['break-do-suffix-needs-return', 'do { if(a) break; a++; return b; } while(0);', missing],
-  ['break-after-block', 'while(1) { { break; } return a; } return b;', abrupt],
-  ['break-after-both-arms', 'while(1) { if(a) break; else break; return a; } return b;', abrupt],
   ['break-unselected-arm', 'while(0) { if(a) break; else Math.random(); } return b;', expression],
   ['break-unselected-step', 'for(;1;Math.random()) { break; } return a;', expression],
   ['break-unselected-do-test', 'do { break; } while(Math.random()); return a;', expression],

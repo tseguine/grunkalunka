@@ -1280,7 +1280,7 @@ mod tests {
             "const x=a;return x;x=b;",
             "return b;x=a;",
             "return b;a=unknown();",
-            "return b;a=b+1;",
+            "return b;a=b<1;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for ts in [false, true] {
@@ -1297,6 +1297,35 @@ mod tests {
                 .unwrap()
                 .contains("at most 256 statements")
         );
+    }
+
+    #[test]
+    fn unused_number_values_after_abrupt_completion_are_validated_without_execution() {
+        for source in [
+            "export function run(a,b) { do { return a; } while(0); return b; }",
+            "export function run(a,b) { return a; a+b; }",
+            "export function run(a,b) { while(1) { { break; } return a; } return b; }",
+            "export function run(a,b) { while(1) { if(a) break; else break; return a; } return b; }",
+            "export function run(a,b) { while(0) { { continue; } return a; } return b; }",
+            "export function run(a,b) { while(0) { if(a) continue; else continue; return a; } return b; }",
+            "export function run(a,b) { if(a<b) return a; else return b; return 0; }",
+        ] {
+            for ts in [false, true] {
+                compile(source, ts).unwrap();
+            }
+        }
+        for tail in [
+            "missing;",
+            "sideEffect();",
+            "a++;",
+            "a<b;",
+            "return sideEffect();",
+        ] {
+            let source = format!("export function run(a,b){{return a;{tail}}}");
+            for ts in [false, true] {
+                assert!(compile(&source, ts).is_err(), "{tail}");
+            }
+        }
     }
 
     #[test]

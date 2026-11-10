@@ -115,7 +115,7 @@ fn final_switch_arms_can_complete_normally() {
         ("switch(a){default:;}return a;", true),
         ("switch(a){case 0:if(b)return b;}return a;", true),
         ("switch(a){case 0:a=b;case 1:return a;}return b;", true),
-        ("switch(a){default:a=b;case 0:return a;}return b;", false),
+        ("switch(a){default:a=b;case 0:return a;}return b;", true),
         ("while(a){switch(b){case 0:continue;}}return b;", true),
         ("while(a){switch(b){default:break;}}return b;", true),
     ] {
