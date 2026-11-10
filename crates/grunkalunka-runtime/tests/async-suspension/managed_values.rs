@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn required_optional_chain_tail_keeps_keys_lazy_during_suspension() {
+    compare_promises(
+        &[
+            "let count=0;const root=a?{r:{v:b}}:null;const n=root?.r[(await a,count++,'v')];return count+ +(n??7);",
+            "const root=a?{nested:{r:{v:b}}}:null;try{return +(root?.nested.r[(await Promise.reject(b),'v')]??7);}catch(e){return e===b?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_method_spreads_keep_receiver_and_skip_after_rejection() {
     compare_promises(
         &[

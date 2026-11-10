@@ -1354,3 +1354,14 @@ fn imported_handler_uses_branch_initialized_state() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_reads_a_required_field_of_optional_state() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const model=a>0?{selection:{expanded:1}}:null;
+            return choose(+(model?.selection.expanded??0),b);
+        }"#,
+    );
+}

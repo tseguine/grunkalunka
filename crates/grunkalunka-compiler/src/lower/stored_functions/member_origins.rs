@@ -98,14 +98,14 @@ impl Members<'_, '_> {
         receiver: NodeId,
         key: NodeId,
         domain: &record_names::Domain,
-    ) -> Alternatives {
+    ) -> (Alternatives, bool) {
         let Some(keys) = self.values.get(&key).filter(|v| !v.is_empty()) else {
-            return Alternatives::new();
+            return (Alternatives::new(), false);
         };
         let Some(roots) = self.values.get(&receiver).filter(|v| !v.is_empty()) else {
-            return Alternatives::new();
+            return (Alternatives::new(), false);
         };
-        if keys.iter().all(|origin| *origin == Origin::Number)
+        let found = if keys.iter().all(|origin| *origin == Origin::Number)
             && roots
                 .iter()
                 .all(|origin| matches!(origin, Origin::String | Origin::Null | Origin::Undefined))
@@ -157,17 +157,19 @@ impl Members<'_, '_> {
             })
         {
             if let record_names::Domain::Fields(fields) = domain {
-                return fields
+                let reached = fields
                     .iter()
-                    .flat_map(|key| self.optional_select(receiver, key))
+                    .flat_map(|key| self.select_member(receiver, key, true))
                     .collect();
+                return self.with_skipped(receiver, reached);
             }
             let mut found = self.enumerable_values_for(receiver, true);
             found.insert(Origin::Undefined);
             found
         } else {
             BTreeSet::from([Origin::Other])
-        }
+        };
+        (found, false)
     }
 
     pub(super) fn pattern_unsigned_value(&self, receiver: NodeId) -> Alternatives {
@@ -292,33 +294,52 @@ impl Members<'_, '_> {
         self.select_member(receiver, source_key, false)
     }
 
-    pub(super) fn optional_select(&self, receiver: NodeId, source_key: &Key) -> Alternatives {
-        self.select_member(receiver, source_key, true)
+    pub(super) fn optional_select(
+        &self,
+        receiver: NodeId,
+        source_key: &Key,
+    ) -> (Alternatives, bool) {
+        self.with_skipped(receiver, self.select_member(receiver, source_key, true))
     }
 
-    fn select_member(&self, receiver: NodeId, source_key: &Key, optional: bool) -> Alternatives {
+    fn with_skipped(&self, receiver: NodeId, mut reached: Alternatives) -> (Alternatives, bool) {
+        // Only the reached alternatives establish a receiver for a required
+        // following link. A skipped prefix independently contributes undefined.
+        let reference_when_reached = !reached.is_empty()
+            && reached.iter().all(|origin| {
+                matches!(
+                    origin,
+                    Origin::Object(_) | Origin::NullObject(_) | Origin::Array(_) | Origin::String
+                )
+            });
+        if self.values.get(&receiver).is_some_and(|roots| {
+            roots
+                .iter()
+                .any(|origin| matches!(origin, Origin::Null | Origin::Undefined))
+        }) {
+            reached.insert(Origin::Undefined);
+        }
+        (reached, reference_when_reached)
+    }
+
+    fn select_member(
+        &self,
+        receiver: NodeId,
+        source_key: &Key,
+        skip_nullish: bool,
+    ) -> Alternatives {
         enum Step {
             Read(Origin, Option<u32>),
             FinishRest(NodeId, Option<u32>),
         }
         let origins = |id: NodeId| self.values.get(&id).into_iter().flatten().copied();
-        let roots: Vec<_> = origins(receiver).collect();
-        let nullish = optional
-            && roots
-                .iter()
-                .any(|origin| matches!(origin, Origin::Null | Origin::Undefined));
-        let mut initial = roots
-            .into_iter()
-            .filter(|origin| !optional || !matches!(origin, Origin::Null | Origin::Undefined))
+        let mut initial = origins(receiver)
+            .filter(|origin| !skip_nullish || !matches!(origin, Origin::Null | Origin::Undefined))
             .map(|origin| Step::Read(origin, None));
         let mut work = Vec::new();
         let mut active = BTreeSet::new();
         let mut completed = BTreeSet::new();
-        let mut found = if nullish {
-            BTreeSet::from([Origin::Undefined])
-        } else {
-            Alternatives::new()
-        };
+        let mut found = Alternatives::new();
         while let Some(step) = work.pop().or_else(|| initial.next()) {
             let (origin, shifted) = match step {
                 Step::Read(Origin::String, None) => {

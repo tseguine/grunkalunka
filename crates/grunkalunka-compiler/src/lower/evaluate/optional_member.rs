@@ -15,7 +15,7 @@ pub(in crate::lower) fn parts<'e, 'a>(
     uint32_keys: &Uint32Keys,
 ) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
     let member = chain.expression.as_member_expression()?;
-    member_parts(member, depth, uint32_keys)
+    member_parts(member, depth, uint32_keys, false)
 }
 
 pub(in crate::lower) fn computed_key<'e, 'a>(
@@ -37,8 +37,9 @@ fn member_parts<'e, 'a>(
     member: &'e MemberExpression<'a>,
     depth: usize,
     uint32_keys: &Uint32Keys,
+    required_continuation: bool,
 ) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
-    if depth + 2 > 128 || !member.optional() {
+    if depth + 2 > 128 || !(member.optional() || required_continuation) {
         return None;
     }
     match member {
@@ -86,13 +87,18 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        let property = match node {
-            Expression::ChainExpression(chain) => parts(chain, depth, &self.stored.uint32_keys),
-            _ => node
-                .as_member_expression()
-                .and_then(|member| member_parts(member, depth, &self.stored.uint32_keys)),
+        let member = match node {
+            Expression::ChainExpression(chain) => chain.expression.as_member_expression(),
+            _ => node.as_member_expression(),
         };
-        let Some((object, key)) = property else {
+        let Some((object, key)) = member.and_then(|m| {
+            member_parts(
+                m,
+                depth,
+                &self.stored.uint32_keys,
+                self.stored.required_chain_reads.contains(&m.node_id()),
+            )
+        }) else {
             return Ok(false);
         };
         let receiver = self.stored.optional_receiver(object.node_id());
