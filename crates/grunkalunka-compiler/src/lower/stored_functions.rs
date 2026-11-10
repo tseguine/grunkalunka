@@ -806,6 +806,7 @@ impl Fields {
                             | BinaryOperator::GreaterThan
                             | BinaryOperator::GreaterEqualThan
                             | BinaryOperator::In
+                            | BinaryOperator::Instanceof
                     ) =>
                 {
                     values.insert(id, BTreeSet::from([Origin::Boolean]));

@@ -1653,3 +1653,9 @@ table can therefore call `actions[key](value)` when every selected field
 contains a function with the same represented signature. Missing fields,
 deletion, and writes through aliases still affect the result. Larger or
 open-ended name sets use the conservative own-property lookup.
+
+The direct `value instanceof Array` expression evaluates the left operand
+once and tests the represented array in the pristine realm. A record with
+array-like fields fails that test. The right operand must resolve to the
+intrinsic constructor; user constructors, prototype mutation, proxies and
+custom instance checks remain separate features.

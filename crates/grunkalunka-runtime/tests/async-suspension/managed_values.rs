@@ -560,6 +560,7 @@ fn dictionary_writes_preserve_receiver_and_key_snapshots_across_await() {
 fn dictionary_reads_preserve_receiver_and_value_snapshots_across_await() {
     compare_promises(
         &[
+            "let n=0;const x=(n++,await a)?[b]:{};return (x instanceof Array?n+1:n);",
             "let o=a?{x:b}:null;const key='x';let n=0;const v=o?.[(n++,o=null,await a,key)];return n*10+(v===b?1:0);",
             "let d=Object.create(null);const old=d;d.x=a;const value=d[(await a,d=Object.create(null),'x')];await b;return value===a&&d!==old?1:0;",
             "const d=Object.create(null);d.x=a;const key='x';const value=d[(await b,d.x=b,key)];await a;d.x=a;return value===b?1:0;",

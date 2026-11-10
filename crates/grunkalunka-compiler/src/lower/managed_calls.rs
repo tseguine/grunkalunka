@@ -439,6 +439,7 @@ fn kinds(
                                 | BinaryOperator::StrictEquality
                                 | BinaryOperator::StrictInequality
                                 | BinaryOperator::In
+                                | BinaryOperator::Instanceof
                                 | BinaryOperator::LessThan
                                 | BinaryOperator::LessEqualThan
                                 | BinaryOperator::GreaterThan
@@ -581,6 +582,7 @@ fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
                     | BinaryOperator::StrictEquality
                     | BinaryOperator::StrictInequality
                     | BinaryOperator::In
+                    | BinaryOperator::Instanceof
                     | BinaryOperator::LessThan
                     | BinaryOperator::LessEqualThan
                     | BinaryOperator::GreaterThan
