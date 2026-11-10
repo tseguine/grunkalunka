@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn consecutive_optional_reads_skip_awaits_and_keep_each_saved_receiver() {
+    compare_promises(
+        &[
+            "let root=a?{row:{v:b}}:null;let n=0;const v=root?.[(await b,n++,'row')]?.[(root=null,await a,n++,'v')];return n+(v??0);",
+            "const root=a?{row:null}:null;const v=root?.row?.[(await Promise.reject(b),'z')];return v===undefined?7:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn logical_property_names_evaluate_only_selected_fallbacks_across_await() {
     compare_promises(
         &[

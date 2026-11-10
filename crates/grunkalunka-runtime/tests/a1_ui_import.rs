@@ -1317,3 +1317,14 @@ fn imported_handler_reads_an_array_slot_or_length_by_name() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_reads_a_label_through_nullable_state() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            const model=a>0?{selection:{label:'Expand'}}:null;
+            return choose(model?.selection?.label==='Expand'?1:0,b);
+        }"#,
+    );
+}
