@@ -97,9 +97,35 @@ test('automatic macOS fallback uses the bounded profile while master and manual 
   assert.equal(scalar(input, 'type', 8), 'boolean');
   assert.equal(scalar(input, 'default', 8), 'false');
   const verify = block(macos, '  verify:');
-  assert.equal(evaluate(scalar(verify, 'timeout-minutes', 4), {
+  // Queue contention must not consume the native fallback's execution budget.
+  // The job envelope is wider, but actual PR build and checks stay bounded.
+  for (const context of [
+    { eventName: 'workflow_call', prChecks: true },
+    { eventName: 'workflow_call', prChecks: false },
+    { eventName: 'push', prChecks: false },
+  ]) {
+    assert.equal(evaluate(scalar(verify, 'timeout-minutes', 4), context), 65);
+  }
+  const steps = verify.split(/^      - /m).slice(1);
+  const namedStep = name => {
+    const matches = steps.filter(step => step.startsWith('name: ' + name + '\n'));
+    assert.equal(matches.length, 1, 'one ' + name + ' step');
+    return matches[0];
+  };
+  const build = namedStep('Full workspace build');
+  assert.equal(evaluate(scalar(build, 'timeout-minutes', 8), {
+    eventName: 'workflow_call', prChecks: true,
+  }), 10);
+  assert.equal(evaluate(scalar(build, 'timeout-minutes', 8), {
+    eventName: 'push', prChecks: false,
+  }), 65);
+  const fast = namedStep('Complete fast PR profile');
+  assert.equal(evaluate(scalar(fast, 'timeout-minutes', 8), {
     eventName: 'workflow_call', prChecks: true,
   }), 15);
+  assert.equal(evaluate(scalar(fast, 'if', 8), {
+    eventName: 'workflow_call', prChecks: true,
+  }), true);
   for (const [eventName, prChecks, expected] of [
     ['workflow_call', true, 'node scripts/check.mjs --profile=pr'],
     ['workflow_call', false, 'node scripts/check.mjs'],
