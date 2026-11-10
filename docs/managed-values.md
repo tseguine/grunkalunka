@@ -1667,7 +1667,9 @@ save the key before any later RHS mutation.
 
 Logical key expressions preserve finite names across `||`, `&&` and `??`.
 For example, `(flag ? "save" : "") || "cancel"` can select either handler.
-Nullish left operands of a fallback also skip to the right name. The key
+The same finite choice survives a local alias such as `const key = raw || "cancel"`
+when every assignment to `raw` supplies a proven name. Nullish left operands
+of a fallback also skip to the right name. The key
 expression still evaluates with normal short-circuiting.
 
 When a runtime key has a small finite set of literal alternatives, ordinary
