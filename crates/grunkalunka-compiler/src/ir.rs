@@ -1631,11 +1631,6 @@ impl Verifier<'_> {
                     .ok_or_else(|| invalid(span, "dynamic read requires an object or Array"))?;
                 self.value(*object, ty, visible, span)?;
                 self.managed_key(key, visible, span)?;
-                if ty == Type::ManagedArray
-                    && !matches!(key, ManagedKey::Uint32(_) | ManagedKey::Scalar { .. })
-                {
-                    return Err(invalid(span, "dynamic Array reads must exclude length"));
-                }
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedSetOwn { object, key, value } => {

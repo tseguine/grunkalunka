@@ -1,6 +1,7 @@
 //! Binding plans borrow the original source and select each own field or array
 //! position in order. Origins prove receiver kinds; annotations never do.
 use super::*;
+use crate::lower::evaluate::KeyAccess;
 use oxc_ast::ast::{
     ArrayPattern, AssignmentPattern, BindingIdentifier, BindingProperty, BindingRestElement,
     ObjectPattern,
@@ -317,7 +318,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         && let Some(key) = property.key.as_expression()
                         && let Some(kind) =
                             if matches!(receiver, Type::ManagedObject | Type::ManagedArray) {
-                                self.binding_key_kind(receiver, dictionary, key, depth)
+                                self.binding_key_kind(
+                                    receiver,
+                                    dictionary,
+                                    key,
+                                    depth,
+                                    KeyAccess::Read,
+                                )
                             } else {
                                 self.stored
                                     .uint32_keys
@@ -430,7 +437,7 @@ mod unsigned_binding_tests {
                 "const k=a?'k':'__proto__';const {[k]:x}={k:b};return a;",
                 false,
             ),
-            ("const k='0';const {[k]:x}=[b];return a;", false),
+            ("const k='0';const {[k]:x}=[b];return a;", true),
             ("const {[a>>>0]:x}=[a?'text':b];return x.length;", false),
         ] {
             let source = format!("export function run(a,b){{{body}}}");

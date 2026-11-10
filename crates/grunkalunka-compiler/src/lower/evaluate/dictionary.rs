@@ -1,6 +1,12 @@
 //! Runtime dictionary keys are snapshots on the ordinary expression cursor.
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::lower) enum KeyAccess {
+    Read,
+    Write,
+}
+
 #[derive(Clone, Copy)]
 pub(in crate::lower) enum RuntimeKey {
     Uint32,
@@ -107,6 +113,7 @@ impl Lowering<'_, '_> {
         &self,
         member: &oxc_ast::ast::ComputedMemberExpression<'_>,
         depth: usize,
+        access: KeyAccess,
     ) -> Option<(Mode, RuntimeKey)> {
         if member.optional
             || closures::unwrapped(&member.expression, depth)
@@ -116,7 +123,7 @@ impl Lowering<'_, '_> {
             return None;
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        self.owned_key_kind(&member.object, receiver, &member.expression, depth)
+        self.owned_key_kind(&member.object, receiver, &member.expression, depth, access)
             .map(|kind| (Mode::managed(receiver), kind))
     }
 
@@ -126,12 +133,14 @@ impl Lowering<'_, '_> {
         receiver: Type,
         key: &Expression<'_>,
         depth: usize,
+        access: KeyAccess,
     ) -> Option<RuntimeKey> {
         self.binding_key_kind(
             receiver,
             self.stored.dictionary(object.node_id()),
             key,
             depth,
+            access,
         )
     }
 
@@ -141,6 +150,7 @@ impl Lowering<'_, '_> {
         dictionary: bool,
         key: &Expression<'_>,
         depth: usize,
+        access: KeyAccess,
     ) -> Option<RuntimeKey> {
         let kind = self.runtime_key(key, depth)?;
         match (receiver, kind) {
@@ -152,6 +162,17 @@ impl Lowering<'_, '_> {
                 if dictionary
                     || (self.stored.string(key.node_id())
                         && self.stored.record_names.contains(key, depth)) =>
+            {
+                Some(kind)
+            }
+            (Type::ManagedArray, RuntimeKey::String)
+                if access == KeyAccess::Read
+                    && self.stored.string(key.node_id())
+                    && self
+                        .stored
+                        .record_names
+                        .domain(key, depth)
+                        .array_own_names() =>
             {
                 Some(kind)
             }
@@ -168,7 +189,8 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
+        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1, KeyAccess::Read)
+        else {
             return Ok(false);
         };
         work.push(Work::Dictionary(Task::ReadReceiver {
@@ -195,7 +217,8 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
+        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1, KeyAccess::Write)
+        else {
             return Ok(false);
         };
         if assignment.operator != AssignmentOperator::Assign {

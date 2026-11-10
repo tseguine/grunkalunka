@@ -1,5 +1,6 @@
 //! Assign a saved iteration selection through its original source reference.
 use super::*;
+use crate::lower::evaluate::KeyAccess;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn check_iteration_member(
@@ -31,7 +32,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             iteration::PropertyKey::Runtime(key) => {
-                if self.owned_key_kind(object, ty, key, 1).is_none() {
+                if self
+                    .owned_key_kind(object, ty, key, 1, KeyAccess::Write)
+                    .is_none()
+                {
                     return Err(unsupported(
                         source.left(),
                         "iteration member runtime keys require an unsigned index or a proven own String key",

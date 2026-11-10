@@ -19,6 +19,13 @@ pub(super) enum Domain {
     Fields(BTreeSet<Vec<u16>>),
 }
 
+impl Domain {
+    pub(super) fn array_own_names(&self) -> bool {
+        matches!(self, Self::Fields(names) if names.iter().all(|name|
+            !crate::prototype_keys::contains(crate::prototype_keys::ARRAY, name)))
+    }
+}
+
 struct NameSources {
     literals: Option<BTreeSet<Vec<u16>>>,
     dependencies: BTreeSet<SymbolId>,

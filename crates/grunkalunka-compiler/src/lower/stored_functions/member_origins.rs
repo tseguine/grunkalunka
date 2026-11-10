@@ -75,6 +75,7 @@ impl Members<'_, '_> {
                 matches!(origin, Origin::NullObject(_))
                     || (!matches!(domain, record_names::Domain::Unknown)
                         && matches!(origin, Origin::Object(_)))
+                    || (matches!(origin, Origin::Array(_)) && domain.array_own_names())
             })
         {
             return BTreeSet::from([Origin::Other]);
@@ -150,6 +151,7 @@ impl Members<'_, '_> {
                     Origin::NullObject(_) | Origin::Null | Origin::Undefined
                 ) || (!matches!(domain, record_names::Domain::Unknown)
                     && matches!(origin, Origin::Object(_)))
+                    || (matches!(origin, Origin::Array(_)) && domain.array_own_names())
             })
         {
             if let record_names::Domain::Fields(fields) = domain {
@@ -354,11 +356,11 @@ impl Members<'_, '_> {
             };
             let array = matches!(origin, Origin::Array(_));
             let dictionary = matches!(origin, Origin::NullObject(_));
-            if optional && array && key.as_slice() == LENGTH {
+            if array && key.as_slice() == LENGTH {
                 found.insert(Origin::Number);
                 continue;
             }
-            if (array && (self.open_fields.contains(&object) || key.as_slice() == LENGTH))
+            if (array && self.open_fields.contains(&object))
                 || evaluate::managed_member_key(
                     &self.semantic.nodes().kind(object),
                     key.clone(),
@@ -367,7 +369,7 @@ impl Members<'_, '_> {
                 )
                 .is_err()
             {
-                // Intrinsic length, inherited keys and opaque array positions
+                // Inherited keys and opaque array positions
                 // cannot be inferred to be absent own properties.
                 found.insert(Origin::Other);
                 continue;

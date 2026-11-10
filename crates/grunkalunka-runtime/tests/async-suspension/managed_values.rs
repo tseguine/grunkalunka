@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn finite_array_names_save_the_receiver_and_skip_nullish_keys() {
+    compare_promises(
+        &[
+            "let xs=[b];const k=a?'length':'0';return +xs[(await a,xs=[],k)];",
+            "const xs=a?[b]:null;const k=b?'length':'0';let reads=0;const v=xs?.[(await a,reads++,k)];return reads===0?7:+v;",
+            "const xs=[a];try{return +xs[(await Promise.reject(b),'length')];}catch(e){return e===b?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn computed_string_compounds_save_references_across_awaits() {
     compare_promises(
         &[
