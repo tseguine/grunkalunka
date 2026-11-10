@@ -114,11 +114,18 @@ impl<'n, 'a> IntoIterator for Arguments<'n, 'a> {
 // admitted domain. Borrow its original expressions; never synthesize an AST.
 // Opaque spreads and elisions remain explicit unsupported entries.
 pub(super) fn all_arguments<'n, 'a>(call: &'n CallExpression<'a>) -> Arguments<'n, 'a> {
+    expand_arguments(&call.arguments, method(call).map(|(_, _, kind)| kind))
+}
+
+pub(super) fn plain_arguments<'n, 'a>(args: &'n [Argument<'a>]) -> Arguments<'n, 'a> {
+    expand_arguments(args, None)
+}
+
+fn expand_arguments<'n, 'a>(args: &'n [Argument<'a>], method: Option<Method>) -> Arguments<'n, 'a> {
     use oxc_ast::ast::ArrayExpressionElement;
     let mut result = Vec::new();
-    let is_apply = matches!(method(call), Some((_, _, Method::Apply)));
-    let mut pending = call
-        .arguments
+    let is_apply = method == Some(Method::Apply);
+    let mut pending = args
         .iter()
         .enumerate()
         .rev()
@@ -134,7 +141,7 @@ pub(super) fn all_arguments<'n, 'a>(call: &'n CallExpression<'a>) -> Arguments<'
                 },
                 arg.span(),
                 0usize,
-                is_method(call) && index == 0,
+                method.is_some() && index == 0,
             )
         })
         .collect::<Vec<_>>();

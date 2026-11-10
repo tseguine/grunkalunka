@@ -1169,41 +1169,57 @@ impl Lowering<'_, '_> {
             if schedule_selection(work, node, depth, mode)? {
                 return Ok(true);
             }
-            if let Some(args) =
+            let elements = if let Some(args) =
                 object_intrinsics::array_constructor_args(node, self.semantic, depth)
             {
-                match args {
-                    [] => {
-                        let result = self.value(Type::ManagedArray);
-                        Self::push(
-                            regions.current(),
+                if args.len() > 1000 {
+                    return Err(unsupported(
+                        node,
+                        "at most 1000 Array constructor arguments are admitted",
+                    ));
+                }
+                let args = invocation::plain_arguments(args);
+                if args.len() > 1000 {
+                    return Err(unsupported(
+                        node,
+                        "at most 1000 Array constructor arguments are admitted",
+                    ));
+                }
+                if args.len() == 1 {
+                    let arg = args.first().expect("single argument");
+                    let value = arg.as_expression().ok_or_else(|| {
+                        unsupported(
                             node,
-                            Op::ManagedArrayNew { result, length: 0 },
-                        );
-                        values.push(Value::Array(result));
-                    }
-                    [arg]
-                        if arg
-                            .as_expression()
-                            .is_some_and(|e| self.stored.uint32_keys.unsigned_value(e)) =>
-                    {
+                            "Array constructor requires fixed, non-elided arguments",
+                        )
+                    })?;
+                    if self.stored.uint32_keys.unsigned_value(value) {
                         work.push(Work::Managed(ManagedWork::SparseArray(node)));
-                        work.push(Work::Eval(
-                            arg.as_expression().expect("validated length"),
-                            depth + 1,
-                            Mode::Number,
-                        ));
+                        work.push(Work::Eval(value, depth + 1 + arg.depth, Mode::Number));
+                        return Ok(true);
                     }
-                    _ => {
+                    if !self.stored.non_number_element(value.node_id()) {
                         return Err(unsupported(
                             node,
-                            "Array construction requires no arguments or a proven uint32 length",
+                            "a single Array argument requires a proven uint32 length or non-Number element",
                         ));
                     }
                 }
-                return Ok(true);
-            }
-            if let Expression::ArrayExpression(literal) = node {
+                let values = args
+                    .iter()
+                    .map(|arg| {
+                        arg.as_expression()
+                            .map(|value| iteration::LiteralElement::Value(value, 1 + arg.depth))
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| {
+                        unsupported(
+                            node,
+                            "Array constructor requires fixed, non-elided arguments",
+                        )
+                    })?;
+                Some(values)
+            } else if let Expression::ArrayExpression(literal) = node {
                 if let Some(source) = iteration::single_spread(literal) {
                     let mode =
                         self.intrinsic_iterable_mode(source, depth + 1)
@@ -1217,12 +1233,16 @@ impl Lowering<'_, '_> {
                     work.push(Work::Eval(source, depth + 1, mode));
                     return Ok(true);
                 }
-                let elements = iteration::literal_elements(literal).ok_or_else(|| {
+                Some(iteration::literal_elements(literal).ok_or_else(|| {
                     unsupported(
                         node,
                         "mixed array spread requires fixed Array-literal operands",
                     )
-                })?;
+                })?)
+            } else {
+                None
+            };
+            if let Some(elements) = elements {
                 let length = u32::try_from(elements.len())
                     .map_err(|_| unsupported(node, "array length exceeds the supported range"))?;
                 let array = self.value(Type::ManagedArray);

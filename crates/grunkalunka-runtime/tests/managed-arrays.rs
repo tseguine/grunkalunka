@@ -2,6 +2,36 @@
 mod common;
 
 #[test]
+fn private_helpers_return_arrays_without_a_literal_array_witness() {
+    for source in [
+        "function make(x){return new Array(x>>>0);}export function run(a,b){return make(a).length;}",
+        "function make(x,y){return Array(x,y);}export function run(a,b){return make(a,b).length;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_constructors_preserve_dense_element_order_identity_and_kinds() {
+    for body in [
+        "const xs=Array(...[3]);return xs.length===3&&!Object.hasOwn(xs,0)?1:0;",
+        "const xs=new Array(...[...[undefined]]);return xs.length===1&&Object.hasOwn(xs,0)?1:0;",
+        "const xs=new Array(...['abc'],...[],a);return xs[0].length+xs.length;",
+        "const xs=new Array(a,b);return xs.length===2&&xs[0]===a&&xs[1]===b?1:0;",
+        "const xs=Array(undefined);return xs.length===1&&Object.hasOwn(xs,0)?1:0;",
+        "const xs=Array(null,false,'text');return xs[2].length;",
+        "const f=x=>x+1;const xs=new Array(f);return xs[0](a);",
+        "const item={v:a};const xs=Array(item,item);return xs[0]===xs[1]&&xs[0].v===a?1:0;",
+        "let n=0;const xs=new Array((n=1,a),(n=n*10+2,b));return n+xs.length;",
+        "const xs=Array('one','two');let n=0;for(const s of xs)n+=s.length;return n;",
+        "const xs=Array('a','bb');let n=0;for(const s of Object.values(xs))n+=s.length;return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn sparse_array_constructors_keep_holes_length_and_identity() {
     for body in [
         "return Array().length+new Array().length;",
