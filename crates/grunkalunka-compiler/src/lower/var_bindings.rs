@@ -416,6 +416,37 @@ fn exhaustive_store_region(
     })
 }
 
+// Stores in a single statement list execute in order on every visit to
+// that block. A RHS still sees the value from the previous completed store.
+fn sequential_store_regions(
+    writes: &[NodeId],
+    semantic: &Semantic<'_>,
+) -> Option<Vec<InitializedRegion>> {
+    let nodes = semantic.nodes();
+    let mut common_block = None;
+    let mut regions = Vec::with_capacity(writes.len());
+    for &write in writes {
+        let assign = lexical_store(write, semantic)?;
+        let statement = nodes.parent_id(assign.node_id());
+        if !matches!(nodes.kind(statement), AstKind::ExpressionStatement(_)) {
+            return None;
+        }
+        let block = nodes.parent_id(statement);
+        if common_block.is_some_and(|other| other != block) {
+            return None;
+        }
+        common_block = Some(block);
+        regions.push(InitializedRegion {
+            site: assign.node_id(),
+            after: assign.span.end,
+            block: Some(enclosing_statement_block(statement, semantic)?),
+            sources: vec![assign.right.node_id()],
+        });
+    }
+    regions.sort_unstable_by_key(|r| r.after);
+    Some(regions)
+}
+
 /// Refine reads reached after the only write, or after both arms of an if/else store.
 pub(super) fn lexical_assignment_reads(
     semantic: &Semantic<'_>,
@@ -437,24 +468,28 @@ pub(super) fn lexical_assignment_reads(
         let Some(symbol) = name.symbol_id.get() else {
             continue;
         };
-        let mut writes = scope
+        let writes: Vec<_> = scope
             .get_resolved_references(symbol)
-            .filter(|r| r.is_write());
-        let Some(first) = writes.next() else { continue };
-        let region = if let Some(second) = writes.next() {
-            if writes.next().is_some() {
-                continue;
-            }
-            exhaustive_store_region(first.node_id(), second.node_id(), semantic)
-        } else {
-            single_store_region(first.node_id(), semantic)
+            .filter(|r| r.is_write())
+            .map(|r| r.node_id())
+            .collect();
+        let regions = match writes.as_slice() {
+            [] => continue,
+            [write] => single_store_region(*write, semantic).map(|r| vec![r]),
+            [first, second] => exhaustive_store_region(*first, *second, semantic)
+                .map(|r| vec![r])
+                .or_else(|| sequential_store_regions(&writes, semantic)),
+            _ => sequential_store_regions(&writes, semantic),
         };
-        let Some(region) = region else { continue };
+        let Some(regions) = regions else {
+            continue;
+        };
+        let first_site = regions[0].site;
         let Some(body) = owner(node.id(), semantic) else {
             continue;
         };
-        if nodes.kind(region.site).span().start < decl.span.end
-            || owner(region.site, semantic) != Some(body)
+        if nodes.kind(first_site).span().start < decl.span.end
+            || owner(first_site, semantic) != Some(body)
         {
             continue;
         }
@@ -464,8 +499,11 @@ pub(super) fn lexical_assignment_reads(
         {
             let id = read.node_id();
             let span = nodes.kind(id).span();
-            if span.start >= region.after
-                && region.block.is_none_or(|b| b.contains_inclusive(span))
+            let completed = regions.partition_point(|r| r.after <= span.start);
+            let Some(region) = regions[..completed].last() else {
+                continue;
+            };
+            if region.block.is_none_or(|b| b.contains_inclusive(span))
                 && owner(id, semantic) == Some(body)
             {
                 reads.insert(id, region.sources.clone());
