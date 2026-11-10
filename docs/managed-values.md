@@ -1859,3 +1859,9 @@ Awaiting a source-proven union of represented primitives that includes String
 preserves the selected tag and value. For example, `await (left + right)` may
 resume with either a Number or a String. The operand executes once and each
 await still schedules its reaction job.
+
+
+String concatenation and search methods convert represented primitive
+arguments with the same UTF-16 and Number spelling as explicit `String`.
+An omitted search argument denotes the text `"undefined"`. Objects and
+regular expressions still require coercions outside this profile.

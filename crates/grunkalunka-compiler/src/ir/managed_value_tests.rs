@@ -1548,12 +1548,8 @@ fn well_formed_repair_requires_managed_text_and_result() {
 }
 
 #[test]
-fn string_concat_method_requires_string_arguments_and_bounded_arity() {
+fn string_concat_method_requires_primitive_arguments_and_bounded_arity() {
     for body in [
-        "return ''.concat(a).length;",
-        "return ''.concat(undefined).length;",
-        "return ''.concat(null).length;",
-        "return ''.concat(true).length;",
         "return ''.concat({}).length;",
         "const args=['a'];return ''.concat(...args).length;",
         "return ''?.concat('a').length;",

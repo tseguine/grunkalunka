@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn primitive_text_arguments_preserve_snapshots_across_await() {
+    compare_promises(
+        &[
+            "let needle=b;const s='n='+b;return s.includes(needle,(needle=a,await b,0))?1:0;",
+            "let n=0;try{'x'.concat((n++,a),(await Promise.reject(b),false),n++);}catch(e){return n===1&&e===b?1:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn await_preserves_mixed_primitive_values_and_jobs() {
     compare_promises(
         &[

@@ -2,6 +2,43 @@
 mod common;
 
 #[test]
+fn primitive_text_arguments_use_javascript_spelling() {
+    for body in [
+        "let needle='c';const find=()=> 'abc'.lastIndexOf(needle);needle=a;return find();",
+        "let needle='c';const matches=()=> 'abc'.endsWith(needle);needle=a;return matches()?1:0;",
+        "let needle='a';const test=()=> 'abc'.includes(needle);needle=a;return test()?1:0;",
+        "return 'abc'.indexOf();",
+        "return 'abc'.lastIndexOf(undefined);",
+        "return 'abc'.indexOf(a);",
+        "const needle=a?'c':null;return 'abc'.indexOf(needle);",
+        "const xs=['c'];return 'abc'.lastIndexOf(xs.at(0));",
+        "return 'abc'.endsWith()?1:0;",
+        "return 'abc'.endsWith(undefined)?1:0;",
+        "return 'abc'.endsWith(a)?1:0;",
+        "const needle=a?'c':null;return 'abc'.endsWith(needle)?1:0;",
+        "const xs=['c'];return 'abc'.endsWith(xs.at(0))?1:0;",
+        "return 'abc'.startsWith()?1:0;",
+        "return 'abc'.includes(undefined)?1:0;",
+        "return 'abc'.includes(a)?1:0;",
+        "return 'abc'.startsWith(null)?1:0;",
+        "const needle=a?'a':null;return 'abc'.includes(needle)?1:0;",
+        "const xs=['a'];return 'abc'.startsWith(xs.at(0))?1:0;",
+        "const o={needle:'a'};o.needle=a;return 'abc'.includes(o.needle)?1:0;",
+        "return ''.concat(a).length;",
+        "return ''.concat(undefined).length;",
+        "return ''.concat(null).length;",
+        "return ''.concat(true).length;",
+        "const v=a?'go':b;return ('tag='+v).endsWith(v)?1:0;",
+        "return 'undefined!undefined'.lastIndexOf(...[]);",
+        "return 'xy'.concat(null,false,undefined,b)==='xy'+null+false+undefined+b?1:0;",
+        "let v=a;return ('n='+a).includes(v,(v=b,0))?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn fixed_spreads_in_string_methods_preserve_utf16_and_argument_effects() {
     for body in [
         "return 'abc'.codePointAt(...[0])===undefined?1:0;",
@@ -361,18 +398,12 @@ fn string_indices_compose_numeric_helpers_and_source_label_handlers() {
 #[test]
 fn string_indices_reject_unproven_strings_and_unrepresented_coercions() {
     for body in [
-        "return 'abc'.indexOf();",
-        "return 'abc'.lastIndexOf(undefined);",
-        "return 'abc'.indexOf(a);",
         "return 'abc'.lastIndexOf(/c/);",
         "return 'abc'.indexOf('c','1');",
         "return 'abc'.lastIndexOf('c',null);",
         "return 'abc'.indexOf('c',true);",
         "const s=a?'abc':null;return s.lastIndexOf('c');",
-        "const needle=a?'c':null;return 'abc'.indexOf(needle);",
-        "let needle='c';const find=()=> 'abc'.lastIndexOf(needle);needle=a;return find();",
         "const xs=['abc'];return xs.at(0).indexOf('c');",
-        "const xs=['c'];return 'abc'.lastIndexOf(xs.at(0));",
         "const s='abc';return s?.indexOf('c');",
         "const s='abc';return s.lastIndexOf?.('c');",
         "return 'abc'.indexOf.call('abc','c');",
@@ -460,18 +491,12 @@ fn string_ends_with_composes_booleans_helpers_and_ordinary_method_names() {
 #[test]
 fn string_ends_with_rejects_unproven_strings_and_unrepresented_coercions() {
     for body in [
-        "return 'abc'.endsWith()?1:0;",
-        "return 'abc'.endsWith(undefined)?1:0;",
-        "return 'abc'.endsWith(a)?1:0;",
         "return 'abc'.endsWith(/c/)?1:0;",
         "return 'abc'.endsWith('c','3')?1:0;",
         "return 'abc'.endsWith('c',null)?1:0;",
         "return 'abc'.endsWith('c',true)?1:0;",
         "const s=a?'abc':null;return s.endsWith('c')?1:0;",
-        "const needle=a?'c':null;return 'abc'.endsWith(needle)?1:0;",
-        "let needle='c';const matches=()=> 'abc'.endsWith(needle);needle=a;return matches()?1:0;",
         "const xs=['abc'];return xs.at(0).endsWith('c')?1:0;",
-        "const xs=['c'];return 'abc'.endsWith(xs.at(0))?1:0;",
         "const s='abc';return s?.endsWith('c')?1:0;",
         "const s='abc';return s.endsWith?.('c')?1:0;",
         "return 'abc'.endsWith.call('abc','c')?1:0;",
@@ -710,21 +735,13 @@ fn string_search_composes_boolean_values_helpers_and_ordinary_methods() {
 #[test]
 fn string_search_rejects_unproven_strings_and_unrepresented_coercions() {
     for body in [
-        "return 'abc'.startsWith()?1:0;",
-        "return 'abc'.includes(undefined)?1:0;",
-        "return 'abc'.includes(a)?1:0;",
-        "return 'abc'.startsWith(null)?1:0;",
         "return 'abc'.includes(/a/)?1:0;",
         "return 'abc'.includes('a','1')?1:0;",
         "return 'abc'.startsWith('a',true)?1:0;",
         "return 'abc'.includes('a',null)?1:0;",
         "return 'abc'.startsWith('a',{})?1:0;",
         "const s=a?'abc':null;return s.includes('a')?1:0;",
-        "const needle=a?'a':null;return 'abc'.includes(needle)?1:0;",
-        "let needle='a';const test=()=> 'abc'.includes(needle);needle=a;return test()?1:0;",
         "const xs=['abc'];return xs.at(0).includes('a')?1:0;",
-        "const xs=['a'];return 'abc'.startsWith(xs.at(0))?1:0;",
-        "const o={needle:'a'};o.needle=a;return 'abc'.includes(o.needle)?1:0;",
         "const s='abc';return s?.startsWith('a')?1:0;",
         "const s='abc';return s.includes?.('a')?1:0;",
         "return 'abc'.startsWith.call('abc','a')?1:0;",
