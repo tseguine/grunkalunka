@@ -1504,44 +1504,55 @@ impl Fields {
                     Some(Rule::Copy(vec![a.right.node_id()]))
                 }
                 AstKind::ChainExpression(chain) => Some(
-                    evaluate::optional_member::parts(chain, 0, &uint32_keys)
-                        .map(|(receiver, key)| match key {
-                            evaluate::optional_member::Key::Literal(key) => {
-                                Rule::OptionalMember(receiver.node_id(), key)
-                            }
-                            evaluate::optional_member::Key::Runtime(key) => {
+                    if chain
+                        .expression
+                        .as_member_expression()
+                        .is_some_and(|m| m.optional())
+                    {
+                        Rule::Copy(vec![chain.expression.node_id()])
+                    } else {
+                        Rule::Known(Origin::Other)
+                    },
+                ),
+                AstKind::StaticMemberExpression(m) => {
+                    let key = m.property.name.encode_utf16().collect();
+                    Some(if m.optional {
+                        Rule::OptionalMember(m.object.node_id(), key)
+                    } else {
+                        Rule::Member(m.object.node_id(), key)
+                    })
+                }
+                AstKind::ComputedMemberExpression(m) => {
+                    use evaluate::optional_member::{Key, computed_key};
+                    let receiver = m.object.node_id();
+                    Some(match computed_key(&m.expression, 0, &uint32_keys) {
+                        Some(Key::Literal(key)) if m.optional => {
+                            Rule::OptionalMember(receiver, key)
+                        }
+                        Some(Key::Literal(key)) => Rule::Member(receiver, key),
+                        Some(Key::Uint32(_)) if m.optional => {
+                            Rule::OptionalUnsignedMember(receiver)
+                        }
+                        Some(Key::Uint32(_)) => Rule::UnsignedMember(receiver),
+                        Some(Key::Runtime(key)) => {
+                            let domain = record_names.domain(key, 0);
+                            let key = key.node_id();
+                            if m.optional {
                                 Rule::OptionalComputedMember {
-                                    receiver: receiver.node_id(),
-                                    key: key.node_id(),
-                                    domain: record_names.domain(key, 0),
+                                    receiver,
+                                    key,
+                                    domain,
+                                }
+                            } else {
+                                Rule::StringKeyMember {
+                                    receiver,
+                                    key,
+                                    domain,
                                 }
                             }
-                            evaluate::optional_member::Key::Uint32(_) => {
-                                Rule::OptionalUnsignedMember(receiver.node_id())
-                            }
-                        })
-                        .unwrap_or(Rule::Known(Origin::Other)),
-                ),
-                AstKind::StaticMemberExpression(m) if !m.optional => Some(Rule::Member(
-                    m.object.node_id(),
-                    m.property.name.encode_utf16().collect(),
-                )),
-                AstKind::ComputedMemberExpression(m) if !m.optional => {
-                    if let Some(key) =
-                        closures::unwrapped(&m.expression, 0).and_then(static_keys::literal)
-                    {
-                        Some(Rule::Member(m.object.node_id(), key))
-                    } else if uint32_keys.contains(&m.expression, 0) {
-                        Some(Rule::UnsignedMember(m.object.node_id()))
-                    } else {
-                        // The solver checks the receiver and key before combining
-                        // possible own values and a missing-field alternative.
-                        Some(Rule::StringKeyMember {
-                            receiver: m.object.node_id(),
-                            key: m.expression.node_id(),
-                            domain: record_names.domain(&m.expression, 0),
-                        })
-                    }
+                        }
+                        None => Rule::Known(Origin::Other),
+                    })
                 }
                 _ => {
                     values.insert(id, BTreeSet::from([Origin::Other]));

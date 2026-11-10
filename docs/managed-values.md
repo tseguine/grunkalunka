@@ -50,8 +50,11 @@ receiver can skip a validated String key as well. Ordinary records require an
 own-name proof and arrays accept finite choices that exclude inherited names.
 
 Numeric projections still need a Number proof or explicit primitive conversion.
-Unknown receivers, inherited fields, other runtime keys, optional calls and
-unparenthesized multi-step chains remain guarded. Type assertions establish no
+Consecutive optional member reads, such as `model?.selection?.label`, make
+each property lookup against its own saved receiver. A nullish link skips
+the remaining optional keys, including their effects and suspension.
+Unknown receivers, inherited fields, other runtime keys and optional calls
+remain guarded. Type assertions establish no
 receiver or selected-value proof.
 
 Existing mutable numeric/primitive locals and parameters can also receive

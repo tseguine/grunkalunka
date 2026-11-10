@@ -1,7 +1,7 @@
 //! Original-source optional own-property reads, using the ordinary owned cursor.
 use super::managed::ManagedWork;
 use super::*;
-use oxc_ast::ast::{ChainElement, ChainExpression};
+use oxc_ast::ast::{ChainExpression, MemberExpression};
 
 pub(in crate::lower) enum Key<'e, 'a> {
     Literal(Vec<u16>),
@@ -14,24 +14,42 @@ pub(in crate::lower) fn parts<'e, 'a>(
     depth: usize,
     uint32_keys: &Uint32Keys,
 ) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
-    if depth + 2 > 128 {
+    let member = chain.expression.as_member_expression()?;
+    member_parts(member, depth, uint32_keys)
+}
+
+pub(in crate::lower) fn computed_key<'e, 'a>(
+    expression: &'e Expression<'a>,
+    depth: usize,
+    uint32_keys: &Uint32Keys,
+) -> Option<Key<'e, 'a>> {
+    let (key, _) = closures::unwrapped_at(expression, depth)?;
+    Some(if let Some(key) = static_keys::literal(key) {
+        Key::Literal(key)
+    } else if uint32_keys.contains(expression, depth) {
+        Key::Uint32(expression)
+    } else {
+        Key::Runtime(expression)
+    })
+}
+
+fn member_parts<'e, 'a>(
+    member: &'e MemberExpression<'a>,
+    depth: usize,
+    uint32_keys: &Uint32Keys,
+) -> Option<(&'e Expression<'a>, Key<'e, 'a>)> {
+    if depth + 2 > 128 || !member.optional() {
         return None;
     }
-    match &chain.expression {
-        ChainElement::StaticMemberExpression(member) if member.optional => Some((
-            &member.object,
-            Key::Literal(member.property.name.encode_utf16().collect()),
+    match member {
+        MemberExpression::StaticMemberExpression(m) => Some((
+            &m.object,
+            Key::Literal(m.property.name.encode_utf16().collect()),
         )),
-        ChainElement::ComputedMemberExpression(member) if member.optional => {
-            let (key, _) = closures::unwrapped_at(&member.expression, depth + 2)?;
-            if let Some(key) = static_keys::literal(key) {
-                Some((&member.object, Key::Literal(key)))
-            } else if uint32_keys.contains(&member.expression, depth + 2) {
-                Some((&member.object, Key::Uint32(&member.expression)))
-            } else {
-                Some((&member.object, Key::Runtime(&member.expression)))
-            }
-        }
+        MemberExpression::ComputedMemberExpression(m) => Some((
+            &m.object,
+            computed_key(&m.expression, depth + 2, uint32_keys)?,
+        )),
         _ => None,
     }
 }
@@ -68,10 +86,13 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
-        let Expression::ChainExpression(chain) = node else {
-            return Ok(false);
+        let property = match node {
+            Expression::ChainExpression(chain) => parts(chain, depth, &self.stored.uint32_keys),
+            _ => node
+                .as_member_expression()
+                .and_then(|member| member_parts(member, depth, &self.stored.uint32_keys)),
         };
-        let Some((object, key)) = parts(chain, depth, &self.stored.uint32_keys) else {
+        let Some((object, key)) = property else {
             return Ok(false);
         };
         let receiver = self.stored.optional_receiver(object.node_id());

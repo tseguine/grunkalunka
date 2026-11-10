@@ -5,6 +5,21 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn consecutive_optional_reads_skip_keys_at_each_nullish_link() {
+    for body in [
+        "const root=a?{row:b?{value:7}:null}:null;return +(root?.row?.value??9);",
+        "let n=0;const root=a?{rows:b?[{v:7}]:null}:null;const v=root?.[(n++,'rows')]?.[(n++,0)]?.v;return n*10+(v??0);",
+        "let root={row:{v:b}};const child=root?.row?.[(root={row:{v:a}},'v')];return +child;",
+        "const root=a?{row:b?{value:7}:null}:null;let n=0;const ok=delete root?.row?.[(n++,'value')];return ok?n+Number(root?.row?.value===undefined):99;",
+        "const root=a?{text:'😀'}:null;return +(root?.text?.length??0);",
+        "const d=Object.create(null);d.constructor={v:b};const key='constructor';const root=a?d:null;return +(root?.[key]?.v??3);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn logical_property_names_preserve_fallback_values_and_effects() {
     for body in [
         "const row={x:v=>v+1,y:v=>v-1};const k=(a?'x':'')||'y';return row[k](b);",
