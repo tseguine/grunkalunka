@@ -35,11 +35,7 @@ pub(super) fn argument<'e, 'a>(
         return None;
     }
     let argument = call.arguments[0].as_expression()?;
-    matches!(
-        closures::unwrapped_at(argument, 0),
-        Some((Expression::NullLiteral(_), _))
-    )
-    .then_some(argument)
+    null_prototype_value(argument, semantic, 0).then_some(argument)
 }
 
 // Only the colon form denotes a prototype setter. A shorthand or computed
@@ -57,20 +53,55 @@ pub(super) fn prototype_setter(property: &oxc_ast::ast::ObjectProperty<'_>) -> b
         }
 }
 
-pub(super) fn null_prototype_value(mut value: &Expression<'_>, mut depth: usize) -> bool {
-    // Earlier sequence operands still run at the setter's source position.
-    while let Some((expr, at)) = closures::unwrapped_at(value, depth) {
+pub(super) fn null_prototype_value<'a>(
+    value: &Expression<'a>,
+    semantic: &Semantic<'a>,
+    depth: usize,
+) -> bool {
+    use oxc_ast::AstKind;
+    let mut pending = vec![(value, depth)];
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some((value, depth)) = pending.pop() {
+        let Some((expr, at)) = closures::unwrapped_at(value, depth) else {
+            return false;
+        };
         match expr {
-            Expression::NullLiteral(_) => return true,
+            Expression::NullLiteral(_) => {}
             Expression::SequenceExpression(seq) => {
                 let Some(last) = seq.expressions.last() else {
                     return false;
                 };
-                value = last;
-                depth = at + 1;
+                pending.push((last, at + 1));
+            }
+            Expression::ConditionalExpression(choice) => {
+                pending.push((&choice.consequent, at + 1));
+                pending.push((&choice.alternate, at + 1));
+            }
+            Expression::Identifier(id) => {
+                let Some(symbol) = id
+                    .reference_id
+                    .get()
+                    .and_then(|r| semantic.scoping().get_reference(r).symbol_id())
+                else {
+                    return false;
+                };
+                let declaration = semantic.symbol_declaration(symbol);
+                let AstKind::VariableDeclarator(decl) = declaration.kind() else {
+                    return false;
+                };
+                if decl.span.end > id.span.start
+                    || !matches!(&decl.id, BindingPattern::BindingIdentifier(_))
+                    || !matches!(semantic.nodes().parent_kind(declaration.id()), AstKind::VariableDeclaration(d) if d.kind == VariableDeclarationKind::Const)
+                {
+                    return false;
+                }
+                if visited.insert(symbol) {
+                    let Some(init) = &decl.init else { return false };
+                    pending.push((init, at + 1));
+                }
             }
             _ => return false,
         }
     }
-    false
+    true
 }

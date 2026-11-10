@@ -953,8 +953,11 @@ impl Fields {
                     for property in &object.properties {
                         if let ObjectPropertyKind::ObjectProperty(property) = property {
                             if object_create::prototype_setter(property) {
-                                dictionary =
-                                    object_create::null_prototype_value(&property.value, 0);
+                                dictionary = object_create::null_prototype_value(
+                                    &property.value,
+                                    semantic,
+                                    0,
+                                );
                                 continue;
                             }
                             let value = property.value.node_id();

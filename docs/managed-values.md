@@ -1777,3 +1777,9 @@ the original RHS Number (including negative zero).
 Membership tests on a mixture of ordinary and null-prototype records check own
 properties first. An own miss consults the pristine Object prototype only for
 an ordinary record. This applies to both literal and computed inherited names.
+
+
+Object literals and `Object.create` accept a null prototype selected through
+a conditional, a sequence, or earlier simple `const` aliases when all possible
+results are null. The original expression still evaluates at the construction
+site, including effects before the selected null value.
