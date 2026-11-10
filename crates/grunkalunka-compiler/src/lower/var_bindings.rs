@@ -324,9 +324,8 @@ pub(super) fn reads(semantic: &Semantic<'_>) -> BTreeMap<NodeId, Vec<NodeId>> {
     result
 }
 
-/// A single completed assignment to a lexical local dominates later reads
-/// in the same activation when it is a standalone, unconditional statement.
-/// Keep captured reads, conditional writes and loop backedges conservative.
+/// A standalone assignment dominates later reads in the same block. An
+/// unconditional assignment can also establish the value outside its block.
 pub(super) fn lexical_assignment_reads(
     semantic: &Semantic<'_>,
     reads: &mut BTreeMap<NodeId, Vec<NodeId>>,
@@ -361,8 +360,22 @@ pub(super) fn lexical_assignment_reads(
         if assign.operator != AssignmentOperator::Assign
             || assign.span.start < decl.span.end
             || !matches!(assign.left.as_simple_assignment_target(),Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) if id.node_id()==write.node_id())
-            || !straight(assignment_id, semantic, false)
         {
+            continue;
+        }
+        // A conditional block does not dominate the rest of the function,
+        // but reaching a later statement inside that block requires this store.
+        let statement = nodes.parent_id(assignment_id);
+        let block = if matches!(nodes.kind(statement), AstKind::ExpressionStatement(_)) {
+            match nodes.parent_kind(statement) {
+                AstKind::BlockStatement(block) => Some(block.span),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let unconditional = straight(assignment_id, semantic, false);
+        if !unconditional && block.is_none() {
             continue;
         }
         let Some(body) = owner(node.id(), semantic) else {
@@ -376,7 +389,11 @@ pub(super) fn lexical_assignment_reads(
             .filter(|r| r.is_read())
         {
             let id = read.node_id();
-            if nodes.kind(id).span().start >= assign.span.end && owner(id, semantic) == Some(body) {
+            let span = nodes.kind(id).span();
+            if span.start >= assign.span.end
+                && (unconditional || block.is_some_and(|b| b.contains_inclusive(span)))
+                && owner(id, semantic) == Some(body)
+            {
                 reads.insert(id, vec![assign.right.node_id()]);
             }
         }
