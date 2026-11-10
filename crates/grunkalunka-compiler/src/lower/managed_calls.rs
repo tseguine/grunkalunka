@@ -562,6 +562,7 @@ fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
     }
     semantic.nodes().iter().any(|node| {
         let origin = match node.kind() {
+            kind if object_intrinsics::array_constructor_site(kind, semantic) => true,
             AstKind::CallExpression(call)
                 if object_intrinsics::enumeration(call, semantic).is_some() =>
             {

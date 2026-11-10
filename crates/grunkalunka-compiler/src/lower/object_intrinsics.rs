@@ -46,14 +46,25 @@ pub(super) fn array_constructor_args<'e, 'a>(
     }
 }
 
-pub(super) fn array_constructor_site(kind: oxc_ast::AstKind<'_>, semantic: &Semantic<'_>) -> bool {
+pub(super) fn array_site_args<'a>(
+    kind: oxc_ast::AstKind<'a>,
+    semantic: &Semantic<'_>,
+) -> Option<&'a [oxc_ast::ast::Argument<'a>]> {
     match kind {
-        oxc_ast::AstKind::CallExpression(call) => {
-            !call.optional && array_constructor(&call.callee, semantic, 0)
+        oxc_ast::AstKind::CallExpression(call)
+            if !call.optional && array_constructor(&call.callee, semantic, 0) =>
+        {
+            Some(call.arguments.as_slice())
         }
-        oxc_ast::AstKind::NewExpression(call) => array_constructor(&call.callee, semantic, 0),
-        _ => false,
+        oxc_ast::AstKind::NewExpression(call) if array_constructor(&call.callee, semantic, 0) => {
+            Some(call.arguments.as_slice())
+        }
+        _ => None,
     }
+}
+
+pub(super) fn array_constructor_site(kind: oxc_ast::AstKind<'_>, semantic: &Semantic<'_>) -> bool {
+    array_site_args(kind, semantic).is_some()
 }
 
 fn method_name<'e>(

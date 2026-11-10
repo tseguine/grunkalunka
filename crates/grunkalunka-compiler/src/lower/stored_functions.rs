@@ -317,6 +317,14 @@ impl Fields {
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::Number))
     }
+    pub(super) fn non_number_element(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values
+                    .iter()
+                    .all(|v| !matches!(v, Origin::Number | Origin::Other))
+        })
+    }
     pub(super) fn primitive(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             !values.is_empty()
@@ -738,9 +746,29 @@ impl Fields {
                 }
             }
             let rule = match node.kind() {
-                kind if object_intrinsics::array_constructor_site(kind, semantic) => {
-                    fields.insert(id, BTreeMap::new());
-                    elements.sparse_array(id);
+                kind if let Some(args) = object_intrinsics::array_site_args(kind, semantic) => {
+                    let args = invocation::plain_arguments(args);
+                    let mut own = BTreeMap::new();
+                    if args.len() == 1
+                        && args
+                            .first()
+                            .and_then(|arg| arg.as_expression())
+                            .is_some_and(|v| uint32_keys.unsigned_value(v))
+                    {
+                        elements.sparse_array(id);
+                    } else {
+                        for (index, arg) in args.iter().enumerate() {
+                            if let Some(value) = arg.as_expression() {
+                                own.insert(
+                                    index.to_string().encode_utf16().collect(),
+                                    Some(value.node_id()),
+                                );
+                            } else {
+                                open_fields.insert(id);
+                            }
+                        }
+                    }
+                    fields.insert(id, own);
                     values.insert(id, BTreeSet::from([Origin::Array(id)]));
                     None
                 }

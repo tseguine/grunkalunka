@@ -1672,3 +1672,11 @@ fresh empty Array. A single proven uint32 Number sets its sparse length.
 Holes have no own index entries, even at length 4294967295. Length
 expressions execute once. Unchecked numeric lengths remain guarded until
 the compiler supports the constructor's catchable RangeError.
+
+Two or more ordinary constructor arguments produce dense own elements in
+argument order. A single source-proven non-Number also becomes one own
+element, including an explicit Undefined. Single Numbers still select the
+length overload. The elements preserve their represented kinds and identities.
+Fixed, non-elided array-literal spreads expand before overload selection,
+so `Array(...[3])` has three holes while `Array(...[undefined])` has one
+own slot. Both source and expanded argument counts use the call width limit.

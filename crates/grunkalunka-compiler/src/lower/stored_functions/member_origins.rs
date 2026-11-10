@@ -175,7 +175,11 @@ impl Members<'_, '_> {
                     }
                 }
                 kind if object_intrinsics::array_constructor_site(kind, self.semantic) => {
-                    // A sparse length creates no enumerable own entries.
+                    if let Some(fields) = self.fields.get(&site) {
+                        for value in fields.values().flatten() {
+                            found.extend(origins(*value));
+                        }
+                    }
                 }
                 AstKind::ArrayExpression(array) => {
                     if let Some(elements) = iteration::literal_elements(array) {
