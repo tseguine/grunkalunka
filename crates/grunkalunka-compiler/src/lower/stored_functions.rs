@@ -74,6 +74,7 @@ enum Definition {
     ForIn(SymbolId),
 }
 struct FunctionFlow {
+    is_async: bool,
     parameters: Vec<SymbolId>,
     defaults: Vec<Option<NodeId>>,
     returns: Vec<NodeId>,
@@ -1128,6 +1129,7 @@ impl Fields {
                     functions.insert(
                         Origin::Arrow(id),
                         FunctionFlow {
+                            is_async: arrow.r#async,
                             parameters: parameters(&arrow.params),
                             defaults: arrow
                                 .params
@@ -1170,6 +1172,7 @@ impl Fields {
                         functions.insert(
                             Origin::Named(name),
                             FunctionFlow {
+                                is_async: function.r#async,
                                 parameters: parameters(&function.params),
                                 defaults: function
                                     .params
@@ -1919,6 +1922,11 @@ impl Fields {
                                         incoming.extend(get(default));
                                     }
                                     symbol_additions.push((*symbol, incoming));
+                                }
+                                // An async call returns a Promise even when its body returns a Number.
+                                if function.is_async {
+                                    found.insert(Origin::Other);
+                                    continue;
                                 }
                                 for expression in &function.returns {
                                     found.extend(get(expression));
