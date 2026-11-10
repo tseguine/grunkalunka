@@ -182,6 +182,27 @@ fn math_integer_product(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> b
     math_name(call, semantic) == Some("imul")
 }
 
+// A module-level literal statement has no binding or observable effect.
+pub(super) fn discarded_module_literal(mut expression: &Expression<'_>) -> bool {
+    let mut depth = 0;
+    while let Some((node, inner_depth)) = closures::unwrapped_at(expression, depth) {
+        match node {
+            Expression::NumericLiteral(_)
+            | Expression::BooleanLiteral(_)
+            | Expression::NullLiteral(_)
+            | Expression::StringLiteral(_)
+            | Expression::BigIntLiteral(_) => return true,
+            Expression::TemplateLiteral(template) => return template.expressions.is_empty(),
+            Expression::UnaryExpression(unary) if unary.operator == UnaryOperator::Void => {
+                expression = &unary.argument;
+                depth = inner_depth + 1;
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
 // These source statements consume their normal budgets and emit no operations.
 // The debugger statement has no attached debugger in the execution profiles.
 fn emits_no_statement(statement: &Statement<'_>) -> bool {

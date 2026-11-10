@@ -369,9 +369,16 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 759);
+  assert.equal(inventory.records.size, 758);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('the original post-export string is its own executing oracle', () => {
+  const source = programSources(programs.find(row => row[0] === 'directive-post-export'));
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),
+    '72db873fee6105da1d2aadd4762ce10f936e9ccb5f2150f0f9b76174f848e56b');
+  assert.equal(source.oracleSource, source.sourceJS);
 });
 
 test('empty abrupt tails execute their original JS and TS sources', () => {

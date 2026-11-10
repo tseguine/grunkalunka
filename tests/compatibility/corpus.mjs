@@ -185,7 +185,7 @@ import { localExportEntries } from './module-entries.mjs';
 
 import { literalPowers } from './numeric-powers.mjs';
 
-export const corpusVersion = 213;
+export const corpusVersion = 214;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [

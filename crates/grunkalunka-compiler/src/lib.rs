@@ -79,8 +79,9 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
 }
 
 // Oxc represents re-exports from another module with a distinct AST kind.
-fn is_empty_module_item(statement: &Statement<'_>) -> bool {
+fn is_inert_module_item(statement: &Statement<'_>) -> bool {
     matches!(statement, Statement::EmptyStatement(_))
+        || matches!(statement, Statement::ExpressionStatement(source) if lower::discarded_module_literal(&source.expression))
         || matches!(statement, Statement::ExportNamedDeclaration(export) if export.specifiers.is_empty())
 }
 
@@ -232,7 +233,7 @@ fn lower_source_profile_with_identities(
     // The original annotated AST stays available through lowering. Type syntax
     // is unvalidated metadata; the ABI and runtime operands determine admission.
     let skipped_item = |statement: &Statement<'_>| {
-        is_empty_module_item(statement)
+        is_inert_module_item(statement)
             || is_type_module_item(statement)
             || (ui_import.is_some() && matches!(statement, Statement::ImportDeclaration(_)))
     };
@@ -1359,6 +1360,37 @@ mod tests {
         let plain = compile("export function run(a,b) { return a+b; }", false).unwrap();
         let decorated = compile("\"module hint\"; export function run(a,b) { \"use strict\"; \"body hint\"; return a+b; }", false).unwrap();
         assert_eq!(plain.wasm, decorated.wasm);
+    }
+
+    #[test]
+    fn discarded_module_literals_keep_effect_and_resource_guards() {
+        let entry = "export function run(a,b){return a;}";
+        for ts in [false, true] {
+            let baseline = compile(entry, ts).unwrap().wasm;
+            let accepted = format!("{}{entry}", "0;".repeat(255));
+            assert_eq!(compile(&accepted, ts).unwrap().wasm, baseline);
+            assert!(
+                compile(&format!("{accepted}0;"), ts)
+                    .err()
+                    .unwrap()
+                    .contains("at most 256 statements")
+            );
+            for prefix in [
+                "void unknown;",
+                "void effect();",
+                "`x${effect()}`;",
+                "(effect() as number);",
+            ] {
+                assert!(
+                    compile(&format!("{prefix}{entry}"), ts).is_err(),
+                    "{prefix}"
+                );
+            }
+            for (depth, admitted) in [(128, true), (129, false)] {
+                let source = format!("{}0{};{entry}", "(".repeat(depth), ")".repeat(depth));
+                assert_eq!(compile(&source, ts).is_ok(), admitted);
+            }
+        }
     }
 
     #[test]
