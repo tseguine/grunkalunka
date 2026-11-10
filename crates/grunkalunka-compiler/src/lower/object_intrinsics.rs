@@ -24,14 +24,28 @@ pub(super) fn instance_test(
     global_value(id, semantic).then_some(test)
 }
 
-pub(super) fn string_call(
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ConversionCall {
+    String,
+    Boolean,
+}
+
+pub(super) fn conversion_call(
     call: &CallExpression<'_>,
     semantic: &Semantic<'_>,
     depth: usize,
-) -> bool {
-    !call.optional
-        && matches!(closures::unwrapped(&call.callee, depth), Some(Expression::Identifier(id))
-        if id.name == "String" && global_value(id, semantic))
+) -> Option<ConversionCall> {
+    let Expression::Identifier(id) = closures::unwrapped(&call.callee, depth)? else {
+        return None;
+    };
+    if call.optional || !global_value(id, semantic) {
+        return None;
+    }
+    match id.name.as_str() {
+        "String" => Some(ConversionCall::String),
+        "Boolean" => Some(ConversionCall::Boolean),
+        _ => None,
+    }
 }
 
 fn array_constructor(callee: &Expression<'_>, semantic: &Semantic<'_>, depth: usize) -> bool {
