@@ -1963,4 +1963,33 @@ mod generic_declaration_tests {
                 .contains("parse diagnostics")
         );
     }
+
+    #[test]
+    fn captured_primitive_keys_are_admitted_and_other_capture_guards_remain() {
+        for body in [
+            "const o={};const f=()=>{if(0)o[b];return a;};return a;",
+            "const o={};const f=()=>{if(0)o[b];return a;};return f();",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typescript in [false, true] {
+                compile(&source, typescript).unwrap_or_else(|e| panic!("{source}: {e}"));
+            }
+        }
+        for body in [
+            "const o={};const f=()=>{o.toString();return a;};return a;",
+            "const o={};const f=()=>{o.x=Symbol();return a;};return a;",
+            "const o={};const f=()=>{o.x=1n;return a;};return a;",
+            "let o={};const f=()=>{o=a;return b;};return f();",
+            "const o={};const f=()=>{o={};return a;};return f();",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typescript in [false, true] {
+                let error = compile(&source, typescript)
+                    .err()
+                    .unwrap_or_else(|| panic!("unexpectedly admitted {source}"));
+                assert!(error.contains("unsupported"), "{source}: {error}");
+                assert!(!error.contains("internal IR"), "{source}: {error}");
+            }
+        }
+    }
 }
