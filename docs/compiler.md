@@ -2826,7 +2826,10 @@ A single `let` counter with an unsigned initializer can index a counted loop:
 `for (let i = 0; i < xs.length; i++) dst[i] = xs[i]`. The strict upper bound
 must also be proven unsigned and the header increment must be the counter's
 only write, including in closures. The test still reads the live upper bound
-on every iteration. Annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
+on every iteration. Descending loops can start at `xs.length - 1` with
+`i >= 0; --i`, or start at `xs.length` and test `i-- > 0`. The body sees
+only the indices visited, including zero when present. Empty arrays skip the
+body. Annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
 
 Objects, dictionaries and Arrays evaluate and save the receiver before the key.
 ManagedKey::Uint32 explicitly means the decimal property key of ToUint32(input);
