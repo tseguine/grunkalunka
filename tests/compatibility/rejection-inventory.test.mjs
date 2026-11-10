@@ -373,6 +373,14 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
 
+test('conditional instanceof executes the original reference source', () => {
+  const source = programSources(programs.find(row => row[0] === 'gap-instanceof'));
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),
+    'e6d8833d56b1e77fc56a0b7ef46ff0a74e00a810707f80c329d4ee1370685db7');
+  assert.equal(source.oracleSource, source.sourceJS);
+  assert.ok(!rejected.some(row => row[0] === 'gap-instanceof'));
+});
+
 test('mixed String addition executes both original rejection sources', async () => {
   for (const [id, hash] of [
     ['gap-string-coercion', 'f62e0982596b138842c8528ee56dbbf8d24e5bb9cabc664c2c7ba76a5609586c'],

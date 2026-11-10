@@ -457,7 +457,7 @@
     {
       "id": "instanceof",
       "kind": "open-requirement",
-      "assessment": "instanceof requires constructor/prototype and callable behavior.",
+      "assessment": "Direct, conditional and comma-selected pristine Array, Function and Object constructors use the runtime instance test. A shadowed constructor still requires ordinary callable and prototype behavior.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-instanceofoperator",
@@ -1050,10 +1050,10 @@
       "group": "coercive-equality"
     },
     {
-      "id": "gap-instanceof",
+      "id": "instanceof-selected-shadowed",
       "extension": "js",
       "sourceMode": "module-strict",
-      "sourceSha256": "e6d8833d56b1e77fc56a0b7ef46ff0a74e00a810707f80c329d4ee1370685db7",
+      "sourceSha256": "1342b665cd8bbe482b7bcb18e388d6b448c9f315bd6d0e526f6b99e6b3ec3ca3",
       "group": "instanceof"
     },
     {

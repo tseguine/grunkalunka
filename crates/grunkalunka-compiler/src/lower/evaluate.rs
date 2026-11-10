@@ -1127,7 +1127,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         let ty = match mode {
             Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
             Mode::AsyncValue => Type::AsyncValue,
-            Mode::Predicate => Type::Predicate,
+            Mode::Predicate | Mode::InstanceOf(_) => Type::Predicate,
             Mode::Function(signature) => Type::Closure(signature),
             Mode::Pending => Type::Promise,
             Mode::Promise => Type::FulfilledPromise,
@@ -1621,6 +1621,10 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
                 Work::StringMethod(task) => {
                     self.resume_string_method(task, regions, values, work)?
+                }
+                Work::InstanceOfConstructor(rhs, depth) => {
+                    let input = values.pop().expect("instanceof left operand").id();
+                    work.push(Work::Eval(rhs, depth, Mode::InstanceOf(input)));
                 }
                 Work::ManagedTest {
                     node,
@@ -3343,6 +3347,35 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if let Mode::InstanceOf(input) = mode {
+                        if matches!(
+                            node,
+                            Expression::ConditionalExpression(_)
+                                | Expression::SequenceExpression(_)
+                        ) {
+                            schedule_selection(work, node, depth, mode)?;
+                        } else if let Expression::Identifier(id) = node
+                            && let Some(test) = object_intrinsics::instance_test(id, self.semantic)
+                        {
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::ManagedTest {
+                                    result,
+                                    input,
+                                    test,
+                                },
+                            );
+                            values.push(Value::Predicate(result));
+                        } else {
+                            return Err(unsupported(
+                                node,
+                                "instanceof requires an intrinsic constructor",
+                            ));
+                        }
                         continue;
                     }
                     if self.schedule_managed(node, depth, mode, regions, values, work)? {

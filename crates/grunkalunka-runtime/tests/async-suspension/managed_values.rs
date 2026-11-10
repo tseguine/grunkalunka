@@ -822,6 +822,7 @@ fn dictionary_reads_preserve_receiver_and_value_snapshots_across_await() {
         &[
             "let n=0;const xs=Array((n++,a),await b);return n===1&&xs[1]===b?1:0;",
             "let n=0;const xs=new Array((n++,await a)>>>0);return xs.length===((a>>>0))?n:0;",
+            "let x=a?[]:{};const yes=x instanceof (x={},await b?Array:Object);return yes?1:0;",
             "const dict=Object.create(null);const obj=a?dict:{};await b;return obj instanceof Object?1:0;",
             "let n=0;const x=(n++,await a)?[b]:{};return (x instanceof Array?n+1:n);",
             "let o=a?{x:b}:null;const key='x';let n=0;const v=o?.[(n++,o=null,await a,key)];return n*10+(v===b?1:0);",

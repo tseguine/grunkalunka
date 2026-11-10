@@ -1691,8 +1691,10 @@ open-ended name sets use the conservative own-property lookup.
 
 The direct `value instanceof Array` expression evaluates the left operand
 once and tests the represented array in the pristine realm. A record with
-array-like fields fails that test. The right operand must resolve to the
-intrinsic constructor; user constructors, prototype mutation, proxies and
+array-like fields fails that test. A conditional or comma expression can
+select an intrinsic constructor on the right. Its effects run after the
+left operand has been saved, including when the condition suspends.
+Each selected leaf must resolve to a pristine intrinsic constructor; user constructors, prototype mutation, proxies and
 custom instance checks remain separate features.
 
 Direct `instanceof Function` and `instanceof Object` also recognize the
