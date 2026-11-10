@@ -1,4 +1,5 @@
 // Diagnostic full-profile check sweep. The workspace Cargo tests ran
+// Report every independent failure rather than aborting on the first command.
 // separately with --no-fail-fast, so skip that exact manifest command.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
