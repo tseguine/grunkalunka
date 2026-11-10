@@ -1088,6 +1088,10 @@ fn nonreference_delete_evaluates_values_without_deleting_selected_properties() {
 #[test]
 fn runtime_delete_keys_keep_receiver_snapshots_and_source_order() {
     for body in [
+        "const xs=[];xs[a]=1;const len=xs.length;return delete xs[a]&&!Object.hasOwn(xs,a)&&xs.length===len?1:0;",
+        "let o={};const old=o;old[a]=b;const yes=delete o[(o={},a)];return yes&&!Object.hasOwn(old,a)?1:0;",
+        "const k=a?null:false;const o={[k]:b};return delete o[k]&&!Object.hasOwn(o,k)?1:0;",
+        "let n=0;const xs=a?[b]:null;const yes=delete xs?.[(n++,a)];return yes?n:9;",
         "const d=Object.create(null);const key='x';delete d[key];return a;",
         "const o={x:a,y:b};const key=a?'x':'y';return delete o[key]&&!Object.hasOwn(o,key)&&Object.keys(o).length===1?1:0;",
         "let current={x:a};const original=current;const key=()=>{current={x:b};return 'x';};const removed=delete current[key()];return removed&&original.x===undefined&&current.x===b?1:0;",

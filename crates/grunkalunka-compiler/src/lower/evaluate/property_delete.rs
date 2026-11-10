@@ -12,12 +12,12 @@ pub(super) enum Task<'e, 'a> {
         node: &'e Expression<'a>,
         key: &'e Expression<'a>,
         depth: usize,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
     },
     Key {
         node: &'e Expression<'a>,
         input: ValueId,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
     },
 }
 
@@ -80,12 +80,10 @@ impl Lowering<'_, '_> {
                 "delete requires a proven Number, Boolean, object or array receiver",
             ));
         }
-        let uint32 =
-            dynamic.is_some_and(|key| self.stored.uint32_keys.contains(key, member_depth + 1));
+        let kind = dynamic.and_then(|key| self.runtime_key(key, member_depth + 1));
         if let Some(key) = dynamic
             && literal.is_none()
-            && !uint32
-            && !self.stored.string(key.node_id())
+            && kind.is_none()
             && !(primitive
                 && (self.numeric_result_shape(key, member_depth + 1)
                     || self.operand_boolean_shape(key, member_depth + 1)
@@ -94,7 +92,7 @@ impl Lowering<'_, '_> {
         {
             return Err(unsupported(
                 node,
-                "runtime delete keys require a source-proven String",
+                "runtime delete keys require a represented primitive",
             ));
         }
         if primitive {
@@ -110,7 +108,10 @@ impl Lowering<'_, '_> {
         }
         let ty = ty.expect("validated managed delete receiver");
         if ty == Type::ManagedArray
-            && !uint32
+            && !matches!(
+                kind,
+                Some(dictionary::RuntimeKey::Uint32 | dictionary::RuntimeKey::Scalar { .. })
+            )
             && !literal
                 .as_ref()
                 .is_some_and(|key| key.as_slice() != [108, 101, 110, 103, 116, 104])
@@ -128,7 +129,7 @@ impl Lowering<'_, '_> {
                 node,
                 key: dynamic.expect("computed runtime key"),
                 depth: member_depth + 1,
-                uint32,
+                kind: kind.expect("validated primitive key"),
             }
         }));
         work.push(Work::Eval(object, member_depth + 1, Mode::managed(ty)));
@@ -141,11 +142,10 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
-    ) {
+    ) -> Result<(), String> {
         let (node, input, key) = match task {
             Task::Optional(task) => {
-                self.resume_optional_delete(task, regions, values, work);
-                return;
+                return self.resume_optional_delete(task, regions, values, work);
             }
             Task::Effect(node) => {
                 let result = self.value(Type::Predicate);
@@ -158,7 +158,7 @@ impl Lowering<'_, '_> {
                     },
                 );
                 values.push(Value::Predicate(result));
-                return;
+                return Ok(());
             }
             Task::Literal { node, key } => (
                 node,
@@ -169,36 +169,16 @@ impl Lowering<'_, '_> {
                 node,
                 key,
                 depth,
-                uint32,
+                kind,
             } => {
                 let input = values.pop().expect("saved delete receiver").id();
-                work.push(Work::PropertyDelete(Task::Key {
-                    node,
-                    input,
-                    uint32,
-                }));
-                work.push(Work::Eval(
-                    key,
-                    depth,
-                    if uint32 { Mode::Number } else { Mode::Managed },
-                ));
-                return;
+                work.push(Work::PropertyDelete(Task::Key { node, input, kind }));
+                self.schedule_runtime_key(key, depth, kind, work)?;
+                return Ok(());
             }
-            Task::Key {
-                node,
-                input,
-                uint32,
-            } => {
+            Task::Key { node, input, kind } => {
                 let key = values.pop().expect("delete key").id();
-                (
-                    node,
-                    input,
-                    if uint32 {
-                        ir::ManagedKey::Uint32(key)
-                    } else {
-                        ir::ManagedKey::String(key)
-                    },
-                )
+                (node, input, kind.finish(key))
             }
         };
         let result = self.value(Type::Predicate);
@@ -208,6 +188,7 @@ impl Lowering<'_, '_> {
             Op::ManagedDeleteOwn { result, input, key },
         );
         values.push(Value::Predicate(result));
+        Ok(())
     }
 }
 
@@ -257,9 +238,9 @@ mod tests {
                 "const xs=[a,b];let k=0;delete xs[k=a>>>0];return xs.length;",
                 true,
             ),
-            ("const xs=[a];delete xs[a];return a;", false),
-            ("const xs=[a];delete xs[a>>0];return a;", false),
-            ("const xs=[a];delete xs[a?(0>>>0):b];return a;", false),
+            ("const xs=[a];delete xs[a];return a;", true),
+            ("const xs=[a];delete xs[a>>0];return a;", true),
+            ("const xs=[a];delete xs[a?(0>>>0):b];return a;", true),
             ("const xs=[a];delete xs.length;return a;", false),
             (
                 "const xs=['x'];const alias=xs;delete alias[a>>>0];return xs[0].trim().length;",
@@ -282,7 +263,7 @@ mod tests {
             crate::compile(js, false).unwrap().wasm,
             crate::compile(ts, true).unwrap().wasm
         );
-        assert!(crate::compile("export function run(a:number,b:number){const xs=[a];delete xs[a as number];return a;}",true).is_err());
+        assert!(crate::compile("export function run(a:number,b:number){const xs=[a];delete xs[{} as unknown as number];return a;}",true).is_err());
     }
 
     #[test]
@@ -335,10 +316,10 @@ mod tests {
             ),
             (
                 "const o={x:a};let key='x';key=a;delete o[key];return a;",
-                false,
+                true,
             ),
             ("const xs=[a],key='0';delete xs[key];return a;", false),
-            ("const o={x:a};delete o[a];return a;", false),
+            ("const o={x:a};delete o[a];return a;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
@@ -346,7 +327,7 @@ mod tests {
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
         }
-        assert!(crate::compile("export function run(a:number,b:number){const o={x:a};delete o[a as string];return a;}", true).is_err());
+        assert!(crate::compile("export function run(a:number,b:number){const o={x:a};delete o[{} as unknown as string];return a;}", true).is_err());
     }
 
     #[test]

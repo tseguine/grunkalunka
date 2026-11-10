@@ -171,6 +171,7 @@ fn member_iteration_heads_save_selections_and_targets_across_awaits() {
 fn optional_delete_preserves_saved_targets_and_skipped_rejected_keys() {
     compare_promises(
         &[
+            "let xs=[];const old=xs;old[a]=1;const ok=delete xs?.[(await a,xs=[],a)];return ok&&!Object.hasOwn(old,a)?1:0;",
             "let o={x:a};const old=o;const ok=delete o?.[(await b,o={x:b},'x')];await a;return ok&&old.x===undefined&&o.x===b?1:0;",
             "const o=a?{x:b}:null;let n=0;const ok=delete o?.[(await b,n++,'x')];await a;return ok&&n===(a?1:0)?1:0;",
             "const o={x:a};const target=a?o:null;try{const ok=delete target?.[(await Promise.reject(b),'x')];await a;return ok&&o.x===a?1:0;}catch(e){await a;return o.x===a?2:0;}",
