@@ -285,6 +285,9 @@ fn string_local_compounds_keep_snapshots_and_commit_after_await_success() {
 fn runtime_dictionary_logical_writes_keep_snapshots_across_awaits() {
     compare_promises(
         &[
+            "let o={x:3,y:5};const old=o,k=a?'x':'y';const v=o[k]+=(o={x:7},await b);return old[k]===v&&o.x===7?1:0;",
+            "let o={x:0};const old=o,k=a?'x':'y';const v=o[k]||=(o={},await b);return old[k]===v&&o[k]===undefined?1:0;",
+            "const o={x:0};const k=a?'x':'y';try{o[k]??=await Promise.reject(b);}catch(e){return o[k]===undefined&&e===b?1:0;}return o[k]===0?1:0;",
             "const d=Object.create(null);const k='x';const value=d[k]??=(await b,'new');return d.x===value?1:0;",
             "const d=Object.create(null);const k='x';d[k]='old';d[k]||=(await Promise.reject(b),'new');return d.x==='old'?1:0;",
             "const d=Object.create(null);const k='x';try{d[k]??=(await Promise.reject(b),'new');}catch(e){return d.x===undefined&&e===b?1:0;}return -1;",

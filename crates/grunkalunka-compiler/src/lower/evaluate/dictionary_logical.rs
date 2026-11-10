@@ -55,23 +55,9 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let uint32 = self
-            .stored
-            .uint32_keys
-            .contains(&member.expression, depth + 1);
-        let dictionary = self.stored.dictionary(member.object.node_id());
-        let receiver = self.receiver_type(&member.object, depth + 1);
-        if member.optional
-            || !(dictionary
-                || (uint32 && matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray))))
-        {
+        let Some((receiver_mode, uint32)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
-        }
-        if closures::unwrapped_at(&member.expression, depth + 1)
-            .is_some_and(|(key, _)| static_keys::literal(key).is_some())
-        {
-            return Ok(false);
-        }
+        };
         if !uint32 && !self.stored.string(member.expression.node_id()) {
             return Err(unsupported(
                 node,
@@ -90,15 +76,7 @@ impl Lowering<'_, '_> {
             depth: depth + 1,
             uint32,
         }));
-        work.push(Work::Eval(
-            &member.object,
-            depth + 1,
-            if dictionary {
-                Mode::Object
-            } else {
-                Mode::managed(receiver.expect("validated logical receiver"))
-            },
-        ));
+        work.push(Work::Eval(&member.object, depth + 1, receiver_mode));
         Ok(true)
     }
 
@@ -233,7 +211,7 @@ impl Lowering<'_, '_> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn dynamic_logical_writes_require_dictionary_and_string_key_proofs() {
+    fn dynamic_logical_writes_require_receiver_and_name_proofs() {
         for (body, admitted) in [
             (
                 "const d=Object.create(null);const k='x';return (d[k]??=a)===a?1:0;",
@@ -243,7 +221,15 @@ mod tests {
                 "const d=Object.create(null);const k='x';d[k]||='ok';return d[k]==='ok'?1:0;",
                 true,
             ),
-            ("const d={};const k='x';d[k]??=a;return a;", false),
+            ("const d={};const k='x';d[k]??=a;return a;", true),
+            (
+                "const o={x:'old'};const k=a?'x':'y';o[k]&&=b;return o.x.length;",
+                false,
+            ),
+            (
+                "const o={};const k=a?'x':'__proto__';o[k]||=b;return a;",
+                false,
+            ),
             ("const d=Object.create(null);d[a]??=b;return a;", false),
             ("const d=[];const k='x';d[k]??=a;return a;", false),
             (

@@ -1626,3 +1626,10 @@ Object binding and assignment patterns also admit these runtime names.
 In `const {[key]: value, ...rest} = record`, the key runs once, selects
 the field, and excludes that same name from the rest copy. Defaults retain
 their usual missing-or-Undefined behavior.
+
+A computed field with the same key proof also supports `&&=`, `||=`, and
+`??=`. The receiver, key, and previous value are saved once. A skipped
+assignment leaves the field untouched.
+Numeric compound assignments and prefix/postfix updates use the same saved
+key when the old value has a proven primitive numeric-coercion domain.
+Postfix returns the converted old value and prefix returns the stored result.

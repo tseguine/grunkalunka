@@ -107,16 +107,14 @@ impl Lowering<'_, '_> {
                     .and_then(|(key, _)| static_keys::literal(key));
                 if let Some(key) = key {
                     (&member.object, Key::Literal(key))
-                } else if self
-                    .stored
-                    .uint32_keys
-                    .contains(&member.expression, depth + 2)
-                {
-                    (&member.object, Key::Uint32(&member.expression))
-                } else if self.stored.dictionary(member.object.node_id())
-                    && self.stored.string(member.expression.node_id())
-                {
-                    (&member.object, Key::String(&member.expression))
+                } else if let Some((_, uint32)) = self.runtime_member_receiver(member, depth + 2) {
+                    if uint32 {
+                        (&member.object, Key::Uint32(&member.expression))
+                    } else if self.stored.string(member.expression.node_id()) {
+                        (&member.object, Key::String(&member.expression))
+                    } else {
+                        return Ok(false);
+                    }
                 } else {
                     return Ok(false);
                 }
@@ -413,7 +411,12 @@ mod tests {
                 "const d=Object.create(null);const k='x';d.x=a;return d[k]>>>=b;",
                 true,
             ),
-            ("const d={x:a};const k='x';return d[k]++;", false),
+            ("const d={x:a};const k='x';return d[k]++;", true),
+            ("const o={x:'str'};const k='x';return o[k]++;", false),
+            (
+                "const o={x:a};const k=b?'x':'constructor';return o[k]++;",
+                false,
+            ),
             ("const d=[a];const k='0';return d[k]++;", false),
             ("const d=Object.create(null);return d[a]++;", false),
             (
@@ -509,7 +512,7 @@ mod tests {
             ("const o={n:a};delete o.n;o.n++;return a;", true),
             ("const o={n:a};o.n='text';o.n++;return a;", false),
             ("const o={n:a};return o.n+='text';", false),
-            ("const o={n:a};const k='n';return o[k]++;", false),
+            ("const o={n:a};const k='n';return o[k]++;", true),
             ("const xs=[a];return xs.length++;", false),
             ("return a.n++;", false),
         ] {
