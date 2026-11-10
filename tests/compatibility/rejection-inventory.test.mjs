@@ -368,9 +368,16 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 796);
+  assert.equal(inventory.records.size, 795);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('switch continue retains its former rejected source as a native differential oracle', () => {
+  const source = programSources(programs.find(row => row[0] === 'continue-switch-remains'));
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),
+    '200590f090d7dd2612691762a32769a431eeb6421050ac0b9cb0d3a4abc52400');
+  assert.equal(source.oracleSource, source.sourceJS);
 });
 
 test('for-in promotes its exact former rejection into an executable source', () => {

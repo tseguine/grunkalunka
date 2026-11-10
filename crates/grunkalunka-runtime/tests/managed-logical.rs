@@ -32,6 +32,20 @@ fn source_with_module_helper(body: &str) -> String {
 }
 
 #[test]
+fn switch_continue_reaches_the_enclosing_loop_after_cleanup() {
+    for body in [
+        "let n=0;for(let i=0;i<4;i++){switch(i){case 0:case 2:continue;case 1:break;default:n+=10;}n++;}return n;",
+        "let n=0,i=0;while(i++<3){n++;switch(i){default:continue;}}return n;",
+        "let n=0;for(let i=0;i<3;i++){switch(i){default:switch(i){case 1:continue;default:break;}n+=10;break;}n++;}return n;",
+        "let n=0;for(let i=0;i<3;i++){switch(i){default:try{continue;}finally{n++;if(i===1)break;}}n+=10;}return n;",
+        "let n=0;for(let i=0;i<3;i++){switch(i){default:try{break;}finally{if(i===1)continue;}}n++;}return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn module_helper_fixture_keeps_arrow_scope_and_hoists_only_named_helpers() {
     assert_eq!(
         source_with_module_helper("function f(x){return x;}return f(a);"),

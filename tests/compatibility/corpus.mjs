@@ -177,7 +177,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 193;
+export const corpusVersion = 194;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -559,7 +559,7 @@ export const rejected = [
 
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
-  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Outer-loop continue through switch and labelled control flow remain guarded.' },
+  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Labelled control flow remains guarded.' },
   { id: 'functions-modules', milestone: 'L3', reason: 'Indirect/nested functions, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },

@@ -20,6 +20,7 @@ fn unsigned_has_own_keys_preserve_suspended_expression_order_and_errors() {
 fn final_switch_arms_keep_selected_awaits_rejection_and_suffix_order() {
     compare_promises(
         &[
+            "let n=0;for(let i=0;i<3;i++){switch(i){case 1:try{continue;}finally{n+=await 1;}default:break;}n+=10;}return n;",
             "switch(a){case 0:a=await b;}return await a;",
             "switch(a){case 0:return await b;default:a=await b;}return a;",
             "switch(a){default:return b;case 0:a=await b;}return a;",

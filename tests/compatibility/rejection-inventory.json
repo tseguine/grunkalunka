@@ -876,7 +876,7 @@
     {
       "id": "switch",
       "kind": "open-requirement",
-      "assessment": "Mixed represented primitive/String/reference switch dispatch executes grouped cases and source-order fallthrough, optional defaults in any position, unmatched normal completion and switch-local break. Outer-loop continue, shared-case lexical bindings and unproven discriminants remain open.",
+      "assessment": "Mixed represented primitive/String/reference switch dispatch executes grouped cases and source-order fallthrough, optional defaults in any position, unmatched normal completion and switch-local break. Shared-case lexical bindings and unproven discriminants remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-switch-statement",
@@ -2376,13 +2376,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "e6b6741f8da403753f9bbcb94b8815ee8935225d080c54d6a755b3a025d62a01",
       "group": "const-errors"
-    },
-    {
-      "id": "continue-switch-remains",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "200590f090d7dd2612691762a32769a431eeb6421050ac0b9cb0d3a4abc52400",
-      "group": "switch"
     },
     {
       "id": "continue-statement-limit",

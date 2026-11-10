@@ -6,8 +6,7 @@ Discriminants and case expressions require positive
 source proofs for the four represented scalar primitive kinds, a known String,
 or references (objects, arrays and known functions), including mixtures of those
 represented kinds. Empty or unknown origin sets do not establish admission.
-Arms that continue an enclosing loop and operands without positive
-represented-kind proofs remain guarded. Type annotations provide no source-kind proof.
+An unlabelled continue in a case advances the enclosing loop. Type annotations provide no source-kind proof.
 
 The discriminant evaluates once. Case expressions evaluate in source order until
 strict equality selects the first matching arm. Default may appear anywhere in
@@ -40,7 +39,10 @@ entering at that index and allowing normal completion into subsequent arms.
 With a default, the last body is structurally unconditional after preceding
 conditional bodies: every entry reaches it unless an earlier completion is
 abrupt. The effect-free return query folds the same arm suffixes in reverse.
-Execution stays inside a single-iteration DoWhile with a constant-false condition. Its nearest-break target consumes switch-local breaks; nested
+Execution stays inside a single-iteration DoWhile with a constant-false condition. Its break target consumes switch-local breaks. When a continue can escape,
+normal fallthrough exits via break and only continue reaches the synthetic
+condition. That condition marks the saved selection so the enclosing region
+can forward the continue after cleanup. Nested
 source loops and nested switches keep their own targets. The lexical target is
 retained even when a finalizer overrides a break with return or throw. Cleanup
 runs before the break reaches the suffix, including awaited cleanup. No new
