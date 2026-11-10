@@ -20,8 +20,7 @@ pub(in crate::lower) fn compound(operator: AssignmentOperator) -> Option<Binary>
 
 pub(super) enum Key<'e, 'a> {
     Literal(Vec<u16>),
-    Uint32(&'e Expression<'a>),
-    String(&'e Expression<'a>),
+    Runtime(&'e Expression<'a>, dictionary::RuntimeKey),
 }
 
 pub(super) enum Task<'e, 'a> {
@@ -34,7 +33,7 @@ pub(super) enum Task<'e, 'a> {
         depth: usize,
     },
     Key {
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
         node: &'e Expression<'a>,
         object: ValueId,
         operator: Binary,
@@ -108,13 +107,7 @@ impl Lowering<'_, '_> {
                 if let Some(key) = key {
                     (&member.object, Key::Literal(key))
                 } else if let Some((_, kind)) = self.runtime_member_receiver(member, depth + 2) {
-                    if matches!(kind, dictionary::RuntimeKey::Uint32) {
-                        (&member.object, Key::Uint32(&member.expression))
-                    } else if self.stored.string(member.expression.node_id()) {
-                        (&member.object, Key::String(&member.expression))
-                    } else {
-                        return Ok(false);
-                    }
+                    (&member.object, Key::Runtime(&member.expression, kind))
                 } else {
                     return Ok(false);
                 }
@@ -165,7 +158,7 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
-    ) {
+    ) -> Result<(), String> {
         match task {
             Task::Receiver {
                 node,
@@ -177,10 +170,9 @@ impl Lowering<'_, '_> {
             } => {
                 let object = values.pop().expect("numeric write receiver").id();
                 match key {
-                    Key::Uint32(key) | Key::String(key) => {
-                        let uint32 = self.stored.uint32_keys.contains(key, depth + 1);
+                    Key::Runtime(key, kind) => {
                         work.push(Work::PropertyUpdate(Task::Key {
-                            uint32,
+                            kind,
                             node,
                             object,
                             operator,
@@ -188,11 +180,7 @@ impl Lowering<'_, '_> {
                             postfix,
                             depth,
                         }));
-                        work.push(Work::Eval(
-                            key,
-                            depth + 1,
-                            if uint32 { Mode::Number } else { Mode::Managed },
-                        ));
+                        self.schedule_runtime_key(key, depth + 1, kind, work)?;
                     }
                     Key::Literal(key) => work.push(Work::PropertyUpdate(Task::Read {
                         node,
@@ -206,7 +194,7 @@ impl Lowering<'_, '_> {
                 }
             }
             Task::Key {
-                uint32,
+                kind,
                 node,
                 object,
                 operator,
@@ -218,11 +206,7 @@ impl Lowering<'_, '_> {
                 work.push(Work::PropertyUpdate(Task::Read {
                     node,
                     object,
-                    key: if uint32 {
-                        ir::ManagedKey::Uint32(key)
-                    } else {
-                        ir::ManagedKey::String(key)
-                    },
+                    key: kind.finish(key),
                     operator,
                     right,
                     postfix,
@@ -360,6 +344,7 @@ impl Lowering<'_, '_> {
                 values.push(Value::Number(if postfix { old } else { result }));
             }
         }
+        Ok(())
     }
 }
 
@@ -418,7 +403,7 @@ mod tests {
                 false,
             ),
             ("const d=[a];const k='0';return d[k]++;", false),
-            ("const d=Object.create(null);return d[a]++;", false),
+            ("const d=Object.create(null);return d[a]++;", true),
             (
                 "const d=Object.create(null);const k='x';d.x='text';return d[k]++;",
                 false,
@@ -454,8 +439,8 @@ mod tests {
             ("const xs=[false,null];return xs[a>>>0]+=b;", true),
             ("const xs=[a];return xs[0>>>0]>>>=b;", true),
             ("const d=Object.create(null);return ++d[a>>>0];", true),
-            ("const xs=[a];return xs[a]++;", false),
-            ("const xs=[a];return xs[a>>0]++;", false),
+            ("const xs=[a];return xs[a]++;", true),
+            ("const xs=[a];return xs[a>>0]++;", true),
             ("const xs=['text'];return xs[0>>>0]++;", false),
             ("const xs=[{}];return xs[0>>>0]-=b;", false),
             ("const xs=[a];return xs[0>>>0]+='text';", false),

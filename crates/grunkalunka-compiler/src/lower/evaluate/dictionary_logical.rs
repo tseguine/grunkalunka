@@ -8,14 +8,14 @@ pub(super) enum Task<'e, 'a> {
         assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
         key: &'e Expression<'a>,
         depth: usize,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
     },
     Key {
         node: &'e Expression<'a>,
         assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
         object: ValueId,
         depth: usize,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
     },
     Write {
         node: &'e Expression<'a>,
@@ -24,7 +24,7 @@ pub(super) enum Task<'e, 'a> {
         key: ValueId,
         old: ValueId,
         condition: ValueId,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
     },
 }
 
@@ -58,13 +58,6 @@ impl Lowering<'_, '_> {
         let Some((receiver_mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
         };
-        let uint32 = matches!(kind, dictionary::RuntimeKey::Uint32);
-        if !uint32 && !self.stored.string(member.expression.node_id()) {
-            return Err(unsupported(
-                node,
-                "runtime dictionary keys require a known String",
-            ));
-        }
         if matches!(mode, Mode::Discard) {
             work.push(Work::Forget);
         } else if matches!(mode, Mode::Predicate) {
@@ -75,7 +68,7 @@ impl Lowering<'_, '_> {
             assignment,
             key: &member.expression,
             depth: depth + 1,
-            uint32,
+            kind,
         }));
         work.push(Work::Eval(&member.object, depth + 1, receiver_mode));
         Ok(true)
@@ -87,14 +80,14 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
-    ) {
+    ) -> Result<(), String> {
         match task {
             Task::Receiver {
                 node,
                 assignment,
                 key,
                 depth,
-                uint32,
+                kind,
             } => {
                 let object = values.pop().expect("logical dictionary receiver").id();
                 work.push(Work::DictionaryLogical(Task::Key {
@@ -102,20 +95,16 @@ impl Lowering<'_, '_> {
                     assignment,
                     object,
                     depth,
-                    uint32,
+                    kind,
                 }));
-                work.push(Work::Eval(
-                    key,
-                    depth,
-                    if uint32 { Mode::Number } else { Mode::Managed },
-                ));
+                self.schedule_runtime_key(key, depth, kind, work)?;
             }
             Task::Key {
                 node,
                 assignment,
                 object,
                 depth,
-                uint32,
+                kind,
             } => {
                 let key = values.pop().expect("logical dictionary key").id();
                 let old = self.value(Type::ManagedValue);
@@ -125,11 +114,7 @@ impl Lowering<'_, '_> {
                     Op::ManagedGetOwnDynamic {
                         result: old,
                         object,
-                        key: if uint32 {
-                            ir::ManagedKey::Uint32(key)
-                        } else {
-                            ir::ManagedKey::String(key)
-                        },
+                        key: kind.finish(key),
                     },
                 );
                 let condition = self.value(Type::Predicate);
@@ -156,7 +141,7 @@ impl Lowering<'_, '_> {
                     key,
                     old,
                     condition,
-                    uint32,
+                    kind,
                 }));
                 work.push(Work::Eval(&assignment.right, depth, Mode::Managed));
             }
@@ -167,7 +152,7 @@ impl Lowering<'_, '_> {
                 key,
                 old,
                 condition,
-                uint32,
+                kind,
             } => {
                 let value = values.pop().expect("logical dictionary RHS").id();
                 Self::push(
@@ -175,11 +160,7 @@ impl Lowering<'_, '_> {
                     node,
                     Op::ManagedSetOwnDynamic {
                         object,
-                        key: if uint32 {
-                            ir::ManagedKey::Uint32(key)
-                        } else {
-                            ir::ManagedKey::String(key)
-                        },
+                        key: kind.finish(key),
                         value,
                     },
                 );
@@ -206,6 +187,7 @@ impl Lowering<'_, '_> {
                 values.push(Value::Managed(result));
             }
         }
+        Ok(())
     }
 }
 
@@ -231,7 +213,7 @@ mod tests {
                 "const o={};const k=a?'x':'__proto__';o[k]||=b;return a;",
                 false,
             ),
-            ("const d=Object.create(null);d[a]??=b;return a;", false),
+            ("const d=Object.create(null);d[a]??=b;return a;", true),
             ("const d=[];const k='x';d[k]??=a;return a;", false),
             (
                 "const d=Object.create(null);const k='x';d.x='old';d[k]??=a;return d.x.length;",
@@ -258,8 +240,8 @@ mod unsigned_tests {
         for (body, ok) in [
             ("const xs=[];xs[a>>>0]??=b;return xs.length;", true),
             ("const o={0:a};return +(o[0>>>0]||=b);", true),
-            ("const xs=[];xs[a]??=b;return a;", false),
-            ("const xs=[];xs[a>>0]||=b;return a;", false),
+            ("const xs=[];xs[a]??=b;return a;", true),
+            ("const xs=[];xs[a>>0]||=b;return a;", true),
             ("const xs=[];const k='length';xs[k]&&=b;return a;", false),
             (
                 "const xs=['text'];xs[a>>>0]&&=b;return xs[0].trim().length;",
