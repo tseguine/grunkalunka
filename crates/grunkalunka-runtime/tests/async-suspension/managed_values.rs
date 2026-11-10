@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn literal_prototype_setters_preserve_await_order_and_rejection() {
+    compare_promises(
+        &[
+            "let n=0;const d={x:(n++,a),__proto__:(await b,n++,null),y:(n++,b)};return d instanceof Object?0:n;",
+            "let n=0;try{const d={__proto__:(await Promise.reject(b),null),x:n++};}catch(e){return n;}return 9;",
+        ],
+        &[(1.0, 2.0), (-0.0, 0.0)],
+    );
+}
+
+#[test]
 fn runtime_array_length_assignment_preserves_receiver_across_await() {
     compare_promises(
         &[

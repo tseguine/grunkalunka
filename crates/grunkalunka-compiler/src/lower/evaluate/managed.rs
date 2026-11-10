@@ -1333,7 +1333,11 @@ impl Lowering<'_, '_> {
                     Self::push(
                         regions.current(),
                         node,
-                        Op::ManagedObjectNew { result: object },
+                        if self.stored.dictionary(node.node_id()) {
+                            Op::ManagedDictionaryNew { result: object }
+                        } else {
+                            Op::ManagedObjectNew { result: object }
+                        },
                     );
                     work.push(Work::Managed(ManagedWork::Literal(
                         objects::ObjectWork::new(node, literal, object, depth),

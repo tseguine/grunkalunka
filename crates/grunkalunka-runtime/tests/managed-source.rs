@@ -5,6 +5,20 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn object_literal_prototypes_and_proto_fields_follow_definition_order() {
+    for body in [
+        "const d={__proto__:null,x:a};return !(d instanceof Object)&&!('constructor' in d)&&Object.keys(d).length===1?1:0;",
+        "const d={'__proto__':null,constructor:b};return d.constructor===b&&d.toString===undefined?1:0;",
+        "let n=0;const d={x:(n=1,a),['__proto__']:b,__proto__:(n=n*10+2,null),y:(n=n*10+3,b)};return d.__proto__===b?n:0;",
+        "const __proto__=b;const o={__proto__,constructor:a};return o instanceof Object&&Object.hasOwn(o,'__proto__')&&Object.keys(o).length===2?1:0;",
+        "let n=0;const o={__proto__:(n++,a)};return o instanceof Object&&!Object.hasOwn(o,'__proto__')?n:0;",
+        "const d={__proto__:null,['__proto__']:a};const copy={...d};return copy instanceof Object&&Object.hasOwn(copy,'__proto__')?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn boolean_calls_preserve_truthiness_identity_and_argument_effects() {
     for body in [
         "return Boolean(a)?1:0;",
@@ -1714,9 +1728,12 @@ fn source_proto_guards_cover_actual_native_intrinsic_names() {
     let names = String::from_utf8(output.stdout).unwrap();
     assert!(names.lines().any(|n| n == "__proto__"));
     for name in names.lines() {
+        let expected = if name == "__proto__" { 0 } else { 1 };
+        compare(&format!(
+            "const o={{{name:?}:a}};return +Object.hasOwn(o,{name:?})=== {expected}?1:0;"
+        ));
         for body in [
             format!("const o={{}};return o[{name:?}]?a:b;"),
-            format!("const o={{{name:?}:a}};return a;"),
             format!("const o={{}};o[{name:?}]=a;return a;"),
         ] {
             for ts in [false, true] {

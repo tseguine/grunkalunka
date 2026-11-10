@@ -230,6 +230,8 @@ impl Members<'_, '_> {
                 AstKind::ObjectExpression(object) => {
                     for property in &object.properties {
                         match property {
+                            ObjectPropertyKind::ObjectProperty(p)
+                                if object_create::prototype_setter(p) => {}
                             ObjectPropertyKind::ObjectProperty(p) => {
                                 found.extend(origins(p.value.node_id()))
                             }

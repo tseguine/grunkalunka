@@ -94,15 +94,23 @@ impl Lowering<'_, '_> {
                         "managed accessors and methods are not yet admitted",
                     ));
                 }
+                if object_create::prototype_setter(property) {
+                    if !object_create::null_prototype_value(&property.value, depth)
+                        && !self.stored.non_null_primitive(property.value.node_id())
+                    {
+                        return Err(unsupported(
+                            property.as_ref(),
+                            "object literal prototype requires null or a non-null primitive",
+                        ));
+                    }
+                    // No own property is defined. The RHS still executes between
+                    // preceding and following definitions, including across await.
+                    task.index += 1;
+                    work.push(Work::Managed(ManagedWork::Literal(task)));
+                    work.push(Work::Eval(&property.value, depth, Mode::Discard));
+                    return Ok(());
+                }
                 if let Some(key) = static_keys::property(&property.key, property.computed, depth) {
-                    // A computed definition, including ["__proto__"], creates
-                    // an own data property. The uncomputed prototype setter
-                    // and guarded ordinary property names keep their old boundary.
-                    let key = if property.computed {
-                        key
-                    } else {
-                        checked_key(property.as_ref(), key)?
-                    };
                     task.pending = Pending::Value(Some(ir::ManagedKey::Literal(key)));
                     &property.value
                 } else if property.computed
