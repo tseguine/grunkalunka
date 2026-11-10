@@ -43,7 +43,6 @@ const unary = 'only unary +, - and ~ are admitted';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ['bit-not-string', 'return ~"4";', expression],
   ['bit-not-object', 'return ~({});', expression],
   ['bit-not-bigint', 'return ~1n;', expression],
   ['bit-not-global', 'return ~clock;', reference],

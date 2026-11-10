@@ -182,6 +182,17 @@ fn math_type_arguments_keep_runtime_bindings_and_admission_limits() {
         &source_for("const f=x=>x;return f(a);"),
         &source_for("const f=x=>x;return f<never>(a);"),
     );
+    let literal_call = "return Math.abs<never>('1');";
+    compare_typed(
+        &source_for("return Math.abs('1');"),
+        &source_for(literal_call),
+    );
+    let typed = format!("export function run(a,b){{{literal_call}}}");
+    let artifact = compile_value(&typed, true).unwrap();
+    assert!(matches!(
+        grunkalunka_runtime::ValueInstance::new(&artifact.wasm).unwrap().run(4.0, 2.0).unwrap(),
+        grunkalunka_runtime::Value::Number(n) if n == 1.0
+    ));
     for body in [
         "const Math=a;return Math.abs<never>(b);",
         "return Math.random<never>(a);",
@@ -189,7 +200,7 @@ fn math_type_arguments_keep_runtime_bindings_and_admission_limits() {
         "return Math.abs?.<never>(a);",
         "return (Math.abs)<never>(a);",
         "return Math['abs']<never>(a);",
-        "return Math.abs<never>('1');",
+        "const s=a?'1':'2';return Math.abs<never>(s);",
         "return Math.abs<never>({});",
         "return Math.abs<never>(1n);",
         "return Math.abs<never>(absent);",

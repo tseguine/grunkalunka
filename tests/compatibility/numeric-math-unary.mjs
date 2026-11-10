@@ -49,7 +49,6 @@ for(const method of mathUnaryMethods){
  reject(`${method}-computed`,`return Math["${method}"](a);`);
  reject(`${method}-optional`,`return Math.${method}?.(a);`);
  reject(`${method}-wrapped-callee`,`return (Math.${method})(a);`);
- reject(`${method}-string`,`return Math.${method}("3");`);
  reject(`${method}-const-write`,`const x=a; return Math.${method}(x=b);`,'assignment to a const');
  reject(`${method}-dead-patch`,`if(false) Math.${method}=a; return Math.${method}(b);`,'assignment target must be an initialized identifier');
 }

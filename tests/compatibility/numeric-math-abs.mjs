@@ -51,7 +51,6 @@ for(const [id,body] of [
  ['optional-call','return Math.abs?.(a);'], ['wrapped-callee','return (Math.abs)(a);'],
  ['constructor','return new Math.abs(a);'], ['first-class','return Math.abs;'],
  ['alias','const f=Math.abs; return f(a);'],
- ['string','return Math.abs("3");'],
  ['object','return Math.abs({});'], ['bigint','return Math.abs(1n);'],
  ['dead-unsupported','return 1?a:Math.abs(Math.random());'],
  ]) reject(id,body);

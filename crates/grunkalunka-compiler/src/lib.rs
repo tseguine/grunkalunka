@@ -1171,7 +1171,11 @@ mod tests {
     #[test]
     fn remainder_keeps_numeric_target_and_source_budget_guards() {
         for (body, reason, typescript) in [
-            ("return a%\"3\";", "expression is outside", false),
+            (
+                "const s=b?\"2\":\"3\";return a%s;",
+                "expression is outside",
+                false,
+            ),
             ("return 1n%2n;", "expression is outside", false),
             ("const x=a; return x%=b;", "const binding", false),
             ("let x=(x%=b); return x;", "not an initialized", false),

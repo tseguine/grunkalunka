@@ -64,7 +64,6 @@ const negatives = [
   ['compound-nan-target', 'return NaN&=a;', reference],
   ['compound-property-target', 'return a.x|=b;', target],
   ['compound-destructuring-target', 'return [a]^=b;', 'parse diagnostics'],
-  ['compound-string-rhs', 'return a|="3";', expression],
   ['compound-object-rhs', 'return a^=({});', expression],
   ['compound-bigint-rhs', 'return a<<=1n;', expression],
   ['compound-call-rhs', 'return a>>>=Math.random();', expression],

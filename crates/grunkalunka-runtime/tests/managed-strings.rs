@@ -1269,11 +1269,17 @@ fn numeric_equality_executes_the_original_string_literal_control() {
 }
 
 #[test]
+fn unary_plus_executes_the_original_string_literal_control() {
+    let source = "export function run(a,b){return +'1';}";
+    common::compare_sources(source, source);
+}
+
+#[test]
 fn unimplemented_string_operations_and_reference_frames_reject_explicitly() {
     for body in [
         "return 'text';",
         "const s='text';return s[0];",
-        "return +'1';",
+        "const s=a?'1':'2';return +s;",
         "return 1+'x';",
         "const s=a?'0':'1';return s==0?a:b;",
         "const s='x';s[0]='z';return a;",

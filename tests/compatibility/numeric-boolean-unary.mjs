@@ -43,7 +43,6 @@ const expression='expression is outside the numeric experiment';
 const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
  ['bare-not','return !a;','only unary +, - and ~ are admitted','boolean-values'],
- ['string','return +"1";',expression,'string-values'],
  ['bigint','return -1n;',expression,'bigint-values'],
  ['object','return +({});',expression,'object-values'],
  ['unselected-call','return +!(0&&Math.random());',expression,'function-calls'],

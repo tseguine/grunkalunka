@@ -289,7 +289,7 @@
     {
       "id": "string-values",
       "kind": "open-requirement",
-      "assessment": "String expressions or string conversions are valid but outside numeric admission.",
+      "assessment": "String literals supply numeric operands to unary and binary numeric operators and supported unary Math calls. Runtime String conversions and nonnumeric String results remain guarded where the numeric interface cannot represent them.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-addition-operator-plus",
@@ -2415,13 +2415,6 @@
       "group": "expression-depth"
     },
     {
-      "id": "bit-not-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4a58f7959fe1ffd74f8767c95e833171dd7b4c8bbe343f20c621bdbc4d346ce7",
-      "group": "string-values"
-    },
-    {
       "id": "bit-not-object",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2660,20 +2653,6 @@
       "group": "source-bytes"
     },
     {
-      "id": "bitwise-string-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a30107d50e81db5cd130e58724acfcfbc2a4405d99597ba0801fca5ff4716973",
-      "group": "string-values"
-    },
-    {
-      "id": "bitwise-string-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7960476a6076db774895a13375eeb78b1057d9364a7ecb8ec716933c3904925b",
-      "group": "string-values"
-    },
-    {
       "id": "bitwise-object",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2707,13 +2686,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "56a6755164b9ad28f308b7fea4435d85d3a79c0f8c090296bb8a1d5bd59d7ee2",
       "group": "function-calls"
-    },
-    {
-      "id": "bitwise-unselected-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d3a3528eb38e71a294471e5cf2b9dee3d1f6c0e25d43e916b98c7dfb17804135",
-      "group": "string-values"
     },
     {
       "id": "bitwise-const-write",
@@ -2765,20 +2737,6 @@
       "group": "local-count"
     },
     {
-      "id": "shift-string-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "40d99b2ffd84e261ba8380e1fae22ff086675829c43ecb08f75c43b418e5af2a",
-      "group": "string-values"
-    },
-    {
-      "id": "shift-string-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9064e62771a098959b06295841a7c9bd7e276b613a9938452df9b22061cc9d19",
-      "group": "string-values"
-    },
-    {
       "id": "shift-object",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2812,13 +2770,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "86c108a38514c823c310da9dc28b0c8caf7f45c47975e72aa9c79814e2a9dace",
       "group": "function-calls"
-    },
-    {
-      "id": "shift-unselected-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "681c57aeec3887f32bba64e2616514776a144e7735f7b0b7a31b4792cbd28e1b",
-      "group": "string-values"
     },
     {
       "id": "shift-const-write",
@@ -2973,13 +2924,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d8ed98d50f52a90469c137d21add95961f34d89eeb2e36ccac16ae4da7c6776b",
       "group": "invalid-compound-target"
-    },
-    {
-      "id": "compound-string-rhs",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1739d5d5eeb567e98f644fc237c4e32bd1629423c907d09b892fdddc6a4a01da",
-      "group": "string-values"
     },
     {
       "id": "compound-object-rhs",
@@ -4641,13 +4585,6 @@
       "group": "function-context"
     },
     {
-      "id": "math-abs-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9e57a5545efc92a1fc86bb1b9e51e7b08308c1d7d979f88ddb0775ccb6b94a34",
-      "group": "string-values"
-    },
-    {
       "id": "math-abs-object",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4816,13 +4753,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-sqrt-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "95e06a92558683372574350beb18769543accaef667db8e194e01c7987530950",
-      "group": "string-values"
-    },
-    {
       "id": "math-unary-sqrt-const-write",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4891,13 +4821,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "9399050e01155f1a728f479c709e283969fe91c35be1d068c4d089173dd296e5",
       "group": "function-calls"
-    },
-    {
-      "id": "math-unary-floor-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "bec9c5da2f9fd0f6ffbc613764a76d13cc9ca6d054b71fa1b27ab5b846f3afc8",
-      "group": "string-values"
     },
     {
       "id": "math-unary-floor-const-write",
@@ -4970,13 +4893,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-ceil-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d8ff10397b2dd950820c48f44132334efff7a605086f9410fab4c9d2e920767f",
-      "group": "string-values"
-    },
-    {
       "id": "math-unary-ceil-const-write",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5045,13 +4961,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "307362cef80a39a9c780cd6ca0246e867830677ec6c123aeb813b973bc4a84c6",
       "group": "function-calls"
-    },
-    {
-      "id": "math-unary-trunc-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6f870a11a9581c0c74a616defaa1911b0c583a8ffb9302e1f3d66dc2b4dcbadb",
-      "group": "string-values"
     },
     {
       "id": "math-unary-trunc-const-write",
@@ -5374,13 +5283,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "c4bb4c41f6f1b6ca9499ba0c78bbe5f12cd6962ca6e3c0e9a27d2a149368c952",
       "group": "boolean-values"
-    },
-    {
-      "id": "boolean-numeric-unary-reject-string",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7a8d7aa7a1eaf36cb075292b42c90dfbeb09b64e20b8f8965654ebab02dcc075",
-      "group": "string-values"
     },
     {
       "id": "boolean-numeric-unary-reject-bigint",

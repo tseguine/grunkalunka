@@ -395,6 +395,12 @@ impl Fields {
         })
     }
 
+    pub(super) fn may_be_string(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.contains(&Origin::String))
+    }
+
     pub(super) fn may_be_number(&self, node: NodeId) -> bool {
         self.values
             .get(&node)

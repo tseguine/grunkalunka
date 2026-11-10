@@ -43,14 +43,11 @@ numericShifts.push(
 const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ['shift-string-left', 'return "5" << a;', expression],
-  ['shift-string-right', 'return a >> "3";', expression],
   ['shift-object', 'return a >>> ({});', expression],
   ['shift-bigint', 'return 1n << 3n;', expression],
   ['shift-global', 'return clock << a;', reference],
   ['shift-call', 'return a >> Math.random();', expression],
   ['shift-unselected-call', 'return 0 ? (a << Math.random()) : a;', expression],
-  ['shift-unselected-string', 'return 1 || (a >>> "4");', expression],
   ['shift-const-write', 'const x=a; return x << (x=b);', 'assignment to a const binding is not admitted'],
   ['shift-const-update', 'const x=a; return x++ >> b;', 'update to a const binding is not admitted'],
   ['shift-self-tdz', 'let x=x >>> a; return x;', reference],
