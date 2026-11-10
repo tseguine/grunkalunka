@@ -1815,3 +1815,9 @@ For example, `let row; row = {n: 1}; return row.n;` reads a proven record.
 A standalone assignment in a branch, loop body, or try block also establishes
 the value for later reads inside that block. Reads after a possibly skipped
 block and reads in nested functions retain their conservative checks.
+
+
+When both arms of an `if/else` end in a plain assignment to the same local
+and those are its only writes, reads after the conditional in its block
+can use the union of the two RHS values. Both alternatives must support
+the subsequent operation.
