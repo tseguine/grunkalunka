@@ -5,6 +5,31 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn required_members_after_optional_links_skip_only_unreached_receivers() {
+    for body in [
+        "const root=a?{row:{n:b}}:null;return +(root?.row.n??7);",
+        "const root=a?{x:{n:a},y:{n:b}}:null;const key=b?'x':'y';return +(root?.[key].n??7);",
+        "const root=a?{state:{labels:['x','y']}}:null;return +(root?.state.labels.length??9);",
+        "const root=a?{row:{n:b}}:null;let k=0;const v=root?.row[(k++,'n')];return k+ +(v??7);",
+        "const root=a?{row:{s:'😀'}}:null;return +(root?.['row'].s.length??7);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const root=a?{row:b?{n:b}:null}:null;return +(root?.row.n??7);",
+        "const root=a?{row:{n:b}}:null;return +((root?.row).n??7);",
+        "const row={item:{n:b}};if(a)delete row.item;const root=b?row:null;return +(root?.item.n??7);",
+        "const root=a?{}:null;return +(root?.absent.n??7);",
+        "const root=a?{x:{n:a},y:null}:null;const key=b?'x':'y';return +(root?.[key].n??7);",
+        "const root=a?{x:{n:a}}:null;const key=b?'x':'y';return +(root?.[key].n??7);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn exhaustive_lexical_writes_join_both_branch_values() {
     for body in [
         "let row;if(a)row={n:a};else row={n:b};return +row.n;",

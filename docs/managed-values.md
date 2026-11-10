@@ -53,6 +53,10 @@ Numeric projections still need a Number proof or explicit primitive conversion.
 Consecutive optional member reads, such as `model?.selection?.label`, make
 each property lookup against its own saved receiver. A nullish link skips
 the remaining optional keys, including their effects and suspension.
+An ordinary tail such as `model?.selection.label` also short-circuits if
+`model` is nullish, when every reached `selection` is a known record,
+Array, or String. A missing, deleted, or nullable selection cannot establish
+that proof. Parentheses end the chain.
 Unknown receivers, inherited fields, other runtime keys and optional calls
 remain guarded. Type assertions establish no
 receiver or selected-value proof.

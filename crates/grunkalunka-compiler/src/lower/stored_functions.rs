@@ -77,6 +77,7 @@ pub(crate) struct Fields {
     values: BTreeMap<NodeId, Alternatives>,
     number_updates: BTreeSet<NodeId>,
     var_symbols: BTreeSet<SymbolId>,
+    pub(super) required_chain_reads: BTreeSet<NodeId>,
     pub(super) deferred_managed_locals: BTreeSet<SymbolId>,
 }
 fn symbol(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
@@ -252,6 +253,34 @@ pub(super) fn has_omitted_arguments(semantic: &Semantic<'_>, entry: SymbolId) ->
             .and_then(|name| arities.get(&name))
             .is_some_and(|count| invocation::arguments(call).len() < *count)
     }) || managed_calls::has_omitted_arrow_arguments(semantic)
+}
+
+// Parentheses end a chain. Walk only the original contiguous member nodes;
+// a grouped ChainExpression is a value consumed by a separate outer read.
+fn required_chain_receivers(semantic: &Semantic<'_>) -> BTreeMap<NodeId, NodeId> {
+    let mut receivers = BTreeMap::new();
+    for node in semantic.nodes().iter() {
+        let AstKind::ChainExpression(chain) = node.kind() else {
+            continue;
+        };
+        let mut member = chain.expression.as_member_expression();
+        let mut links = Vec::new();
+        while let Some(link) = member {
+            if links.len() >= 128 {
+                break;
+            }
+            links.push(link);
+            member = link.object().as_member_expression();
+        }
+        let mut optional_seen = false;
+        for link in links.into_iter().rev() {
+            if optional_seen && !link.optional() {
+                receivers.insert(link.node_id(), link.object().node_id());
+            }
+            optional_seen |= link.optional();
+        }
+    }
+    receivers
 }
 
 impl Fields {
@@ -502,6 +531,9 @@ impl Fields {
         let var_symbols = var_bindings::symbols(semantic);
         let var_parameters = var_bindings::parameters(semantic);
         let var_aliases = var_bindings::aliases(semantic);
+        let chain_tails = required_chain_receivers(semantic);
+        let chain_receivers: BTreeSet<_> = chain_tails.values().copied().collect();
+        let mut reached_containers = BTreeSet::new();
         let mut initialized_reads = var_bindings::reads(semantic);
         var_bindings::lexical_assignment_reads(semantic, &mut initialized_reads);
         for symbol in &var_symbols {
@@ -1514,7 +1546,7 @@ impl Fields {
                     if chain
                         .expression
                         .as_member_expression()
-                        .is_some_and(|m| m.optional())
+                        .is_some_and(|m| m.optional() || chain_tails.contains_key(&m.node_id()))
                     {
                         Rule::Copy(vec![chain.expression.node_id()])
                     } else {
@@ -1523,7 +1555,7 @@ impl Fields {
                 ),
                 AstKind::StaticMemberExpression(m) => {
                     let key = m.property.name.encode_utf16().collect();
-                    Some(if m.optional {
+                    Some(if m.optional || chain_tails.contains_key(&id) {
                         Rule::OptionalMember(m.object.node_id(), key)
                     } else {
                         Rule::Member(m.object.node_id(), key)
@@ -1532,19 +1564,16 @@ impl Fields {
                 AstKind::ComputedMemberExpression(m) => {
                     use evaluate::optional_member::{Key, computed_key};
                     let receiver = m.object.node_id();
+                    let optional = m.optional || chain_tails.contains_key(&id);
                     Some(match computed_key(&m.expression, 0, &uint32_keys) {
-                        Some(Key::Literal(key)) if m.optional => {
-                            Rule::OptionalMember(receiver, key)
-                        }
+                        Some(Key::Literal(key)) if optional => Rule::OptionalMember(receiver, key),
                         Some(Key::Literal(key)) => Rule::Member(receiver, key),
-                        Some(Key::Uint32(_)) if m.optional => {
-                            Rule::OptionalUnsignedMember(receiver)
-                        }
+                        Some(Key::Uint32(_)) if optional => Rule::OptionalUnsignedMember(receiver),
                         Some(Key::Uint32(_)) => Rule::UnsignedMember(receiver),
                         Some(Key::Runtime(key)) => {
                             let domain = record_names.domain(key, 0);
                             let key = key.node_id();
-                            if m.optional {
+                            if optional {
                                 Rule::OptionalComputedMember {
                                     receiver,
                                     key,
@@ -1660,6 +1689,17 @@ impl Fields {
             }
             let mut additions = Vec::new();
             for (id, rule) in &rules {
+                let mut optional_selection =
+                    |(origins, reference_when_reached): (Alternatives, bool)| {
+                        if chain_receivers.contains(id) {
+                            if reference_when_reached {
+                                reached_containers.insert(*id);
+                            } else {
+                                reached_containers.remove(id);
+                            }
+                        }
+                        origins
+                    };
                 let found = match rule {
                     Rule::Iterated(receiver) => {
                         elements.select(*receiver, &values, &fields, &index_deletes)
@@ -1865,12 +1905,14 @@ impl Fields {
                         found
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
-                    Rule::OptionalMember(receiver, key) => members.optional_select(*receiver, key),
+                    Rule::OptionalMember(receiver, key) => {
+                        optional_selection(members.optional_select(*receiver, key))
+                    }
                     Rule::OptionalComputedMember {
                         receiver,
                         key,
                         domain,
-                    } => members.optional_computed(*receiver, *key, domain),
+                    } => optional_selection(members.optional_computed(*receiver, *key, domain)),
                     Rule::OptionalUnsignedMember(receiver) => {
                         members.optional_unsigned_value(*receiver)
                     }
@@ -2209,7 +2251,12 @@ impl Fields {
                 (starts_nullish && needs_reference).then_some(symbol)
             })
             .collect();
+        let required_chain_reads = chain_tails
+            .into_iter()
+            .filter_map(|(tail, receiver)| reached_containers.contains(&receiver).then_some(tail))
+            .collect();
         Self {
+            required_chain_reads,
             deferred_managed_locals,
             record_names,
             uint32_keys,
