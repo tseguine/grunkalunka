@@ -22,6 +22,12 @@ matches a Number and a reference never matches null or a primitive. No coercion
 or user callback runs during comparison. Saved discriminants survive case-test
 mutation, throws, await and actual GC.
 
+A `switch (typeof value)` can narrow an unchanged binding to the kind
+matched by a literal case label. A directly selected default can exclude
+tested kinds or explicit `null` and `undefined` labels, including labels
+that follow it. These proofs apply inside the case body only when the
+preceding case cannot fall through into it.
+
 A normally completing arm falls into the next source arm without evaluating its
 case test again; default participates in the same body order.
 A default is optional. When all tests miss and no default exists, normal

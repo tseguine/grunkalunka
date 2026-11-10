@@ -188,6 +188,43 @@ fn skips_following_statements(mut statement: &Statement<'_>) -> bool {
     )
 }
 
+// Case tests use strict equality and run before the selected body. A default
+// selected directly has missed every label, including labels after default.
+fn visit_switch_guards(
+    switch: &oxc_ast::ast::SwitchStatement<'_>,
+    semantic: &Semantic<'_>,
+    mut emit: impl FnMut(SymbolId, Guard, Span),
+) {
+    let Some(subject) = closures::unwrapped(&switch.discriminant, 0) else {
+        return;
+    };
+    let mut fallthrough = false;
+    for case in &switch.cases {
+        if !fallthrough && let Some(first) = case.consequent.first() {
+            let body = Span::new(first.span().start, case.span.end);
+            let positive = case.test.is_some();
+            let mut check_label = |label: &Expression<'_>| {
+                if let Some(value) = closures::unwrapped(label, 0)
+                    && let Some((binding, test)) = comparison(subject, value, true, 0, semantic)
+                {
+                    emit(binding, Guard { test, positive }, body);
+                }
+            };
+            if let Some(label) = &case.test {
+                check_label(label);
+            } else {
+                for label in switch.cases.iter().filter_map(|c| c.test.as_ref()) {
+                    check_label(label);
+                }
+            }
+        }
+        fallthrough = !case
+            .consequent
+            .last()
+            .is_some_and(skips_following_statements);
+    }
+}
+
 pub(super) struct Reads(BTreeMap<NodeId, Vec<Guard>>);
 
 impl Reads {
@@ -206,8 +243,26 @@ pub(super) fn collect(
     let nodes = semantic.nodes();
     let scope = semantic.scoping();
     let mut guarded = BTreeMap::<SymbolId, BTreeMap<NodeId, BTreeMap<Guard, Vec<Span>>>>::new();
+    let mut record = |owner, binding, guard, span| {
+        guarded
+            .entry(binding)
+            .or_default()
+            .entry(owner)
+            .or_default()
+            .entry(guard)
+            .or_default()
+            .push(span);
+    };
     for node in nodes.iter() {
         let (test, truthy_arm, falsy_arm) = match node.kind() {
+            AstKind::SwitchStatement(switch) => {
+                if let Some(owner) = var_bindings::owner(node.id(), semantic) {
+                    visit_switch_guards(switch, semantic, |binding, guard, span| {
+                        record(owner, binding, guard, span);
+                    });
+                }
+                continue;
+            }
             AstKind::IfStatement(c) => (
                 &c.test,
                 Some(c.consequent.span()),
@@ -264,15 +319,9 @@ pub(super) fn collect(
         ] {
             if arm.is_some() || suffix.is_some() {
                 visit_guards(test, outcome, semantic, |binding, guard| {
-                    let ranges = guarded
-                        .entry(binding)
-                        .or_default()
-                        .entry(owner)
-                        .or_default()
-                        .entry(guard)
-                        .or_default();
-                    ranges.extend(arm);
-                    ranges.extend(suffix);
+                    for span in arm.into_iter().chain(suffix) {
+                        record(owner, binding, guard, span);
+                    }
                 });
             }
         }
