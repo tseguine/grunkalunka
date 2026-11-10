@@ -77,6 +77,12 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
     }
 }
 
+// Oxc represents re-exports from another module with a distinct AST kind.
+fn is_empty_module_item(statement: &Statement<'_>) -> bool {
+    matches!(statement, Statement::EmptyStatement(_))
+        || matches!(statement, Statement::ExportNamedDeclaration(export) if export.specifiers.is_empty())
+}
+
 fn is_type_module_item(statement: &Statement<'_>) -> bool {
     is_type_declaration(statement)
         || match statement {
@@ -224,13 +230,15 @@ fn lower_source_profile_with_identities(
     };
     // The original annotated AST stays available through lowering. Type syntax
     // is unvalidated metadata; the ABI and runtime operands determine admission.
+    let skipped_item = |statement: &Statement<'_>| {
+        is_empty_module_item(statement)
+            || is_type_module_item(statement)
+            || (ui_import.is_some() && matches!(statement, Statement::ImportDeclaration(_)))
+    };
     let runtime: Vec<_> = program
         .body
         .iter()
-        .filter(|statement| {
-            !is_type_module_item(statement)
-                && !(ui_import.is_some() && matches!(statement, Statement::ImportDeclaration(_)))
-        })
+        .filter(|statement| !skipped_item(statement))
         .collect();
     if runtime.is_empty() {
         return Err(unsupported(
@@ -575,11 +583,12 @@ fn lower_source_profile_with_identities(
             for directive in &program.directives {
                 lowering.charge_statement(directive)?;
             }
-            for declaration in program.body.iter().filter(|statement| {
-                is_type_module_item(statement)
-                    || (ui_import.is_some() && matches!(statement, Statement::ImportDeclaration(_)))
-            }) {
-                lowering.charge_statement(declaration)?;
+            for statement in program
+                .body
+                .iter()
+                .filter(|statement| skipped_item(statement))
+            {
+                lowering.charge_statement(statement)?;
             }
         } else {
             lowering.charge_statement(*function)?;
@@ -1536,6 +1545,28 @@ mod type_only_module_tests {
     }
 
     #[test]
+    fn empty_module_items_share_the_statement_budget() {
+        let entry = "export function run(a,b) { return a; }";
+        for item in [";", "export {};"] {
+            let source = format!("{}{entry}", item.repeat(255));
+            for ts in [false, true] {
+                assert_eq!(
+                    compile(&source, ts).unwrap().wasm,
+                    compile(entry, ts).unwrap().wasm
+                );
+                let too_many = format!("{source}{item}");
+                assert!(
+                    compile(&too_many, ts)
+                        .err()
+                        .unwrap()
+                        .contains("at most 256 statements")
+                );
+                assert!(compile(item, ts).is_err());
+            }
+        }
+    }
+
+    #[test]
     fn declaration_type_import_erases() {
         erases_to(
             "import type { T } from \"missing\";export function run(a,b) { return a; }",
@@ -1593,7 +1624,7 @@ mod type_only_module_tests {
             "import { type T } from \"missing\";",
             "import { type T, value } from \"missing\";",
             "type T=number; export { type T };",
-            "export {};",
+            "export {} from \"missing\";",
             "export { T } from \"missing\";",
             "export { type T } from \"missing\";",
             "export * from \"missing\";",

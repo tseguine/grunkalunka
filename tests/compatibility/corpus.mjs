@@ -181,7 +181,7 @@ import { selectedInstancePrograms, selectedInstanceRejected } from './selected-i
 
 import { literalNumericPrograms } from './literal-numeric-operands.mjs';
 
-export const corpusVersion = 207;
+export const corpusVersion = 208;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [

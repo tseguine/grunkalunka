@@ -1687,13 +1687,6 @@
       "group": "return-policy"
     },
     {
-      "id": "empty-module-prefix",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b871d731219e85876d3bda66c7577f2ea52b8d6c994c8863d259efad3cb86b1e",
-      "group": "entry-shape"
-    },
-    {
       "id": "declarators-forward",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2581,13 +2574,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "2bfac2fcde54331647e9b9bc9d5e181159d5528507b97f2165f8de9d574abad8",
       "group": "modules"
-    },
-    {
-      "id": "hashbang-module-empty-prefix",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "405b2e2891c45070ae9ae2982ac33e213f771d3e0c513c54b43a5b02dc443bfd",
-      "group": "entry-shape"
     },
     {
       "id": "hashbang-wrong-entry",
@@ -6080,13 +6066,6 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "78bfff28b993eb17e035f10880b25f45866e5291a97ac8ea70e74a8b6d59e4fe",
-      "group": "type-module-forms"
-    },
-    {
-      "id": "type-only-module-reject-export-empty",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "660fd86cdf972688c11e035dce05d4cee6790fbad268b77662284546615c5ab6",
       "group": "type-module-forms"
     },
     {
