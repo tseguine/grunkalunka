@@ -630,6 +630,10 @@ pub(crate) enum Op {
         key: Vec<u16>,
         value: ValueId,
     },
+    ManagedArrayResizeDynamic {
+        array: ValueId,
+        length: ValueId,
+    },
     ManagedArrayResize {
         array: ValueId,
         length: u32,
@@ -1548,6 +1552,10 @@ impl Verifier<'_> {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.value(*index, Type::Number, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedArrayResizeDynamic { array, length } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.value(*length, Type::Number, visible, span)?;
             }
             Op::ManagedArrayResize { array, .. } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;

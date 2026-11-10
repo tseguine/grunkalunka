@@ -39,13 +39,13 @@ pub(super) enum ManagedWork<'e, 'a> {
     ResizeReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
-        length: u32,
+        literal_length: Option<u32>,
         depth: usize,
     },
     ResizeValue {
         node: &'e Expression<'a>,
         array: ValueId,
-        length: u32,
+        literal_length: Option<u32>,
     },
     BoxReference(&'e Expression<'a>),
     Primitive(&'e Expression<'a>),
@@ -960,12 +960,21 @@ impl Lowering<'_, '_> {
             if a.operator != AssignmentOperator::Assign {
                 return Err(unsupported(node, "array length requires plain assignment"));
             }
-            let length = arrays::literal_length(&a.right, depth + 1)?;
+            let literal_length = closures::unwrapped(&a.right, depth + 1)
+                .and_then(static_keys::number)
+                .filter(|n| (0.0..=f64::from(u32::MAX)).contains(n) && n.fract() == 0.0)
+                .map(|n| n as u32);
+            if literal_length.is_none() && !self.stored.uint32_keys.contains(&a.right, depth + 1) {
+                return Err(unsupported(
+                    &a.right,
+                    "array length writes require a proven unsigned integer",
+                ));
+            }
             number_consumer(work, node, mode)?;
             work.push(Work::Managed(ManagedWork::ResizeReceiver {
                 node,
                 right: &a.right,
-                length,
+                literal_length,
                 depth: depth + 1,
             }));
             work.push(Work::Eval(object, depth + 1, Mode::Array));
@@ -1606,26 +1615,31 @@ impl Lowering<'_, '_> {
             ManagedWork::ResizeReceiver {
                 node,
                 right,
-                length,
+                literal_length,
                 depth,
             } => {
                 let array = values.pop().expect("resize receiver").id();
                 work.push(Work::Managed(ManagedWork::ResizeValue {
                     node,
                     array,
-                    length,
+                    literal_length,
                 }));
                 work.push(Work::Eval(right, depth, Mode::Number));
             }
             ManagedWork::ResizeValue {
                 node,
                 array,
-                length,
+                literal_length,
             } => {
                 Self::push(
                     regions.current(),
                     node,
-                    Op::ManagedArrayResize { array, length },
+                    if let Some(length) = literal_length {
+                        Op::ManagedArrayResize { array, length }
+                    } else {
+                        let length = values.last().expect("array length assignment RHS").id();
+                        Op::ManagedArrayResizeDynamic { array, length }
+                    },
                 );
             }
             ManagedWork::SpreadCopy(node) => {

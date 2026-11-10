@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn runtime_array_length_assignment_preserves_receiver_across_await() {
+    compare_promises(
+        &[
+            "let xs=[a];const old=xs;const n=xs.length=(await b,xs=[],a>>>0);return old.length===n&&xs.length===0?1:0;",
+            "const xs=[a,b];try{xs.length=(await Promise.reject(b),a>>>0);}catch(e){return xs.length;}return 9;",
+        ],
+        &[(0.0, 2.0), (-1.0, 4.0)],
+    );
+}
+
+#[test]
 fn unsigned_has_own_keys_preserve_suspended_expression_order_and_errors() {
     compare_promises(
         &[
