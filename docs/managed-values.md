@@ -1878,3 +1878,9 @@ comparison can establish a non-nullish receiver inside the matching branch.
 An early return or throw from the opposite branch extends that fact to later
 statements in the same block. Captured writes and nested function reads do
 not inherit the proof.
+
+
+Both branches of a `typeof` comparison or unshadowed `Array.isArray` check
+retain the matching source kinds. Strict null and undefined comparisons
+exclude only the tested value, so separate checks can compose.
+`typeof null` remains `"object"`.
