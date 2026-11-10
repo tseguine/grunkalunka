@@ -23,6 +23,10 @@ export const multipleDeclarators = cases.map(([id, body]) => [id, body, body]);
 multipleDeclarators.push(['ts-multiple-declarators',
   'let x=a,y=x+b; return x+y;', 'let x:number=a,y:number=(x+b) as number; return x+y;']);
 
+multipleDeclarators.push(['declarators-later-definite', 'let x=a,y; return x;', 'let x:number=a,y!:number; return x;',
+  undefined, undefined, { sourceJS: 'export function run(a,b) { let x=a,y; return x; }',
+    sourceTS: 'export function run(a,b) { let x:number=a,y!:number; return x; }' }]);
+
 const reference = 'reference is not an initialized numeric parameter or local';
 const expression = 'expression is outside the numeric experiment';
 const negatives = [
@@ -34,7 +38,6 @@ const negatives = [
   ['declarators-write-earlier-const', 'const x=a,y=(x=b); return y;', 'assignment to a const binding is not admitted'],
   ['declarators-later-destructure', 'let x=a,[y]=b; return x;', 'array bindings require a source-proven managed array'],
   ['declarators-later-call', 'let x=a,y=Math.random(); return x;', expression],
-  ['declarators-later-definite', 'let x:number=a,y!:number; return x;', 'definite-assignment assertions are not admitted', 'ts'],
   ['declarators-for-forward', 'for(let i=j,j=0;0;) {} return a;', reference],
   ['declarators-for-leak', 'for(let i=0,j=1;0;) {} return j;', reference],
   ['declarators-for-body-step-leak', 'for(let i=0,j=1;i<1;k++) { let k=0; i++; } return a;', reference],

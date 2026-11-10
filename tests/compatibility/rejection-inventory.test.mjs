@@ -368,7 +368,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 788);
+  assert.equal(inventory.records.size, 786);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -670,6 +670,18 @@ test('primitive loose equality retains nineteen exact original numeric promotion
  assert.ok(rejected.some(p=>p[0]==='gap-loose-equality-coercion'),'String coercion reference remains open');
 });
 
+
+test('definite assignment assertions execute both original TS sources against their JS erasures', () => {
+  for (const [id, hash] of [
+    ['declarators-later-definite', '54392c69293bfbe9b68265ef199b994a0dea8afb649dd603b720264905a8437f'],
+    ['annotation-definite', 'a787f4e5867e022f2c8a793287c7e50437d1fcafb44773b0bd9f0f662774a0ef'],
+  ]) {
+    const source = programSources(programs.find(row => row[0] === id));
+    assert.equal(createHash('sha256').update(source.sourceTS).digest('hex'), hash);
+    assert.equal(source.oracleSource, source.sourceJS);
+    assert.ok(!rejected.some(row => row[0] === id));
+  }
+});
 
 test('implicit let retains four original JS or TS promotion sources',()=>{
  assert.equal(implicitLetPromotions.length,4);

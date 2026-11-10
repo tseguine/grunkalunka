@@ -686,32 +686,6 @@
       ]
     },
     {
-      "id": "uninitialized-bindings",
-      "kind": "open-requirement",
-      "assessment": "Bare let identifiers initialize to undefined at declaration evaluation. A definitely assigned Number can be read from its General cell in the numeric profile. The remaining TypeScript definite-assignment assertions are outside this syntax profile.",
-      "evidence": [
-        {
-          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations",
-          "rule": "A let declaration without initializer initializes to undefined; TS definite assertions do not create runtime checks."
-        },
-        {
-          "source": "https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-7.html#definite-assignment-assertions",
-          "rule": "Definite-assignment assertions communicate to the checker, without supplying a runtime initializer."
-        }
-      ],
-      "dependencies": [
-        "nullish-values",
-        "binding-errors"
-      ],
-      "harnessNeeds": [
-        "value-representation",
-        "typescript-syntax"
-      ],
-      "observableDone": [
-        "Admit the remaining definite-assignment declarations with source-order, undefined and TDZ tests."
-      ]
-    },
-    {
       "id": "destructuring",
       "kind": "open-requirement",
       "assessment": "Local const/let object and array binding declarations now admit mixed nesting, empty patterns and lazy defaults on identifier leaves or whole nested patterns over source-proven containers. Ordered nested reads preserve each selected receiver; every array pattern owns independent live-length/exhaustion state, including when a descendant default changes an ancestor array. Identifier rest elements in arrays collect fresh dense tails with shared reference values and independent slots, preserving live defaults and persistent exhaustion. Rest results have proven Array receivers but opaque element origins. The same supported patterns also work in const/let heads of intrinsic-array for-of loops, with a positive container proof for every selected receiver. Source-proven Number selections now project to arithmetic and numeric returns, so the exact gap-local-destructure source executes unchanged; for-destructure and declarators-later-destructure still use numeric parameters where the pattern requires an array. Flat array/object assignment patterns now update existing mutable local cells, including Number-initialized and bare let locals, using boxed storage from declaration execution. RHS identity, captures, static keys, lazy identifier defaults and identifier rest targets are supported. Assignment defaults preserve live array length, sticky iterator exhaustion, source ordering and supported suspension. The exact gap-destructuring-write source now executes unchanged through the source-proven Number projection. Nested/member assignment targets, parameter patterns, runtime assignment keys, general iterators and non-String primitive RHS coercion remain separate requirements; rejection of these exact sources is not evidence that those forms execute. Declaration and intrinsic loop patterns also admit source-proven Strings: array patterns consume code points and object patterns select own UTF-16 properties. Defaults preserve the saved String and rest Arrays are fresh; flat identifier Array assignments also accept proven Strings and preserve the original String result and truthiness. Static length/canonical-index Object assignments also accept proven Strings with UTF-16 property reads. String object rest, dynamic/inherited keys and nested/member targets remain guarded.",
@@ -1816,13 +1790,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "3b2d62262a143e0c322a01f4c9aa3b43e4a39fda70e2873ba851bc2b9c84dbc3",
       "group": "function-calls"
-    },
-    {
-      "id": "declarators-later-definite",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "54392c69293bfbe9b68265ef199b994a0dea8afb649dd603b720264905a8437f",
-      "group": "uninitialized-bindings"
     },
     {
       "id": "declarators-for-forward",
@@ -3146,13 +3113,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "713ec23579e27af22e980a25b744708f4b2c62cd9d1d155a45013ac83afb37cf",
       "group": "const-errors"
-    },
-    {
-      "id": "annotation-definite",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a787f4e5867e022f2c8a793287c7e50437d1fcafb44773b0bd9f0f662774a0ef",
-      "group": "uninitialized-bindings"
     },
     {
       "id": "annotation-default-parameter",

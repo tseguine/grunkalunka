@@ -103,12 +103,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mutable: bool,
         region: &mut Region,
     ) -> Result<DeclarationInitializer<'n, 'a>, String> {
-        if local.definite {
-            return Err(unsupported(
-                local,
-                "definite-assignment assertions are not admitted",
-            ));
-        }
         if matches!(
             &local.id,
             BindingPattern::ObjectPattern(_) | BindingPattern::ArrayPattern(_)
@@ -148,12 +142,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         local: &'n VariableDeclarator<'a>,
         _region: &mut Region,
     ) -> Result<DeclarationInitializer<'n, 'a>, String> {
-        if local.definite {
-            return Err(unsupported(
-                local,
-                "definite-assignment assertions are not admitted",
-            ));
-        }
         let BindingPattern::BindingIdentifier(id) = &local.id else {
             return self
                 .prepare_local_pattern(local, true)
