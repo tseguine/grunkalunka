@@ -1701,14 +1701,25 @@ impl Fields {
                             })
                         {
                             BTreeSet::from([Origin::String])
-                        } else if left.iter().chain(&right).all(|origin| {
-                            *origin == Origin::Number
-                                || (matches!(rule, Rule::PropertyAddition(_, _))
-                                    && matches!(
+                        } else if left
+                            .iter()
+                            .chain(&right)
+                            .all(|origin| *origin == Origin::Number)
+                            || (matches!(rule, Rule::PropertyAddition(_, _))
+                                && !right.contains(&Origin::String)
+                                && left.iter().all(|origin| {
+                                    matches!(
                                         origin,
-                                        Origin::Boolean | Origin::Null | Origin::Undefined
-                                    ))
-                        }) {
+                                        Origin::Number
+                                            | Origin::Boolean
+                                            | Origin::Null
+                                            | Origin::Undefined
+                                    )
+                                }))
+                        {
+                            // The numeric property path independently checks its RHS in
+                            // Arithmetic mode. An abrupt RHS (e.g. a rejected await)
+                            // never stores, and cannot invalidate the old field's kind.
                             BTreeSet::from([Origin::Number])
                         } else {
                             BTreeSet::from([Origin::Other])
