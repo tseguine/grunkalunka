@@ -5,6 +5,28 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn logical_property_names_preserve_fallback_values_and_effects() {
+    for body in [
+        "const row={x:v=>v+1,y:v=>v-1};const k=(a?'x':'')||'y';return row[k](b);",
+        "const row={x:a,y:b};const k=(a?null:'x')??'y';return +row[k];",
+        "const xs=[a,b];const k=(a?'0':void 0)??'length';return +xs[k];",
+        "const row={'':a,x:b};const k=(a?'':'unused')&&'x';return +row[k];",
+        "const row={x:a,y:b};let n=0;const k=(a?'x':'')||(n++,'y');return +row[k]+n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const o={};const k=(a?'constructor':'')||'x';return +o[k];",
+        "const o={};const k=(a?null:'x')??'constructor';return +o[k];",
+        "const xs=[a];const k=(a?'map':null)??'0';return +xs[k];",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn number_calls_convert_scalar_values_and_evaluate_all_arguments() {
     for body in [
         "return 1/Number();",

@@ -254,16 +254,35 @@ fn name_from<'a>(
     mut valid_read: impl FnMut(&IdentifierReference<'a>) -> bool,
     mut observe: impl FnMut(Option<Vec<u16>>),
 ) -> bool {
-    let mut pending = vec![(expression, depth)];
-    while let Some((node, depth)) = pending.pop() {
+    // On the left of a short-circuit operator only selected values can name a
+    // property. Its operands still go through ordinary expression lowering.
+    #[derive(Clone, Copy)]
+    struct Selected {
+        empty: bool,
+        text: bool,
+        nullish: bool,
+    }
+    let all = Selected {
+        empty: true,
+        text: true,
+        nullish: true,
+    };
+    let mut pending = vec![(expression, depth, all)];
+    while let Some((node, depth, selected)) = pending.pop() {
         let Some((node, depth)) = closures::unwrapped_at(node, depth) else {
             return false;
         };
         match node {
+            Expression::NullLiteral(_) if !selected.nullish => {}
+            Expression::UnaryExpression(u)
+                if u.operator == UnaryOperator::Void && !selected.nullish => {}
             Expression::StringLiteral(_) => {
                 let Some(name) = static_keys::literal(node) else {
                     return false;
                 };
+                if (name.is_empty() && !selected.empty) || (!name.is_empty() && !selected.text) {
+                    continue;
+                }
                 if crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &name) {
                     return false;
                 }
@@ -274,15 +293,34 @@ fn name_from<'a>(
             {
                 observe(static_keys::literal(node));
             }
+            Expression::LogicalExpression(logical) => {
+                let left = match logical.operator {
+                    LogicalOperator::And => Selected {
+                        text: false,
+                        ..selected
+                    },
+                    LogicalOperator::Or => Selected {
+                        empty: false,
+                        nullish: false,
+                        ..selected
+                    },
+                    LogicalOperator::Coalesce => Selected {
+                        nullish: false,
+                        ..selected
+                    },
+                };
+                pending.push((&logical.left, depth + 1, left));
+                pending.push((&logical.right, depth + 1, selected));
+            }
             Expression::ConditionalExpression(c) => {
-                pending.push((&c.consequent, depth + 1));
-                pending.push((&c.alternate, depth + 1));
+                pending.push((&c.consequent, depth + 1, selected));
+                pending.push((&c.alternate, depth + 1, selected));
             }
             Expression::SequenceExpression(seq) => {
                 let Some(last) = seq.expressions.last() else {
                     return false;
                 };
-                pending.push((last, depth + 1));
+                pending.push((last, depth + 1, selected));
             }
             Expression::Identifier(id) if valid_read(id) => {}
             _ => return false,
