@@ -1710,3 +1710,8 @@ The same primitive keys work in numeric prefix/postfix updates, numeric
 compound assignments, and `&&=`, `||=`, and `??=`. A property reference keeps
 its receiver and key across RHS effects and awaits. Logical RHS expressions run
 only when the saved value selects the assignment.
+
+Calling the unshadowed `String` function applies the same primitive conversion.
+No arguments produce the empty String. Subsequent arguments still run in order
+and may suspend or throw. Fixed array-literal spreads follow ordinary call
+argument expansion. Boxed String construction and object coercion remain guarded.

@@ -1261,6 +1261,8 @@ fn concat_method_saves_fragments_across_awaits_and_stops_on_rejection() {
 fn templates_keep_prefixes_and_effect_order_across_awaits() {
     compare_promises(
         &[
+            "let x=a;const result=String(x,(await b,x=b));return result.length;",
+            "let hit=0;try{String(a,await Promise.reject(b),hit++);}catch(e){return hit;}return 99;",
             "let x='x';x+=(await b,a);const text=(await a,b)+x;return text.length;",
             "let x=a;const text=`${x}:${(await b,x=b)}`;return text.length;",
             "let v=a>b;const text=`${v}:${(await a,v=false)}:${(await b,null)}`;return text===(a>b?'true:false:null':'false:false:null')?1:0;",

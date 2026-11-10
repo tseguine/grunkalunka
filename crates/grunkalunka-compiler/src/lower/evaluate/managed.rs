@@ -395,6 +395,11 @@ impl Lowering<'_, '_> {
                         {
                             values.push(Some(Type::ManagedArray))
                         }
+                        Expression::CallExpression(call)
+                            if object_intrinsics::string_call(call, self.semantic, depth + 1) =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
                             values.push(Some(Type::ManagedValue))
                         }
@@ -661,6 +666,18 @@ impl Lowering<'_, '_> {
             // the existing scalar consumer, never to this storage bridge.
             work.push(Work::Managed(ManagedWork::PrimitiveProjection(node)));
             work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Managed | Mode::Discard | Mode::Predicate)
+            && let Expression::CallExpression(call) = node
+            && object_intrinsics::string_call(call, self.semantic, depth + 1)
+        {
+            match mode {
+                Mode::Discard => work.push(Work::Forget),
+                Mode::Predicate => work.push(Work::Managed(ManagedWork::Truthy(node))),
+                _ => (),
+            }
+            self.schedule_string_call(node, call, depth, regions, values, work)?;
             return Ok(true);
         }
         if self.schedule_optional_member(node, depth, mode, work)?

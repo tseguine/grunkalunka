@@ -26,7 +26,7 @@ pub(super) enum Work<'e, 'a> {
     Destructure(destructure::Task<'e, 'a>),
     ArraySlice(array_slice::Task<'e, 'a>),
     StringTemplate(string_template::Task<'e, 'a>),
-    StringOperand(&'e Expression<'a>, string_template::Conversion),
+    StringOperand(&'e Expression<'a>, string_conversion::Conversion),
     StringMethod(string_methods::Task<'e, 'a>),
     OwnKeys(own_keys::Task<'e, 'a>),
     HasOwn(has_own::Task<'e, 'a>),
