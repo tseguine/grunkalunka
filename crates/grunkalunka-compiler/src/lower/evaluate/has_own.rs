@@ -48,17 +48,14 @@ impl Lowering<'_, '_> {
                     || (ty == Type::ManagedArray
                         && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key)));
             if inherited && !known_prototype {
-                return Err(unsupported(
-                    &binary.right,
-                    "in cannot assume an inherited key on a mixed-prototype receiver",
-                ));
-            }
-            let membership = if inherited {
-                Membership::Inherited
+                // The live object may be a null-prototype dictionary. Use the
+                // same runtime prototype query as for a computed String name.
+                (Membership::Prototype, Some(dictionary::RuntimeKey::String))
+            } else if inherited {
+                (Membership::Inherited, None)
             } else {
-                Membership::OwnLiteral(key)
-            };
-            (membership, None)
+                (Membership::OwnLiteral(key), None)
+            }
         } else {
             let kind = self.runtime_key(&binary.left, depth + 1).ok_or_else(|| {
                 unsupported(
@@ -69,13 +66,8 @@ impl Lowering<'_, '_> {
             // Non-String primitive names never match pristine prototype properties.
             let membership = if dictionary || !matches!(kind, dictionary::RuntimeKey::String) {
                 Membership::OwnRuntime(kind)
-            } else if known_prototype {
-                Membership::Prototype
             } else {
-                return Err(unsupported(
-                    &binary.right,
-                    "a dynamic in key requires a known receiver prototype",
-                ));
+                Membership::Prototype
             };
             (membership, Some(kind))
         };

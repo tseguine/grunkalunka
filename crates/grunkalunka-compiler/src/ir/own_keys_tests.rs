@@ -189,10 +189,10 @@ fn dictionary_in_reuses_the_checked_guest_presence_operation() {
             )
         ));
     }
-    let typed = "export function run(a:number,b:number){const d=(a?{}:Object.create(null)) as Record<string,number>;const k='toString';return k in d?a:b;}";
+    let typed = "export function run(a:number,b:number){const d=(a?{}:null) as Record<string,number>;const k='toString';return k in d?a:b;}";
     let err = crate::compile(typed, true)
         .err()
-        .expect("annotation does not prove one prototype");
+        .expect("annotation cannot make null an object");
     assert!(
         err.contains("unsupported") && !err.contains("internal IR"),
         "{err}"
@@ -200,7 +200,7 @@ fn dictionary_in_reuses_the_checked_guest_presence_operation() {
 }
 
 #[test]
-fn static_in_needs_a_known_prototype_only_for_an_inherited_key() {
+fn static_in_checks_the_actual_record_prototype_for_inherited_keys() {
     for (body, admitted) in [
         (
             "const o=a?{}:Object.create(null);return 'own' in o?1:0;",
@@ -208,7 +208,7 @@ fn static_in_needs_a_known_prototype_only_for_an_inherited_key() {
         ),
         (
             "const o=a?{}:Object.create(null);return 'constructor' in o?1:0;",
-            false,
+            true,
         ),
         (
             "const o={};const f=()=>o;return 'constructor' in f()?1:0;",

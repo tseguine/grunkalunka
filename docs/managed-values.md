@@ -1746,3 +1746,7 @@ Array length assignments accept runtime values proven to be uint32, including
 another array's length, a checked loop counter or an unsigned shift. Shrinking
 deletes indexed properties, growing creates holes, and the assignment returns
 the original RHS Number (including negative zero).
+
+Membership tests on a mixture of ordinary and null-prototype records check own
+properties first. An own miss consults the pristine Object prototype only for
+an ordinary record. This applies to both literal and computed inherited names.

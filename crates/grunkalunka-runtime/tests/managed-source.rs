@@ -1907,6 +1907,10 @@ fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
 #[test]
 fn static_in_distinguishes_own_fields_and_intrinsic_prototypes() {
     for body in [
+        "const o=a?{}:Object.create(null);return 'constructor' in o?1:0;",
+        "const d=Object.create(null);d.toString=b;const o=a?{}:d;const k=b?'toString':'valueOf';return k in o?1:0;",
+        "const d=Object.create(null);d.constructor=1;let o=a?d:{};const first='constructor' in o;delete d.constructor;return first&&('constructor' in o)?1:0;",
+        "let o=Object.create(null);const key=b?'constructor':'missing';return (o={},key) in (a?o:Object.create(null))?1:0;",
         "return 'length' in [a]?1:0;",
         "return 'x' in (a?Object.create(null):{})?1:0;",
         "const o={own:undefined};return 'own' in o&&'constructor' in o&&'__proto__' in o&&!('map' in o)&&!('missing' in o)?1:0;",
