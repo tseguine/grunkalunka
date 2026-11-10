@@ -7,7 +7,7 @@
 selection can narrow the latter; unknown plans run it in full. See the
 [coverage table and budgets](ci.md#fast-pr-profile-and-full-master-profile).
 
-PRs retain all non-runtime Cargo tests, runtime library tests and 21 fast runtime
+PRs retain all non-runtime Cargo tests, runtime library tests and 22 fast runtime
 integration targets, full client/transport contracts, compiled/native smoke
 coverage, all document-outline fixtures, and two real HTTP/synchronization
 scenarios. Exhaustive runtime matrices, repeated native application/package

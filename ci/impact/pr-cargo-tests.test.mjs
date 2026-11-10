@@ -122,7 +122,7 @@ test('checked-in classification accounts for every current runtime integration s
   const policy = JSON.parse(readFileSync(new URL('./pr-cargo-tests.json', import.meta.url), 'utf8'));
   // This source inventory regression supplements, rather than substitutes for,
   // the real cargo metadata validation performed on each native CI execution.
-  assert.equal(policy.fast.targets.length, 21);
+  assert.equal(policy.fast.targets.length, 22);
   assert.ok(policy.fast.targets.includes('core_engine_process_memory'),
     'native memory sampling and its deterministic recovery checks run on PRs');
   assert.deepEqual([...policy.fast.targets, ...policy.masterOnly.targets].sort(), actual);
@@ -136,7 +136,7 @@ test('checked-in classification accounts for every current runtime integration s
   ];
   const result = plan({ metadata: actualMetadata, classification: policy, packages: [runtime] });
   const runtimeCommands = result.commands.filter(command => command.phase === 'test');
-  assert.equal(runtimeCommands.length, 2, '21 fast tests should fit two bounded runs');
+  assert.equal(runtimeCommands.length, 2, '22 fast tests should fit two bounded runs');
   assert.equal(result.commands.length, 4, 'compile each bounded group first');
   assert.deepEqual(runtimeCommands.map(command => command.timeoutMs), [120_000, 120_000]);
   assert.ok(runtimeCommands[0].args.includes('--lib'));
