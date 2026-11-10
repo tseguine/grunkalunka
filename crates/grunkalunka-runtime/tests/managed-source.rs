@@ -5,6 +5,28 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn scalar_numeric_addition_keeps_number_results_in_reference_storage() {
+    let omitted = "function f(x,y=x+1){return y;}export function run(a,b){return f();}";
+    common::compare_sources(omitted, omitted);
+    for body in [
+        "const x=a?true:null;const o={n:x+b};return o.n;",
+        "const xs=[(a?false:void 0)+(b?null:true)];return xs[0];",
+        "const o={v:a?b:null};const {n}={n:o.v+(b?true:false)};return n;",
+        "const x=a?null:b;const table={f:()=>x+false};const out={v:table.f()};return out.v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const x=a?'1':null;const o={v:x+b};return o.v;",
+        "const x=a?{}:false;const o={v:x+b};return o.v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn optional_tail_results_feed_managed_locals_and_later_additions() {
     let source = r#"export function run(a,b) {
         let state;

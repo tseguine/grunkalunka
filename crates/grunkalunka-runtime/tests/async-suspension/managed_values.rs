@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn scalar_numeric_sums_survive_storage_and_suspension() {
+    compare_promises(
+        &[
+            "let x=a?true:null;const row={v:x+(await b,x=false,b)};await a;return +row.v;",
+            "const row={v:(a?void 0:null)+(b?true:false)};return +(await row.v);",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn primitive_text_arguments_preserve_snapshots_across_await() {
     compare_promises(
         &[
