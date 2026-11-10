@@ -1823,8 +1823,8 @@ block and reads in nested functions retain their conservative checks.
 
 When both arms of an `if/else` end in a plain assignment to the same local
 and those are its only writes, reads after the conditional in its block
-can use the union of the two RHS values. Both alternatives must support
-the subsequent operation.
+can use the union of the two RHS values. The same proof covers nested choices and exhaustive `else if` ladders. Every
+reachable assigned value must support the subsequent operation.
 
 
 Calls to `at`, `slice`, `includes`, `indexOf` and
