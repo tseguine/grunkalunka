@@ -1725,3 +1725,7 @@ after its remaining arguments finish.
 Optional computed reads on arrays and records accept runtime scalar keys. The
 receiver is saved before key evaluation, and a nullish receiver skips key
 effects. Numeric keys preserve their JavaScript spelling, including fractions.
+
+Both `delete obj[key]` and `delete obj?.[key]` accept runtime primitive keys.
+Array deletions preserve length and leave holes. Dynamic Strings that could
+name the non-configurable Array length remain guarded.

@@ -13,7 +13,7 @@ pub(super) enum Task<'e, 'a> {
     Key {
         node: &'e Expression<'a>,
         input: Option<ValueId>,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
         condition: ValueId,
         skipped: Region,
     },
@@ -43,13 +43,18 @@ impl Lowering<'_, '_> {
                 "optional delete requires a proven object, array or nullish receiver",
             ));
         }
-        if let Key::Runtime(key) = &key
-            && (!self.stored.string(key.node_id()) || receiver == Some(Type::ManagedArray))
-        {
-            return Err(unsupported(
-                node,
-                "optional delete runtime keys require a proven String on objects",
-            ));
+        if let Key::Runtime(key) = &key {
+            let kind = self
+                .runtime_key(key, depth + 2)
+                .ok_or_else(|| unsupported(node, "optional delete requires a primitive key"))?;
+            if receiver == Some(Type::ManagedArray)
+                && matches!(kind, dictionary::RuntimeKey::String)
+            {
+                return Err(unsupported(
+                    node,
+                    "deleting non-configurable array length requires a source TypeError",
+                ));
+            }
         }
         if receiver == Some(Type::ManagedArray)
             && let Key::Literal(key) = &key
@@ -79,7 +84,7 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
-    ) {
+    ) -> Result<(), String> {
         let (node, key, receiver, depth) = match task {
             Task::Receiver {
                 node,
@@ -90,20 +95,16 @@ impl Lowering<'_, '_> {
             Task::Key {
                 node,
                 input,
-                uint32,
+                kind,
                 condition,
                 skipped,
             } => {
                 let key = values.pop().expect("optional delete key").id();
-                let key = if uint32 {
-                    ir::ManagedKey::Uint32(key)
-                } else {
-                    ir::ManagedKey::String(key)
-                };
+                let key = kind.finish(key);
                 let result = self.optional_delete_result(node, input, key, regions.current());
                 let selected = regions.finish(result);
                 self.finish_optional_delete(node, condition, skipped, selected, regions, values);
-                return;
+                return Ok(());
             }
         };
         let input = values.pop().expect("optional delete receiver").id();
@@ -146,25 +147,24 @@ impl Lowering<'_, '_> {
                 self.finish_optional_delete(node, condition, skipped, selected, regions, values);
             }
             Key::Uint32(key) | Key::Runtime(key) => {
-                let uint32 = self.stored.uint32_keys.contains(key, depth + 2);
+                let kind = self
+                    .runtime_key(key, depth + 2)
+                    .expect("validated optional delete key");
                 regions.children.push(selected);
                 work.push(Work::PropertyDelete(property_delete::Task::Optional(
                     Task::Key {
                         node,
                         input,
-                        uint32,
+                        kind,
                         condition,
                         skipped,
                     },
                 )));
                 // Even a key in an unreachable branch is source-validated.
-                work.push(Work::Eval(
-                    key,
-                    depth + 2,
-                    if uint32 { Mode::Number } else { Mode::Managed },
-                ));
+                self.schedule_runtime_key(key, depth + 2, kind, work)?;
             }
         }
+        Ok(())
     }
 
     fn optional_delete_result(
@@ -236,7 +236,7 @@ mod tests {
                 "const xs=a?[b]:null;const k='0';return delete xs?.[k]?1:0;",
                 false,
             ),
-            ("const o={0:b};return delete o?.[a]?1:0;", false),
+            ("const o={0:b};return delete o?.[a]?1:0;", true),
             ("return delete null?.[{}]?1:0;", false),
             ("return delete null?.[(1n,'x')]?1:0;", false),
             ("const o={x:{y:a}};return delete o?.x.y?1:0;", false),
