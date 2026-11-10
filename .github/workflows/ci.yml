@@ -165,7 +165,7 @@ jobs:
   # Continue across failing test binaries so unrelated regressions can be
   # repaired together before updating master.
   full-regression-scan:
-    name: Full regression scan (Linux, non-fail-fast)
+    name: Full canonical remainder scan (Linux)
     if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'fix/full-regression-scan-')
     runs-on: ubuntu-24.04
     timeout-minutes: 100
@@ -196,10 +196,7 @@ jobs:
         run: |
           cargo fetch --locked
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
-      - name: Run every Cargo test target, collecting all failures
-        run: |
-          set -o pipefail
-          cargo test --workspace --locked --offline -j 4 --no-fail-fast 2>&1 | tee /tmp/grunkalunka-full-regressions.log
-          result=${PIPESTATUS[0]}
-          grep -E '(\\.\\.\\. FAILED|test result: FAILED|error: test failed|---- .* stdout ----)' /tmp/grunkalunka-full-regressions.log | tail -n 200 || true
-          exit "$result"
+      - name: Build workspace for full canonical checks
+        run: cargo build --workspace --locked --offline -j 4
+      - name: Run all remaining canonical checks without early exit
+        run: node scripts/scan-canonical-remainder.mjs
