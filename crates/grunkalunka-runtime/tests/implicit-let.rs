@@ -281,6 +281,18 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
 #[test]
 fn implicit_let_keeps_tdz_const_and_source_contracts() {
     assert!(compile_value("export function run(a,b) {var x; return a;}", true).is_ok());
+    // This formerly rejected source is supported by String-capable lexical stores.
+    for ts in [false, true] {
+        let artifact =
+            compile_value("export function run(a,b) {let x; x=\"bad\"; return a;}", ts).unwrap();
+        assert!(matches!(
+            ValueInstance::new(&artifact.wasm)
+                .unwrap()
+                .run(4.0, 2.0)
+                .unwrap(),
+            Value::Number(n) if n == 4.0
+        ));
+    }
     for source in [
         "export function run(a,b) {value; let value; return a;}",
         "export function run(a,b) {let value=value; return a;}",
@@ -291,9 +303,10 @@ fn implicit_let_keeps_tdz_const_and_source_contracts() {
         "export function run(a,b) {var f=()=>a; return a;}",
         "export function run(a,b) {let {x}; return a;}",
         "export function run(a,b) {let x!:number; return a;}",
-        "export function run(a,b) {let x; x=\"bad\"; return a;}",
     ] {
-        let error = compile_value(source, true).err().unwrap();
+        let error = compile_value(source, true)
+            .err()
+            .unwrap_or_else(|| panic!("previously rejected source now compiles: {source}"));
         assert!(!error.contains("internal IR"), "{source}: {error}");
     }
     assert!(
