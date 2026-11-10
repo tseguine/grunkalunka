@@ -1,5 +1,7 @@
 use grunkalunka_compiler::{compile, compile_value};
 use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
+#[path = "managed/common.rs"]
+mod common;
 #[test]
 fn null_compound_addition_returns_and_stores_number() {
     let artifact = compile(
@@ -321,6 +323,17 @@ fn exact_previous_compound_guards_execute_original_sources() {
 }
 
 #[test]
+fn string_compound_assignment_preserves_converted_text() {
+    for body in [
+        "let value=null; value+=\"x\"; return a;",
+        "let value=null; value+=\"x\"; return value===\"nullx\"?a:b;",
+    ] {
+        let source = format!("export function run(a,b) {{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn arithmetic_compounds_keep_other_operator_kind_and_binding_boundaries() {
     for body in [
         "let value=null; value**=a; return a;",
@@ -328,14 +341,15 @@ fn arithmetic_compounds_keep_other_operator_kind_and_binding_boundaries() {
         "value+=a; let value=null; return a;",
         "let value=(value+=a); return a;",
         "let value=null; value.x+=a; return a;",
-        "let value=null; value+=\"x\"; return a;",
         "let value=null; value+=1n; return a;",
         "let value=null; value+=({}); return a;",
         "a+=(\"x\" as number); return a;",
         "if(false){a+=Math.random();} return a;",
     ] {
         let source = format!("export function run(a,b) {{{body}}}");
-        let error = compile(&source, true).err().unwrap();
+        let error = compile(&source, true)
+            .err()
+            .unwrap_or_else(|| panic!("previously rejected source now compiles: {source}"));
         assert!(!error.contains("internal IR"), "{source}: {error}");
     }
 }

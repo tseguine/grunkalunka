@@ -28,6 +28,8 @@ mod missing_helper_argument_tests;
 mod missing_runtime_argument_tests;
 #[cfg(test)]
 mod optional_parameter_tests;
+#[cfg(test)]
+mod primitive_compound_admission_tests;
 mod prototype_keys;
 #[cfg(test)]
 mod source_cursor_tests;
