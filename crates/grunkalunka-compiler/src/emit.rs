@@ -454,6 +454,11 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_string_to_array\n");
                 self.set(*result);
             }
+            Op::ManagedScalarString { result, input } => {
+                self.get(*input);
+                self.output.push_str("call $gc_scalar_string\n");
+                self.set(*result);
+            }
             Op::ManagedStringLength { result, input } => {
                 self.get(*input);
                 self.output.push_str(
@@ -1867,6 +1872,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
         })
     }) {
         output.push_str(include_str!("emit/string_compare.wat"));
+    }
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, Op::ManagedScalarString { .. })
+        })
+    }) {
+        output.push_str(include_str!("emit/scalar_string.wat"));
     }
     // Emit the decimal index formatter immediately before its first consumer.
     let mut emitted_index = false;

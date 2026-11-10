@@ -649,6 +649,11 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    // Checked specialization for String, Boolean, Null and Undefined carriers.
+    ManagedScalarString {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedStringLength {
         result: ValueId,
         input: ValueId,
@@ -1957,7 +1962,7 @@ impl Verifier<'_> {
                 self.value(*right, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
-            Op::ManagedTypeof { result, input } => {
+            Op::ManagedScalarString { result, input } | Op::ManagedTypeof { result, input } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
