@@ -74,3 +74,104 @@ pub(super) fn length_receiver<'e, 'a>(
         _ => None,
     }
 }
+
+// A plain record can use its own-property table when every possible String
+// key misses the pristine Object prototype. Validate operands separately;
+// this walk only describes the result of a successful key evaluation.
+pub(super) fn own_string_name(
+    expression: &Expression<'_>,
+    semantic: &Semantic<'_>,
+    depth: usize,
+) -> bool {
+    use oxc_ast::AstKind;
+    use std::collections::BTreeSet;
+
+    let mut pending = vec![(expression, depth)];
+    let mut followed = BTreeSet::new();
+    while let Some((node, depth)) = pending.pop() {
+        let Some((node, depth)) = closures::unwrapped_at(node, depth) else {
+            return false;
+        };
+        match node {
+            Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
+                let Some(name) = literal(node) else {
+                    return false;
+                };
+                if crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &name) {
+                    return false;
+                }
+            }
+            Expression::ConditionalExpression(c) => {
+                pending.push((&c.consequent, depth + 1));
+                pending.push((&c.alternate, depth + 1));
+            }
+            Expression::SequenceExpression(seq) => {
+                let Some(last) = seq.expressions.last() else {
+                    return false;
+                };
+                pending.push((last, depth + 1));
+            }
+            Expression::Identifier(id) => {
+                let Some(symbol) = id
+                    .reference_id
+                    .get()
+                    .and_then(|r| semantic.scoping().get_reference(r).symbol_id())
+                else {
+                    return false;
+                };
+                let decl = semantic.symbol_declaration(symbol);
+                let AstKind::VariableDeclarator(var) = decl.kind() else {
+                    return false;
+                };
+                let AstKind::VariableDeclaration(parent) = semantic.nodes().parent_kind(decl.id())
+                else {
+                    return false;
+                };
+                if !matches!(var.id, BindingPattern::BindingIdentifier(_))
+                    || var.span.end > id.span.start
+                    || parent.kind != VariableDeclarationKind::Const
+                {
+                    return false;
+                }
+                if followed.insert(symbol) {
+                    let Some(init) = var.init.as_ref() else {
+                        return false;
+                    };
+                    pending.push((init, depth + 1));
+                }
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ordinary_record_keys_exclude_inherited_names_and_unchecked_sources() {
+        for (key, admitted) in [
+            ("a?'x':'y'", true),
+            ("a?'push':'length'", true),
+            ("a?'x':'__proto__'", false),
+            ("a?'toString':'x'", false),
+            ("a?`constructor`:'x'", false),
+            ("a as 'x'", false),
+            ("(Math.random(),'x')", false),
+        ] {
+            let source = format!(
+                "export function run(a,b){{const o={{x:a}},name={key};return o[name]===a?1:0;}}"
+            );
+            assert_eq!(crate::compile(&source, true).is_ok(), admitted, "{source}");
+        }
+        for body in [
+            "const o={};const k=a?'x':'__proto__';o[k]=b;return a;",
+            "const o={};let k='x';k='constructor';return o[k]===undefined?1:0;",
+            "const o={};const {x:k}={x:'constructor'};return o[k]===undefined?1:0;",
+            "const o={x:'abc'};const k=a?'x':'y';o[k]=b;return o.x.length;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
+    }
+}

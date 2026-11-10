@@ -5,6 +5,22 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn runtime_record_keys_select_own_names_and_keep_reference_order() {
+    for body in [
+        "const d=a?Object.create(null):{};const key='x';return d[key]===undefined?a:b;",
+        "const d={};const key='x';d[key]=a;return a;",
+        "const d=a?Object.create(null):{};const key='x';d[key]=a;return a;",
+        "const d={};const key='x';return d[key]===undefined?a:b;",
+        "const o={left:a,right:b};const key=a?'left':'right';return +(o[key]);",
+        "const d=a?Object.create(null):{x:b};const k='x';return +d[k];",
+        "let o={x:1,y:2};const saved=o;const k=a?'x':'y';o[k]=(o={x:7},b);return saved[k]===b&&o.x===7?1:0;",
+        "const o={};let step=0;o[(step=1,a?'x':'y')]=(step=step+1,b);return step;",
+        "const o={x:a};const k=b?'x':'absent',alias=k;return o[alias]===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+#[test]
 fn primitive_literal_keys_agree_across_definitions_reads_and_patterns() {
     for body in [
         "const o={[true]:a,true:b,[false]:a};return o[true]===b&&o.false===a?1:0;",
@@ -979,7 +995,7 @@ fn dictionary_admission_requires_a_proven_null_prototype() {
         "const d=Object.create.call(null,null);return a;",
         "const d=Object.create(...[null]);return a;",
         "const d=Object?.create(null);return a;",
-        "const d={};const key='x';return d[key]===undefined?a:b;",
+        "const d={};const key=a?'x':'constructor';return d[key]===undefined?a:b;",
     ] {
         for typed in [false, true] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -1044,7 +1060,7 @@ fn dictionary_reads_keep_unknown_values_and_receivers_unproven() {
         "const d=Object.create(null);return d[a]===undefined?a:b;",
         "const d=Object.create(null);const key=a?'x':b;return d[key]===undefined?a:b;",
         "const d=Object.create(null);const key=['x'].at(a);return d[key]===undefined?a:b;",
-        "const d=a?Object.create(null):{};const key='x';return d[key]===undefined?a:b;",
+        "const d=a?Object.create(null):{};const key=a?'x':'__proto__';return d[key]===undefined?a:b;",
         "const d=Object.create(null);d.x=a;const key='x';const s=b?'ok':d[key];return s.length;",
         "const d=Object.create(null);const key='x';const o=a?{}:d[key];return o.x===undefined?a:b;",
         "const d=Object.create(null);const key='x';const f=a?()=>a:d[key];return f();",
@@ -1119,8 +1135,8 @@ fn dictionary_writes_snapshot_receiver_and_key_before_rhs_effects() {
 #[test]
 fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
     for body in [
-        "const d={};const key='x';d[key]=a;return a;",
-        "const d=a?Object.create(null):{};const key='x';d[key]=a;return a;",
+        "const d={};const key=a?'x':'__proto__';d[key]=a;return a;",
+        "const d=a?Object.create(null):{};const key=a?'x':'__proto__';d[key]=a;return a;",
         "const d=Object.create(null);d[a]=b;return a;",
         "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
         "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",

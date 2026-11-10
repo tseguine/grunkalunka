@@ -544,6 +544,7 @@ fn string_ranges_save_receiver_and_endpoints_across_awaits() {
 fn dictionary_writes_preserve_receiver_and_key_snapshots_across_await() {
     compare_promises(
         &[
+            "let o={x:1,y:2};const old=o;const key=a?'x':'y';o[key]=(o={},await b);return old[key]===b&&o[key]===undefined?1:0;",
             "let d=Object.create(null);const old=d;let key='x';d[key]=(await a,key='y',d=Object.create(null),b);await b;return old.x===b&&old.y===undefined&&d.x===undefined?1:0;",
             "let d=Object.create(null);const old=d;d[(await a,d=Object.create(null),'x')]=(await b,a);return old.x===a&&d.x===undefined?1:0;",
             "const d=Object.create(null);const key='__proto__';const value=d[key]=(await b,a);await a;return d.__proto__===a&&value===a?1:0;",
