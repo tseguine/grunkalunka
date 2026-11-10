@@ -1609,7 +1609,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::StringAddition(task) => {
                     self.resume_string_addition(task, regions, values, work)?
                 }
-                Work::StringAwait(node) => self.resume_string_await(node, regions, values),
+                Work::BoxedPrimitiveAwait(node) => {
+                    self.resume_boxed_primitive_await(node, regions, values)
+                }
                 Work::Destructure(task) => self.resume_destructure(task, regions, values, work)?,
                 Work::StringOperand(node, conversion) => {
                     self.finish_string_operand(node, conversion, regions, values)
