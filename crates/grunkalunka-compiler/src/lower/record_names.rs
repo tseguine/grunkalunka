@@ -50,6 +50,24 @@ impl Selected {
         }
     }
 
+    fn logical_left(self, operator: LogicalOperator) -> Self {
+        match operator {
+            LogicalOperator::And => Selected {
+                text: false,
+                ..self
+            },
+            LogicalOperator::Or => Selected {
+                empty: false,
+                nullish: false,
+                ..self
+            },
+            LogicalOperator::Coalesce => Selected {
+                nullish: false,
+                ..self
+            },
+        }
+    }
+
     fn intersect(self, other: Self) -> Self {
         Self {
             empty: self.empty && other.empty,
@@ -219,14 +237,17 @@ impl RecordNames {
             ) {
                 continue;
             }
-            // Every write, including one inside a closure or iteration head,
-            // must be a simple assignment whose RHS also has a safe name.
-            if !scope.get_resolved_references(symbol).filter(|r|r.is_write()).all(|r|{
-                let AstKind::AssignmentExpression(assign)=nodes.parent_kind(r.node_id()) else {return false};
-                assign.operator==AssignmentOperator::Assign
+            // A plain or logical assignment either keeps the old value or
+            // stores its original RHS. Other writes invalidate the proof.
+            let safe_writes = scope.get_resolved_references(symbol).filter(|r| r.is_write()).all(|r| {
+                let AstKind::AssignmentExpression(assign) = nodes.parent_kind(r.node_id()) else { return false };
+                (assign.operator == AssignmentOperator::Assign || assign.operator.is_logical())
                     && matches!(assign.left.as_simple_assignment_target(),Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) if id.node_id()==r.node_id())
-                    && name_from(&assign.right,0,&global_undefined,&mut read,&mut observe_nullish,&mut observe)
-            }) {continue}
+                    && name_from(&assign.right, 0, &global_undefined, &mut read, &mut observe_nullish, &mut observe)
+            });
+            if !safe_writes {
+                continue;
+            }
             candidates.insert(symbol);
             if may_be_nullish {
                 nullable.insert(symbol);
@@ -381,23 +402,27 @@ fn name_from<'a>(
                 observe(static_keys::literal(node));
             }
             Expression::LogicalExpression(logical) => {
-                let left = match logical.operator {
-                    LogicalOperator::And => Selected {
-                        text: false,
-                        ..selected
-                    },
-                    LogicalOperator::Or => Selected {
-                        empty: false,
-                        nullish: false,
-                        ..selected
-                    },
-                    LogicalOperator::Coalesce => Selected {
-                        nullish: false,
-                        ..selected
-                    },
-                };
-                pending.push((&logical.left, depth + 1, left));
+                pending.push((
+                    &logical.left,
+                    depth + 1,
+                    selected.logical_left(logical.operator),
+                ));
                 pending.push((&logical.right, depth + 1, selected));
+            }
+            Expression::AssignmentExpression(assign) => {
+                let Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) =
+                    assign.left.as_simple_assignment_target()
+                else {
+                    return false;
+                };
+                if let Some(op) = assign.operator.to_logical_operator() {
+                    if !valid_read(id, selected.logical_left(op)) {
+                        return false;
+                    }
+                } else if assign.operator != AssignmentOperator::Assign {
+                    return false;
+                }
+                pending.push((&assign.right, depth + 1, selected));
             }
             Expression::ConditionalExpression(c) => {
                 pending.push((&c.consequent, depth + 1, selected));

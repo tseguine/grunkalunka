@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn logical_assignment_key_saves_table_before_suspended_default() {
+    compare_promises(
+        &[
+            "let row={x:a,y:b},k=a?'x':null;const v=row[k??=(await b,row={y:7},'y')];return +v;",
+            "let k=a?'x':'';const row={x:b,y:a};try{return +row[k||=(await Promise.reject(b),'y')];}catch(e){return k===''&&e===b?1:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn null_prototype_selection_preserves_await_and_abrupt_completion() {
     compare_promises(
         &[
