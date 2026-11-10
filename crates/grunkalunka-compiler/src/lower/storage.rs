@@ -303,6 +303,7 @@ pub(super) fn number_result_shape<'a>(
                     binary.operator,
                     BinaryOperator::Addition
                         | BinaryOperator::Subtraction
+                        | BinaryOperator::Exponential
                         | BinaryOperator::Multiplication
                         | BinaryOperator::Division
                         | BinaryOperator::Remainder

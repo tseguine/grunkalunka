@@ -375,7 +375,7 @@ fn evaluator_control_characterization() {
                         "unsupported at bytes 34..46: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
                     }
                     "operator-before-child" => {
-                        "unsupported at bytes 34..52: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                        "unsupported at bytes 34..52: exponentiation requires a literal exponent of -1, 0, 1 or 2"
                     }
                     "target-before-rhs" => {
                         "unsupported at bytes 38..53: assignment to a const binding is not admitted"
@@ -384,19 +384,19 @@ fn evaluator_control_characterization() {
                         "unsupported at bytes 34..53: expression is outside the numeric experiment"
                     }
                     "surplus-argument-child" => {
-                        "unsupported at bytes 64..70: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                        "unsupported at bytes 64..70: exponentiation requires a literal exponent of -1, 0, 1 or 2"
                     }
                     "omitted-argument-checks-child" => {
-                        "unsupported at bytes 68..74: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                        "unsupported at bytes 68..74: exponentiation requires a literal exponent of -1, 0, 1 or 2"
                     }
                     "argument-before-spread" => {
-                        "unsupported at bytes 68..74: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                        "unsupported at bytes 68..74: exponentiation requires a literal exponent of -1, 0, 1 or 2"
                     }
                     "spread-before-next" => {
                         "unsupported at bytes 66..80: spread call arguments are not admitted"
                     }
                     "math-surplus-child" => {
-                        "unsupported at bytes 43..49: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                        "unsupported at bytes 43..49: exponentiation requires a literal exponent of -1, 0, 1 or 2"
                     }
                     "math-spread" => {
                         "unsupported at bytes 34..48: spread call arguments are not admitted"

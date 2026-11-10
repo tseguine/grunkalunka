@@ -39,6 +39,7 @@ pub(super) mod helper_defaults;
 mod if_statements;
 mod invocation;
 mod iteration;
+mod literal_power;
 #[cfg(test)]
 mod loop_statements;
 mod managed_calls;

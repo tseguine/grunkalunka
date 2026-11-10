@@ -2494,6 +2494,11 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     );
                     values.push(Value::Number(result));
                 }
+                Work::LiteralPower(node, power) => {
+                    let input = values.pop().expect("power base").number();
+                    let result = self.emit_literal_power(node, regions.current(), input, power);
+                    values.push(Value::Number(result));
+                }
                 Work::BinaryRight {
                     node,
                     right,
@@ -4697,6 +4702,13 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             work.push(Work::Eval(&unary.argument, depth + 1, Mode::Numeric));
                         }
                         Expression::BinaryExpression(binary) => {
+                            if binary.operator == BinaryOperator::Exponential {
+                                let power = literal_power::LiteralPower::from_source(&binary.right, depth + 1)
+                                    .ok_or_else(|| unsupported(node, "exponentiation requires a literal exponent of -1, 0, 1 or 2"))?;
+                                work.push(Work::LiteralPower(node, power));
+                                work.push(Work::Eval(&binary.left, depth + 1, Mode::Numeric));
+                                continue;
+                            }
                             let operator = match binary.operator {
                                 BinaryOperator::Addition => Binary::Add,
                                 BinaryOperator::Subtraction => Binary::Subtract,
