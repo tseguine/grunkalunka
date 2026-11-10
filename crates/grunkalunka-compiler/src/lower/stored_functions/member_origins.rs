@@ -53,7 +53,12 @@ impl Members<'_, '_> {
         found
     }
 
-    pub(super) fn optional_computed(&self, receiver: NodeId, key: NodeId) -> Alternatives {
+    pub(super) fn optional_computed(
+        &self,
+        receiver: NodeId,
+        key: NodeId,
+        own_name: bool,
+    ) -> Alternatives {
         let Some(keys) = self.values.get(&key).filter(|v| !v.is_empty()) else {
             return Alternatives::new();
         };
@@ -71,7 +76,7 @@ impl Members<'_, '_> {
                 matches!(
                     origin,
                     Origin::NullObject(_) | Origin::Null | Origin::Undefined
-                )
+                ) || (own_name && matches!(origin, Origin::Object(_)))
             })
         {
             let mut found = self.enumerable_values_for(receiver, true);

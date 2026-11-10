@@ -5,6 +5,18 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn optional_record_keys_skip_effects_and_save_the_non_null_receiver() {
+    for body in [
+        "const o=a?{x:b,y:a}:null;let n=0;const key=b?'x':'y';const value=o?.[(n++,key)];return n*10+(value===undefined?1:0);",
+        "let o={x:a};const key='x';const value=o?.[(o={x:b},key)];return value===a?1:0;",
+        "const d=a?Object.create(null):{x:b};const key='x';return +(d?.[key]);",
+        "const child={v:a};const o=b?{row:child}:null;const key='row';return o?.[key]===child?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn runtime_record_keys_select_own_names_and_keep_reference_order() {
     for body in [
         "const d=a?Object.create(null):{};const key='x';return d[key]===undefined?a:b;",

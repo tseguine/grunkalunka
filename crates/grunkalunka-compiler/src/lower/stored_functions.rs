@@ -36,7 +36,11 @@ enum Rule {
     Member(NodeId, Key),
     OptionalMember(NodeId, Key),
     OptionalUnsignedMember(NodeId),
-    OptionalComputedMember(NodeId, NodeId),
+    OptionalComputedMember {
+        receiver: NodeId,
+        key: NodeId,
+        own_name: bool,
+    },
     StringKeyMember {
         receiver: NodeId,
         key: NodeId,
@@ -1398,7 +1402,11 @@ impl Fields {
                                 Rule::OptionalMember(receiver.node_id(), key)
                             }
                             evaluate::optional_member::Key::Runtime(key) => {
-                                Rule::OptionalComputedMember(receiver.node_id(), key.node_id())
+                                Rule::OptionalComputedMember {
+                                    receiver: receiver.node_id(),
+                                    key: key.node_id(),
+                                    own_name: static_keys::own_string_name(key, semantic, 0),
+                                }
                             }
                             evaluate::optional_member::Key::Uint32(_) => {
                                 Rule::OptionalUnsignedMember(receiver.node_id())
@@ -1474,7 +1482,7 @@ impl Fields {
                     | Rule::PatternUnsignedMember(..)
                     | Rule::OptionalMember(..)
                     | Rule::OptionalUnsignedMember(..)
-                    | Rule::OptionalComputedMember(..)
+                    | Rule::OptionalComputedMember { .. }
             )
         });
         let track_elements = has_iterations
@@ -1727,9 +1735,11 @@ impl Fields {
                     }
                     Rule::Member(receiver, key) => members.select(*receiver, key),
                     Rule::OptionalMember(receiver, key) => members.optional_select(*receiver, key),
-                    Rule::OptionalComputedMember(receiver, key) => {
-                        members.optional_computed(*receiver, *key)
-                    }
+                    Rule::OptionalComputedMember {
+                        receiver,
+                        key,
+                        own_name,
+                    } => members.optional_computed(*receiver, *key, *own_name),
                     Rule::OptionalUnsignedMember(receiver) => {
                         members.optional_unsigned_value(*receiver)
                     }
