@@ -312,6 +312,18 @@ impl Fields {
             .get(&node)
             .is_some_and(|values| values.len() == 1 && values.contains(&Origin::String))
     }
+    pub(super) fn scalar_string_operand(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::String | Origin::Boolean | Origin::Null | Origin::Undefined
+                    )
+                })
+        })
+    }
+
     pub(super) fn number(&self, node: NodeId) -> bool {
         self.values
             .get(&node)

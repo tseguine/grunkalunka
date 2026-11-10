@@ -1690,3 +1690,9 @@ Finite key alternatives also narrow mutation effects. A write or delete
 through an alias widens every field it could select. Unrelated fields
 retain their kinds, so a table's callback or label can still be used after
 updating one of its counters. Open-ended keys retain wildcard effects.
+
+Untagged template substitutions accept Strings, Booleans, Null, Undefined and
+unions of those values. Numeric literals use their ECMAScript decimal spelling,
+including signed zero and exponent notation. Each substitution runs once in
+source order, including across suspension. Dynamic unrestricted Numbers and
+object-to-primitive conversion still require additional lowering.

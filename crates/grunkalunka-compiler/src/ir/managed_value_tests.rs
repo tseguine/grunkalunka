@@ -1572,13 +1572,12 @@ fn string_concat_method_requires_string_arguments_and_bounded_arity() {
 }
 
 #[test]
-fn templates_require_known_strings_and_bound_substitution_count() {
+fn templates_require_supported_primitives_and_bound_substitution_count() {
     for body in [
         "return `${a}`.length;",
-        "return `${undefined}`.length;",
-        "return `${null}`.length;",
-        "return `${true}`.length;",
-        "const x=a?'a':null;return `${x}`.length;",
+        "return `${{}}`.length;",
+        "return `${a?'a':{}}`.length;",
+        "return `${()=>a}`.length;",
         "return tag`hello`.length;",
     ] {
         assert!(

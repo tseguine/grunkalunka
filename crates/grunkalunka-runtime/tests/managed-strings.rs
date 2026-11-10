@@ -1379,6 +1379,10 @@ fn concat_method_saves_all_fragments_and_preserves_utf16() {
 #[test]
 fn template_literals_use_cooked_utf16_and_ordered_string_substitutions() {
     for body in [
+        "const v=a?'ready':null;return `[${v}]`===(a?'[ready]':'[null]')?1:0;",
+        "const row={flag:a>b};return `${row.flag}/${undefined}/${null}`===(a>b?'true/undefined/null':'false/undefined/null')?1:0;",
+        "return `${-0},${1e21},${0.125},${-1e-7}`==='0,1e+21,0.125,-1e-7'?1:0;",
+        "let n=0;const text=`${(n=1,false)}${(n=n*10+2,void 0)}`;return text==='falseundefined'?n:0;",
         "return `hello`.length+``.length;",
         r"return `a\n\t\u{1f600}\ud800\0`==='a\n\t\u{1f600}\ud800\0'?1:0;",
         r"return `\`\${x}\\`==='`${x}\\'?1:0;",
