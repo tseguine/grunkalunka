@@ -677,6 +677,19 @@ fn unused_eager_async_primitive_constructor_preserves_entry_result() {
 }
 
 #[test]
+fn a_reassigned_factory_returns_only_the_current_leaf_result() {
+    let source = "export function run(a,b){let make=x=>()=>null;make=x=>()=>x;return make(a)();}";
+    for ts in [false, true] {
+        let artifact = compile(source, ts).unwrap();
+        let mut instance = NumericInstance::new(&artifact.wasm).unwrap();
+        for input in [4.0, -0.0, f64::INFINITY, f64::NAN] {
+            let actual = instance.run(input, 0.0).unwrap();
+            assert!(actual.to_bits() == input.to_bits() || (actual.is_nan() && input.is_nan()));
+        }
+    }
+}
+
+#[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",
@@ -691,7 +704,7 @@ fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>null;return f();",
         "const f=()=>null;const g=()=>b;let h=a?f:g;return h();",
-        "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
+        "let make=x=>()=>null;if(b)make=x=>()=>x;return make(a)();",
     ] {
         for ts in [false, true] {
             let source = format!("export function run(a,b){{{body}}}");
