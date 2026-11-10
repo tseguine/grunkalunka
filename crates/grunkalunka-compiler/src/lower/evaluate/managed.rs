@@ -585,7 +585,7 @@ impl Lowering<'_, '_> {
                             values.push(Some(Type::ManagedValue));
                         }
                         Expression::AssignmentExpression(a)
-                            if property_update::compound(a.operator).is_some() =>
+                            if NumericCompound::from_source(a, depth).is_some() =>
                         {
                             // Numeric compound writes return a Number even
                             // when the target stores that result boxed.

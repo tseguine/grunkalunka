@@ -171,7 +171,7 @@ pub(super) enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         slot: SlotId,
         previous: Option<ValueId>,
-        operator: Option<Binary>,
+        operator: Option<NumericCompound>,
     },
     Call {
         node: &'e Expression<'a>,

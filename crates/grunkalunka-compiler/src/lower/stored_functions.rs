@@ -810,7 +810,7 @@ impl Fields {
             let numeric_property = match node.kind() {
                 AstKind::UpdateExpression(update) => Some(&update.argument),
                 AstKind::AssignmentExpression(assignment)
-                    if evaluate::property_update::compound(assignment.operator).is_some()
+                    if NumericCompound::from_source(assignment, 0).is_some()
                         || matches!(
                             assignment.operator,
                             AssignmentOperator::LogicalAnd
@@ -973,7 +973,7 @@ impl Fields {
                     )
                 }
                 AstKind::AssignmentExpression(assignment)
-                    if evaluate::property_update::compound(assignment.operator).is_some() =>
+                    if NumericCompound::from_source(assignment, 0).is_some() =>
                 {
                     values.insert(id, BTreeSet::from([Origin::Number]));
                     None

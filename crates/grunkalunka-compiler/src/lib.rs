@@ -999,7 +999,7 @@ mod tests {
             ("return (Infinity as number)++;", "not an initialized"),
             ("return (a.x as number)=b;", "assignment target"),
             ("return (a[b] as number)++;", "update target"),
-            ("return (a as number)**=b;", "only ="),
+            ("return (a as number)**=b;", "requires a literal exponent"),
         ] {
             let error = compile(&format!("export function run(a,b) {{ {body} }}"), true)
                 .err()

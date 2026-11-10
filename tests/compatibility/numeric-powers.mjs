@@ -22,3 +22,17 @@ for (const [id, source] of [
 ]) {
   literalPowers.push([id, '', '', undefined, undefined, { sourceJS: source, sourceTS: source }]);
 }
+
+for (const [id, body] of [
+  ['power-assignment-param', 'return a**=2;'],
+  ['power-assignment-zero', 'return a**=-0;'],
+  ['power-assignment-slot', 'let x=a;const r=(x**=-1);return r+x;'],
+  ['power-assignment-closure', 'let x=a;const square=()=>x**=2;const r=square();return r+x;'],
+  ['power-assignment-array-key', 'const xs=[a,b];let i=0;const r=(xs[i++]**=2);return +xs[0]+r+i;'],
+  ['power-assignment-property', 'const o={x:a};const r=(o.x**=-1);return +o.x+r;'],
+  ['power-assignment-primitive', 'let x=a?null:true;const r=(x**=2);return +x+r;'],
+]) {
+  literalPowers.push([id, body, body]);
+}
+literalPowers.push(['power-assignment-erased-target', 'return a**=2;',
+  'return (a as number)**=(2 satisfies number);']);

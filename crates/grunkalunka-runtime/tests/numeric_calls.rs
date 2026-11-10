@@ -3,6 +3,29 @@ use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 use wasmtime::Trap;
 
 #[test]
+fn power_assignments_keep_number_bits_and_reference_evaluation() {
+    compare_helper_sources(&[
+        "export function run(a,b){return a**=2;}",
+        "export function run(a,b){let x=a;return x**=-1;}",
+        "export function run(a,b){let x=a?null:true;const r=(x**=2);return +x+r;}",
+        "export function run(a,b){const o={n:a};const r=(o.n**=2);return +o.n+r;}",
+        "export function run(a,b){const xs=[a,b];let i=0;const r=(xs[i++]**=-1);return +xs[0]+r+i;}",
+    ]);
+    for body in [
+        "const x=a;return x**=2;",
+        "return a**=b;",
+        "return a**=(b++,2);",
+        "return a**=3;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn math_clz32_counts_leading_zero_bits_after_numeric_conversion() {
     compare_helper_sources(&[
         "export function run(a,b){return Math.clz32('2');}",
