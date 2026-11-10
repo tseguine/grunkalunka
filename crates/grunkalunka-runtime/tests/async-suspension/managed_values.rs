@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn number_calls_preserve_snapshots_and_abrupt_extra_arguments() {
+    compare_promises(
+        &[
+            "let x=a;const v=Number(x,(x=b,await b));return v+x;",
+            "const x=await (a?true:null);return Number(x);",
+            "let n=0;try{Number((n=1,a),await Promise.reject(b),n=2);}catch(e){return n===1&&e===b?1:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn finite_array_names_save_the_receiver_and_skip_nullish_keys() {
     compare_promises(
         &[

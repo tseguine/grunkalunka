@@ -1,4 +1,4 @@
-//! Primitive ToString on the expression cursor, including explicit String calls.
+//! Primitive conversions and their argument evaluation on the expression cursor.
 use super::*;
 
 pub(super) enum Conversion {
@@ -68,6 +68,11 @@ impl Lowering<'_, '_> {
         let mut args = arguments.into_iter();
         let Some(first) = args.next() else {
             match kind {
+                object_intrinsics::ConversionCall::Number => {
+                    let result = self.value(Type::Number);
+                    Self::push(regions.current(), node, Op::Constant { result, value: 0.0 });
+                    values.push(Value::Number(result));
+                }
                 object_intrinsics::ConversionCall::Boolean => {
                     let result = self.value(Type::Predicate);
                     Self::push(
@@ -100,6 +105,7 @@ impl Lowering<'_, '_> {
             .as_expression()
             .ok_or_else(|| unsupported(node, "primitive conversion requires fixed arguments"))?;
         let (mode, conversion) = match kind {
+            object_intrinsics::ConversionCall::Number => (Mode::Arithmetic, None),
             object_intrinsics::ConversionCall::String => self.string_operand(first, first_depth)?,
             object_intrinsics::ConversionCall::Boolean => (Mode::Predicate, None),
         };

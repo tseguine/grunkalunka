@@ -1200,6 +1200,7 @@ impl Fields {
                     if let Some(kind) = object_intrinsics::conversion_call(call, semantic, 0) =>
                 {
                     Some(Rule::Known(match kind {
+                        object_intrinsics::ConversionCall::Number => Origin::Number,
                         object_intrinsics::ConversionCall::String => Origin::String,
                         object_intrinsics::ConversionCall::Boolean => Origin::Boolean,
                     }))

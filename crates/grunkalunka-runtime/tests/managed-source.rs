@@ -5,6 +5,35 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn number_calls_convert_scalar_values_and_evaluate_all_arguments() {
+    for body in [
+        "return 1/Number();",
+        "return Number(undefined);",
+        "return 1/Number(a);",
+        "const toNumber=x=>Number(x);return toNumber(a>0)+toNumber(false);",
+        "return Number(...[])+Number(...[a>b,b]);",
+        "const o={x:a?true:null};return Number(o.x);",
+        "const xs=[Number(Boolean(a)),Number(null)];return +xs[0]+ +xs[1];",
+        "let x=a;const v=Number(...[x],x=b);return v+x;",
+        "const Number=x=>x+3;return Number(a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "return Number({});",
+        "return Number(a?'3':'4');",
+        "return +new Number(a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn object_literal_prototypes_and_proto_fields_follow_definition_order() {
     for body in [
         "const d={__proto__:null,x:a};return !(d instanceof Object)&&!('constructor' in d)&&Object.keys(d).length===1?1:0;",
