@@ -1807,3 +1807,10 @@ A `let` binding can start uninitialized, null, or undefined and later hold
 a String, record, or Array. Source-proven writes select storage that
 preserves both the initial nullish value and the later reference. This
 supports lazy initialization such as `let cached; const item = cached ??= {n: 0}`.
+
+
+After a standalone, unconditional assignment to a `let` binding with a single
+write, later reads in the same function use the assigned value's known kind.
+For example, `let row; row = {n: 1}; return row.n;` reads a proven record.
+Conditional writes, loop writes, and reads in nested functions retain their
+existing conservative checks.

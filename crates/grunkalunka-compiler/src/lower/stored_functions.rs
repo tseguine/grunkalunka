@@ -502,7 +502,8 @@ impl Fields {
         let var_symbols = var_bindings::symbols(semantic);
         let var_parameters = var_bindings::parameters(semantic);
         let var_aliases = var_bindings::aliases(semantic);
-        let var_reads = var_bindings::reads(semantic);
+        let mut initialized_reads = var_bindings::reads(semantic);
+        var_bindings::lexical_assignment_reads(semantic, &mut initialized_reads);
         for symbol in &var_symbols {
             if !var_parameters.contains(symbol) && !var_aliases.contains_key(symbol) {
                 bindings
@@ -1166,7 +1167,7 @@ impl Fields {
                 AstKind::IdentifierReference(identifier) => {
                     if let Some(symbol) = symbol(identifier, semantic) {
                         Some(
-                            var_reads
+                            initialized_reads
                                 .get(&id)
                                 .map_or(Rule::Symbol(symbol), |reads| Rule::Copy(reads.clone())),
                         )

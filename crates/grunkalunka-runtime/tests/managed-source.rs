@@ -5,6 +5,29 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn definite_lexical_assignment_allows_later_plain_member_reads() {
+    for body in [
+        "let row;row={v:b};return +row.v;",
+        "let xs=null;xs=[a,b];return xs.length;",
+        "let row;const before=row===undefined;row={v:b};if(before)return +row.v;return a;",
+        "let xs;xs=[a];let n=0;for(const x of xs)n+=x;return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "let row;if(a)row={v:b};return +row.v;",
+        "let row;const x=row.v;row={v:b};return +x;",
+        "let row;row={v:b};const clear=()=>row=null;clear();return +row.v;",
+        "let row;const set=()=>{row={v:b};};return +row.v;",
+        "let row;while(a){row={v:b};break;}return +row.v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn nullish_lexical_locals_store_later_records_arrays_and_strings() {
     for body in [
         "let row;const chosen=row??={n:b};return +chosen.n;",
