@@ -16,7 +16,7 @@ enum Pending<'e, 'a> {
     Next,
     Key {
         value: &'e Expression<'a>,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
     },
     // None copies a spread source into the literal.
     Value(Option<ir::ManagedKey>),
@@ -51,13 +51,9 @@ impl Lowering<'_, '_> {
         let depth = task.depth + 1;
         match std::mem::replace(&mut task.pending, Pending::Next) {
             Pending::Next => (),
-            Pending::Key { value, uint32 } => {
+            Pending::Key { value, kind } => {
                 let key = values.pop().expect("literal computed key").id();
-                task.pending = Pending::Value(Some(if uint32 {
-                    ir::ManagedKey::Uint32(key)
-                } else {
-                    ir::ManagedKey::String(key)
-                }));
+                task.pending = Pending::Value(Some(kind.finish(key)));
                 work.push(Work::Managed(ManagedWork::Literal(task)));
                 work.push(Work::Eval(value, depth, Mode::Managed));
                 return Ok(());
@@ -86,7 +82,6 @@ impl Lowering<'_, '_> {
             values.push(Value::Object(task.object));
             return Ok(());
         };
-        let mut mode = Mode::Managed;
         let expr = match property {
             ObjectPropertyKind::SpreadProperty(spread) => {
                 task.pending = Pending::Value(None);
@@ -112,28 +107,24 @@ impl Lowering<'_, '_> {
                     &property.value
                 } else if property.computed
                     && let Some(key) = property.key.as_expression()
-                    && (self.stored.string(key.node_id())
-                        || self.stored.uint32_keys.contains(key, depth))
+                    && let Some(kind) = self.runtime_key(key, depth)
                 {
-                    let uint32 = self.stored.uint32_keys.contains(key, depth);
-                    if uint32 {
-                        mode = Mode::Number;
-                    }
                     task.pending = Pending::Key {
                         value: &property.value,
-                        uint32,
+                        kind,
                     };
-                    key
+                    work.push(Work::Managed(ManagedWork::Literal(task)));
+                    return self.schedule_runtime_key(key, depth, kind, work);
                 } else {
                     return Err(unsupported(
                         property.as_ref(),
-                        "managed literal keys require a static name or proven String",
+                        "managed literal keys require a static name or represented primitive",
                     ));
                 }
             }
         };
         work.push(Work::Managed(ManagedWork::Literal(task)));
-        work.push(Work::Eval(expr, depth, mode));
+        work.push(Work::Eval(expr, depth, Mode::Managed));
         Ok(())
     }
 }
@@ -156,12 +147,12 @@ mod uint32_tests {
                 "let key=0;const o={[key=a>>>0]:b};return Object.keys(o).length;",
                 true,
             ),
-            ("const o={[a]:b};return a;", false),
-            ("const o={[a>>0]:b};return a;", false),
-            ("const o={[a?(0>>>0):b]:a};return a;", false),
+            ("const o={[a]:b};return a;", true),
+            ("const o={[a>>0]:b};return a;", true),
+            ("const o={[a?(0>>>0):b]:a};return a;", true),
             ("const o={[(Math.random(),a>>>0)]:b};return a;", false),
             ("const key=a>>>0;const o={[key]:b};return a;", true),
-            ("let key=a>>>0;key=a;const o={[key]:b};return a;", false),
+            ("let key=a>>>0;key=a;const o={[key]:b};return a;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
@@ -177,7 +168,7 @@ mod uint32_tests {
         );
         assert!(
             crate::compile(
-                "export function run(a:number,b:number){const o={[a as number]:b};return a;}",
+                "export function run(a:number,b:number){const o={[{} as unknown as number]:b};return a;}",
                 true
             )
             .is_err()

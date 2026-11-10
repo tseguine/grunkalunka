@@ -1691,7 +1691,7 @@ fn nullish_result_origins_keep_receiver_and_unselected_source_guards() {
         "const source=[{label:'text'}];const row=source.at(a)??{label:'fallback'};source[0].label=b;return row.label.trim().length;",
         "const label=(a?'text':undefined)??null;return label.trim().length;",
         "const label='text'??missing();return label.trim().length;",
-        "const row={label:'text'}??{[a]:b};return row.label.trim().length;",
+        "const row={label:'text'}??{[{}]:b};return row.label.trim().length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typescript in [false, true] {

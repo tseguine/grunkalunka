@@ -350,6 +350,7 @@ fn unsigned_property_writes_save_targets_and_keys_across_rhs_awaits() {
 fn unsigned_computed_keys_preserve_keys_before_value_awaits() {
     compare_promises(
         &[
+            "let k=a;const o={[(await a,k)]:(k=b,await b,42)};return o[a]===42?1:0;",
             "let key=0;const o={[key>>>0]:(await a,key=1,b)};await b;return Object.hasOwn(o,0)&&!Object.hasOwn(o,1)&&key===1?1:0;",
             "const o={[(await a,0>>>0)]:(await b,a)};await b;return Object.hasOwn(o,0)?1:0;",
             "let n=0;try{const o={[(await Promise.reject(a),0>>>0)]:(n=1,b)};return Object.keys(o).length;}catch(e){await b;return n;}",

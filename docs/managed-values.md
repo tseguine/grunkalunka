@@ -579,7 +579,7 @@ Fresh object literals admit ordinary initializer/shorthand properties with stati
 identifier, String and numeric keys. Computed Boolean and null literals select
 the own names `"true"`, `"false"` and `"null"`. A substitution-free template
 key uses its cooked UTF-16 units, including escapes and lone surrogates. A computed definition can also use a
-proven runtime String. The key evaluates once before its value; a later
+represented runtime primitive, including a mixed String/Number name. The key evaluates once before its value; a later
 definition with the same key updates the existing position. When the possible
 names are known, each candidate field includes the value it could receive;
 unrelated fields retain their types. A single possible name defines a definite
