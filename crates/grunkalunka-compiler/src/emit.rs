@@ -454,9 +454,17 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_string_to_array\n");
                 self.set(*result);
             }
-            Op::ManagedScalarString { result, input } => {
+            Op::ManagedScalarString {
+                result,
+                input,
+                numbers,
+            } => {
                 self.get(*input);
-                self.output.push_str("call $gc_scalar_string\n");
+                self.output.push_str(if *numbers {
+                    "call $gc_primitive_string\n"
+                } else {
+                    "call $gc_scalar_string\n"
+                });
                 self.set(*result);
             }
             Op::ManagedStringLength { result, input } => {
@@ -1879,6 +1887,15 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
         })
     }) {
         output.push_str(include_str!("emit/scalar_string.wat"));
+    }
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, Op::ManagedScalarString { numbers: true, .. })
+        })
+    }) {
+        output.push_str(include_str!(concat!(env!("OUT_DIR"), "/ryu-tables.wat")));
+        output.push_str(include_str!("emit/ryu.wat"));
+        output.push_str(include_str!("emit/number_string.wat"));
     }
     // Emit the decimal index formatter immediately before its first consumer.
     let mut emitted_index = false;

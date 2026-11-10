@@ -1691,8 +1691,11 @@ through an alias widens every field it could select. Unrelated fields
 retain their kinds, so a table's callback or label can still be used after
 updating one of its counters. Open-ended keys retain wildcard effects.
 
-Untagged template substitutions accept Strings, Booleans, Null, Undefined and
-unions of those values. Numeric literals use their ECMAScript decimal spelling,
-including signed zero and exponent notation. Each substitution runs once in
-source order, including across suspension. Dynamic unrestricted Numbers and
-object-to-primitive conversion still require additional lowering.
+Untagged template substitutions accept String, Boolean, Null, Undefined and
+Number, including mixed primitive values. Dynamic binary64 Numbers use
+ECMAScript's shortest round-tripping decimal, fixed/exponential cutovers and
+spellings for both zeros, NaN and infinities. The guest formatter and its
+immutable tables are emitted only for conversions that can receive a dynamic
+Number. Numeric literals reuse their compile-time ECMAScript spelling. Each
+substitution runs once in source order, including across suspension. Objects
+with user-defined primitive conversion remain outside the admitted subset.

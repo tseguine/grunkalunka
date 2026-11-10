@@ -10,7 +10,7 @@ pub(super) struct Task<'e, 'a> {
 }
 
 pub(super) enum Conversion {
-    Scalar,
+    Scalar { numbers: bool },
     NumberLiteral(Vec<u16>),
 }
 
@@ -23,9 +23,6 @@ impl Lowering<'_, '_> {
     ) -> Result<(), String> {
         let mode = if self.stored.string(node.node_id()) {
             Mode::Managed
-        } else if self.stored.scalar_string_operand(node.node_id()) {
-            work.push(Work::StringOperand(node, Conversion::Scalar));
-            Mode::Managed
         } else if let Some(literal) = closures::unwrapped(node, depth)
             && static_keys::number(literal).is_some()
         {
@@ -34,6 +31,14 @@ impl Lowering<'_, '_> {
             work.push(Work::StringOperand(node, Conversion::NumberLiteral(units)));
             // Validate and charge the original expression on the ordinary source cursor.
             Mode::Number
+        } else if self.stored.scalar_string_operand(node.node_id()) {
+            work.push(Work::StringOperand(
+                node,
+                Conversion::Scalar {
+                    numbers: self.stored.may_be_number(node.node_id()),
+                },
+            ));
+            Mode::Managed
         } else {
             return Err(unsupported(
                 node,
@@ -57,7 +62,11 @@ impl Lowering<'_, '_> {
             regions.current(),
             node,
             match conversion {
-                Conversion::Scalar => Op::ManagedScalarString { result, input },
+                Conversion::Scalar { numbers } => Op::ManagedScalarString {
+                    result,
+                    input,
+                    numbers,
+                },
                 Conversion::NumberLiteral(units) => Op::ManagedString { result, units },
             },
         );

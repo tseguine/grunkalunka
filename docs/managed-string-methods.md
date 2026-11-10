@@ -174,14 +174,15 @@ passing scalar selection arguments to the existing service.
 
 ## Template labels
 
-Ordinary template literals accept cooked UTF-16 text and up to 1000 source-proven
-String substitutions. Escapes, embedded NULs and unpaired surrogates retain their
-exact values. Substitutions execute left-to-right, with the accumulated prefix
-retained across awaits; rejection skips later expressions. Results retain String
-provenance through helpers, fields and captured A1 handlers. Evaluation uses an
-explicit continuation rather than recursive traversal and the existing String
-concatenation IR. General substitution coercion and tagged templates remain
-outside this admission slice; TypeScript annotations cannot prove a String.
+Ordinary template literals accept cooked UTF-16 text and up to 1000 primitive
+substitutions. Strings retain their exact code units, including unpaired
+surrogates. Boolean, Null and Undefined use their language spellings. Numbers
+use the shortest decimal that round-trips to the same binary64 value, with
+ECMAScript's fixed/exponential notation and special values. The compiler
+includes the guest Number formatter only if a dynamic substitution can use it.
+Substitutions execute left to right and retain the prefix across awaits.
+A rejection skips subsequent expressions. Tagged templates and object coercion
+remain guarded.
 
 ## Numeric character properties
 

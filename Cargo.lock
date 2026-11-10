@@ -516,6 +516,7 @@ dependencies = [
 name = "grunkalunka-compiler"
 version = "0.0.1"
 dependencies = [
+ "num-bigint",
  "oxc_allocator",
  "oxc_ast",
  "oxc_parser",
