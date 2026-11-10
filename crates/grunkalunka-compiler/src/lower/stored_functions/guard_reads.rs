@@ -55,6 +55,7 @@ fn comparison(
     subject: &Expression<'_>,
     value: &Expression<'_>,
     strict: bool,
+    matched: bool,
     depth: usize,
     semantic: &Semantic<'_>,
 ) -> Option<(SymbolId, Test)> {
@@ -83,6 +84,11 @@ fn comparison(
         return None;
     };
     let test = match value {
+        // Matching one literal proves the kind. Missing it leaves other
+        // values of the same kind possible.
+        Expression::StringLiteral(_) if strict && matched => Test::Typeof("string"),
+        Expression::BooleanLiteral(_) if strict && matched => Test::Typeof("boolean"),
+        _ if strict && matched && static_keys::number(value).is_some() => Test::Typeof("number"),
         Expression::NullLiteral(_) => {
             if strict {
                 Test::Null
@@ -131,8 +137,8 @@ fn atomic_guard(
             let left = closures::unwrapped(&b.left, depth + 1)?;
             let right = closures::unwrapped(&b.right, depth + 1)?;
             positive = positive == equal;
-            comparison(left, right, strict, depth + 1, semantic)
-                .or_else(|| comparison(right, left, strict, depth + 1, semantic))?
+            comparison(left, right, strict, positive, depth + 1, semantic)
+                .or_else(|| comparison(right, left, strict, positive, depth + 1, semantic))?
         }
         _ => return None,
     };
@@ -238,7 +244,8 @@ fn visit_switch_guards(
             let positive = case.test.is_some();
             let mut check_label = |label: &Expression<'_>| {
                 if let Some(value) = closures::unwrapped(label, 0)
-                    && let Some((binding, test)) = comparison(subject, value, true, 0, semantic)
+                    && let Some((binding, test)) =
+                        comparison(subject, value, true, positive, 0, semantic)
                 {
                     emit(binding, Guard { test, positive }, body);
                 }
