@@ -65,7 +65,7 @@ pub(super) fn terminal_entered_loop(semantic: &Semantic<'_>, id: NodeId) -> bool
         if statements
             .iter()
             .rev()
-            .find(|stmt| !is_type_declaration(stmt))
+            .find(|stmt| !emits_no_statement(stmt))
             .is_none_or(|last| last.node_id() != child)
         {
             return false;

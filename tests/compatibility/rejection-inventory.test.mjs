@@ -369,9 +369,20 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 761);
+  assert.equal(inventory.records.size, 759);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('empty abrupt tails execute their original JS and TS sources', () => {
+  for (const [id, field, hash] of [
+    ['empty-after-return', 'sourceJS', '6cc90a71986f94f5ab8699479f15772ea5de4c6f35caa0098ad04a1f5931bbe0'],
+    ['type-declaration-runtime-after-empty', 'sourceTS', 'd50ddb3f8ec32bf97120d49444203f6133a982ed8dfeba9e2f3e3202e9190a9e'],
+  ]) {
+    const source = programSources(programs.find(row => row[0] === id));
+    assert.equal(createHash('sha256').update(source[field]).digest('hex'), hash);
+    assert.equal(source.oracleSource, 'export function run(a,b) { return a; ; }');
+  }
 });
 
 test('the original local named export executes as its own oracle', () => {

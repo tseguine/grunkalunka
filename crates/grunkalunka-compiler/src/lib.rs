@@ -1224,6 +1224,31 @@ mod tests {
     }
 
     #[test]
+    fn inert_abrupt_tails_keep_the_statement_budget_and_first_runtime_error() {
+        for ts in [false, true] {
+            let boundary = format!("export function run(a,b){{return a;{}}}", ";".repeat(255));
+            let over = boundary.replace("return a;", "return a;debugger;");
+            assert!(compile(&boundary, ts).is_ok());
+            assert!(
+                compile(&over, ts)
+                    .err()
+                    .unwrap()
+                    .contains("at most 256 statements")
+            );
+            let source = "export function run(a,b){return a; ;debugger; a=b;}";
+            let error = compile(source, ts).err().unwrap();
+            let start = source.find("a=b;").unwrap();
+            assert!(
+                error.starts_with(&format!(
+                    "unsupported at bytes {start}..{}: statements after a guaranteed",
+                    start + 4
+                )),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
     fn type_declarations_do_not_allow_runtime_abrupt_tails() {
         for body in [
             "return a; type T=number; a=b;",

@@ -790,6 +790,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   with `export {run}` or `export {localName as run}`. The declaration may
   precede or follow the export. Calls inside the module use the local binding.
   The separate export statement counts once in the source statement budget.
+- Empty statements, `debugger;` and erased type declarations may follow an
+  unconditional return, throw, break or continue. They still count toward
+  source limits. A following executable statement receives its own diagnostic.
 - Module-level empty statements and local empty exports (`export {};`) may
   surround the entry and helpers. Each counts once in the shared statement
   budget. An empty re-export with a module source still requests that module.
