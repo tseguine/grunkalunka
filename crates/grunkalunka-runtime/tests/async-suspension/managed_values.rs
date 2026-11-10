@@ -4,6 +4,8 @@ use super::*;
 fn lazy_container_assignment_preserves_suspended_choice_and_abrupt_rhs() {
     compare_promises(
         &[
+            "let xs=[a];const old=xs;const chosen=xs&&=(await b,[b,b]);return chosen===xs&&old!==xs?chosen.length:99;",
+            "let row={n:b};const chosen=row??=(await Promise.reject(a),{n:a});return +chosen.n;",
             "let row=a?{n:a}:null;const chosen=row??=(await b,{n:b});await a;return +chosen.n;",
             "let xs=a?[a]:null,n=0;try{const saved=xs||=(n++,await Promise.reject(b),[b]);return saved.length;}catch(e){return xs===null&&n===1&&e===b?7:0;}",
         ],

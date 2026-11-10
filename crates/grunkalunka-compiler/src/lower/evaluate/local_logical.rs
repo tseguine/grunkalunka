@@ -1,4 +1,4 @@
-//! Logical assignments preserve the selected value in boxed local cells.
+//! Logical assignments preserve the selected value in managed local cells.
 use super::managed::ManagedWork;
 use super::*;
 
@@ -22,7 +22,13 @@ impl Lowering<'_, '_> {
     ) -> Result<bool, String> {
         if !matches!(
             mode,
-            Mode::Number | Mode::General | Mode::Managed | Mode::Predicate | Mode::Discard
+            Mode::Number
+                | Mode::General
+                | Mode::Managed
+                | Mode::Predicate
+                | Mode::Discard
+                | Mode::Object
+                | Mode::Array
         ) {
             return Ok(false);
         }
@@ -48,13 +54,19 @@ impl Lowering<'_, '_> {
         };
         let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
         let slot = binding.slot;
-        if self.slots[slot.0].ty != Type::ManagedValue {
+        let slot_type = self.slots[slot.0].ty;
+        if !slot_type.is_managed() {
             return Ok(false);
         }
-        let numeric =
-            self.stored.number_update(identifier.node_id()) && self.stored.number(node.node_id());
-        if !numeric && !matches!(mode, Mode::Managed | Mode::Predicate | Mode::Discard) {
-            return Ok(false);
+        let reference = matches!(slot_type, Type::ManagedObject | Type::ManagedArray);
+        let numeric = !reference
+            && self.stored.number_update(identifier.node_id())
+            && self.stored.number(node.node_id());
+        match mode {
+            Mode::Object if slot_type != Type::ManagedObject => return Ok(false),
+            Mode::Array if slot_type != Type::ManagedArray => return Ok(false),
+            Mode::General | Mode::Number if !numeric => return Ok(false),
+            _ => {}
         }
         if !binding.mutable {
             return Err(unsupported(
@@ -70,7 +82,10 @@ impl Lowering<'_, '_> {
         } else if matches!(mode, Mode::Predicate) {
             work.push(Work::Managed(ManagedWork::Truthy(node)));
         }
-        let input = self.value(Type::ManagedValue);
+        if reference && matches!(mode, Mode::Managed | Mode::Predicate) {
+            work.push(Work::Managed(ManagedWork::BoxReference(node)));
+        }
+        let input = self.value(slot_type);
         Self::push(
             regions.current(),
             node,
@@ -94,7 +109,12 @@ impl Lowering<'_, '_> {
         Self::push(
             regions.current(),
             node,
-            if !numeric && assignment.operator == AssignmentOperator::LogicalNullish {
+            if reference {
+                Op::Boolean {
+                    result: condition,
+                    value: assignment.operator != AssignmentOperator::LogicalNullish,
+                }
+            } else if !numeric && assignment.operator == AssignmentOperator::LogicalNullish {
                 Op::ManagedIsNullish {
                     result: condition,
                     input: old,
@@ -128,7 +148,11 @@ impl Lowering<'_, '_> {
         work.push(Work::Eval(
             &assignment.right,
             depth + 1,
-            if numeric { Mode::Number } else { Mode::Managed },
+            if numeric {
+                Mode::Number
+            } else {
+                Mode::managed(slot_type)
+            },
         ));
         Ok(true)
     }
@@ -179,11 +203,8 @@ impl Lowering<'_, '_> {
         } else {
             (selected, skipped)
         };
-        let result = self.value(if task.numeric {
-            Type::Number
-        } else {
-            Type::ManagedValue
-        });
+        let result_type = self.values[task.old.0];
+        let result = self.value(result_type);
         Self::push(
             regions.current(),
             task.node,
@@ -197,7 +218,7 @@ impl Lowering<'_, '_> {
         values.push(if task.numeric {
             Value::Number(result)
         } else {
-            Value::Managed(result)
+            Value::managed(result, result_type)
         });
     }
 }

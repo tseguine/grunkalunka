@@ -1794,4 +1794,6 @@ Local logical assignment keeps the identities and possible contents of its
 selected operands. For example, when `state` contains either a record or
 null, `const row = state ??= {n: 0}` can read `row.n`. Array length and nested
 record fields use the same source facts. A possibly null result of `&&=` cannot
-supply an ordinary property receiver.
+supply an ordinary property receiver. A mutable local known to hold a record
+or array also supports these operators with a same-kind RHS. Its current
+reference is truthy and non-nullish, so only `&&=` evaluates the RHS.
