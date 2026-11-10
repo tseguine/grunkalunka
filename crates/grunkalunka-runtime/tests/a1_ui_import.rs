@@ -1365,3 +1365,15 @@ fn imported_handler_reads_a_required_field_of_optional_state() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_uses_state_after_a_nullish_guard() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const selected=a>0?{expanded:1}:null;
+            if (!selected) return choose(0,b);
+            return choose(+selected.expanded,b);
+        }"#,
+    );
+}
