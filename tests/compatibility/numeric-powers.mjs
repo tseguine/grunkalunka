@@ -11,3 +11,14 @@ const cases = [
 ];
 export const literalPowers = cases.map(([id, body]) => [id, body, body]);
 literalPowers.push(['literal-power-erased-exponent', 'return a**(-1);', 'return a**(-(1 as number));']);
+
+for (const [id, source] of [
+  ['power-default-original-constant', 'function f(x=1**2){return x;}export function run(a,b){return f();}'],
+  ['power-default-original-y', 'function f(x,y=x**2){return y;}export function run(a,b){return f(a);}'],
+  ['power-default-original-z', 'function f(x,z=x**2){return z;}export function run(a,b){return f(a);}'],
+  ['power-default-supplied', 'function f(x,y=x**-1){return y;}export function run(a,b){return +f(a,b);}'],
+  ['power-default-closure', 'export function run(a,b){const f=(x,y=x**-1)=>y;return +f(a);}'],
+  ['power-default-zero', 'function f(x=NaN**0){return x;}export function run(a,b){return f();}'],
+]) {
+  literalPowers.push([id, '', '', undefined, undefined, { sourceJS: source, sourceTS: source }]);
+}

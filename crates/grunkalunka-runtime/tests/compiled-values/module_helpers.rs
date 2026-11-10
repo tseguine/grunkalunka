@@ -225,6 +225,12 @@ fn unary_parameter_defaults_preserve_tags_truthiness_and_saved_arguments() {
 #[test]
 fn arithmetic_parameter_defaults_keep_number_bits_and_supplied_tags() {
     compare_helpers(&[
+        "function f(x=1**2){return x;}export function run(a,b){return f();}",
+        "function f(x,y=x**2){return y;}export function run(a,b){return f(a);}",
+        "function f(x,z=x**2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,y=x**-1){return y;}export function run(a,b){return f(a,b);}",
+        "function f(x,y=x**-1){return y;}export function run(a,b){return f(null);}",
+        "function f(x=NaN**0){return x;}export function run(a,b){return f();}",
         "function f(x=1+2){return x;}export function run(a,b){return f();}",
         "export function run(a,b){const f=(x=1+2)=>x;return f();}",
         "function f(x=2*(3+4)){return x;}export function run(a,b){return f();}",

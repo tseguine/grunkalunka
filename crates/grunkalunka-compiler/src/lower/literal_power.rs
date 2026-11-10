@@ -10,6 +10,15 @@ pub(super) enum LiteralPower {
 }
 
 impl LiteralPower {
+    pub(super) fn apply(self, base: f64) -> f64 {
+        match self {
+            Self::Zero => 1.0,
+            Self::Identity => base,
+            Self::Square => base * base,
+            Self::Reciprocal => 1.0 / base,
+        }
+    }
+
     pub(super) fn from_source(source: &Expression<'_>, depth: usize) -> Option<Self> {
         let (source, depth) = closures::unwrapped_at(source, depth)?;
         let value = match source {
