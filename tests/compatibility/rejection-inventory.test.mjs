@@ -369,9 +369,30 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 757);
+  assert.equal(inventory.records.size, 745);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('unreachable numeric stores execute all twelve former rejection sources', () => {
+  for (const [id, field, hash] of [
+    ['gap-unreachable-after-return', 'sourceJS', '045d353e3e5f6204c6467e5063e08c08f967271a6d1847aea64262e97ea12cb9'],
+    ['do-after-guaranteed-branches', 'sourceJS', 'd278f08f2959ae83511d2f718bd9c71d10a44412189423383d3bbd13d7c3b2f3'],
+    ['break-after-direct', 'sourceJS', '16bfbddd616d79fc3dbbeb278ea76e3668f7ceb74a495dc9f5a12930d48567e9'],
+    ['break-after-mixed', 'sourceJS', '912c777a9ed90e91340f335197e9a9488f93579e9762da55312e7e97680c226a'],
+    ['continue-after-direct', 'sourceJS', '20d626581aa5d94b39dd273f2a2a6f0517001662310d4adeeb8e16d19222d1e9'],
+    ['continue-after-mixed-break', 'sourceJS', '764046e24644aa1958c7c2ad153cc974941d952329650ce91caf82c89c27b1b3'],
+    ['continue-after-mixed-return', 'sourceJS', '77c4e882e28e5162d68bbfe22dae7034d7d48f5a9c3a736d77fa11e3d3d83dcc'],
+    ['type-declaration-runtime-after-return', 'sourceTS', 'c756e09d1202abaca4a861b31b205948f95c97579797cdb410e6fe3f4f87dedb'],
+    ['type-declaration-runtime-after-break', 'sourceTS', 'd09dcf8831cc33255a9271008395d97649e1ca5c364267ff71ed1f0310f69879'],
+    ['type-declaration-runtime-after-continue', 'sourceTS', '259f1955ede6355370b4fdeb1e690861f37bf0fbc51918d8b15f3d0f276db456'],
+    ['type-declaration-runtime-after-mixed', 'sourceTS', 'd32e342d78527d6c34e8d73291d618bf03cd42eb9d652b31b27e20b45c17996c'],
+    ['block-unreachable', 'sourceJS', '155269765afefff2097714328b3def73b06a3838a45e2397c97b63bd787ed719'],
+  ]) {
+    const source = programSources(programs.find(row => row[0] === id));
+    assert.equal(createHash('sha256').update(source[field]).digest('hex'), hash);
+    assert.equal(source.oracleSource, source.sourceJS);
+  }
 });
 
 test('the original discarded Boolean after return executes unchanged', () => {
@@ -577,7 +598,7 @@ test('feature dependency cycles are descriptive and legal', () => {
 test('valid throwing/unselected programs and temporary entry/return policies remain open', () => {
   const inventory = validate(catalog);
   for (const id of ['while-const-write','dead-branch-const-write','self-reference','global',
-    'type-declaration-type-not-value','gap-one-parameter','gap-export-name','gap-unreachable-after-return']) {
+    'type-declaration-type-not-value','gap-one-parameter','gap-export-name']) {
     assert.equal(rejectionClassification(inventory, id).kind, 'open-requirement', id);
   }
   assert.equal(rejectionClassification(inventory, 'compound-destructuring-target').kind, 'invalid-source');

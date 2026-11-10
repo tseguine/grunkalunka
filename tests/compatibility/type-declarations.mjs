@@ -70,7 +70,6 @@ const run = 'export function run(a,b) { return a; }';
 const source = body => `export function run(a,b) { ${body} }`;
 const top = 'exactly one exported function is admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
-const abrupt = 'statements after a guaranteed';
 export const typeDeclarationRejected = [
   ...[
     ['ambient-value', 'declare const x:number;'], ['ambient-function', 'declare function other():number;'],
@@ -84,12 +83,6 @@ export const typeDeclarationRejected = [
   ['type-declaration-type-not-value', source('type Only=number; return Only;'), 'ts', reference],
   ['type-declaration-type-tdz', source('type x=number; const x=x; return x;'), 'ts', reference],
   ['type-declaration-intrinsic-tdz', source('type Infinity=number; const Infinity=Infinity; return Infinity;'), 'ts', reference],
-  ...[
-    ['return', 'return a; type T=number; a=b;'],
-    ['break', 'do { break; interface I {} a=b; } while(0); return a;'],
-    ['continue', 'for(let i=0;i<1;i++) { continue; type T=number; a=b; } return a;'],
-    ['mixed', 'do { if(a) return a; else break; type T=number; a=b; } while(0); return b;'],
-  ].map(([id,body]) => [`type-declaration-runtime-after-${id}`, source(body), 'ts', abrupt]),
   ['type-declaration-mixed-break-fallback', source('do { if(a) return a; else break; type T=number; } while(0);'), 'ts', 'every structural path'],
   ['type-declaration-mixed-continue-fallback', source('do { if(a) return a; else continue; interface I {} } while(0);'), 'ts', 'every structural path'],
   ['type-declaration-module-limit', aliases(256) + run, 'ts', 'at most 256 statements'],

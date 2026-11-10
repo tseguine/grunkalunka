@@ -11,6 +11,40 @@ mod iteration_member;
 pub(super) mod switch;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    // A plain write to an initialized Number cell has no observable effects
+    // on an already completed path. Keep target, binding and depth checks.
+    fn dead_number_store(&self, statement: &Statement<'_>) -> bool {
+        let Statement::ExpressionStatement(source) = statement else {
+            return false;
+        };
+        let Some((Expression::AssignmentExpression(assignment), depth)) =
+            closures::unwrapped_at(&source.expression, 0)
+        else {
+            return false;
+        };
+        if assignment.operator != AssignmentOperator::Assign {
+            return false;
+        }
+        let Some(target) = assignment.left.as_simple_assignment_target() else {
+            return false;
+        };
+        let Ok(Some(id)) = target_identifier(target, depth) else {
+            return false;
+        };
+        let Ok(binding) = numeric_binding(id, self.semantic, &self.bindings) else {
+            return false;
+        };
+        if !binding.mutable || self.slots[binding.slot.0].ty != Type::Number {
+            return false;
+        }
+        match closures::unwrapped(&assignment.right, depth + 1) {
+            Some(Expression::NumericLiteral(_)) => true,
+            Some(Expression::Identifier(id)) => numeric_binding(id, self.semantic, &self.bindings)
+                .is_ok_and(|binding| self.slots[binding.slot.0].ty == Type::Number),
+            _ => false,
+        }
+    }
+
     fn finish_pretest_loop(
         &self,
         source: &(impl GetSpan + GetNodeId),
@@ -843,7 +877,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let next_index = index + 1;
                 if !completion.normal {
                     for statement in &statements[next_index..] {
-                        if !inert_tail(statement) {
+                        if !inert_tail(statement) && !self.dead_number_store(statement) {
                             return Err(unsupported(
                                 statement,
                                 if completion == Completion::RETURN {
