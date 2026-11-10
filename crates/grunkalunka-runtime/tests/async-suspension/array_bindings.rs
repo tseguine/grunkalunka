@@ -234,6 +234,8 @@ fn optional_string_reads_preserve_saved_text_across_key_awaits() {
 fn unsigned_optional_reads_skip_key_awaits_and_save_projected_receivers() {
     compare_promises(
         &[
+            "let xs=[a];const old=xs;const v=xs?.[(await b,xs=[b],a)];return v===old[a]?1:0;",
+            "let n=0;const o=null;const v=o?.[(await Promise.reject(a),n++,b)];return v===undefined?n:9;",
             "let xs=[a];const old=xs;const v=xs?.[(await b,xs=[b],0>>>0)];await a;return old!==xs?+v:99;",
             "const xs=null;let n=0;const v=xs?.[(await Promise.reject(a),n++,0>>>0)];await b;return n===0&&v===undefined?1:0;",
             "const xs=a?[b]:null;let n=0;const v=xs?.[(await b,n++,0>>>0)];await a;return n===(a?1:0)?+v:99;",

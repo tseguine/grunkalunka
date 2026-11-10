@@ -549,6 +549,10 @@ fn optional_string_reads_preserve_utf16_length_and_lazy_receiver_snapshots() {
 #[test]
 fn unsigned_optional_reads_skip_keys_and_preserve_receiver_order_and_identity() {
     for body in [
+        "let n=0;const xs=a?[b]:null;const v=xs?.[(n++,a)];return n+(v===undefined?10:0);",
+        "let row={};row[a]=b;const v=row?.[(row={},a)];return v===b?1:0;",
+        "const xs=[];xs[-1.5]=b;const k=-1.5;return xs?.[k]===b?1:0;",
+        "const d=Object.create(null);d.null=a;const k=b?null:'missing';return d?.[k]===a?1:0;",
         "const xs=[a];return xs?.[(xs.length=0,0>>>0)]===undefined?1:0;",
         "const xs=[a,b];return +(xs?.[a>>>0]);",
         "const xs=a?[b]:null;return +(xs?.[0>>>0]);",

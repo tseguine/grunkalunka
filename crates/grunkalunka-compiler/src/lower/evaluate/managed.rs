@@ -1558,7 +1558,7 @@ impl Lowering<'_, '_> {
                 values.push(Value::Managed(result));
             }
             ManagedWork::OptionalRead(task) => {
-                self.complete_optional_member(task, regions, values, work)
+                self.complete_optional_member(task, regions, values, work)?
             }
             ManagedWork::SparseArray(node) => {
                 let length = values.pop().expect("Array length").number();

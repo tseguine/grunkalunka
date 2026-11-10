@@ -1721,3 +1721,7 @@ a non-String primitive key cannot spell an inherited intrinsic name. Possible
 String keys retain the receiver prototype checks for `in`. The key and receiver
 are evaluated in their original order, and `Object.hasOwn` tests presence
 after its remaining arguments finish.
+
+Optional computed reads on arrays and records accept runtime scalar keys. The
+receiver is saved before key evaluation, and a nullish receiver skips key
+effects. Numeric keys preserve their JavaScript spelling, including fractions.

@@ -36,18 +36,24 @@ pub(in crate::lower) fn parts<'e, 'a>(
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum Computed {
+    StringIndex,
+    Own(dictionary::RuntimeKey),
+}
+
 pub(super) enum Read<'e, 'a> {
     Receiver {
         node: &'e Expression<'a>,
         key: Key<'e, 'a>,
         receiver: Option<Type>,
-        string_key: bool,
+        computed: Option<Computed>,
         depth: usize,
     },
     Key {
         node: &'e Expression<'a>,
         object: Option<ValueId>,
-        string_key: bool,
+        computed: Computed,
         condition: ValueId,
         skipped: Region,
     },
@@ -74,14 +80,29 @@ impl Lowering<'_, '_> {
         let array = receiver == Some(Type::ManagedArray);
         let string = receiver == Some(Type::ManagedValue);
         let dictionary = self.stored.optional_dictionary(object.node_id());
-        let string_key = matches!(&key, Key::Runtime(key)
-            if self.stored.string(key.node_id()) && (dictionary || (receiver == Some(Type::ManagedObject) && self.stored.record_names.contains(key,depth+2))));
-        if let Key::Runtime(key) = &key
-            && !string_key
-            && (!string || !self.stored.number(key.node_id()))
-        {
-            return Ok(false);
-        }
+        let computed = match &key {
+            Key::Literal(_) => None,
+            Key::Uint32(_) if string => Some(Computed::StringIndex),
+            Key::Uint32(_) => Some(Computed::Own(dictionary::RuntimeKey::Uint32)),
+            Key::Runtime(expr) if string && self.stored.number(expr.node_id()) => {
+                Some(Computed::StringIndex)
+            }
+            Key::Runtime(expr) if !string => {
+                let Some(kind) = self.runtime_key(expr, depth + 2) else {
+                    return Ok(false);
+                };
+                if matches!(kind, dictionary::RuntimeKey::String)
+                    && !(dictionary
+                        || receiver.is_none()
+                        || (receiver == Some(Type::ManagedObject)
+                            && self.stored.record_names.contains(expr, depth + 2)))
+                {
+                    return Ok(false);
+                }
+                Some(Computed::Own(kind))
+            }
+            _ => return Ok(false),
+        };
         if string
             && let Key::Literal(key) = &key
             && key.as_slice() != [108, 101, 110, 103, 116, 104]
@@ -129,7 +150,7 @@ impl Lowering<'_, '_> {
             node,
             key,
             receiver,
-            string_key,
+            computed,
             depth,
         })));
         // The original receiver executes once, before either branch. No AST
@@ -144,45 +165,40 @@ impl Lowering<'_, '_> {
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
-    ) {
-        let (node, key, receiver, string_key, depth) = match task {
+    ) -> Result<(), String> {
+        let (node, key, receiver, computed, depth) = match task {
             Read::Receiver {
                 node,
                 key,
                 receiver,
-                string_key,
+                computed,
                 depth,
-            } => (node, key, receiver, string_key, depth),
+            } => (node, key, receiver, computed, depth),
             Read::Key {
                 node,
                 object,
-                string_key,
+                computed,
                 condition,
                 skipped,
             } => {
                 let key = values.pop().expect("optional computed key");
-                let key = if string_key { key.id() } else { key.number() };
+                let key = key.id();
                 let result = if let Some(object) = object {
                     let result = self.value(Type::ManagedValue);
                     Self::push(
                         regions.current(),
                         node,
-                        if self.values[object.0] == Type::ManagedValue {
-                            Op::ManagedStringGetIndex {
+                        match computed {
+                            Computed::StringIndex => Op::ManagedStringGetIndex {
                                 result,
                                 input: object,
                                 index: key,
-                            }
-                        } else {
-                            Op::ManagedGetOwnDynamic {
+                            },
+                            Computed::Own(kind) => Op::ManagedGetOwnDynamic {
                                 result,
                                 object,
-                                key: if string_key {
-                                    ir::ManagedKey::String(key)
-                                } else {
-                                    ir::ManagedKey::Uint32(key)
-                                },
-                            }
+                                key: kind.finish(key),
+                            },
                         },
                     );
                     result
@@ -193,14 +209,14 @@ impl Lowering<'_, '_> {
                 };
                 let selected = regions.finish(result);
                 self.finish_optional_read(node, condition, skipped, selected, regions, values);
-                return;
+                return Ok(());
             }
         };
         let input = values.pop().expect("optional member receiver").id();
         if receiver.is_none() && matches!(key, Key::Literal(_)) {
             let result = self.optional_undefined(node, regions.current());
             values.push(Value::Managed(result));
-            return;
+            return Ok(());
         }
         let mut skipped = self.region(node);
         let undefined = self.optional_undefined(node, &mut skipped);
@@ -239,23 +255,19 @@ impl Lowering<'_, '_> {
         });
         match key {
             Key::Uint32(key) | Key::Runtime(key) => {
+                let computed = computed.expect("validated computed key");
                 regions.children.push(selected);
                 work.push(Work::Managed(ManagedWork::OptionalRead(Read::Key {
                     node,
                     object,
-                    string_key,
+                    computed,
                     condition,
                     skipped,
                 })));
-                work.push(Work::Eval(
-                    key,
-                    depth + 2,
-                    if string_key {
-                        Mode::Managed
-                    } else {
-                        Mode::Number
-                    },
-                ));
+                match computed {
+                    Computed::StringIndex => work.push(Work::Eval(key, depth + 2, Mode::Number)),
+                    Computed::Own(kind) => self.schedule_runtime_key(key, depth + 2, kind, work)?,
+                }
             }
             Key::Literal(key) => {
                 let result = self.optional_literal_get(
@@ -268,6 +280,7 @@ impl Lowering<'_, '_> {
                 self.finish_optional_read(node, condition, skipped, selected, regions, values);
             }
         }
+        Ok(())
     }
 
     fn finish_optional_read(
@@ -428,10 +441,10 @@ mod tests {
                 false,
             ),
             ("const o=a?[b]:null;const k='x';return +(o?.[k]);", false),
-            ("const d=Object.create(null);return +(d?.[b]);", false),
+            ("const d=Object.create(null);return +(d?.[b]);", true),
             (
                 "const d=Object.create(null);const k=a?'x':1;return +(d?.[k]);",
-                false,
+                true,
             ),
             ("const k={};return null?.[k]===undefined?1:0;", false),
             (
@@ -458,8 +471,8 @@ mod tests {
             }
         }
         for source in [
-            "export function run(a,b){const d={x:a};const k=a as 'x';return +((d as never)?.[k]);}",
-            "export function run(a,b){const d=Object.create(null);return +(d?.[(b as string)]);}",
+            "export function run(a,b){const d={x:a};const k={} as unknown as 'x';return +((d as never)?.[k]);}",
+            "export function run(a,b){const d=Object.create(null);return +(d?.[({} as unknown as string)]);}",
         ] {
             assert!(crate::compile(source, true).is_err(), "{source}");
         }
@@ -497,8 +510,8 @@ mod tests {
                 "const s='ab';const k={};return s?.[k]===undefined?1:0;",
                 false,
             ),
-            ("const xs=[a];return xs?.[b]===undefined?1:0;", false),
-            ("const o={0:a};return o?.[b]===undefined?1:0;", false),
+            ("const xs=[a];return xs?.[b]===undefined?1:0;", true),
+            ("const o={0:a};return o?.[b]===undefined?1:0;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
@@ -575,9 +588,9 @@ mod tests {
             ("const xs=a?[b]:null;return +(xs?.[0>>>0]);", true),
             ("const xs=null;let n=0;xs?.[(n++,0>>>0)];return n;", true),
             ("const o={0:a};return +(o?.[a>>>0]);", true),
-            ("const xs=[a];return +(xs?.[a]);", false),
+            ("const xs=[a];return +(xs?.[a]);", true),
             ("const xs=[a];return +(xs?.[(xs.length=0,0>>>0)]);", false),
-            ("const xs=[a];return +(xs?.[a>>0]);", false),
+            ("const xs=[a];return +(xs?.[a>>0]);", true),
             ("const xs=[a];return +(xs?.[1n>>>0]);", false),
             ("const xs=null;return +(xs?.[1n>>>0]);", false),
             ("return +(a?.[0>>>0]);", false),
