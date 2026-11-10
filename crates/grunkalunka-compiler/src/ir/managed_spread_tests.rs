@@ -100,11 +100,10 @@ fn computed_literal_string_keys_use_the_typed_own_property_write() {
         &module.functions[0].body,
         &mut |op| matches!(op, Op::ManagedSetOwnDynamic { .. })
     ));
-    let typed =
-        "export function run(a:number,b:number){const k=(a as string);const o={[k]:b};return a;}";
+    let typed = "export function run(a:number,b:number){const k=({} as unknown as string);const o={[k]:b};return a;}";
     let err = crate::compile(typed, true)
         .err()
-        .expect("type annotation cannot coerce a Number key");
+        .expect("type annotation cannot make an object key primitive");
     assert!(
         err.contains("unsupported") && !err.contains("internal IR"),
         "{err}"
