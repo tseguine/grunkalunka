@@ -271,14 +271,14 @@ fn managed_loose_equality_requires_nullish_or_string_pair_proofs() {
     );
 }
 #[test]
-fn string_relational_operators_require_positive_string_pairs() {
+fn string_relational_operators_distinguish_string_pairs_and_numeric_literals() {
     for operator in ["<", "<=", ">", ">="] {
         for (prefix, left, right, admitted) in [
             ("", "'a'", "'b'", true),
             ("const o={s:'a'};", "o.s", "'b'", true),
             ("const [s]=['a'];", "s", "'b'", true),
             ("const f=x=>x;", "f('a')", "'b'", true),
-            ("", "a", "'b'", false),
+            ("", "a", "'b'", true),
             ("", "'a'", "null", false),
             ("const o={s:a?'a':b};", "o.s", "'b'", false),
             ("const o={s:'a'};delete o.s;", "o.s", "'b'", false),
@@ -298,7 +298,7 @@ fn string_relational_operators_require_positive_string_pairs() {
         let source = format!(
             "export function run(a,b){{return (a as unknown as string){operator}'b'?1:0;}}"
         );
-        assert!(crate::compile(&source, true).is_err());
+        assert!(crate::compile(&source, true).is_ok());
         let source = format!(
             "export async function run(a,b){{return (await 'a'){operator}(await 'b')?1:0;}}"
         );

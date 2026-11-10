@@ -50,6 +50,15 @@ numericEqualityPrograms.push(['equality-literal-invalid-number', '', '', undefin
   sourceTS: "export function run(a,b){return 'text'==(a as unknown as string)?1:0;}",
 }]);
 
+numericEqualityPrograms.push(['relational-number-literal-originals', '', '', undefined, undefined, {
+  sourceJS: 'export function run(a,b) {return a<"4"?1:0;}',
+  sourceTS: 'export function run(a,b) {return a<"4"?1:0;}',
+}]);
+numericEqualityPrograms.push(['relational-number-literal-assertion', '', '', undefined, undefined, {
+  sourceJS: 'export function run(a,b) {return "4"<a?1:0;}',
+  sourceTS: 'export function run(a,b) {return ("4" as number)<a?1:0;}',
+}]);
+
 const expression = 'expression is outside the numeric experiment';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const negatives = [

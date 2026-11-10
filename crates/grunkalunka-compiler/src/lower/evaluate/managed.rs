@@ -1060,12 +1060,12 @@ impl Lowering<'_, '_> {
         }
         if matches!(mode, Mode::Predicate)
             && let Expression::BinaryExpression(binary) = node
-            && matches!(
-                binary.operator,
-                BinaryOperator::Equality | BinaryOperator::Inequality
-            )
+            && let Some((left_test, right_test)) = string_number::comparisons(binary.operator)
         {
-            for (text, number) in [(&binary.left, &binary.right), (&binary.right, &binary.left)] {
+            for (text, number, operator) in [
+                (&binary.left, &binary.right, left_test),
+                (&binary.right, &binary.left, right_test),
+            ] {
                 if self.stored.number(number.node_id())
                     && let Some(value) = string_number::literal(text, depth + 1)
                 {
@@ -1079,11 +1079,6 @@ impl Lowering<'_, '_> {
                             value,
                         },
                     );
-                    let operator = if binary.operator == BinaryOperator::Equality {
-                        Compare::Equal
-                    } else {
-                        Compare::NotEqual
-                    };
                     work.push(Work::Compare {
                         node,
                         left: constant,
