@@ -5,6 +5,18 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn constructed_record_keys_preserve_spelling_and_evaluation_order() {
+    for body in [
+        "const o={};const s=a?'one':'two';o['id:'+s]=b;return o[`id:${s}`]===b?1:0;",
+        "const s=a?'x':'y',o={};const k=s+':'+s;o[k]=b;const {[k]:v,...rest}=o;return Object.keys(rest).length===0&&v===b?1:0;",
+        "const o={};let n=0;const s='k';o[`row:${(n++,s)}`]=(n=n+1,b);return n===2&&o['row:k']===b?1:0;",
+        "const o={},s=a?'to':'value';return o?.[s+'.name']===undefined?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn numeric_record_updates_preserve_key_and_previous_value() {
     for body in [
         "const o={x:2,y:4},k=a?'x':'y';const old=o[k]++;return old*10+(+o[k]);",
