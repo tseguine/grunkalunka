@@ -123,6 +123,32 @@ fn void_guards_keep_operand_effects_and_strict_null_distinctions() {
 }
 
 #[test]
+fn intrinsic_instanceof_guards_refine_unchanged_bindings_in_both_arms() {
+    for body in [
+        "const v=a?[a,b]:{n:b};return v instanceof Array?v.length:+v.n;",
+        "const v=a?'hi':[b];if(!(v instanceof Array))return v.charCodeAt(0);return v.length;",
+        "const v=a?{n:b}:null;if(!(v instanceof Object))return 0;return +v.n;",
+        "const v=a?[b]:'four';const inherits=v instanceof Object;return inherits?v.length:v.charCodeAt(0);",
+        "const d=Object.create(null);d.n=9;const v=a?d:[b];return v instanceof Object?v.length:+v.n;",
+        "const v=a?(x=>x+1):'hi';return v instanceof Function?7:v.charCodeAt(0);",
+    ] {
+        compare(body);
+    }
+    for body in [
+        "let v=a?[b]:null;if(v instanceof Array){v=null;return v.length;}return 0;",
+        "const v=a?[]:null;if(v instanceof (a?Object:Array))return v.length;return 0;",
+        "const Array=x=>true;const v=a?[b]:null;if(v instanceof Array)return v.length;return 0;",
+        "const v=a?Object.create(null):null;return v instanceof Object?0:+v.n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_object_fields_can_act_as_receivers() {
     let source = "export function run(a,b){const o={child:{x:a}};return o.child.x===a?1:0;}";
     common::compare_sources(source, source);
