@@ -278,6 +278,13 @@ programs beyond current admission. Node checks their expected results; the compi
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
 
+The compiler's fast Cargo tests also compile the numeric and primitive-value
+rejection catalogs in process. A single failure report lists every unexpected
+admission or changed diagnostic by fixture ID and language. When an input
+becomes supported, move its original source to executable coverage and check
+the observable result. The full replay still checks CLI behavior, independent
+reference results and emitted artifacts.
+
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
 also covers all 995 negatives, including the curated references. Its 56 groups
 distinguish 31 invalid sources, 144 resource restrictions and 820 open requirements.

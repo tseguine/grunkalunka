@@ -1,0 +1,6 @@
+{
+  "package": "grunkalunka-compiler",
+  "dependsOn": [
+    "compatibility-fixtures"
+  ]
+}
