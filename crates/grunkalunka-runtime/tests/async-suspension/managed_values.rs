@@ -4,6 +4,7 @@ use super::*;
 fn nullish_guards_on_unchanged_locals_survive_suspension() {
     compare_promises(
         &[
+            "const row=a?{n:b}:null;const xs=b?[a,b]:null;if(!row||!xs)return 7;await a;return +row.n+xs.length;",
             "const row=a?{n:b}:null;return row?(await b,+row.n):7;",
             "const row=a?{n:b}:null;return +(row===null || (await a,row.n));",
             "const row=a?{n:b}:null;if(!row)return 7;await a;return +row.n;",

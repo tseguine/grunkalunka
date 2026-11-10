@@ -5,6 +5,27 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn compound_guards_prove_only_mandatory_operands() {
+    for body in [
+        "const row=a?{n:b}:null;const xs=b?[a,b]:null;if(!row||!xs)return 7;return +row.n+xs.length;",
+        "const v=a?[a,b]:{n:b};const row=b?{n:a}:null;return Array.isArray(v)&&row?v.length+(+row.n):7;",
+        "const v=a?{n:b}:(b?null:undefined);if(!(v!==null && v!==undefined))return 0;return +v.n;",
+        "const row=a?{n:b}:null;const xs=b?[a]:null;return +(row && xs && (row.n+xs.length));",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const row=a?{n:b}:null;if(row||b)return +row.n;return 0;",
+        "const row=a?{n:b}:null;if(!row&&b)return 0;return +row.n;",
+        "const row=a?{n:b}:null;const xs=b?[a]:null;if(row&&(xs||a))return xs.length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn expression_guards_narrow_only_the_selected_operand() {
     for body in [
         "const row=a?{n:b}:null;return row?+row.n:7;",
