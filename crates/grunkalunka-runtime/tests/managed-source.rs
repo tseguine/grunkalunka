@@ -1199,13 +1199,26 @@ fn object_keys_evaluates_call_arguments_before_taking_the_snapshot() {
 }
 
 #[test]
+fn fixed_spreads_in_object_intrinsics_execute_in_both_profiles() {
+    for body in [
+        "Object.keys(...[{}]);return a;",
+        "return Object.keys(...[{x:a}])[0]==='x'?1:0;",
+        "return Object.hasOwn({},...['x'])?1:0;",
+        "return Object.hasOwn({},'x',...[])?1:0;",
+        "return Object.hasOwn({x:a},...['x'])?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn object_keys_keeps_unimplemented_semantics_and_depth_explicit() {
     for body in [
         "Object.keys(null);return a;",
         "Object.keys();return a;",
         "const o=a?{}:null;Object.keys(o);return a;",
         "Object.keys({get x(){return a;}});return a;",
-        "Object.keys(...[{}]);return a;",
+        "const args=[{}];Object.keys(...args);return a;",
         "Object?.keys({});return a;",
         "Object.keys(1n);return a;",
     ] {
@@ -1552,13 +1565,13 @@ fn has_own_saves_operands_but_tests_presence_after_all_argument_effects() {
 }
 
 #[test]
-fn has_own_rejects_unproven_receivers_keys_and_spread_calls() {
+fn has_own_rejects_unproven_receivers_keys_and_runtime_spreads() {
     for body in [
         "return Object.hasOwn(null,'x')?1:0;",
         "return Object.hasOwn(a?{}:null,'x')?1:0;",
         "return Object.hasOwn({x:a},b)?1:0;",
-        "return Object.hasOwn({},...['x'])?1:0;",
-        "return Object.hasOwn({},'x',...[])?1:0;",
+        "const args=['x'];return Object.hasOwn({},...args)?1:0;",
+        "const args=[];return Object.hasOwn({},'x',...args)?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {
