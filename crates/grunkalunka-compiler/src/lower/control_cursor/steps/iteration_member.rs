@@ -31,7 +31,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             iteration::PropertyKey::Runtime(key) => {
-                if !self.accepts_runtime_destination_key(object, ty, key, 1) {
+                if self.owned_key_kind(object, ty, key, 1).is_none() {
                     return Err(unsupported(
                         source.left(),
                         "iteration member runtime keys require an unsigned index or a proven own String key",
@@ -64,22 +64,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 );
             }
             iteration::PropertyKey::Runtime(key) => {
-                let uint32 = self.stored.uint32_keys.contains(key, 1);
+                let kind = self.runtime_key(key, 1).expect("validated iteration key");
                 cursor.pending.push(Frame::ForOfMemberKey {
                     frame,
                     selected,
                     object,
-                    uint32,
+                    kind,
                 });
-                cursor.next = Some(Next::Expression {
+                cursor.next = Some(Next::ComputedKey {
                     source: key,
                     output: body,
                     depth: 1,
-                    mode: if uint32 {
-                        evaluate::Mode::Number
-                    } else {
-                        evaluate::Mode::Managed
-                    },
+                    kind,
                 });
             }
         }
@@ -154,7 +150,7 @@ mod tests {
                 "const o={x:'ok'};const k=a?'x':'y';for(o[k] of [b]){}return o.x.trim().length;",
                 false,
             ),
-            ("const xs=[];for(xs[a] of [b]){}return a;", false),
+            ("const xs=[];for(xs[a] of [b]){}return a;", true),
             ("const o={x:a};for(o.__proto__ of [b]){}return a;", false),
             (
                 "const o={x:'safe'};const alias=o;for(alias.x of [b]){}return o.x.length;",
@@ -175,7 +171,7 @@ mod tests {
         }
         for source in [
             "export function run(a,b){for((a as object).x of [b]){}return a;}",
-            "export function run(a,b){const xs=[];for(xs[a as number] of [b]){}return a;}",
+            "export function run(a,b){const xs=[];for(xs[{} as unknown as number] of [b]){}return a;}",
         ] {
             assert!(crate::compile(source, true).is_err(), "{source}");
         }

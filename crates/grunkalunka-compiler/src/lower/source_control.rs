@@ -36,6 +36,12 @@ pub(super) enum StatementTask<'n, 'a, N> {
         depth: usize,
         mode: evaluate::Mode,
     },
+    ComputedKey {
+        source: &'n Expression<'a>,
+        output: Region,
+        depth: usize,
+        kind: evaluate::RuntimeKey,
+    },
     /// A completed source child returns an existing evaluator to the main loop.
     /// Resuming does not create or admit another source expression.
     ResumeExpression {

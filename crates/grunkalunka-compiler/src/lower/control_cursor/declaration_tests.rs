@@ -964,7 +964,7 @@ fn computed_binding_keys_require_a_safe_receiver_and_key() {
         ),
         (
             "const d=Object.create(null);const k=a?'x':b;const {[k]:v}=d;return a;",
-            false,
+            true,
         ),
         (
             "const d=Object.create(null);const k='x';const {[k]:v='ok'}=d;return v.trim().length;",
@@ -980,7 +980,7 @@ fn computed_binding_keys_require_a_safe_receiver_and_key() {
         ),
         (
             "const d=Object.create(null);d.key='x';const {key,[key]:v}=d;return a;",
-            false,
+            true,
         ),
     ] {
         let source = format!("export function run(a,b){{{body}}}");

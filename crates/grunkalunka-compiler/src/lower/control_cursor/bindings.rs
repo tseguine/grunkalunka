@@ -263,22 +263,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     source,
                     key,
                     depth,
-                    uint32,
+                    kind,
                 } => {
                     cursor.pending.push(Frame::PatternBindingKey {
                         resume,
                         state: Box::new(state),
                         source,
+                        kind,
                     });
-                    cursor.next = Some(Next::Expression {
+                    cursor.next = Some(Next::ComputedKey {
                         source: key,
                         output,
                         depth,
-                        mode: if uint32 {
-                            evaluate::Mode::Number
-                        } else {
-                            evaluate::Mode::Managed
-                        },
+                        kind,
                     });
                     return Ok(());
                 }
@@ -465,7 +462,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mut state: BindingState<'n, 'ast>,
         source: &'n BindingProperty<'ast>,
         mut output: Region,
-        key: ValueId,
+        saved_key: ir::ManagedKey,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
@@ -473,11 +470,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     {
         let Some(Container::Object { value, excluded }) = state.containers.last_mut() else {
             unreachable!("computed binding field has an object receiver");
-        };
-        let saved_key = if self.values[key.0] == Type::Number {
-            ir::ManagedKey::Uint32(key)
-        } else {
-            ir::ManagedKey::String(key)
         };
         if let Some(excluded) = excluded {
             excluded.push(saved_key.clone());
@@ -490,6 +482,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 &mut output,
                 source,
                 if self.values[value.0] == Type::ManagedValue {
+                    let ir::ManagedKey::Uint32(key) = saved_key else {
+                        unreachable!("validated String binding index")
+                    };
                     Op::ManagedStringGetIndex {
                         result: selected,
                         input: *value,

@@ -67,7 +67,7 @@ pub(super) enum BindingStep<'n, 'a> {
         key: Vec<u16>,
     },
     ComputedField {
-        uint32: bool,
+        kind: evaluate::RuntimeKey,
         source: &'n BindingProperty<'a>,
         key: &'n Expression<'a>,
         depth: usize,
@@ -315,15 +315,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         });
                     } else if property.computed
                         && let Some(key) = property.key.as_expression()
-                        && (self.stored.uint32_keys.contains(key, depth)
-                            || (self.stored.string(key.node_id())
-                                && (dictionary
-                                    || (receiver == Type::ManagedObject
-                                        && self.stored.record_names.contains(key, depth)))))
+                        && let Some(kind) =
+                            if matches!(receiver, Type::ManagedObject | Type::ManagedArray) {
+                                self.binding_key_kind(receiver, dictionary, key, depth)
+                            } else {
+                                self.stored
+                                    .uint32_keys
+                                    .contains(key, depth)
+                                    .then_some(evaluate::RuntimeKey::Uint32)
+                            }
                     {
                         mark_live_arrays(&containers, &mut steps);
                         steps.push(BindingStep::ComputedField {
-                            uint32: self.stored.uint32_keys.contains(key, depth),
+                            kind,
                             source: property,
                             key,
                             depth,
@@ -420,7 +424,7 @@ mod unsigned_binding_tests {
         for (body, ok) in [
             ("const {[a>>>0]:x=b}=[a];return x;", true),
             ("const {[a>>>0]:x='?'}='abc';return x.length;", true),
-            ("const {[a]:x}=[b];return a;", false),
+            ("const {[a]:x}=[b];return a;", true),
             ("const {[a>>>0]:x}=b;return a;", true),
             (
                 "const k=a?'k':'__proto__';const {[k]:x}={k:b};return a;",
@@ -437,7 +441,7 @@ mod unsigned_binding_tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){const {[a as number]:x}=[b];return a;}",
+                "export function run(a,b){const {[{} as unknown as number]:x}=[b];return a;}",
                 true
             )
             .is_err()

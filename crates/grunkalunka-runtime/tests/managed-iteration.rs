@@ -54,6 +54,8 @@ fn scalar_iteration_assignments_preserve_cells_effects_and_numeric_bits() {
 #[test]
 fn member_iteration_heads_preserve_assignment_targets_and_selected_values() {
     for body in [
+        "const xs=[];for(xs[a] of [1,2]){}return xs[a]===2?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':b;for(d[k] in {x:1}){}return d[k]==='x'?1:0;",
         "const o={f:x=>x+1};const k=a?'left':'right';for(o[k] of [a,b]){}return o[k]===b?o.f(a):0;",
         "let n=0;const o={};const k='name';for(o[(n++,k)] in {aa:a,bbb:b}){}return n*10+(o[k]==='bbb'?1:0);",
         "let n=0;const o={};const k='x';for(o[(n++,k)] of [])n++;return n;",

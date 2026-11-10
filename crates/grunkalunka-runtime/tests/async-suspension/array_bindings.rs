@@ -4,6 +4,8 @@ use super::*;
 fn unsigned_binding_keys_preserve_awaited_keys_and_defaults() {
     compare_promises(
         &[
+            "const o={[a]:3};const {[(await b,a)]:x,...rest}=o;return x===3&&!Object.hasOwn(rest,a)?1:0;",
+            "let xs=[];const old=xs;for(xs[(await a,xs=[],a)] of [b]){}return old[a]===b?1:0;",
             "const xs=[a];const {[(await a,xs[0]=b,0)>>>0]:x}=xs;await b;return +x;",
             "const {[(await a,0)>>>0]:x=(await b,b)}=[];return +x;",
             "const {[(await a,0)>>>0]:x,...rest}='💠';await b;return Object.keys(rest).length;",
