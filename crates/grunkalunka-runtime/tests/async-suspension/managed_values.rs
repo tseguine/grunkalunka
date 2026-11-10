@@ -4,6 +4,7 @@ use super::*;
 fn completed_lexical_assignment_keeps_its_reference_across_await() {
     compare_promises(
         &[
+            "let row;if(a){row=(await a,{v:a});}else{row=(await b,{v:b});}await b;return +row.v;",
             "let row;row=(await a,{v:b});await b;return +row.v;",
             "let xs=null;xs=[a,b];await b;return xs.length;",
         ],

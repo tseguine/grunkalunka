@@ -1,6 +1,9 @@
 //! Function-scoped var cells; declarations write existing cells, never rebind them.
 use super::*;
-use oxc_ast::{AstKind, ast::FormalParameters};
+use oxc_ast::{
+    AstKind,
+    ast::{AssignmentExpression, FormalParameters},
+};
 use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -324,8 +327,96 @@ pub(super) fn reads(semantic: &Semantic<'_>) -> BTreeMap<NodeId, Vec<NodeId>> {
     result
 }
 
-/// A standalone assignment dominates later reads in the same block. An
-/// unconditional assignment can also establish the value outside its block.
+struct InitializedRegion {
+    site: NodeId,
+    after: u32,
+    block: Option<oxc_span::Span>,
+    sources: Vec<NodeId>,
+}
+
+fn lexical_store<'a>(
+    write: NodeId,
+    semantic: &Semantic<'a>,
+) -> Option<&'a AssignmentExpression<'a>> {
+    let AstKind::AssignmentExpression(assign) = semantic.nodes().parent_kind(write) else {
+        return None;
+    };
+    (assign.operator == AssignmentOperator::Assign
+        && matches!(assign.left.as_simple_assignment_target(),Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) if id.node_id()==write))
+        .then_some(assign)
+}
+
+fn enclosing_statement_block(statement: NodeId, semantic: &Semantic<'_>) -> Option<oxc_span::Span> {
+    match semantic.nodes().parent_kind(statement) {
+        AstKind::BlockStatement(block) => Some(block.span),
+        AstKind::FunctionBody(body) => Some(body.span),
+        _ => None,
+    }
+}
+
+fn single_store_region(write: NodeId, semantic: &Semantic<'_>) -> Option<InitializedRegion> {
+    let assign = lexical_store(write, semantic)?;
+    let site = assign.node_id();
+    let statement = semantic.nodes().parent_id(site);
+    let block = if straight(site, semantic, false) {
+        None
+    } else {
+        if !matches!(
+            semantic.nodes().kind(statement),
+            AstKind::ExpressionStatement(_)
+        ) {
+            return None;
+        }
+        Some(enclosing_statement_block(statement, semantic)?)
+    };
+    Some(InitializedRegion {
+        site,
+        after: assign.span.end,
+        block,
+        sources: vec![assign.right.node_id()],
+    })
+}
+
+// An arm supplies its value only when its final statement is the store.
+// Earlier effects or abrupt completions still execute through normal lowering.
+fn store_arm(write: NodeId, semantic: &Semantic<'_>) -> Option<(NodeId, NodeId, NodeId)> {
+    let assign = lexical_store(write, semantic)?;
+    let nodes = semantic.nodes();
+    let statement = nodes.parent_id(assign.node_id());
+    if !matches!(nodes.kind(statement), AstKind::ExpressionStatement(_)) {
+        return None;
+    }
+    let arm = match nodes.parent_kind(statement) {
+        AstKind::BlockStatement(block) if block.body.last()?.node_id() == statement => {
+            block.node_id()
+        }
+        _ => statement,
+    };
+    let AstKind::IfStatement(choice) = nodes.parent_kind(arm) else {
+        return None;
+    };
+    Some((choice.node_id(), arm, assign.right.node_id()))
+}
+
+fn exhaustive_store_region(
+    first: NodeId,
+    second: NodeId,
+    semantic: &Semantic<'_>,
+) -> Option<InitializedRegion> {
+    let (site, left_arm, left_value) = store_arm(first, semantic)?;
+    let (other, right_arm, right_value) = store_arm(second, semantic)?;
+    if site != other || left_arm == right_arm {
+        return None;
+    }
+    Some(InitializedRegion {
+        site,
+        after: semantic.nodes().kind(site).span().end,
+        block: Some(enclosing_statement_block(site, semantic)?),
+        sources: vec![left_value, right_value],
+    })
+}
+
+/// Refine reads reached after the only write, or after both arms of an if/else store.
 pub(super) fn lexical_assignment_reads(
     semantic: &Semantic<'_>,
     reads: &mut BTreeMap<NodeId, Vec<NodeId>>,
@@ -349,39 +440,22 @@ pub(super) fn lexical_assignment_reads(
         let mut writes = scope
             .get_resolved_references(symbol)
             .filter(|r| r.is_write());
-        let Some(write) = writes.next() else { continue };
-        if writes.next().is_some() {
-            continue;
-        }
-        let assignment_id = nodes.parent_id(write.node_id());
-        let AstKind::AssignmentExpression(assign) = nodes.kind(assignment_id) else {
-            continue;
-        };
-        if assign.operator != AssignmentOperator::Assign
-            || assign.span.start < decl.span.end
-            || !matches!(assign.left.as_simple_assignment_target(),Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) if id.node_id()==write.node_id())
-        {
-            continue;
-        }
-        // A conditional block does not dominate the rest of the function,
-        // but reaching a later statement inside that block requires this store.
-        let statement = nodes.parent_id(assignment_id);
-        let block = if matches!(nodes.kind(statement), AstKind::ExpressionStatement(_)) {
-            match nodes.parent_kind(statement) {
-                AstKind::BlockStatement(block) => Some(block.span),
-                _ => None,
+        let Some(first) = writes.next() else { continue };
+        let region = if let Some(second) = writes.next() {
+            if writes.next().is_some() {
+                continue;
             }
+            exhaustive_store_region(first.node_id(), second.node_id(), semantic)
         } else {
-            None
+            single_store_region(first.node_id(), semantic)
         };
-        let unconditional = straight(assignment_id, semantic, false);
-        if !unconditional && block.is_none() {
-            continue;
-        }
+        let Some(region) = region else { continue };
         let Some(body) = owner(node.id(), semantic) else {
             continue;
         };
-        if owner(assignment_id, semantic) != Some(body) {
+        if nodes.kind(region.site).span().start < decl.span.end
+            || owner(region.site, semantic) != Some(body)
+        {
             continue;
         }
         for read in scope
@@ -390,11 +464,11 @@ pub(super) fn lexical_assignment_reads(
         {
             let id = read.node_id();
             let span = nodes.kind(id).span();
-            if span.start >= assign.span.end
-                && (unconditional || block.is_some_and(|b| b.contains_inclusive(span)))
+            if span.start >= region.after
+                && region.block.is_none_or(|b| b.contains_inclusive(span))
                 && owner(id, semantic) == Some(body)
             {
-                reads.insert(id, vec![assign.right.node_id()]);
+                reads.insert(id, region.sources.clone());
             }
         }
     }

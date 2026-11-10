@@ -1341,3 +1341,16 @@ fn imported_handler_dispatches_an_initially_unset_action() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_uses_branch_initialized_state() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            let state;
+            if (a > 0) state={expanded:1};
+            else state={expanded:0};
+            return choose(+state.expanded,b);
+        }"#,
+    );
+}
