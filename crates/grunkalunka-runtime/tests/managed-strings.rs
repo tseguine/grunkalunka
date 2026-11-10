@@ -2,6 +2,20 @@
 mod common;
 
 #[test]
+fn string_compound_updates_save_dynamic_references_and_coerce_old_values() {
+    for body in [
+        "const xs=[];const value=xs[a]+='!';return value==='undefined!'&&xs[a]===value?1:0;",
+        "const o={x:a};const result=o.x+='?';return result===`${a}?`?1:0;",
+        "let o={x:'old'},k='x';const old=o;const x=o[(k='x',k)]+=(o={x:'new'},k='y',String(b));return old.x===x&&o.x==='new'?x.length:0;",
+        "const d={__proto__:null};const k=a?'__proto__':'toString';d[k]=null;const x=d[k]+='x';return x==='nullx'?1:0;",
+        "let n=0;const o={x:'ok'};const k='x';const out=o[(n++,k)]+=(n=n*10+2,'!');return out==='ok!'?n:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn string_function_coerces_primitives_after_evaluating_all_arguments() {
     for body in [
         "return String().length+String(undefined).length;",

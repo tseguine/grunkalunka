@@ -4,14 +4,24 @@ use super::*;
 
 pub(super) enum Destination {
     Local(SlotId),
-    Property { object: ValueId, key: Vec<u16> },
+    Property {
+        object: ValueId,
+        key: ir::ManagedKey,
+    },
 }
 
 pub(super) enum Task<'e, 'a> {
     Receiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
-        key: Vec<u16>,
+        key: property_update::Key<'e, 'a>,
+        depth: usize,
+    },
+    Key {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        object: ValueId,
+        kind: dictionary::RuntimeKey,
         depth: usize,
     },
     Write {
@@ -44,18 +54,22 @@ impl Lowering<'_, '_> {
         let Some(target) = assignment.left.as_simple_assignment_target() else {
             return Ok(false);
         };
-        if !self.stored.string(target.node_id()) {
+        if !self.stored.scalar_string_operand(target.node_id()) {
             return Ok(false);
         }
         let property = match target {
             SimpleAssignmentTarget::StaticMemberExpression(member) if !member.optional => Some((
                 &member.object,
-                member.property.name.encode_utf16().collect(),
+                property_update::Key::Literal(member.property.name.encode_utf16().collect()),
             )),
             SimpleAssignmentTarget::ComputedMemberExpression(member) if !member.optional => {
-                let Some(key) = closures::unwrapped_at(&member.expression, depth + 2)
-                    .and_then(|(key, _)| static_keys::literal(key))
-                else {
+                let key = if let Some(key) = closures::unwrapped(&member.expression, depth + 2)
+                    .and_then(static_keys::literal)
+                {
+                    property_update::Key::Literal(key)
+                } else if let Some((_, kind)) = self.runtime_member_receiver(member, depth + 2) {
+                    property_update::Key::Runtime(&member.expression, kind)
+                } else {
                     return Ok(false);
                 };
                 Some((&member.object, key))
@@ -86,8 +100,20 @@ impl Lowering<'_, '_> {
                 return Ok(false);
             }
             let array = receiver == Some(Type::ManagedArray);
-            let key =
-                managed_member_key(node, key, array, self.stored.dictionary(object.node_id()))?;
+            let key = match key {
+                property_update::Key::Literal(key) => {
+                    if array && key.as_slice() == [108, 101, 110, 103, 116, 104] {
+                        return Err(unsupported(node, "array length requires plain assignment"));
+                    }
+                    property_update::Key::Literal(managed_member_key(
+                        node,
+                        key,
+                        array,
+                        self.stored.dictionary(object.node_id()),
+                    )?)
+                }
+                key => key,
+            };
             Some((object, key, array))
         } else {
             None
@@ -129,45 +155,108 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        let (node, destination, left) = match task {
+        let (node, right, depth, object, key) = match task {
             Task::Receiver {
                 node,
                 right,
                 key,
                 depth,
             } => {
-                let object = values.pop().expect("String write receiver").id();
-                let left = self.value(Type::ManagedValue);
-                Self::push(
-                    regions.current(),
-                    node,
-                    if self.values[object.0] == Type::ManagedArray {
-                        Op::ManagedArrayGetOwn {
-                            result: left,
-                            array: object,
-                            key: key.clone(),
-                        }
-                    } else {
-                        Op::ManagedGetOwn {
-                            result: left,
+                let object = values.pop().expect("String update receiver").id();
+                match key {
+                    property_update::Key::Literal(key) => {
+                        (node, right, depth, object, ir::ManagedKey::Literal(key))
+                    }
+                    property_update::Key::Runtime(key, kind) => {
+                        work.push(Work::StringAddition(Task::Key {
+                            node,
+                            right,
                             object,
-                            key: key.clone(),
-                        }
-                    },
-                );
-                work.push(Work::StringAddition(Task::Write {
-                    node,
-                    destination: Destination::Property { object, key },
-                    left,
-                }));
-                self.schedule_string_operand(right, depth, work)?;
-                return Ok(());
+                            kind,
+                            depth,
+                        }));
+                        self.schedule_runtime_key(key, depth + 1, kind, work)?;
+                        return Ok(());
+                    }
+                }
+            }
+            Task::Key {
+                node,
+                right,
+                object,
+                kind,
+                depth,
+            } => {
+                let key = values.pop().expect("String update key").id();
+                (node, right, depth, object, kind.finish(key))
             }
             Task::Write {
                 node,
                 destination,
                 left,
-            } => (node, destination, left),
+            } => {
+                self.finish_string_addition(node, destination, left, regions, values);
+                return Ok(());
+            }
+        };
+        let left = self.value(Type::ManagedValue);
+        let read = match &key {
+            ir::ManagedKey::Literal(name) if self.values[object.0] == Type::ManagedArray => {
+                Op::ManagedArrayGetOwn {
+                    result: left,
+                    array: object,
+                    key: name.clone(),
+                }
+            }
+            ir::ManagedKey::Literal(name) => Op::ManagedGetOwn {
+                result: left,
+                object,
+                key: name.clone(),
+            },
+            key => Op::ManagedGetOwnDynamic {
+                result: left,
+                object,
+                key: key.clone(),
+            },
+        };
+        Self::push(regions.current(), node, read);
+        work.push(Work::StringAddition(Task::Write {
+            node,
+            destination: Destination::Property { object, key },
+            left,
+        }));
+        self.schedule_string_operand(right, depth, work)
+    }
+
+    fn finish_string_addition(
+        &mut self,
+        node: &Expression<'_>,
+        destination: Destination,
+        left: ValueId,
+        regions: &mut Regions,
+        values: &mut Vec<Value>,
+    ) {
+        let Expression::AssignmentExpression(assignment) = node else {
+            unreachable!("validated +=")
+        };
+        let target = assignment
+            .left
+            .as_simple_assignment_target()
+            .expect("validated reference");
+        let left = if self.stored.string(target.node_id()) {
+            left
+        } else {
+            let result = self.value(Type::ManagedValue);
+            Self::push(
+                regions.current(),
+                node,
+                Op::ManagedScalarString {
+                    result,
+                    input: left,
+                    numbers: self.stored.may_be_number(target.node_id()),
+                },
+            );
+            result
         };
         let right = values.pop().expect("String compound RHS").id();
         let result = self.value(Type::ManagedValue);
@@ -188,25 +277,14 @@ impl Lowering<'_, '_> {
                     slot,
                     value: result,
                 },
-                Destination::Property { object, key } => {
-                    if self.values[object.0] == Type::ManagedArray {
-                        Op::ManagedArraySetOwn {
-                            array: object,
-                            key,
-                            value: result,
-                        }
-                    } else {
-                        Op::ManagedSetOwn {
-                            object,
-                            key,
-                            value: result,
-                        }
-                    }
-                }
+                Destination::Property { object, key } => Op::ManagedSetOwnDynamic {
+                    object,
+                    key,
+                    value: result,
+                },
             },
         );
         values.push(Value::Managed(result));
-        Ok(())
     }
 }
 
@@ -237,7 +315,7 @@ mod tests {
             ),
             (
                 "const o={s:'x'};const key='s';o[key]+='y';return o.s.length;",
-                false,
+                true,
             ),
             ("const o={toString:'x'};o.toString+='y';return a;", false),
             ("const xs=['x'];xs.length+='y';return a;", false),

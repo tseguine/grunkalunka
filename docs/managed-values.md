@@ -232,12 +232,12 @@ Mutable source-proven String locals accept `+=` with a represented primitive RHS
 the completed RHS, then stored and returned. Captures observe the new String;
 RHS rejection performs no store. UTF-16 units use the existing concatenation
 operation unchanged. Destructured and iteration cells follow the same path.
-Static own String data fields and array elements also support `+=`. Their
+Static and computed record fields and array elements also support String `+=`. A known String RHS can append to a represented primitive old value, including a missing (Undefined) field. Their
 receiver and old String are saved before the RHS; receiver rebinding does not
 redirect the final store. The same operation covers nested receivers. Successful
 completion stores once, and a throw or rejection leaves the saved reference
 untouched by the compound store.
-Type assertions, const local targets, runtime keys, missing fields,
+Type assertions, const local targets,
 array length and accessors do not acquire String support from this increment.
 Dictionary fields retain an absent alternative in the source analysis; an earlier
 plain write alone does not prove that such a field contains only Strings.
@@ -675,7 +675,7 @@ local/property storage, admitted helper signatures and captures.
 
 Object conversion and addition that can choose between numeric and String results
 remain guarded. String `+=` over mutable locals and
-static own data references uses the same concatenation operation as described above.
+computed or static own data references uses the same concatenation operation as described above.
 The private helper is included only when the module needs it. It checks the sum
 in an unsigned 64-bit lane before allocating the Wasm32 array; overflow and
 engine allocation exhaustion are resource failures, not catchable source
