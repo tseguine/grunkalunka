@@ -1800,3 +1800,9 @@ record fields use the same source facts. A possibly null result of `&&=` cannot
 supply an ordinary property receiver. A mutable local known to hold a record
 or array also supports these operators with a same-kind RHS. Its current
 reference is truthy and non-nullish, so only `&&=` evaluates the RHS.
+
+
+A `let` binding can start uninitialized, null, or undefined and later hold
+a String, record, or Array. Source-proven writes select storage that
+preserves both the initial nullish value and the later reference. This
+supports lazy initialization such as `let cached; const item = cached ??= {n: 0}`.
