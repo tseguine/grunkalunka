@@ -9,6 +9,7 @@ fn finite_string_keys_read_utf16_units_or_intrinsic_length() {
         "const s=a?'😀':null,k=b?'0':'length';return s?.[k]===2?1:0;",
         "let s='ab';const k=a?'0':'1';return s[(s='zz',k)]==='z'?0:1;",
         "const s='😀x',k='length';return +s[k];",
+        "const s='x';const key='length';return s[key];",
         "const s='💚x',k=a?'0':'length';const {[k]:v,...r}=s;return Object.hasOwn(r,0)?v===3?3:0:v==='\\ud83d'?1:0;",
         "const s='abc',k=a?'5':'length';let v=0,r={};({[k]:v=b,...r}=s);return Object.hasOwn(r,0)&&(v===b||v===3)?1:0;",
     ] {
@@ -1055,12 +1056,12 @@ fn string_length_composes_helpers_closures_and_erased_types() {
 }
 
 #[test]
-fn string_length_requires_known_string_receivers_and_static_reads() {
+fn string_length_requires_known_string_receivers_and_own_keys() {
     for source in [
         "export function run(a,b){const s=a?'x':null;return s.length;}",
         "export function run(a,b){const s=a?'x':[];return s.length;}",
         "function length(s){return s.length;}export function run(a,b){return length('x')+length(a);}",
-        "export function run(a,b){const s='x';const key='length';return s[key];}",
+        "export function run(a,b){const s='x';const key=a?'length':'trim';return s[key];}",
         "export function run(a,b){const s='x';s.length=2;return s.length;}",
         "function s(x){if(x)return 'x';}export function run(a,b){return s(a).length;}",
         "function s(x){return x?'x':null;}export function run(a,b){return s(a).length;}",
