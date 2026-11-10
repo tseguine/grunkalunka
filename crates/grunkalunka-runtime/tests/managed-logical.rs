@@ -435,9 +435,11 @@ fn discarded_managed_defaults_keep_only_selected_effects() {
 
 #[test]
 fn unselected_managed_branches_still_require_supported_source() {
+    let numeric_key = "export function run(a,b){const x={}||{[a]:b};return a;}";
+    common::compare_sources(numeric_key, numeric_key);
     for source in [
         "export function run(a,b){const x={}||missing();return a;}",
-        "export function run(a,b){const x={}||{[a]:b};return a;}",
+        "export function run(a,b){const x={}||{[{}]:b};return a;}",
         "export function run(a,b){const x={}??{};return x;}",
         "export async function run(a,b){const x='v'||'fallback';await a;return a;}",
     ] {
