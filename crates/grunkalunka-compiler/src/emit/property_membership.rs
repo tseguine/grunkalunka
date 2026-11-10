@@ -27,6 +27,7 @@ pub(super) fn emit_runtime(module: &ir::Module, output: &mut String) {
         output.push_str(
             "(func $gc_object_has_property (param $obj (ref null $gc_object)) (param $key (ref null $gc_key)) (result i32)\n\
              local.get $obj local.get $key call $gc_has_own if i32.const 1 return end\n\
+             local.get $obj ref.test (ref $gc_dictionary) if i32.const 0 return end\n\
              local.get $key global.get $object_prototype_names call $gc_prototype_has)\n",
         );
     }
