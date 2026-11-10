@@ -152,14 +152,19 @@ fn former_unknown_alias_receiver_guard_executes_unchanged() {
 }
 
 #[test]
-fn erased_assignment_targets_preserve_all_receiver_alternatives() {
+fn erased_assignment_targets_preserve_runtime_receiver_semantics() {
+    // A later Array store supersedes the earlier record. Accessing its missing
+    // "x" property yields Undefined, not the original record's Number.
     let js = "export function run(a,b){const initial={child:{x:a}};let child=initial.child;child=[b];const o={child};return o.child.x===a?1:0;}";
     let ts = "export function run(a,b){const initial={child:{x:a}};let child=initial.child;(child as unknown)=[b];const o={child};return o.child.x===a?1:0;}";
-    assert!(grunkalunka_compiler::compile(js, false).is_err());
-    assert!(
-        grunkalunka_compiler::compile(ts, true).is_err(),
-        "TS erasure lost an assignment alternative"
-    );
+    common::compare_sources(js, ts);
+}
+
+#[test]
+fn nested_record_number_keys_match_java_script() {
+    // Number property keys cannot spell the record's "x" field, but these
+    // dynamic lookups are supported and still need real result verification.
+    compare("const o={child:{x:a}};return o.child[a]===a?1:0;");
 }
 
 #[test]
@@ -174,7 +179,6 @@ fn unknown_or_mixed_nested_receiver_kinds_reject_before_execution() {
         "const o=[{x:a}];o.length=0;return o[0].x===a?1:0;",
         "const o={child:[()=>a]};o.child.length=0;return o.child[0]();",
         "const o={child:{x:a}};return o.child.__proto__===o?1:0;",
-        "const o={child:{x:a}};return o.child[a]===a?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {
