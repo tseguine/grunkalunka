@@ -544,6 +544,12 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_string_iter_value\n");
                 self.set(*result);
             }
+            Op::ManagedStringGetKey { result, input, key } => {
+                self.get(*input);
+                self.get(*key);
+                self.output.push_str("call $gc_string_get_key\n");
+                self.set(*result);
+            }
             Op::ManagedStringCharAt {
                 result,
                 input,

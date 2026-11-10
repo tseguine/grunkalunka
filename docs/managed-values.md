@@ -29,6 +29,9 @@ undergo validation, including in a branch that never executes.
 String receivers expose their own length and canonical UTF-16 index properties,
 using the same lazy unsigned-key path. Index reads preserve individual UTF-16
 units, including isolated surrogate units; missing indices return Undefined.
+A computed String key may select among known canonical index names and
+`"length"` on ordinary and optional reads and in object binding and assignment patterns.
+Length counts UTF-16 units.
 Optional String runtime index expressions also accept source-proven Number values,
 including ordinary loop variables. Fractional, negative, non-finite and out-of-range
 indices return Undefined rather than undergoing integer truncation; negative zero
@@ -43,8 +46,8 @@ is read after key evaluation, including supported suspension and intervening
 writes. Missing names yield Undefined, and names such as `constructor` and
 `__proto__` remain ordinary own data fields. Source facts retain selected tags
 and reference identity through aliases, helpers and captures. A nullish-only
-receiver can skip a validated String key as well. Ordinary objects/Arrays with
-runtime String keys and implicit key coercion remain guarded.
+receiver can skip a validated String key as well. Ordinary records require an
+own-name proof and arrays accept finite choices that exclude inherited names.
 
 Numeric projections still need a Number proof or explicit primitive conversion.
 Unknown receivers, inherited fields, other runtime keys, optional calls and
@@ -1562,7 +1565,7 @@ proofs: unsigned numeric syntax on proven objects/Arrays, or source-proven Strin
 on null-prototype dictionaries. Each key is saved before the original destination
 reference executes, followed by GetV and its lazy default; awaits retain that order.
 Selected-value facts use the same conservative own-value/missing alternatives as
-ordinary computed reads. Runtime String keys on primitive Strings and coercing/unproven keys remain guarded.
+ordinary computed reads. On primitive Strings a proven finite choice of canonical index names and length uses the same selection and rest exclusions.
 
 
 Computed source keys also participate in object-rest exclusions. Each saved key is
@@ -1576,7 +1579,7 @@ Computed source indices in object assignment patterns also accept source-proven
 Strings with unsigned numeric syntax. They select UTF-16 code units (including
 individual surrogate halves), with Undefined outside the string. Lazy defaults
 and saved RHS/key/reference ordering use the same cursor as object/Array sources.
-String object-rest copying preserves those saved exclusions; runtime String/coercing keys remain guarded.
+String object-rest copying preserves exclusions for both unsigned indices and proven String keys.
 The existing projections still require a proven String before String-only operations;
 numeric conversion of boxed Strings is outside this admission change.
 
@@ -1586,7 +1589,7 @@ index properties. Length and inherited names are absent. Literal/unsigned source
 exclusions and existing member destinations share the saved RHS/key/reference
 cursor, including awaits and rejected defaults. A temporary own-data object feeds
 the existing rest operation after destination evaluation. Nullable/opaque String
-sources and runtime String source keys keep their guards.
+sources and unproven String source keys keep their guards.
 
 
 Declaration, nested and iteration object bindings also accept String object rest.

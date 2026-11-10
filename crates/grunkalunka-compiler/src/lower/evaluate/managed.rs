@@ -233,6 +233,15 @@ fn assignment_member<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
+    pub(in crate::lower) fn string_own_key(&self, key: &Expression<'_>, depth: usize) -> bool {
+        self.stored.string(key.node_id())
+            && self
+                .stored
+                .record_names
+                .domain(key, depth)
+                .string_own_names()
+    }
+
     pub(in crate::lower) fn receiver_type(
         &self,
         node: &Expression<'_>,
@@ -1576,7 +1585,12 @@ impl Lowering<'_, '_> {
             ManagedWork::StringIndexReceiver { node, index, depth } => {
                 let input = values.pop().expect("String index receiver").id();
                 work.push(Work::Managed(ManagedWork::StringIndex { node, input }));
-                work.push(Work::Eval(index, depth, Mode::Number));
+                let mode = if self.string_own_key(index, depth) {
+                    Mode::Managed
+                } else {
+                    Mode::Number
+                };
+                work.push(Work::Eval(index, depth, mode));
             }
             ManagedWork::StringIndex { node, input } => {
                 let index = values.pop().expect("String index").id();
@@ -1584,10 +1598,18 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     node,
-                    Op::ManagedStringGetIndex {
-                        result,
-                        input,
-                        index,
+                    if self.values[index.0] == Type::ManagedValue {
+                        Op::ManagedStringGetKey {
+                            result,
+                            input,
+                            key: index,
+                        }
+                    } else {
+                        Op::ManagedStringGetIndex {
+                            result,
+                            input,
+                            index,
+                        }
                     },
                 );
                 values.push(Value::Managed(result));

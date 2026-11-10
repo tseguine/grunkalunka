@@ -482,14 +482,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 &mut output,
                 source,
                 if self.values[value.0] == Type::ManagedValue {
-                    let ir::ManagedKey::Uint32(key) = saved_key else {
-                        unreachable!("validated String binding index")
-                    };
-                    Op::ManagedStringGetIndex {
-                        result: selected,
-                        input: *value,
-                        index: key,
-                    }
+                    binding_patterns::string_field_read(selected, *value, saved_key)
                 } else {
                     Op::ManagedGetOwnDynamic {
                         result: selected,

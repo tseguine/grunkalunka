@@ -354,7 +354,7 @@ fn string_object_bindings_use_own_utf16_properties_and_keep_guards() {
     for body in [
         "const {slice}='abc';return a;",
         "const {'01':x}='abc';return a;",
-        "const key='length';const {[key]:n}='abc';return a;",
+        "const key='charAt';const {[key]:n}='abc';return a;",
         "const {length:n}=(a as string);return a;",
         "const source=a?'abc':null;const {length:n}=source;return a;",
     ] {
@@ -381,6 +381,7 @@ fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
         "const get=()=>n;for(var {length:n} in {a:1,abc:2}){}return +get();",
         "let n=0;for(const {0:{length:l}='z'} in {'':1,abc:2})n+=l;return n;",
         "for(var {} in 17){}return a;",
+        "const key='length';for(const {[key]:x} in {a:1}){}return a;",
         "var n=3;for(var {length:n} in {}){}return n===3?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
@@ -391,7 +392,7 @@ fn for_in_object_patterns_use_string_keys_and_preserve_source_guards() {
     }
     for body in [
         "for(let {slice:x} in {a:1}){}return a;",
-        "const key='length';for(const {[key]:x} in {a:1}){}return a;",
+        "const key='slice';for(const {[key]:x} in {a:1}){}return a;",
         "for(let {'01':x} in {a:1}){}return a;",
         "let n=3;for(const {length:n} in {a:n}){}return a;",
     ] {

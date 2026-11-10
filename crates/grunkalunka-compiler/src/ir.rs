@@ -702,6 +702,12 @@ pub(crate) enum Op {
         input: ValueId,
         index: ValueId,
     },
+    // Computed own property of a String, including its UTF-16 length.
+    ManagedStringGetKey {
+        result: ValueId,
+        input: ValueId,
+        key: ValueId,
+    },
     // Relative UTF-16 selection, returning String or Undefined.
     ManagedStringAt {
         result: ValueId,
@@ -1856,6 +1862,11 @@ impl Verifier<'_> {
             } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.value(*index, Type::Number, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringGetKey { result, input, key } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*key, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedStringCharCodeAt {

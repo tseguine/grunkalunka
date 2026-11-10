@@ -396,6 +396,7 @@ impl Lowering<'_, '_> {
                             let kind = match receiver {
                                 Some(ty @ (Type::ManagedObject | Type::ManagedArray)) =>
                                     self.owned_key_kind(&assignment.right, ty, key, depth + 1, KeyAccess::Read),
+                                Some(Type::ManagedValue) if self.string_own_key(key, depth + 1) => Some(dictionary::RuntimeKey::String),
                                 _ if self.stored.uint32_keys.contains(key, depth + 1) => Some(dictionary::RuntimeKey::Uint32),
                                 _ => None,
                             }.ok_or_else(|| unsupported(node, "computed assignment source requires a supported own property key"))?;
@@ -718,14 +719,7 @@ impl Lowering<'_, '_> {
                             regions.current(),
                             node,
                             if self.values[receiver.0] == Type::ManagedValue {
-                                let ir::ManagedKey::Uint32(index) = key else {
-                                    unreachable!("validated String assignment index")
-                                };
-                                Op::ManagedStringGetIndex {
-                                    result,
-                                    input: receiver,
-                                    index,
-                                }
+                                binding_patterns::string_field_read(result, receiver, key)
                             } else {
                                 Op::ManagedGetOwnDynamic {
                                     result,
@@ -955,7 +949,7 @@ mod tests {
             "let x;({length:x}=(a?'abc':null));return a;",
             "let x;({slice:x}='abc');return a;",
             "let x;({'01':x}='abc');return a;",
-            "let x;const key='length';({[key]:x}='abc');return a;",
+            "let x;const key='toString';({[key]:x}='abc');return a;",
             "const x=0;({length:x}='abc');return a;",
             "let x=0;({0:x}='abc');return x;",
         ] {
@@ -1549,7 +1543,7 @@ mod string_computed_selection_tests {
             ("let x;({[a>>>0]:x}='123');return +x;", false),
             ("let x='';({[a>>>0]:x}='text');return x.length;", false),
             ("let x;({[a]:x}='text');return a;", false),
-            ("const k='0';let x;({[k]:x}='text');return a;", false),
+            ("const k='0';let x;({[k]:x}='text');return a;", true),
             ("let x;({[a>>>0]:x}=(a?'text':null));return a;", false),
             ("let x;({[a>>>0]:x}=a);return a;", true),
             ("const x='';({[a>>>0]:x}='text');return a;", false),
@@ -1623,7 +1617,7 @@ mod string_rest_tests {
             ("const rest={};({...rest}='abc');return a;", false),
             (
                 "let rest={};const k='0';let x;({[k]:x,...rest}='abc');return a;",
-                false,
+                true,
             ),
         ] {
             let source = format!("export function run(a,b){{{body}}}");

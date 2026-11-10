@@ -1604,6 +1604,29 @@ fn templates_require_supported_primitives_and_bound_substitution_count() {
 }
 
 #[test]
+fn string_key_reads_validate_both_managed_operands() {
+    let source = "export function run(a,b){const k=a?'0':'length';return 'ab'[k]===2?1:0;}";
+    for receiver in [true, false] {
+        let mut malformed = crate::lower_source(source, false).unwrap();
+        verify_module(&malformed).unwrap();
+        let operation = malformed.functions[0]
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::ManagedStringGetKey { input, key, .. } = &mut op.kind {
+                    Some(if receiver { input } else { key })
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        *operation = ValueId(usize::MAX);
+        assert!(verify_module(&malformed).is_err());
+    }
+}
+
+#[test]
 fn numeric_string_index_requires_number_and_keeps_missing_results() {
     let mut m = crate::lower_source(
         "export function run(a,b){return 'abc'[a]===undefined?1:0;}",
