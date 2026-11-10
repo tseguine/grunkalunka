@@ -94,6 +94,7 @@ fn member_rest_targets_preserve_awaited_references_and_exhaustion() {
 fn computed_pattern_targets_preserve_awaited_keys_and_saved_references() {
     compare_promises(
         &[
+            "let xs=[];const old=xs;[xs[(await a,xs=[],a)]=(await b,7)]=[];return old[a]===7&&xs.length===0?1:0;",
             "let o={x:a};const old=o;const k='x';[o[(await a,o={x:a},k)]=(await b,b)]=[];return old.x===b&&o.x===a?1:0;",
             "const xs=[];const rows=[a];[xs[(await b,rows[0]=b,0)>>>0]]=rows;await a;return +(xs[0]);",
             "let xs=[];const old=xs;const other=[];[xs[(await a,xs=other,0)>>>0]=(await b,b)]=[];await b;return old.length===1&&other.length===0?1:0;",

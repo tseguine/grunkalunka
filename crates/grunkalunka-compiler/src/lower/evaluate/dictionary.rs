@@ -112,21 +112,30 @@ impl Lowering<'_, '_> {
         {
             return None;
         }
-        let kind = self.runtime_key(&member.expression, depth)?;
-        if self.stored.dictionary(member.object.node_id()) {
-            return Some((Mode::Object, kind));
-        }
         let receiver = self.receiver_type(&member.object, depth)?;
+        self.owned_key_kind(&member.object, receiver, &member.expression, depth)
+            .map(|kind| (Mode::managed(receiver), kind))
+    }
+
+    pub(in crate::lower) fn owned_key_kind(
+        &self,
+        object: &Expression<'_>,
+        receiver: Type,
+        key: &Expression<'_>,
+        depth: usize,
+    ) -> Option<RuntimeKey> {
+        let kind = self.runtime_key(key, depth)?;
         match (receiver, kind) {
             (
-                Type::ManagedArray | Type::ManagedObject,
+                Type::ManagedObject | Type::ManagedArray,
                 RuntimeKey::Uint32 | RuntimeKey::Scalar { .. },
-            ) => Some((Mode::managed(receiver), kind)),
+            ) => Some(kind),
             (Type::ManagedObject, RuntimeKey::String)
-                if self.stored.string(member.expression.node_id())
-                    && self.stored.record_names.contains(&member.expression, depth) =>
+                if self.stored.dictionary(object.node_id())
+                    || (self.stored.string(key.node_id())
+                        && self.stored.record_names.contains(key, depth)) =>
             {
-                Some((Mode::Object, kind))
+                Some(kind)
             }
             _ => None,
         }

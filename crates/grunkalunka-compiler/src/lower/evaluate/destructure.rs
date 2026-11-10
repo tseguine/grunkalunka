@@ -5,7 +5,7 @@ use oxc_ast::ast::{AssignmentTarget, AssignmentTargetProperty};
 pub(super) enum Selection<'e, 'a> {
     Index(u32),
     Field(Vec<u16>),
-    Computed(&'e Expression<'a>, bool),
+    Computed(&'e Expression<'a>, dictionary::RuntimeKey),
     SavedField(ir::ManagedKey),
     ArrayRest(u32),
     ObjectRest,
@@ -72,13 +72,13 @@ pub(super) enum Task<'e, 'a> {
         state: Box<State<'e, 'a>>,
         selection: Selection<'e, 'a>,
         object: ValueId,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
         default: Option<&'e Expression<'a>>,
     },
     SourceKey {
         state: Box<State<'e, 'a>>,
         destination: Destination<'e, 'a>,
-        uint32: bool,
+        kind: dictionary::RuntimeKey,
         default: Option<&'e Expression<'a>>,
     },
     Default {
@@ -122,7 +122,7 @@ impl Lowering<'_, '_> {
                     )?)
                 }
                 iteration::PropertyKey::Runtime(key) => {
-                    if !self.accepts_runtime_destination_key(object, ty, key, depth) {
+                    if self.owned_key_kind(object, ty, key, depth).is_none() {
                         return Err(unsupported(
                             target,
                             "assignment member runtime keys require an unsigned index or a proven own String key",
@@ -390,18 +390,13 @@ impl Lowering<'_, '_> {
                             Selection::Field(key)
                         }
                         iteration::PropertyKey::Runtime(key) => {
-                            let uint32 = self.stored.uint32_keys.contains(key, depth + 1);
-                            let string_key = self.stored.string(key.node_id())
-                                && (dictionary
-                                    || (receiver == Some(Type::ManagedObject)
-                                        && self.stored.record_names.contains(key, depth + 1)));
-                            if !uint32 && !string_key {
-                                return Err(unsupported(
-                                    node,
-                                    "computed assignment source keys require an unsigned index or a proven record name",
-                                ));
-                            }
-                            Selection::Computed(key, uint32)
+                            let kind = match receiver {
+                                Some(ty @ (Type::ManagedObject | Type::ManagedArray)) =>
+                                    self.owned_key_kind(&assignment.right, ty, key, depth + 1),
+                                _ if self.stored.uint32_keys.contains(key, depth + 1) => Some(dictionary::RuntimeKey::Uint32),
+                                _ => None,
+                            }.ok_or_else(|| unsupported(node, "computed assignment source requires a supported own property key"))?;
+                            Selection::Computed(key, kind)
                         }
                     };
                     writes.push(Write {
@@ -500,19 +495,17 @@ impl Lowering<'_, '_> {
                     }
                     iteration::PropertyKey::Runtime(key) => {
                         let depth = state.depth;
-                        let uint32 = self.stored.uint32_keys.contains(key, depth);
+                        let kind = self
+                            .runtime_key(key, depth)
+                            .expect("validated assignment destination");
                         work.push(Work::Destructure(Task::Key {
                             state,
                             selection,
                             object,
-                            uint32,
+                            kind,
                             default,
                         }));
-                        work.push(Work::Eval(
-                            key,
-                            depth,
-                            if uint32 { Mode::Number } else { Mode::Managed },
-                        ));
+                        self.schedule_runtime_key(key, depth, kind, work)?;
                         return Ok(());
                     }
                 }
@@ -521,15 +514,11 @@ impl Lowering<'_, '_> {
                 mut state,
                 selection,
                 object,
-                uint32,
+                kind,
                 default,
             } => {
                 let key = values.pop().expect("assignment member key").id();
-                let key = if uint32 {
-                    ir::ManagedKey::Uint32(key)
-                } else {
-                    ir::ManagedKey::String(key)
-                };
+                let key = kind.finish(key);
                 state.pending =
                     Some((selection, SavedDestination::Member { object, key }, default));
                 state
@@ -537,15 +526,11 @@ impl Lowering<'_, '_> {
             Task::SourceKey {
                 mut state,
                 destination,
-                uint32,
+                kind,
                 default,
             } => {
                 let key = values.pop().expect("assignment source property key").id();
-                let key = if uint32 {
-                    ir::ManagedKey::Uint32(key)
-                } else {
-                    ir::ManagedKey::String(key)
-                };
+                let key = kind.finish(key);
                 state.ready = Some(Write {
                     selection: Selection::SavedField(key),
                     destination,
@@ -592,19 +577,15 @@ impl Lowering<'_, '_> {
                 else {
                     break;
                 };
-                if let Selection::Computed(key, uint32) = selection {
+                if let Selection::Computed(key, kind) = selection {
                     let depth = state.depth;
                     work.push(Work::Destructure(Task::SourceKey {
                         state,
                         destination,
-                        uint32,
+                        kind,
                         default,
                     }));
-                    work.push(Work::Eval(
-                        key,
-                        depth,
-                        if uint32 { Mode::Number } else { Mode::Managed },
-                    ));
+                    self.schedule_runtime_key(key, depth, kind, work)?;
                     return Ok(());
                 }
                 match &selection {
@@ -1321,9 +1302,9 @@ mod computed_member_tests {
                 "const d=Object.create(null);const k='__proto__';({x:d[k]}={x:b});return +(d[k]);",
                 true,
             ),
-            ("const xs=[];[xs[a]]=[b];return a;", false),
+            ("const xs=[];[xs[a]]=[b];return a;", true),
             ("const xs=[];const k='0';[xs[k]]=[b];return a;", false),
-            ("const d=Object.create(null);[d[a]]=[b];return a;", false),
+            ("const d=Object.create(null);[d[a]]=[b];return a;", true),
             ("const o={x:a};const k='x';[o[k]]=[b];return a;", true),
             (
                 "const o={};const k=a?'x':'__proto__';[o[k]]=[b];return a;",
@@ -1351,8 +1332,8 @@ mod computed_member_tests {
             }
         }
         for source in [
-            "export function run(a,b){const xs=[];[xs[a as number]]=[b];return a;}",
-            "export function run(a,b){const d=Object.create(null);[d[a as string]]=[b];return a;}",
+            "export function run(a,b){const xs=[];[xs[{} as unknown as number]]=[b];return a;}",
+            "export function run(a,b){const d=Object.create(null);[d[{} as unknown as string]]=[b];return a;}",
         ] {
             assert!(crate::compile(source, true).is_err(), "{source}");
         }
@@ -1389,7 +1370,7 @@ mod member_rest_tests {
             ("const o=a?{}:null;({...o.x}={x:b});return a;", false),
             ("const xs=[];[...xs.length]=[b];return a;", false),
             ("const o={};({...o.__proto__}={x:b});return a;", false),
-            ("const xs=[];[...xs[a]]=[b];return a;", false),
+            ("const xs=[];[...xs[a]]=[b];return a;", true),
             (
                 "const o={x:'safe'};const alias=o;[...alias.x]=[a];return o.x.length;",
                 false,
@@ -1441,11 +1422,11 @@ mod computed_selection_tests {
                 "const d=Object.create(null);d.k='text';const k='k';let x='';({[k]:x='fallback'}=d);return x.length;",
                 true,
             ),
-            ("let x;({[a]:x}=[b]);return a;", false),
+            ("let x;({[a]:x}=[b]);return a;", true),
             ("const k='x';let x;({[k]:x}={x:b});return a;", true),
             (
                 "const d=Object.create(null);let x;({[a]:x}=d);return a;",
-                false,
+                true,
             ),
             (
                 "const d=Object.create(null);const k='x';let x,rest;({[k]:x,...rest}=d);return a;",
@@ -1464,7 +1445,7 @@ mod computed_selection_tests {
                 assert_eq!(r.is_ok(), admitted, "{source}: {:?}", r.err());
             }
         }
-        assert!(crate::compile("export function run(a,b){const d=Object.create(null);let x;({[a as string]:x}=d);return a;}",true).is_err());
+        assert!(crate::compile("export function run(a,b){const d=Object.create(null);let x;({[{} as unknown as string]:x}=d);return a;}",true).is_err());
     }
     #[test]
     fn computed_source_key_depth_is_bounded_on_a_small_native_stack() {

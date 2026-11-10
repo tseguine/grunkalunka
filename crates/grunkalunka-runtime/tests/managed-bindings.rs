@@ -6,6 +6,9 @@ mod common;
 #[test]
 fn computed_record_destinations_save_keys_before_defaults_and_rest() {
     for body in [
+        "const xs=[];let k=a;[xs[k]=(k=b,7)]=[];return xs[a]===7?1:0;",
+        "const o={[a]:b,keep:3};let x,rest={};({[a]:x,...rest}=o);return x===b&&!Object.hasOwn(rest,a)&&rest.keep===3?1:0;",
+        "const k=a?true:null;const d={};({...d[k]}={x:b});return Object.hasOwn(d,k)?1:0;",
         "const o={f:x=>x+1};const k=a?'x':'y';[o[k]]=[b];return o[k]===b?o.f(a):0;",
         "let k='x';const o={};({p:o[k]=(k='y',b)}={});return o.x===b&&!Object.hasOwn(o,'y')?1:0;",
         "const o={rest:[]};const k='rest';[,...o[k]]=[a,b];return o.rest.length===1&&o.rest[0]===b?1:0;",
