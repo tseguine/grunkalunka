@@ -1,19 +1,27 @@
 //! Intrinsic recognition is independent of representation planning.
 use super::*;
 
-pub(super) fn global_name(
+fn global_value(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> bool {
+    id.reference_id.get().is_some_and(|r| {
+        semantic
+            .scoping()
+            .get_reference(r)
+            .symbol_id()
+            .is_none_or(|s| !semantic.scoping().symbol_flags(s).is_value())
+    })
+}
+
+pub(super) fn instance_test(
     id: &IdentifierReference<'_>,
     semantic: &Semantic<'_>,
-    owner: &str,
-) -> bool {
-    id.name == owner
-        && id.reference_id.get().is_some_and(|r| {
-            semantic
-                .scoping()
-                .get_reference(r)
-                .symbol_id()
-                .is_none_or(|s| !semantic.scoping().symbol_flags(s).is_value())
-        })
+) -> Option<ir::ManagedTest> {
+    let test = match id.name.as_str() {
+        "Array" => ir::ManagedTest::Array,
+        "Function" => ir::ManagedTest::Function,
+        "Object" => ir::ManagedTest::InheritsObject,
+        _ => return None,
+    };
+    global_value(id, semantic).then_some(test)
 }
 
 fn method_name<'e>(
@@ -41,7 +49,7 @@ fn method_name<'e>(
     let (Expression::Identifier(id), _) = closures::unwrapped_at(object, 0)? else {
         return None;
     };
-    global_name(id, semantic, owner).then_some(name)
+    (id.name == owner && global_value(id, semantic)).then_some(name)
 }
 
 pub(super) fn is_method(call: &CallExpression<'_>, semantic: &Semantic<'_>, name: &str) -> bool {
@@ -69,6 +77,8 @@ mod tests {
     #[test]
     fn instanceof_requires_a_resolved_intrinsic_constructor() {
         for source in [
+            "export function run(a,b){const Object=x=>x;return {} instanceof Object?1:0;}",
+            "export function run(a,b){const Function=x=>x;return (x=>x) instanceof Function?1:0;}",
             "export function run(a,b){const Array=x=>x;return [] instanceof Array?1:0;}",
             "export function run(a,b){return [] instanceof (a?Array:Object)?1:0;}",
             "export function run(a,b){return [] instanceof (a=b,Array)?1:0;}",

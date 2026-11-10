@@ -1659,3 +1659,10 @@ once and tests the represented array in the pristine realm. A record with
 array-like fields fails that test. The right operand must resolve to the
 intrinsic constructor; user constructors, prototype mutation, proxies and
 custom instance checks remain separate features.
+
+Direct `instanceof Function` and `instanceof Object` also recognize the
+realm's intrinsic constructors. Ordinary records, arrays, and functions
+inherit from Object; `Object.create(null)` records and scalar primitives
+do not. Null-prototype records use a WasmGC subtype with the same property
+storage layout, so their prototype identity survives aliases and joins.
+Rest and spread copies have an ordinary Object prototype.

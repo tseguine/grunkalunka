@@ -5,7 +5,10 @@
 (type $gc_key (array (mut i16)))
 (type $gc_entry (struct (field (ref null $gc_key)) (field (mut (ref null $gc_value)))))
 (type $gc_props (array (mut (ref null $gc_entry))))
-(type $gc_object (struct (field (mut (ref null $gc_props)))))
+(type $gc_object (sub (struct (field (mut (ref null $gc_props))))))
+;; The null-prototype subtype keeps the same field layout. Copies produced
+;; by ordinary object spreads and rest use the ordinary allocation type.
+(type $gc_dictionary (sub final $gc_object (struct (field (mut (ref null $gc_props))))))
 ;; Logical length is independent of sparse own-property storage.
 (type $gc_array (struct (field (mut i32)) (field (ref null $gc_object))))
 

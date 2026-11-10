@@ -5,6 +5,21 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn intrinsic_instance_tests_preserve_null_prototypes_and_callable_identity() {
+    for body in [
+        "const d=Object.create(null),o=a?d:{};return o instanceof Object?1:0;",
+        "const d=Object.create(null);d.x=a;const copy={...d};const {...rest}=d;return !(d instanceof Object)&&copy instanceof Object&&rest instanceof Object?1:0;",
+        "const f=x=>x;return f instanceof Function&&f instanceof Object&&!(f instanceof Array)?1:0;",
+        "const v=a?[b]:'s';return v instanceof Object?1:0;",
+        "const box={f:x=>x};return box.f instanceof Function&&!(box instanceof Function)?1:0;",
+        "const d=Object.create(null);let x=a?{}:d;const read=()=>x instanceof Object;const first=read();x=d;return first&&!read()?1:0;",
+        "return null instanceof Object||false instanceof Object||a instanceof Object?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn instanceof_array_uses_the_actual_saved_array_brand() {
     for body in [
         "return [] instanceof Array?1:0;",

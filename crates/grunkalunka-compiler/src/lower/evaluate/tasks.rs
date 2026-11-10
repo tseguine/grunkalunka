@@ -29,7 +29,8 @@ pub(super) enum Work<'e, 'a> {
     StringMethod(string_methods::Task<'e, 'a>),
     OwnKeys(own_keys::Task<'e, 'a>),
     HasOwn(has_own::Task<'e, 'a>),
-    ArrayIsArray {
+    ManagedTest {
+        test: ir::ManagedTest,
         node: &'e Expression<'a>,
         has_input: bool,
     },
