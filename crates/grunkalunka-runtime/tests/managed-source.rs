@@ -5,6 +5,30 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn lexical_guards_allow_plain_member_reads_only_on_the_checked_path() {
+    for body in [
+        "const row=a?{v:b}:null;if(!row)return 7;return +row.v;",
+        "let xs=a?[a,b]:undefined;if(xs)return xs.length;return 0;",
+        "const s=a?'':null;if(null!=s){return s.length;}return 7;",
+        "const row=a?{v:b}:null;if(row==undefined){return 2;}else{return +row.v;}",
+        "const row=a?{v:b}:null;try{if(row==null)throw a;return +row.v;}catch(e){return 5;}",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "let row=a?{v:b}:null;if(row){row=null;return +row.v;}return 0;",
+        "let row=a?{v:b}:null;const clear=()=>row=null;if(row){clear();return +row.v;}return 0;",
+        "const row=a?{v:b}:null;if(b){if(!row)return 7;}return +row.v;",
+        "const row=a?{v:b}:null;if(row)return 7;return +row.v;",
+        "const undefined=1;const row=a?{v:b}:null;if(row==undefined)return 7;return +row.v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn scalar_numeric_addition_keeps_number_results_in_reference_storage() {
     let omitted = "function f(x,y=x+1){return y;}export function run(a,b){return f();}";
     common::compare_sources(omitted, omitted);

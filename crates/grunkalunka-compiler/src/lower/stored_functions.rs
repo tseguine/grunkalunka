@@ -4,6 +4,7 @@ use oxc_ast::{AstKind, ast::ObjectPropertyKind};
 use oxc_syntax::{GetNodeId, node::NodeId};
 use std::collections::{BTreeMap, BTreeSet};
 mod elements;
+mod guard_reads;
 #[cfg(test)]
 mod iteration_tests;
 mod member_origins;
@@ -554,6 +555,7 @@ impl Fields {
         let var_symbols = var_bindings::symbols(semantic);
         let var_parameters = var_bindings::parameters(semantic);
         let var_aliases = var_bindings::aliases(semantic);
+        let non_nullish_reads = guard_reads::non_nullish(semantic);
         let chain_tails = required_chain_receivers(semantic);
         let chain_receivers: BTreeSet<_> = chain_tails.values().copied().collect();
         let mut reached_containers = BTreeSet::new();
@@ -1732,7 +1734,7 @@ impl Fields {
                         }
                         origins
                     };
-                let found = match rule {
+                let mut found = match rule {
                     Rule::Iterated(receiver) => {
                         elements.select(*receiver, &values, &fields, &index_deletes)
                     }
@@ -1955,6 +1957,10 @@ impl Fields {
                         domain,
                     } => members.string_key_value(*receiver, *key, domain),
                 };
+                if non_nullish_reads.contains(id) {
+                    found.remove(&Origin::Null);
+                    found.remove(&Origin::Undefined);
+                }
                 additions.push((*id, found));
             }
             let snapshots = enumeration_inputs

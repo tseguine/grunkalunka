@@ -1871,3 +1871,10 @@ A sum whose operands can only be Numbers, Booleans, null or undefined
 produces a Number on every completing path. This fact is retained in
 record fields, Array elements and destructuring, including when the
 actual result is NaN.
+
+
+For a lexical binding with no writes, a truthiness check or a loose nullish
+comparison can establish a non-nullish receiver inside the matching branch.
+An early return or throw from the opposite branch extends that fact to later
+statements in the same block. Captured writes and nested function reads do
+not inherit the proof.
