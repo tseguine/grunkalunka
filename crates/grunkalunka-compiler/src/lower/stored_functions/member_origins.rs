@@ -38,6 +38,37 @@ impl Members<'_, '_> {
         else {
             return Alternatives::new();
         };
+        // Non-String primitive keys always spell ordinary names (including
+        // "NaN" and "-1"). They can select an own field or miss entirely.
+        if keys.iter().all(|kind| {
+            matches!(
+                kind,
+                Origin::Number | Origin::Boolean | Origin::Null | Origin::Undefined
+            )
+        }) {
+            return self.unsigned_value(receiver);
+        }
+        // A dictionary can use any primitive spelling, even a prototype name.
+        if receivers
+            .iter()
+            .all(|kind| matches!(kind, Origin::NullObject(_)))
+            && keys.contains(&Origin::String)
+            && keys.len() > 1
+            && keys.iter().all(|kind| {
+                matches!(
+                    kind,
+                    Origin::String
+                        | Origin::Number
+                        | Origin::Boolean
+                        | Origin::Null
+                        | Origin::Undefined
+                )
+            })
+        {
+            let mut found = self.enumerable_values(receiver);
+            found.insert(Origin::Undefined);
+            return found;
+        }
         if keys.len() != 1
             || !keys.contains(&Origin::String)
             || !receivers.iter().all(|origin| {

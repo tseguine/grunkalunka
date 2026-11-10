@@ -1698,3 +1698,10 @@ immutable tables are emitted only for conversions that can receive a dynamic
 Number. Numeric literals reuse their compile-time ECMAScript spelling. Each
 substitution runs once in source order, including across suspension. Objects
 with user-defined primitive conversion remain outside the admitted subset.
+
+Computed reads and plain assignments on records and arrays accept runtime
+Number, Boolean, Null and Undefined keys. Numeric keys use ECMAScript decimal
+spelling. For example, `-0` selects index zero, while fractions, negative
+integers, NaN, infinities and 4294967295 name ordinary fields without growing
+an array. Proven uint32 keys retain the smaller unsigned path. Null-prototype
+dictionaries can mix these primitive kinds with arbitrary String keys.

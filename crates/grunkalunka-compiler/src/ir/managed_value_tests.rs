@@ -1751,6 +1751,31 @@ fn logical_result_origins_keep_unknown_truthiness_and_unselected_source_guards()
 }
 
 #[test]
+fn scalar_array_keys_cannot_be_replaced_by_unchecked_string_values() {
+    let source = "export function run(a,b){const xs=[];xs[a]=b;return xs.length;}";
+    let mut module = crate::lower_source(source, false).unwrap();
+    verify_module(&module).unwrap();
+    let key = module.functions[0]
+        .body
+        .operations
+        .iter_mut()
+        .find_map(|op| match &mut op.kind {
+            Op::ManagedSetOwnDynamic { key, .. } => Some(key),
+            _ => None,
+        })
+        .unwrap();
+    let ManagedKey::Scalar {
+        input,
+        numbers: true,
+    } = key
+    else {
+        panic!("expected primitive key")
+    };
+    *key = ManagedKey::String(*input);
+    assert!(verify_module(&module).is_err());
+}
+
+#[test]
 fn uint32_delete_key_requires_a_visible_number_snapshot() {
     let source = "export function run(a,b){const xs=[a];return delete xs[b>>>0]?1:0;}";
     for invalid in 0..4 {

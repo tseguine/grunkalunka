@@ -107,8 +107,8 @@ impl Lowering<'_, '_> {
                     .and_then(|(key, _)| static_keys::literal(key));
                 if let Some(key) = key {
                     (&member.object, Key::Literal(key))
-                } else if let Some((_, uint32)) = self.runtime_member_receiver(member, depth + 2) {
-                    if uint32 {
+                } else if let Some((_, kind)) = self.runtime_member_receiver(member, depth + 2) {
+                    if matches!(kind, dictionary::RuntimeKey::Uint32) {
                         (&member.object, Key::Uint32(&member.expression))
                     } else if self.stored.string(member.expression.node_id()) {
                         (&member.object, Key::String(&member.expression))

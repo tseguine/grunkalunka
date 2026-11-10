@@ -55,9 +55,10 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((receiver_mode, uint32)) = self.runtime_member_receiver(member, depth + 1) else {
+        let Some((receiver_mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
             return Ok(false);
         };
+        let uint32 = matches!(kind, dictionary::RuntimeKey::Uint32);
         if !uint32 && !self.stored.string(member.expression.node_id()) {
             return Err(unsupported(
                 node,
