@@ -7,6 +7,10 @@ mod common;
 #[test]
 fn logical_assignment_results_keep_selected_containers_and_identity() {
     for body in [
+        "let row={n:a};const old=row;const picked=row&&={n:b};return picked===row&&old!==row?+picked.n:99;",
+        "let xs=[a],n=0;const picked=xs||=(n++,[b]);return picked===xs?picked.length+n:99;",
+        "let xs=[a],n=0;const picked=xs??=(n++,[b]);return +picked[0]+n;",
+        "let row={n:a};if(row&&={n:b})return +row.n;return 99;",
         "let row=a?{n:a}:null;const picked=row??={n:b};return +picked.n;",
         "let xs=a?[a]:null,n=0;const picked=xs||=(n++,[b,b]);return picked.length+n;",
         "let row=a?{n:a}:null;const picked=row??={n:b};picked.n=7;return row===picked&&picked.n===7?1:0;",
