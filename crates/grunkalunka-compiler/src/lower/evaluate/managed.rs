@@ -422,7 +422,11 @@ impl Lowering<'_, '_> {
                         Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
                             values.push(Some(Type::ManagedValue))
                         }
-                        Expression::AwaitExpression(_) if self.stored.string(node.node_id()) => {
+                        Expression::AwaitExpression(awaited)
+                            if self
+                                .stored
+                                .boxed_scalar_with_string(awaited.argument.node_id()) =>
+                        {
                             values.push(Some(Type::ManagedValue));
                         }
                         Expression::BinaryExpression(b)
@@ -737,7 +741,7 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if self.schedule_optional_member(node, depth, mode, work)?
-            || self.schedule_string_await(node, depth, mode, work)?
+            || self.schedule_boxed_primitive_await(node, depth, mode, work)?
             || self.schedule_string_addition(node, depth, mode, regions, work)?
             || self.schedule_local_logical(node, depth, mode, regions, work)?
             || self.schedule_local_update(node, depth, mode, regions, values, work)?

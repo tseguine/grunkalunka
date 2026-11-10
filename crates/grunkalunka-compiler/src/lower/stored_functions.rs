@@ -363,6 +363,12 @@ impl Fields {
         })
     }
 
+    pub(super) fn boxed_scalar_with_string(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            values.contains(&Origin::String) && values.iter().all(Origin::scalar)
+        })
+    }
+
     pub(super) fn string_or_number(&self, node: NodeId) -> bool {
         self.values.get(&node).is_some_and(|values| {
             values.len() == 2

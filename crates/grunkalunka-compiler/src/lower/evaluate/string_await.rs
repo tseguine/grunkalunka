@@ -1,9 +1,9 @@
-//! A positively known String survives await unchanged, with a real suspension.
+//! Await preserves a boxed primitive value across a real reaction job.
 use super::managed::ManagedWork;
 use super::*;
 
 impl Lowering<'_, '_> {
-    pub(super) fn schedule_string_await<'e, 'a>(
+    pub(super) fn schedule_boxed_primitive_await<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
         depth: usize,
@@ -14,7 +14,9 @@ impl Lowering<'_, '_> {
             return Ok(false);
         };
         if !matches!(mode, Mode::Managed | Mode::Predicate | Mode::Discard)
-            || !self.stored.string(node.node_id())
+            || !self
+                .stored
+                .boxed_scalar_with_string(awaited.argument.node_id())
         {
             return Ok(false);
         }
@@ -26,19 +28,19 @@ impl Lowering<'_, '_> {
         } else if matches!(mode, Mode::Predicate) {
             work.push(Work::Managed(ManagedWork::Truthy(node)));
         }
-        work.push(Work::StringAwait(node));
+        work.push(Work::BoxedPrimitiveAwait(node));
         work.push(Work::Eval(&awaited.argument, depth + 1, Mode::Managed));
         Ok(true)
     }
 
-    pub(super) fn resume_string_await(
+    pub(super) fn resume_boxed_primitive_await(
         &mut self,
         node: &Expression<'_>,
         regions: &mut Regions,
         values: &[Value],
     ) {
-        // Keep the original traced String live across the suspension. The
-        // String is a primitive, so Promise resolution cannot call user code
+        // Keep the original boxed value live across the suspension. Its possible
+        // kinds are all primitive, so Promise resolution cannot call user code
         // or replace its value. A fulfilled numeric token provides the same
         // one-reaction-job suspension through the existing private await ABI;
         // its resumed value is deliberately unused. The source operand above
@@ -99,6 +101,10 @@ mod tests {
                 false,
             ),
             ("const o=await {s:'abc'};return o.s.length;", false),
+            (
+                "const input=a?'x':{then:r=>r('y')};const value=await input;return value==='x'?1:0;",
+                false,
+            ),
             (
                 "const text=await Promise.resolve('abc');return text.length;",
                 false,

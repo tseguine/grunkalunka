@@ -1853,3 +1853,9 @@ remain outside this operation.
 The same runtime choice applies to `+=` on mutable locals and admitted own
 properties. The old value, receiver and computed key are saved before the RHS;
 the store occurs after successful evaluation, including across suspension.
+
+
+Awaiting a source-proven union of represented primitives that includes String
+preserves the selected tag and value. For example, `await (left + right)` may
+resume with either a Number or a String. The operand executes once and each
+await still schedules its reaction job.

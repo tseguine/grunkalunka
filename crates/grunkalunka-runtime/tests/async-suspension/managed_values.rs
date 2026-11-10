@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn await_preserves_mixed_primitive_values_and_jobs() {
+    compare_promises(
+        &[
+            "const x=a?'x':2,y=b?'y':3;const v=await(x+y);return v===5?5:v==='xy'?1:v==='x3'?2:3;",
+            "let x=a?'text':null;const saved=await x;x='new';return saved===null?1:saved==='text'?2:99;",
+            "const x=a?'':false;return (await x)?1:0;",
+            "const x=a?'v':void 0;const y=await(await x);return y==='v'?1:y===undefined?2:99;",
+            "let n=0;try{const y=await(await Promise.reject(b),n++,a?'x':2);}catch(e){return n===0&&e===b?1:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn mixed_scalar_compounds_commit_after_the_rhs_and_keep_the_old_reference() {
     compare_promises(
         &[
