@@ -2,7 +2,14 @@ use super::*;
 
 #[test]
 fn function_call_forwards_arguments_after_this_arg() {
-    compare_function_programs(&["const f=x=>x+a;return f.call(null,b);"], false);
+    compare_function_programs(
+        &[
+            "const f=x=>x+a;return f.call(null,b);",
+            "const f=x=>x+a;return f['call'](null,b);",
+            "const f=x=>x;return f['call'](null,a);",
+        ],
+        false,
+    );
 }
 
 #[test]
@@ -132,7 +139,6 @@ fn function_call_keeps_intrinsic_property_and_signature_guards() {
         "const f=x=>x;return f?.call(null,a);",
         "const f=x=>x;return f.call(null,...a);",
         "const f=x=>x;return f.call(...a);",
-        "const f=x=>x;return f['call'](null,a);",
         "const f=x=>x;f.call=x=>b;return f.call(null,a);",
         "const f=a?x=>x:b;return f.call(null,a);",
         "return Promise.resolve.call(null,a);",

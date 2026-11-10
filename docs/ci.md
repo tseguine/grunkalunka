@@ -53,8 +53,12 @@ The ARM64 runner's Cargo cache key is distinct from the old Intel runner.
 Native ARM64 validation must pass; a performance improvement is not assumed.
 The prior Intel-versus-ARM64 investigation is [issue #79](https://github.com/tseguine/grunkalunka/issues/79).
 
-PR jobs have a **15-minute cap**, including setup and compilation. Full Linux/Windows
-jobs retain 60 minutes and native macOS baseline jobs retain 65 minutes. These are
+Linux and Windows PR jobs have a **15-minute cap**, including setup and compilation.
+Native macOS PR fallbacks use a **65-minute job envelope** to tolerate runner-pool
+queuing: a previous 15-minute job limit canceled a fallback before any runner was
+assigned. Once scheduled, the fallback workspace build has a 10-minute step limit
+and the fast PR check has a separate 15-minute step limit. Full Linux/Windows
+jobs retain 60 minutes, and full native macOS jobs retain 65 minutes. These are
 watchdogs, not performance targets.
 Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
 Switching runner architecture does not establish support until its actual checks pass.
@@ -124,7 +128,7 @@ PR test commands have a **two-minute execution limit**. Cargo build, Clippy and
 compile-only test preparation have a separate **ten-minute limit**. The Cargo
 helper first compiles each selected test set with `--no-run`, then executes it
 under the test budget, so test duration does not include a cold link. Aggregate
-runners delegate to those child budgets and the 15-minute job watchdog rather
+runners delegate to those child budgets and the Linux/Windows 15-minute job watchdog rather
 than imposing a conflicting second aggregate deadline. Existing shorter
 individual test limits remain in force. These limits fail the job; they do not
 skip, retry or mark a slow test successful.
