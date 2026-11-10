@@ -35,7 +35,6 @@ fn string_repeat_saves_receiver_and_count_through_argument_effects() {
         "const o={text:'xy'};return o.text.repeat(2)==='xyxy'?1:0;",
         "const o={text:'x'};const read=()=>o.text.repeat(3);return read()==='xxx'?1:0;",
         "const xs=['x'];return xs[0].repeat(3)==='xxx'?1:0;",
-        "function duplicate(text){return text.repeat(2);}return duplicate('ab')==='abab'?1:0;",
         "const make=text=>text.repeat(2);return make('x')==='xx'?1:0;",
         "const x='xy';return x['repeat'](2)==='xyxy'?1:0;",
         "let n=0;const out='ab'.repeat(void(n=1));return n===1&&out===''?1:0;",
@@ -43,6 +42,8 @@ fn string_repeat_saves_receiver_and_count_through_argument_effects() {
         let source = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&source, &source);
     }
+    let helper = "function duplicate(text){return text.repeat(2);}export function run(a,b){return duplicate('ab')==='abab'?1:0;}";
+    common::compare_sources(helper, helper);
     let js = "export function run(a,b){const text='xy';return text.repeat(3)==='xyxyxy'?1:0;}";
     let ts = "export function run(a:number,b:string):number{const text:number='xy';return (text as string).repeat(3)==='xyxyxy'?1:0;}";
     common::compare_sources(js, ts);
@@ -836,7 +837,7 @@ fn string_ranges_reject_unproven_receivers_and_unrepresented_coercions() {
         "return 'abc'.substring({}).length;",
         "const s=a?'abc':null;return s.slice(0).length;",
         "let s='abc';s=a;return s.substring(0).length;",
-        "const preview=()=>a?'abc'.slice(0,2):null;const label=preview();const use=()=>label+'!';return use().length;",
+        "const preview=()=>a?'abc'.slice(0,2):{};const label=preview();const use=()=>label+'!';return use().length;",
         "const o={text:'abc'};o.text=a?'abc':null;return o.text.substring(0).length;",
         "const s='abc';return s?.slice(0).length;",
         "const s='abc';return s.slice?.(0).length;",
@@ -1063,6 +1064,7 @@ fn string_concat_composes_helpers_captures_and_erased_types() {
 #[test]
 fn string_concat_coerces_represented_primitives_in_operand_order() {
     for body in [
+        "const preview=()=>a?'abc'.slice(0,2):null;const label=preview();const use=()=>label+'!';return use().length;",
         "return ('x'+a).length;",
         "return (a+'x').length;",
         "return ('x'+null).length;",
