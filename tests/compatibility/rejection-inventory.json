@@ -4004,13 +4004,6 @@
       "group": "function-calls"
     },
     {
-      "id": "unreachable-extra",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a4242f1898026ac609dc37fc5a2c8a0af65cf62ccba311a0c255baac82428c04",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "local-limit",
       "extension": "js",
       "sourceMode": "module-strict",
