@@ -474,7 +474,7 @@ impl Fields {
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_) | AstKind::ChainExpression(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
-                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some())
+                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some() || object_intrinsics::enumeration(call, semantic).is_some() || object_intrinsics::string_call(call, semantic, 0))
                 || matches!(node.kind(), AstKind::ArrayPattern(array) if array.rest.is_some())
                 || matches!(node.kind(), AstKind::LogicalExpression(_))
                 || matches!(node.kind(), AstKind::SwitchStatement(_))
@@ -1171,6 +1171,11 @@ impl Fields {
                         .into_iter()
                         .collect(),
                 )),
+                AstKind::CallExpression(call)
+                    if object_intrinsics::string_call(call, semantic, 0) =>
+                {
+                    Some(Rule::Known(Origin::String))
+                }
                 AstKind::CallExpression(call) => Some(Rule::Call(
                     invocation::callee(call).node_id(),
                     invocation::arguments(call)

@@ -24,6 +24,16 @@ pub(super) fn instance_test(
     global_value(id, semantic).then_some(test)
 }
 
+pub(super) fn string_call(
+    call: &CallExpression<'_>,
+    semantic: &Semantic<'_>,
+    depth: usize,
+) -> bool {
+    !call.optional
+        && matches!(closures::unwrapped(&call.callee, depth), Some(Expression::Identifier(id))
+        if id.name == "String" && global_value(id, semantic))
+}
+
 fn array_constructor(callee: &Expression<'_>, semantic: &Semantic<'_>, depth: usize) -> bool {
     matches!(closures::unwrapped(callee,depth),Some(Expression::Identifier(id)) if id.name=="Array" && global_value(id,semantic))
 }

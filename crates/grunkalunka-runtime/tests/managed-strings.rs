@@ -2,6 +2,35 @@
 mod common;
 
 #[test]
+fn string_function_coerces_primitives_after_evaluating_all_arguments() {
+    for body in [
+        "return String().length+String(undefined).length;",
+        "return String(a)===`${a}`&&String(a<b)===(a<b?'true':'false')?1:0;",
+        "let x=a;const out=String(x,x=b);return out===`${a}`&&x===b?1:0;",
+        "let n=0;String(...[(n++,a)],...( [] ),(n++,b));return n;",
+        "return String(null)&&!String(...[])?1:0;",
+        "const String=x=>x+1;return String(a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        compare_sources(&source, &source);
+    }
+    let helper =
+        "function text(x){return String(x);}export function run(a,b){return text(a).length;}";
+    compare_sources(helper, helper);
+    for body in [
+        "return String({}).length;",
+        "return (new String(a)).length;",
+        "return String(...[a,...b]).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn string_repeat_preserves_utf16_units_count_conversion_and_empty_results() {
     for body in [
         "return 'ab'.repeat(3)==='ababab'?1:0;",

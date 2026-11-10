@@ -425,6 +425,11 @@ fn kinds(
                     {
                         values.push([Kind::Array].into())
                     }
+                    Expression::CallExpression(call)
+                        if object_intrinsics::string_call(call, semantic, depth + 1) =>
+                    {
+                        values.push([Kind::String].into())
+                    }
                     Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
                         values.push([Kind::String].into())
                     }
@@ -575,7 +580,8 @@ fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
         let origin = match node.kind() {
             kind if object_intrinsics::array_constructor_site(kind, semantic) => true,
             AstKind::CallExpression(call)
-                if object_intrinsics::enumeration(call, semantic).is_some() =>
+                if object_intrinsics::enumeration(call, semantic).is_some()
+                    || object_intrinsics::string_call(call, semantic, 0) =>
             {
                 true
             }
