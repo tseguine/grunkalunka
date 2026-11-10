@@ -420,6 +420,7 @@ fn array_for_of_erases_annotations_without_proving_runtime_values() {
 fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
     let original = "export function run(a,b){for(const [first] of 'abc'){}return a;}";
     common::compare_sources(original, original);
+    compare("let n=0;outer:for(const item of [a,b]){n++;break outer;}return n;");
     for body in [
         "for(const item of a){}return a;",
         "const source=a?'abc':[b];for(const item of source){}return a;",
@@ -433,7 +434,7 @@ fn array_for_of_keeps_header_tdz_and_managed_value_admission_boundaries() {
         "let saved=()=>0;for(const item of (saved=()=>item,[a])){}return saved()===a?1:0;",
         "for(const item of [a]){}return item;",
         "for(const item of [a])item=b;return a;",
-        "outer:for(const item of [a]){break outer;}return a;",
+        "outer:for(const item of [a]){for(const inner of [b]){break outer;}}return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
