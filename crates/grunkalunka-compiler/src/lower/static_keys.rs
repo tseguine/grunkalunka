@@ -13,8 +13,20 @@ pub(super) fn property(key: &PropertyKey<'_>, computed: bool, depth: usize) -> O
 }
 
 pub(super) fn literal(expr: &Expression<'_>) -> Option<Vec<u16>> {
-    if let Expression::StringLiteral(text) = expr {
-        return Some(text.value.encode_utf16().collect());
+    match expr {
+        Expression::StringLiteral(text) => return Some(text.value.encode_utf16().collect()),
+        Expression::BooleanLiteral(value) => {
+            let name = if value.value { "true" } else { "false" };
+            return Some(name.encode_utf16().collect());
+        }
+        Expression::NullLiteral(_) => return Some("null".encode_utf16().collect()),
+        Expression::TemplateLiteral(template) if template.expressions.is_empty() => {
+            let [quasi] = template.quasis.as_slice() else {
+                return None;
+            };
+            return Some(quasi.value.cooked.as_ref()?.encode_utf16().collect());
+        }
+        _ => {}
     }
     let number = number(expr)?;
     // Both zeros name the same property. Other values use ECMAScript Number::toString.

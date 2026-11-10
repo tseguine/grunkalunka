@@ -576,7 +576,9 @@ lookup and silently discard inherited behavior.
 ## Synchronous source admission
 
 Fresh object literals admit ordinary initializer/shorthand properties with static
-identifier, String and numeric keys. A computed definition can also use a
+identifier, String and numeric keys. Computed Boolean and null literals select
+the own names `"true"`, `"false"` and `"null"`. A substitution-free template
+key uses its cooked UTF-16 units, including escapes and lone surrogates. A computed definition can also use a
 proven runtime String. The key evaluates once before its value; a later
 definition with the same key updates the existing position. A computed
 `["__proto__"]` defines an own data field. The uncomputed prototype-setting

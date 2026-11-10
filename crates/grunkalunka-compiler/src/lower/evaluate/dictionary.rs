@@ -56,9 +56,10 @@ impl Lowering<'_, '_> {
         {
             return Ok(false);
         }
-        if closures::unwrapped_at(&member.expression, depth + 1).is_some_and(|(key, _)| {
-            matches!(key, Expression::StringLiteral(_)) || static_keys::number(key).is_some()
-        }) {
+        if closures::unwrapped(&member.expression, depth + 1)
+            .and_then(static_keys::literal)
+            .is_some()
+        {
             return Ok(false);
         }
         if !uint32 && !self.stored.string(member.expression.node_id()) {
@@ -111,9 +112,10 @@ impl Lowering<'_, '_> {
         {
             return Ok(false);
         }
-        if closures::unwrapped_at(&member.expression, depth + 1).is_some_and(|(key, _)| {
-            matches!(key, Expression::StringLiteral(_)) || static_keys::number(key).is_some()
-        }) {
+        if closures::unwrapped(&member.expression, depth + 1)
+            .and_then(static_keys::literal)
+            .is_some()
+        {
             return Ok(false);
         }
         if assignment.operator != AssignmentOperator::Assign {

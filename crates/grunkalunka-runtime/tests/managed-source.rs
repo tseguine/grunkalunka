@@ -5,6 +5,21 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn primitive_literal_keys_agree_across_definitions_reads_and_patterns() {
+    for body in [
+        "const o={[true]:a,true:b,[false]:a};return o[true]===b&&o.false===a?1:0;",
+        "const d=Object.create(null);d[null]=a;const v=d.null;delete d[null];return !Object.hasOwn(d,null)&&v===a?1:0;",
+        "const o={[false]:a,[null]:b};const {[false]:v,...rest}=o;return v===a&&rest.null===b&&!Object.hasOwn(rest,'false')?1:0;",
+        "const xs=[];xs[true]=a;return xs.length===0&&xs.true===a?1:0;",
+        r#"const o={[`\u0061`]:a,[`\uD800`]:b};return o.a===a&&o['\uD800']===b?1:0;"#,
+        "const o={[`flag`]:'ready'};return o[`flag`].length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn unsigned_has_own_keys_preserve_presence_and_argument_order() {
     for body in [
         "const xs=[a,,b];return Object.hasOwn(xs,a>>>0)?1:0;",
