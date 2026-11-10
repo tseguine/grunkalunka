@@ -1903,6 +1903,12 @@ fn dynamic_in_matches_all_native_prototype_names_and_near_misses() {
 #[test]
 fn computed_record_keys_are_saved_before_values_and_keep_definition_order() {
     for body in [
+        "const name='handle';const o={[name]:x=>x+1};return o.handle(b);",
+        "const k=a?'left':'right';const o={f:x=>x+1,[k]:b};return o.f(a);",
+        "const k=a?'left':'right';const o={left:x=>x+1,right:x=>x-1,[k]:x=>x*2};return o.left(b)+o.right(b);",
+        "const k=a?'f':'x';const o={[k]:0,f:x=>x+1};return o.f(b);",
+        "const k=a?'x':'y';const o={[k]:'abc'};return o.x===undefined?1:2;",
+        "let n=0;const k='f';const o={[(n++,k)]:(n++,x=>x+1)};return o.f(b)+n;",
         "let k='first',n=0;const obj={[(n=n*10+1,k)]:(n=n*10+2,k='second',a),[(n=n*10+3,k)]:(n=n*10+4,b)};const keys=Object.keys(obj);return n===1234&&keys[0]==='first'&&keys[1]==='second'&&obj.first===a&&obj.second===b?1:0;",
         "const key=a?'shown':'hidden';const row={[key]:undefined,tail:b};return Object.hasOwn(row,key)&&key in row&&Object.keys(row).length===2&&row.tail===b?1:0;",
         "const k='x';const row={before:a,x:0,[k]:1,...{middle:b},[k]:2,end:0};const keys=Object.keys(row);return row.x===2&&keys[0]==='before'&&keys[1]==='x'&&keys[2]==='middle'&&keys[3]==='end'?1:0;",
@@ -1927,6 +1933,9 @@ fn computed_proto_names_create_own_data_fields() {
 #[test]
 fn computed_literal_keys_reject_unknown_coercions_and_invalidated_field_kinds() {
     for body in [
+        "const k=a?'f':'x';const o={f:x=>x,[k]:b};return o.f(a);",
+        "const k=a?'f':'x';const o={[k]:x=>x};return o.f(a);",
+        "const k=a?'f':'x';const o={f:x=>x,[k]:b,...{f:0}};return o.f(a);",
         "const key=a?'label':b;const obj={[key]:a};return a;",
         "const key={};const obj={[key]:a};return a;",
         "const key='label';const obj={label:'text',[key]:a};return obj.label.trim().length;",

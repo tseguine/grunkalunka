@@ -914,26 +914,47 @@ impl Fields {
                 }
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
+                    let mut possible = BTreeMap::<Key, Vec<NodeId>>::new();
                     for property in &object.properties {
-                        if matches!(property, ObjectPropertyKind::SpreadProperty(_)) {
-                            // A runtime spread may overwrite any earlier field.
-                            // A later explicit property can establish it again.
-                            open_fields.insert(id);
-                            for value in own.values_mut() {
-                                *value = None;
-                            }
-                        }
                         if let ObjectPropertyKind::ObjectProperty(property) = property {
-                            let name = static_keys::property(&property.key, property.computed, 0);
-                            if let Some(name) = name {
-                                own.insert(name, Some(property.value.node_id()));
-                            } else {
-                                open_fields.insert(id);
-                                for value in own.values_mut() {
-                                    *value = None;
+                            let value = property.value.node_id();
+                            let mut exact =
+                                static_keys::property(&property.key, property.computed, 0);
+                            if exact.is_none()
+                                && property.computed
+                                && let Some(key) = property.key.as_expression()
+                                && let record_names::Domain::Fields(mut names) =
+                                    record_names.domain(key, 0)
+                            {
+                                if names.len() == 1 {
+                                    exact = names.pop_first();
+                                } else {
+                                    for name in names {
+                                        possible.entry(name).or_default().push(value);
+                                    }
+                                    continue;
                                 }
                             }
+                            if let Some(name) = exact {
+                                // A definite later definition replaces every earlier candidate.
+                                possible.remove(&name);
+                                own.insert(name, Some(value));
+                                continue;
+                            }
                         }
+                        // A spread or unbounded key may replace any earlier field.
+                        open_fields.insert(id);
+                        possible.clear();
+                        for value in own.values_mut() {
+                            *value = None;
+                        }
+                    }
+                    for (name, candidates) in possible {
+                        writes.extend(
+                            candidates
+                                .into_iter()
+                                .map(|value| (id, name.clone(), value)),
+                        );
                     }
                     fields.insert(id, own);
                     values.insert(id, BTreeSet::from([Origin::Object(id)]));
