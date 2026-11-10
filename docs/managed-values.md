@@ -1891,3 +1891,5 @@ An assignment, a redeclaration, or an aliased `var` cell prevents parameter
 narrowing; source argument kinds still determine the callable interface.
 Ternary arms and the right operands of `&&` and `||` also use the guard
 established by the branch that selects them.
+A truthy conjunction or a falsy disjunction can establish facts about both
+operands, as in `if (!row || !items) return` before using both receivers.

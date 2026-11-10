@@ -102,16 +102,12 @@ fn comparison(
     Some((symbol(id, semantic)?, test))
 }
 
-fn condition(expr: &Expression<'_>, semantic: &Semantic<'_>) -> Option<(SymbolId, Guard)> {
-    let (mut expr, mut depth) = closures::unwrapped_at(expr, 0)?;
-    let mut positive = true;
-    while let Expression::UnaryExpression(unary) = expr {
-        if unary.operator != UnaryOperator::LogicalNot {
-            break;
-        }
-        positive = !positive;
-        (expr, depth) = closures::unwrapped_at(&unary.argument, depth + 1)?;
-    }
+fn atomic_guard(
+    expr: &Expression<'_>,
+    depth: usize,
+    mut positive: bool,
+    semantic: &Semantic<'_>,
+) -> Option<(SymbolId, Guard)> {
     let (binding, test) = match expr {
         Expression::Identifier(id) => (symbol(id, semantic)?, Test::Truthy),
         Expression::CallExpression(call)
@@ -141,6 +137,39 @@ fn condition(expr: &Expression<'_>, semantic: &Semantic<'_>) -> Option<(SymbolId
         _ => return None,
     };
     Some((binding, Guard { test, positive }))
+}
+
+fn visit_guards(
+    expr: &Expression<'_>,
+    outcome: bool,
+    semantic: &Semantic<'_>,
+    mut emit: impl FnMut(SymbolId, Guard),
+) {
+    let mut pending = Vec::new();
+    let mut next = Some((expr, outcome, 0));
+    while let Some((expr, outcome, depth)) = next.take().or_else(|| pending.pop()) {
+        let Some((expr, depth)) = closures::unwrapped_at(expr, depth) else {
+            continue;
+        };
+        match expr {
+            Expression::UnaryExpression(u) if u.operator == UnaryOperator::LogicalNot => {
+                next = Some((&u.argument, !outcome, depth + 1));
+            }
+            // A truthy conjunction or a falsy disjunction evaluated both operands.
+            Expression::LogicalExpression(l)
+                if (outcome && l.operator == LogicalOperator::And)
+                    || (!outcome && l.operator == LogicalOperator::Or) =>
+            {
+                pending.push((&l.right, outcome, depth + 1));
+                next = Some((&l.left, outcome, depth + 1));
+            }
+            _ => {
+                if let Some((binding, guard)) = atomic_guard(expr, depth, outcome, semantic) {
+                    emit(binding, guard);
+                }
+            }
+        }
+    }
 }
 
 fn exits(mut statement: &Statement<'_>) -> bool {
@@ -192,41 +221,43 @@ pub(super) fn collect(
             }
             _ => continue,
         };
-        let Some((binding, guard)) = condition(test, semantic) else {
-            continue;
-        };
         let Some(owner) = var_bindings::owner(node.id(), semantic) else {
             continue;
         };
-        let guards = guarded
-            .entry(binding)
-            .or_default()
-            .entry(owner)
-            .or_default();
-        for (positive, arm) in [(guard.positive, truthy_arm), (!guard.positive, falsy_arm)] {
-            if let Some(span) = arm {
-                guards
-                    .entry(Guard { positive, ..guard })
-                    .or_default()
-                    .push(span);
-            }
-        }
+        let mut truthy_suffix = None;
+        let mut falsy_suffix = None;
         if let AstKind::IfStatement(choice) = node.kind() {
             let end = match nodes.parent_kind(node.id()) {
-                AstKind::BlockStatement(b) => b.span.end,
-                AstKind::FunctionBody(b) => b.span.end,
-                _ => continue,
+                AstKind::BlockStatement(b) => Some(b.span.end),
+                AstKind::FunctionBody(b) => Some(b.span.end),
+                _ => None,
             };
-            for (positive, opposite) in [
-                (guard.positive, choice.alternate.as_ref()),
-                (!guard.positive, Some(&choice.consequent)),
-            ] {
-                if opposite.is_some_and(exits) {
-                    guards
-                        .entry(Guard { positive, ..guard })
+            if let Some(end) = end {
+                let suffix = Span::new(choice.span.end, end);
+                truthy_suffix = choice
+                    .alternate
+                    .as_ref()
+                    .is_some_and(exits)
+                    .then_some(suffix);
+                falsy_suffix = exits(&choice.consequent).then_some(suffix);
+            }
+        }
+        for (outcome, arm, suffix) in [
+            (true, truthy_arm, truthy_suffix),
+            (false, falsy_arm, falsy_suffix),
+        ] {
+            if arm.is_some() || suffix.is_some() {
+                visit_guards(test, outcome, semantic, |binding, guard| {
+                    let ranges = guarded
+                        .entry(binding)
                         .or_default()
-                        .push(Span::new(choice.span.end, end));
-                }
+                        .entry(owner)
+                        .or_default()
+                        .entry(guard)
+                        .or_default();
+                    ranges.extend(arm);
+                    ranges.extend(suffix);
+                });
             }
         }
     }
