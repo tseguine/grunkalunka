@@ -739,6 +739,11 @@ rebinding, saved element reads and the receiver snapshot before an assignment RH
 retain their identity/value semantics. Empty arrays are truthy.
 
 Known-array reads and plain writes accept static String and numeric literal keys.
+Computed reads, including optional reads and object binding patterns, also accept
+a runtime String when every possible name is known and misses the inherited
+intrinsics. For example, choosing between `"length"` and `"0"` reads the
+current length or the first element. Named properties and holes use ordinary
+array lookup. A computed write still requires its separate write proof.
 Numeric property names use the JavaScript spelling of the parsed Number, also in
 record literals, bindings, dictionary accesses and object-rest exclusions. For
 example, `0x10` names `"16"`, `-0` names `"0"`, and `1e21` names `"1e+21"`.

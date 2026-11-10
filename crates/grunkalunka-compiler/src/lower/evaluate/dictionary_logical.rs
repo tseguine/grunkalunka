@@ -55,7 +55,9 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((receiver_mode, kind)) = self.runtime_member_receiver(member, depth + 1) else {
+        let Some((receiver_mode, kind)) =
+            self.runtime_member_receiver(member, depth + 1, KeyAccess::Write)
+        else {
             return Ok(false);
         };
         if matches!(mode, Mode::Discard) {

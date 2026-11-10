@@ -106,7 +106,9 @@ impl Lowering<'_, '_> {
                     .and_then(|(key, _)| static_keys::literal(key));
                 if let Some(key) = key {
                     (&member.object, Key::Literal(key))
-                } else if let Some((_, kind)) = self.runtime_member_receiver(member, depth + 2) {
+                } else if let Some((_, kind)) =
+                    self.runtime_member_receiver(member, depth + 2, KeyAccess::Write)
+                {
                     (&member.object, Key::Runtime(&member.expression, kind))
                 } else {
                     return Ok(false);

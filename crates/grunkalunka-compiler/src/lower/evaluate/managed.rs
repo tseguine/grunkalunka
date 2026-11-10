@@ -263,7 +263,9 @@ impl Lowering<'_, '_> {
             ));
         }
         if let Expression::ComputedMemberExpression(member) = node
-            && self.runtime_member_receiver(member, depth + 1).is_some()
+            && self
+                .runtime_member_receiver(member, depth + 1, KeyAccess::Read)
+                .is_some()
         {
             work.push(Work::Managed(ManagedWork::FunctionProjection {
                 node,

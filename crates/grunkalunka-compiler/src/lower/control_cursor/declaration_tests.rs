@@ -1035,6 +1035,7 @@ fn array_rest_pattern_targets_keep_independent_iteration_and_depth_limits() {
 fn property_bindings_accept_arrays_and_keep_intrinsic_guards() {
     for body in [
         "const [...{length}]=[a];return a;",
+        "const k='length';const {[k]:x}=[a,b];return x;",
         "const {child:{}=[]}={};return a;",
         "const {child:{}}={child:[]};return a;",
         "const {0:first,length:n,...other}=[a,b];return n===2&&other[1]===b?1:0;",
@@ -1050,7 +1051,7 @@ fn property_bindings_accept_arrays_and_keep_intrinsic_guards() {
         "const src=[a,,{label:'x'}];const [,...{0:first=(src[2]=null,1),1:row}]=src;return row.label.trim().length;",
         "const {pop}=[a];return a;",
         "const {constructor}= [a];return a;",
-        "const k='length';const {[k]:x}=[a,b];return a;",
+        "const k='pop';const {[k]:x}=[a,b];return a;",
         "const {length}=a?[]:null;return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

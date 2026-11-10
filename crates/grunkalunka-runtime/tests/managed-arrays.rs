@@ -2,6 +2,31 @@
 mod common;
 
 #[test]
+fn finite_string_keys_select_array_length_elements_and_named_fields() {
+    for body in [
+        "const xs=[b];const k=a?'length':'0';return +xs[k];",
+        "const xs=[b];xs['01']=7;const k=a?'01':'1';return +(xs[k]??9);",
+        "const xs=a?[b]:null;const k=b?'length':'0';return +(xs?.[k]??9);",
+        "const handlers=[x=>x+1,x=>x-1];const k=a?'0':'1';return handlers[k](b);",
+        "const xs=[b];const k=a?'length':'0';const {[k]:v}=xs;return +v;",
+        "let xs=[b];const k=a?'length':'0';return +xs[(xs=[],k)];",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const xs=[1];const k=a?'map':'0';return +xs[k];",
+        "const xs=[1];const k=a?'length':'0';xs[k]=b;return xs.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn runtime_array_lengths_shrink_grow_and_preserve_rhs_values() {
     for body in [
         "const xs=[a,b];xs.note=7;const n=a>>>0;const result=xs.length=n;return result===n&&xs.length===n&&xs.note===7?1:0;",

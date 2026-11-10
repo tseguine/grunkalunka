@@ -1921,7 +1921,12 @@ fn unsigned_array_reads_validate_key_receiver_and_result() {
         match bad {
             0 => *k = ManagedKey::Uint32(ValueId(usize::MAX)),
             1 => *k = ManagedKey::String(*r),
-            2 => *k = ManagedKey::Literal("length".encode_utf16().collect()),
+            2 => {
+                *k = ManagedKey::Scalar {
+                    input: *o,
+                    numbers: false,
+                }
+            }
             3 => *o = *r,
             _ => f.values[r.0] = Type::Number,
         }

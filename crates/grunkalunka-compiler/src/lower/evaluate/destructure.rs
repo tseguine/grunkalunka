@@ -122,7 +122,10 @@ impl Lowering<'_, '_> {
                     )?)
                 }
                 iteration::PropertyKey::Runtime(key) => {
-                    if self.owned_key_kind(object, ty, key, depth).is_none() {
+                    if self
+                        .owned_key_kind(object, ty, key, depth, KeyAccess::Write)
+                        .is_none()
+                    {
                         return Err(unsupported(
                             target,
                             "assignment member runtime keys require an unsigned index or a proven own String key",
@@ -392,7 +395,7 @@ impl Lowering<'_, '_> {
                         iteration::PropertyKey::Runtime(key) => {
                             let kind = match receiver {
                                 Some(ty @ (Type::ManagedObject | Type::ManagedArray)) =>
-                                    self.owned_key_kind(&assignment.right, ty, key, depth + 1),
+                                    self.owned_key_kind(&assignment.right, ty, key, depth + 1, KeyAccess::Read),
                                 _ if self.stored.uint32_keys.contains(key, depth + 1) => Some(dictionary::RuntimeKey::Uint32),
                                 _ => None,
                             }.ok_or_else(|| unsupported(node, "computed assignment source requires a supported own property key"))?;

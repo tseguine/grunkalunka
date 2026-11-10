@@ -88,17 +88,13 @@ impl Lowering<'_, '_> {
                 Some(Computed::StringIndex)
             }
             Key::Runtime(expr) if !string => {
-                let Some(kind) = self.runtime_key(expr, depth + 2) else {
-                    return Ok(false);
+                let kind = match receiver {
+                    Some(ty) => {
+                        self.binding_key_kind(ty, dictionary, expr, depth + 2, KeyAccess::Read)
+                    }
+                    None => self.runtime_key(expr, depth + 2),
                 };
-                if matches!(kind, dictionary::RuntimeKey::String)
-                    && !(dictionary
-                        || receiver.is_none()
-                        || (receiver == Some(Type::ManagedObject)
-                            && self.stored.record_names.contains(expr, depth + 2)))
-                {
-                    return Ok(false);
-                }
+                let Some(kind) = kind else { return Ok(false) };
                 Some(Computed::Own(kind))
             }
             _ => return Ok(false),
@@ -440,7 +436,7 @@ mod tests {
                 "const o=a?{x:b}:null;const k=b?'x':'constructor';return +(o?.[k]);",
                 false,
             ),
-            ("const o=a?[b]:null;const k='x';return +(o?.[k]);", false),
+            ("const o=a?[b]:null;const k='x';return +(o?.[k]);", true),
             ("const d=Object.create(null);return +(d?.[b]);", true),
             (
                 "const d=Object.create(null);const k=a?'x':1;return +(d?.[k]);",

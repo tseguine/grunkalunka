@@ -1305,3 +1305,15 @@ fn imported_handler_selects_an_action_with_logical_defaults() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_reads_an_array_slot_or_length_by_name() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a,b) {
+            const slots=[1,3];
+            const key=a>0?'0':'length';
+            return choose(+slots[key],b);
+        }"#,
+    );
+}

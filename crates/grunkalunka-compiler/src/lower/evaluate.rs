@@ -10,7 +10,7 @@ mod array_search;
 mod array_slice;
 mod destructure;
 mod dictionary;
-pub(super) use dictionary::RuntimeKey;
+pub(super) use dictionary::{KeyAccess, RuntimeKey};
 mod dictionary_logical;
 mod has_own;
 mod local_logical;
