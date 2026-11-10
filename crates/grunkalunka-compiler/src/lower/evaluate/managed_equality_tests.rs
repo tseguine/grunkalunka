@@ -358,15 +358,15 @@ fn dictionary_scalar_reads_require_primitive_value_domains_and_string_keys() {
         ),
         (
             "const d=Object.create(null);d.x=a;d.y='text';const k='x';return +d[k];",
-            false,
+            true,
         ),
         (
             "const d=Object.create(null);d.x=a;const alias=d;alias.y={};const k='x';return +d[k];",
-            false,
+            true,
         ),
         (
             "const d=Object.create(null);d.x=a;const set=t=>{t.y='text';return 0;};set(d);const k='x';return +d[k];",
-            false,
+            true,
         ),
         ("const d=Object.create(null);d.x=a;return +d[a];", false),
         ("const d={x:a};const k='x';return +d[k];", true),
@@ -380,7 +380,7 @@ fn dictionary_scalar_reads_require_primitive_value_domains_and_string_keys() {
         ),
         (
             "const d=Object.create(null);d.x=a;d.self=d;const k='x';return +d[k];",
-            false,
+            true,
         ),
         (
             "const d=Object.create(null);let f=()=>f();d.x=f();const k='x';return +d[k];",

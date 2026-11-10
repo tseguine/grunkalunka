@@ -1646,3 +1646,10 @@ including writes inside closures. Copies between bindings share that proof.
 Compound writes, destructuring targets, and iteration-head assignments
 cannot establish it. Property operations still load the current value and
 save the key before any later RHS mutation.
+
+When a runtime key has a small finite set of literal alternatives, ordinary
+and optional reads combine just those fields' possible values. A dispatch
+table can therefore call `actions[key](value)` when every selected field
+contains a function with the same represented signature. Missing fields,
+deletion, and writes through aliases still affect the result. Larger or
+open-ended name sets use the conservative own-property lookup.

@@ -5,6 +5,18 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn finite_key_sets_exclude_unselected_field_kinds_but_keep_misses() {
+    for body in [
+        "const o={left:'hello',right:'hi',other:0};const k=a?'left':'right';return o[k].length;",
+        "const o={x:{v:3},y:{v:7},flag:false};const k=a?'x':'y';return +(o[k].v);",
+        "const o={x:11,y:22,desc:'text'};let k='x';if(a)k='y';const alias=k;return +o[alias];",
+        "const o={x:'hey',z:7};const k=a?'x':'none';const {[k]:v='!'}=o;return v.length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn reassigned_record_keys_keep_current_values_and_saved_references() {
     for body in [
         "let k='x';const o={x:3,y:7};if(a)k='y';return +(o[k]);",
