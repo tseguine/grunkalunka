@@ -45,33 +45,35 @@ impl Lowering<'_, '_> {
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
             let concat = matches!(task.method, Method::Concat);
             let needle = concat || (task.method.search() && task.argument == 0);
-            if needle && !self.stored.string(argument.node_id()) {
-                return Err(unsupported(
-                    argument,
-                    "String method requires a known String argument",
-                ));
-            }
             task.pending = concat
                 || (task.argument < task.method.arguments()
                     && (needle
                         || !crate::lower::string_methods::undefined(argument, self.semantic)));
-            let mode = if needle {
-                Mode::Managed
-            } else if task.pending {
+            let mode = if task.pending {
                 Mode::Number
             } else {
                 Mode::Discard
             };
             task.argument += 1;
             work.push(Work::StringMethod(task));
-            work.push(Work::Eval(argument, depth, mode));
+            if needle {
+                self.schedule_string_operand(argument, depth, work)?;
+            } else {
+                work.push(Work::Eval(argument, depth, mode));
+            }
             return Ok(());
         }
         if task.method.search() && task.inputs[0].is_none() {
-            return Err(unsupported(
+            let result = self.value(Type::ManagedValue);
+            Self::push(
+                regions.current(),
                 task.node,
-                "String method requires a known String argument",
-            ));
+                Op::ManagedString {
+                    result,
+                    units: "undefined".encode_utf16().collect(),
+                },
+            );
+            task.inputs[0] = Some(result);
         }
         for (input, default) in task
             .inputs
@@ -94,8 +96,8 @@ impl Lowering<'_, '_> {
         }
         if matches!(task.method, Method::Concat) {
             // Save every argument before concatenating: argument effects and
-            // rejection happen before the intrinsic operation. String-only
-            // admission means no user coercion runs during this fold.
+            // rejection happen before the intrinsic operation. Primitive
+            // conversions have no user hooks.
             let mut left = task.receiver.expect("concat receiver");
             for right in task.fragments {
                 let result = self.value(Type::ManagedValue);
