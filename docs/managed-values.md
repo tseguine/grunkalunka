@@ -1848,3 +1848,8 @@ at runtime. A String on either side selects UTF-16 concatenation; otherwise
 Numbers, Booleans, null and undefined use numeric addition. Both source
 operands execute once, left to right. Object-to-primitive hooks and BigInt
 remain outside this operation.
+
+
+The same runtime choice applies to `+=` on mutable locals and admitted own
+properties. The old value, receiver and computed key are saved before the RHS;
+the store occurs after successful evaluation, including across suspension.

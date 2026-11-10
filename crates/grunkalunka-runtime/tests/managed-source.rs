@@ -5,6 +5,28 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn compound_scalar_addition_stores_the_selected_runtime_kind() {
+    for body in [
+        "let x=a?'x':2;const v=x+=b?'y':3;return x===v?(v===5?5:v==='xy'?1:v==='x3'?2:3):99;",
+        "let x=2;const v=x+=a?'x':3;return x===v&&(v===5||v==='2x')?1:0;",
+        "let x=1;x+=a?'x':2;x+=b?'y':3;return String(x).length;",
+        "const row={v:a?'x':2};const value=row.v+=b?'y':3;return row.v===value?String(value).length:99;",
+        "const d=Object.create(null);const k='v';if(a)d.v=2;const v=d[k]+=b?'y':3;return v!==v?1:d[k]===v?String(v).length:99;",
+        "let row={v:a?'x':2};const old=row,k='v';const v=row[k]+=(row={v:'new'},b?'y':3);return old.v===v&&row.v==='new'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "let x=a?'x':{};return String(x+=b).length;",
+        "const row={v:a?[]:'x'};return String(row.v+=b).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn mixed_scalar_addition_selects_numeric_or_string_semantics_at_runtime() {
     for body in [
         "const x=a?'x':2,y=b?'y':3;const v=x+y;return v===5?5:v==='xy'?1:v==='x3'?2:v==='2y'?3:99;",

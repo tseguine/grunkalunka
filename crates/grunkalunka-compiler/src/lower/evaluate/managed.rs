@@ -576,7 +576,8 @@ impl Lowering<'_, '_> {
                         }
                         Expression::AssignmentExpression(a)
                             if a.operator == AssignmentOperator::Addition
-                                && self.stored.string(a.node_id()) =>
+                                && (self.stored.string(a.node_id())
+                                    || self.stored.string_or_number(a.node_id())) =>
                         {
                             values.push(Some(Type::ManagedValue));
                         }
