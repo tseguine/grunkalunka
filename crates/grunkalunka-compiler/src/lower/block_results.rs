@@ -33,20 +33,24 @@ pub(super) fn return_statements<'a>(
 // A side-effect-free true test may be moved to the back edge when the first
 // iteration must exit. Restrict that proof to tail position so previously
 // admitted fallback statements still undergo their ordinary lowering.
-pub(super) fn terminal_truthy_while(
-    semantic: &Semantic<'_>,
-    source: &oxc_ast::ast::WhileStatement<'_>,
-) -> bool {
-    let truthy = match closures::unwrapped(&source.test, 0) {
-        Some(Expression::BooleanLiteral(value)) => value.value,
-        Some(Expression::NumericLiteral(value)) => value.value != 0.0 && !value.value.is_nan(),
-        _ => false,
-    };
-    if !truthy {
-        return false;
-    }
+pub(super) fn terminal_entered_loop(semantic: &Semantic<'_>, id: NodeId) -> bool {
     let nodes = semantic.nodes();
-    let mut child = source.node_id();
+    let test = match nodes.kind(id) {
+        AstKind::WhileStatement(source) => Some(&source.test),
+        AstKind::ForStatement(source) => source.test.as_ref(),
+        _ => return false,
+    };
+    if let Some(test) = test {
+        let truthy = match closures::unwrapped(test, 0) {
+            Some(Expression::BooleanLiteral(value)) => value.value,
+            Some(Expression::NumericLiteral(value)) => value.value != 0.0 && !value.value.is_nan(),
+            _ => false,
+        };
+        if !truthy {
+            return false;
+        }
+    }
+    let mut child = id;
     loop {
         let parent = nodes.parent_id(child);
         let statements = match nodes.kind(parent) {
@@ -168,7 +172,7 @@ pub(super) fn normal_completion(
                     work.push(Task::Statement(&branch.consequent));
                 }
                 Statement::WhileStatement(loop_) => {
-                    work.push(if terminal_truthy_while(semantic, loop_) {
+                    work.push(if terminal_entered_loop(semantic, loop_.node_id()) {
                         Task::Do
                     } else {
                         Task::Pretest
@@ -176,7 +180,11 @@ pub(super) fn normal_completion(
                     work.push(Task::Statement(&loop_.body));
                 }
                 Statement::ForStatement(loop_) => {
-                    work.push(Task::Pretest);
+                    work.push(if terminal_entered_loop(semantic, loop_.node_id()) {
+                        Task::Do
+                    } else {
+                        Task::Pretest
+                    });
                     work.push(Task::Statement(&loop_.body));
                 }
                 Statement::ForOfStatement(loop_) => {

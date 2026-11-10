@@ -4,12 +4,43 @@
 //! another source-control dispatcher through the Rust call stack. The small
 //! scheduler in the parent module owns the worklist and continuation stack.
 use super::*;
+use oxc_syntax::GetNodeId;
 mod for_loop;
 mod for_of;
 mod iteration_member;
 pub(super) mod switch;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    fn finish_pretest_loop(
+        &self,
+        source: &(impl GetSpan + GetNodeId),
+        mut condition: Region,
+        body: Region,
+        step: Option<Region>,
+        completion: Completion,
+    ) -> (Op, Completion) {
+        let entered = completion.do_loop();
+        if entered.normal || !block_results::terminal_entered_loop(self.semantic, source.node_id())
+        {
+            return (
+                Op::While {
+                    condition,
+                    body,
+                    step,
+                },
+                completion.pretest_loop(),
+            );
+        }
+        if let Some(step) = step {
+            // Keep the validated update (including per-iteration cell renewal)
+            // on its original back edge, before the next test.
+            let predicate = std::mem::take(&mut condition.operations);
+            Self::push(&mut condition, source, Op::Block(step));
+            condition.operations.extend(predicate);
+        }
+        (Op::DoWhile { body, condition }, entered)
+    }
+
     pub(super) fn begin_control<'n>(
         &mut self,
         source: ControlNode<'n, 'ast>,
@@ -922,27 +953,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             } => {
                 self.in_loop_body = old_loop;
                 self.bindings.truncate(visible);
-                let entered = completion.do_loop();
-                let (op, completion) = if !entered.normal
-                    && block_results::terminal_truthy_while(self.semantic, source)
-                {
-                    (
-                        Op::DoWhile {
-                            body: finished_region,
-                            condition,
-                        },
-                        entered,
-                    )
-                } else {
-                    (
-                        Op::While {
-                            condition,
-                            body: finished_region,
-                            step: None,
-                        },
-                        completion.pretest_loop(),
-                    )
-                };
+                let (op, completion) =
+                    self.finish_pretest_loop(source, condition, finished_region, None, completion);
                 Self::push(&mut output, source, op);
                 cursor.completed = Some(Outcome::Statement(output, completion));
             }

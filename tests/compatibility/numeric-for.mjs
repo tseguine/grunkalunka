@@ -39,6 +39,19 @@ numericForPrograms.push(['for-composed-headers',
   'let x=a; for(let i=0;(3-i)&&1;(i++,x+=b)) {} return x;',
   'let x:number=a; for(let i:number=0;(3-i)&&1;(i++,x+=b)) {} return x;']);
 
+const terminalForSource = 'export function run(a,b) { for(;;) { return a; } }';
+numericForPrograms.push(
+  ['for-omitted-test-return-policy', '', '', undefined, undefined, {
+    sourceJS: terminalForSource, sourceTS: terminalForSource,
+  }],
+  ['for-terminal-header', 'for(let x=a;true;x+=b){if(b)return x+1;else return x;}',
+    'for(let x:number=a;true as boolean;x+=b){if(b)return x+1;else return x;}'],
+  ['for-terminal-captured-header', 'for(let x=a;;x++){const f=()=>x;return f()+b;}',
+    'for(let x:number=a;;x++){const f=()=>x;return f()+b;}'],
+  ['for-terminal-update-skipped', 'let n=a;const f=()=>{for(n+=2;;n+=20){return n+1;}};const r=f();return n+r;',
+    'let n=a;const f=()=>{for(n+=2;;n+=20){return n+1;}};const r=f();return n+r;'],
+);
+
 const statement = 'statement is outside the numeric experiment';
 const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
@@ -60,7 +73,6 @@ const negatives = [
   ['for-test-call', 'for(;Math.random();) {} return a;', expression],
   ['for-init-call', 'for(Math.random();0;) {} return a;', expression],
   ['for-missing-return', 'for(let i=0;i<1;i++) { return a; }', returns],
-  ['for-omitted-test-return-policy', 'for(;;) { return a; }', returns],
   ['for-header-statement-limit', `for(let i=0;0;i++) { ${'a=b;'.repeat(253)} } return a;`, 'at most 256 statements'],
   ['for-header-local-limit', `${Array.from({length:128},(_,i)=>`const x${i}=a;`).join(' ')} for(let i=0;0;i++) {} return a;`, 'at most 128 source locals'],
   ['for-source-depth-limit', `${Array.from({length:65},(_,i)=>`for(let i${i}=0;0;i${i}++)`).join('')} {} return a;`, 'statement nesting exceeds 64'],
