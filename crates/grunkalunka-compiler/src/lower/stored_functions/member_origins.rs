@@ -109,6 +109,40 @@ impl Members<'_, '_> {
                 .all(|origin| matches!(origin, Origin::String | Origin::Null | Origin::Undefined))
         {
             BTreeSet::from([Origin::String, Origin::Undefined])
+        } else if keys.iter().all(|k| {
+            matches!(
+                k,
+                Origin::Boolean | Origin::Null | Origin::Undefined | Origin::Number
+            )
+        }) && roots.iter().all(|r| {
+            matches!(
+                r,
+                Origin::Array(_)
+                    | Origin::Object(_)
+                    | Origin::NullObject(_)
+                    | Origin::Null
+                    | Origin::Undefined
+            )
+        }) {
+            self.optional_unsigned_value(receiver)
+        } else if keys.len() > 1
+            && keys.iter().all(|k| {
+                matches!(
+                    k,
+                    Origin::String
+                        | Origin::Boolean
+                        | Origin::Null
+                        | Origin::Undefined
+                        | Origin::Number
+                )
+            })
+            && roots
+                .iter()
+                .all(|r| matches!(r, Origin::NullObject(_) | Origin::Null | Origin::Undefined))
+        {
+            let mut found = self.enumerable_values_for(receiver, true);
+            found.insert(Origin::Undefined);
+            found
         } else if keys.iter().all(|origin| *origin == Origin::String)
             && roots.iter().all(|origin| {
                 matches!(
