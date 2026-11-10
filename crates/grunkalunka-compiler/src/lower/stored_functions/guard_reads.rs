@@ -119,11 +119,16 @@ fn atomic_guard(
 ) -> Option<(SymbolId, Guard)> {
     let (binding, test) = match expr {
         Expression::Identifier(id) => (symbol(id, semantic)?, Test::Truthy),
-        Expression::CallExpression(call)
-            if object_intrinsics::is_array_test(call, semantic) && call.arguments.len() == 1 =>
-        {
+        Expression::CallExpression(call) if object_intrinsics::is_array_test(call, semantic) => {
+            let arguments = invocation::all_arguments(call);
+            let first = invocation::offset(call);
+            // Later arguments can reassign the tested binding after its value was saved.
+            if arguments.len() != first + 1 {
+                return None;
+            }
+            let actual = arguments.get(first)?;
             let Expression::Identifier(id) =
-                closures::unwrapped(call.arguments[0].as_expression()?, depth + 1)?
+                closures::unwrapped(actual.as_expression()?, depth + 1 + actual.depth)?
             else {
                 return None;
             };

@@ -736,6 +736,14 @@ fn array_source_and_key_queries_keep_depth_off_the_native_stack() {
 #[test]
 fn array_is_array_checks_the_saved_value_across_managed_kinds() {
     for body in [
+        "return Array.isArray(...[[a]])?1:0;",
+        "return Array.isArray(...[])?1:0;",
+        "return Array.isArray.apply(null,[{},[]])?1:0;",
+        "return Array.isArray.apply(null,[])?1:0;",
+        "let n=0;const x={items:[a]};const ok=Array.isArray.call((n++,null),...[...[(n*=2,x.items)],(n+=3,x.items={})]);return n*10+(ok?1:0);",
+        "const x=a?[a,b]:{n:b};return Array.isArray(...[x])?x.length:+x.n;",
+        "const x=a?[a,b]:{n:b};return Array.isArray.apply(null,[x])?x.length:+x.n;",
+        "const x=a?[a,b]:{n:b};return Array.isArray.call(x)?10:Array.isArray(x)?20:30;",
         "const values=[[],{},Object.create(null),'x',null,undefined,a,false,()=>b];let n=0;for(const value of values){n=n*2+(Array.isArray(value)?1:0);}return n;",
         "const options={items:a?[b]:{length:1,0:b}};return Array['isArray'](options.items)?1:0;",
         "let n=0;const x={items:[a]};const test=Array.isArray.call((n=1,null),(n=n*10+2,x.items),(n=n*10+3,x.items={}));return test&&n===123&&!Array.isArray(x.items)?1:0;",
@@ -756,9 +764,13 @@ fn array_is_array_checks_the_saved_value_across_managed_kinds() {
 }
 
 #[test]
-fn array_is_array_rejects_optional_calls_and_spread_arguments() {
+fn array_is_array_rejects_optional_calls_and_unresolved_spread_arguments() {
     for body in [
-        "return Array.isArray(...[[a]])?1:0;",
+        "const args=[[a]];return Array.isArray(...args)?1:0;",
+        "return Array.isArray(...[,[]])?1:0;",
+        "return Array.isArray.call(...[null,[a]])?1:0;",
+        "const x=a?'abc':[];return Array.isArray.call(x)?0:x.charCodeAt(0);",
+        "let x=a?[a]:null;if(Array.isArray(...[x,(x=null)]))return x.length;return 0;",
         "return Array.isArray?.([a])?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
