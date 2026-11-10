@@ -396,7 +396,11 @@ impl Lowering<'_, '_> {
                             values.push(Some(Type::ManagedArray))
                         }
                         Expression::CallExpression(call)
-                            if object_intrinsics::string_call(call, self.semantic, depth + 1) =>
+                            if object_intrinsics::conversion_call(
+                                call,
+                                self.semantic,
+                                depth + 1,
+                            ) == Some(object_intrinsics::ConversionCall::String) =>
                         {
                             values.push(Some(Type::ManagedValue));
                         }
@@ -668,16 +672,21 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
-        if matches!(mode, Mode::Managed | Mode::Discard | Mode::Predicate)
-            && let Expression::CallExpression(call) = node
-            && object_intrinsics::string_call(call, self.semantic, depth + 1)
+        if let Expression::CallExpression(call) = node
+            && let Some(kind) = object_intrinsics::conversion_call(call, self.semantic, depth + 1)
         {
-            match mode {
-                Mode::Discard => work.push(Work::Forget),
-                Mode::Predicate => work.push(Work::Managed(ManagedWork::Truthy(node))),
-                _ => (),
+            match kind {
+                object_intrinsics::ConversionCall::Boolean => {
+                    boolean_consumer(node, mode, "Boolean produces a primitive Boolean", work)?
+                }
+                object_intrinsics::ConversionCall::String => match mode {
+                    Mode::Discard => work.push(Work::Forget),
+                    Mode::Predicate => work.push(Work::Managed(ManagedWork::Truthy(node))),
+                    Mode::Managed => (),
+                    _ => return Ok(false),
+                },
             }
-            self.schedule_string_call(node, call, depth, regions, values, work)?;
+            self.schedule_conversion_call(node, kind, depth, regions, values, work)?;
             return Ok(true);
         }
         if self.schedule_optional_member(node, depth, mode, work)?

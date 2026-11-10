@@ -46,49 +46,71 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
-    pub(super) fn schedule_string_call<'e, 'a>(
+    pub(super) fn schedule_conversion_call<'e, 'a>(
         &mut self,
         node: &'e Expression<'a>,
-        call: &'e CallExpression<'a>,
+        kind: object_intrinsics::ConversionCall,
         depth: usize,
         regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
+        let Expression::CallExpression(call) = node else {
+            unreachable!("validated conversion call")
+        };
         let arguments = invocation::plain_arguments(&call.arguments);
         if arguments.len() > 1000 {
             return Err(unsupported(
                 node,
-                "String accepts at most 1000 fixed arguments",
+                "primitive conversion accepts at most 1000 fixed arguments",
             ));
         }
         let mut args = arguments.into_iter();
         let Some(first) = args.next() else {
-            let result = self.value(Type::ManagedValue);
-            Self::push(
-                regions.current(),
-                node,
-                Op::ManagedString {
-                    result,
-                    units: Vec::new(),
-                },
-            );
-            values.push(Value::Managed(result));
+            match kind {
+                object_intrinsics::ConversionCall::Boolean => {
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Boolean {
+                            result,
+                            value: false,
+                        },
+                    );
+                    values.push(Value::Predicate(result));
+                }
+                object_intrinsics::ConversionCall::String => {
+                    let result = self.value(Type::ManagedValue);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::ManagedString {
+                            result,
+                            units: Vec::new(),
+                        },
+                    );
+                    values.push(Value::Managed(result));
+                }
+            }
             return Ok(());
         };
         let first_depth = depth + first.depth + 1;
         let first = first
             .as_expression()
-            .ok_or_else(|| unsupported(node, "String requires fixed arguments"))?;
-        let (mode, conversion) = self.string_operand(first, first_depth)?;
+            .ok_or_else(|| unsupported(node, "primitive conversion requires fixed arguments"))?;
+        let (mode, conversion) = match kind {
+            object_intrinsics::ConversionCall::String => self.string_operand(first, first_depth)?,
+            object_intrinsics::ConversionCall::Boolean => (Mode::Predicate, None),
+        };
         if let Some(conversion) = conversion {
             work.push(Work::StringOperand(first, conversion));
         }
         // Keep the first value on the cursor while all remaining arguments run.
         for actual in args.rev() {
-            let arg = actual
-                .as_expression()
-                .ok_or_else(|| unsupported(node, "String requires fixed arguments"))?;
+            let arg = actual.as_expression().ok_or_else(|| {
+                unsupported(node, "primitive conversion requires fixed arguments")
+            })?;
             work.push(Work::Eval(arg, depth + actual.depth + 1, Mode::Discard));
         }
         work.push(Work::Eval(first, first_depth, mode));

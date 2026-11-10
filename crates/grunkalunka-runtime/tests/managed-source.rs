@@ -5,6 +5,23 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn boolean_calls_preserve_truthiness_identity_and_argument_effects() {
+    for body in [
+        "return Boolean(a)?1:0;",
+        "return !Boolean()&&!Boolean(...[])&&Boolean([])&&Boolean({})&&Boolean(x=>x)?1:0;",
+        "let n=0;const flag=Boolean(...[(n++,a)],(n=n*10+2,b));return flag?n:-n;",
+        "let x='';const flag=Boolean(x,x='ok');return !flag&&Boolean(x)?1:0;",
+        "const box={f:Boolean(a),g:Boolean(b)};return box.f===!!a&&box.g===!!b?1:0;",
+        "const Boolean=x=>x+1;return Boolean(a);",
+    ] {
+        compare(body);
+    }
+    let source =
+        "function flag(x){return Boolean(x);}export function run(a,b){return flag(a)?1:0;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
 fn primitive_membership_preserves_presence_prototypes_and_operand_order() {
     for body in [
         "const xs=[];xs[a]=undefined;return a in xs&&Object.hasOwn(xs,a)?xs.length+1:0;",

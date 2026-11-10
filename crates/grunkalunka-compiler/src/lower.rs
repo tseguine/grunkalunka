@@ -491,7 +491,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     |binding| !binding.mutable && self.slots[binding.slot.0].ty == Type::Predicate,
                 );
             } else if let Expression::CallExpression(call) = expression {
-                return object_intrinsics::is_array_test(call, self.semantic)
+                return object_intrinsics::conversion_call(call, self.semantic, depth)
+                    == Some(object_intrinsics::ConversionCall::Boolean)
+                    || object_intrinsics::is_array_test(call, self.semantic)
                     || string_methods::call(call).is_some_and(|(receiver, method)| {
                         matches!(method, string_methods::Method::Includes)
                             && self.stored.container(receiver.node_id()) == Some(Type::ManagedArray)

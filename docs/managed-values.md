@@ -1737,3 +1737,7 @@ and subsequent assignments retain the original receiver and key.
 Lexical binding patterns also share primitive-key conversion, including nested
 records, rest exclusions, and per-iteration bindings. Member targets in
 `for...of` and `for...in` evaluate the receiver and computed key on each visit.
+
+Calling the pristine `Boolean` function applies the language truthiness rules
+to the saved first argument. Omission produces false, and surplus arguments
+still execute in source order, including their effects and rejections.
