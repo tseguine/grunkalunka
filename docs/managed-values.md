@@ -1661,7 +1661,7 @@ must together rule out every name on the Object prototype. For example,
 A lexical `let` may carry a computed record name across reassignment.
 Its initializer and every write must preserve the safe String domain,
 including writes inside closures. Copies between bindings share that proof.
-Compound writes, destructuring targets, and iteration-head assignments
+Arithmetic compound writes, destructuring targets, and iteration-head assignments
 cannot establish it. Property operations still load the current value and
 save the key before any later RHS mutation.
 
@@ -1672,6 +1672,10 @@ when every assignment to `raw` supplies a proven name. Nullish left operands
 of a fallback also skip to the right name, including null, unshadowed `undefined`, or `void` values
 flowing through local aliases. Under `??`, the empty String still selects its own field. The key
 expression still evaluates with normal short-circuiting.
+
+A local assignment result can name a computed field. For example,
+`handlers[key ||= "default"](value)` uses the retained or assigned name.
+All writes to the binding still participate in the proof.
 
 When a runtime key has a small finite set of literal alternatives, ordinary
 and optional reads combine just those fields' possible values. A dispatch

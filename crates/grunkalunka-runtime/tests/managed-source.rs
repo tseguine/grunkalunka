@@ -5,6 +5,28 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn local_assignment_results_select_computed_handlers() {
+    for body in [
+        "const t={x:v=>v+1,y:v=>v-1};let k='';return t[k=a?'x':'y'](b);",
+        "const t={x:v=>v+1,y:v=>v-1};let k=a?'x':'';return t[k||='y'](b);",
+        "let k=a?'x':null;const t={x:v=>v+1,y:v=>v-1};return t[k??='y'](b);",
+        "let k=a?'x':'';const t={'':v=>v+1,y:v=>v-1};return t[k&&='y'](b);",
+        "let k=a?'x':'y',n=0;const row={x:a,y:b};k||=(n++,'y');return +row[k]+n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const row={};let k='';return +row[k||='constructor'];",
+        "const row={};let k='';const change=()=>k||='toString';change();return +row[k];",
+        "let k='x';const row={x:v=>v};return row[k+=a](b);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn null_prototype_expressions_keep_effects_and_literal_and_factory_identity() {
     for body in [
         "const nil=null,proto=nil;const d={__proto__:proto};return 'constructor' in d?0:1;",

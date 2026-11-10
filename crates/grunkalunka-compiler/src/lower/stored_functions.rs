@@ -1237,9 +1237,8 @@ impl Fields {
                             | AssignmentOperator::LogicalNullish
                     ) =>
                 {
-                    // A function binding may select another factory while its
-                    // generic result ABI stays unchanged. Retain every target;
-                    // provenance never selects the branch executed at runtime.
+                    // Keep every possible write in the binding's storage facts.
+                    // The assignment expression yields only the selected operand.
                     if let Some(name) = a
                         .left
                         .as_simple_assignment_target()
@@ -1247,15 +1246,12 @@ impl Fields {
                         && let Some(target) = symbol(name, semantic)
                     {
                         definitions.push(Definition::Value(target, a.right.node_id()));
-                        Some(Rule::Symbol(target))
-                    } else if let Some(target) = a.left.as_simple_assignment_target() {
+                    }
+                    if let Some(target) = a.left.as_simple_assignment_target() {
                         Some(Rule::Logical(
-                            match a.operator {
-                                AssignmentOperator::LogicalAnd => LogicalOperator::And,
-                                AssignmentOperator::LogicalOr => LogicalOperator::Or,
-                                AssignmentOperator::LogicalNullish => LogicalOperator::Coalesce,
-                                _ => unreachable!("checked logical assignment"),
-                            },
+                            a.operator
+                                .to_logical_operator()
+                                .expect("logical assignment"),
                             target.node_id(),
                             a.right.node_id(),
                         ))
@@ -2057,15 +2053,26 @@ impl Fields {
                         });
                     // Same-kind String/Boolean writes preserve their lane.
                     // Numeric updates or an incompatible RHS still widen it.
-                    let preserves_string = bindings.get(&symbol).is_some_and(|origins| {
+                    let exact_string = |origins: &Alternatives| {
                         origins.len() == 1 && origins.contains(&Origin::String)
-                    }) && numeric_targets
+                    };
+                    let nullable_string = |origins: &Alternatives| {
+                        !origins.is_empty()
+                            && origins.iter().all(|origin| {
+                                matches!(origin, Origin::Null | Origin::Undefined | Origin::String)
+                            })
+                    };
+                    let preserves_string = bindings.get(&symbol).is_some_and(|origins| nullable_string(origins) && origins.contains(&Origin::String)) && numeric_targets
                         .iter()
                         .filter(|(_, _, target_symbol)| *target_symbol == symbol)
                         .all(|(_, result, _)| {
-                            values.get(result).is_some_and(|origins| {
-                                origins.len() == 1 && origins.contains(&Origin::String)
-                            })
+                            // Logical assignment stores only a selected original operand.
+                            // Arithmetic string updates still require an exact String input.
+                            if matches!(semantic.nodes().kind(*result), AstKind::AssignmentExpression(a) if a.operator.is_logical()) {
+                                values.get(result).is_some_and(nullable_string)
+                            } else {
+                                bindings.get(&symbol).is_some_and(exact_string) && values.get(result).is_some_and(exact_string)
+                            }
                         });
                     let preserves_boolean = bindings.get(&symbol).is_some_and(|origins| {
                         origins.len() == 1 && origins.contains(&Origin::Boolean)
