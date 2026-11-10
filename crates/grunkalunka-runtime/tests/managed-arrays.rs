@@ -2,6 +2,20 @@
 mod common;
 
 #[test]
+fn counted_loops_use_the_live_index_for_reads_and_writes() {
+    for body in [
+        "const xs=[11,,33];let sum=0;for(let i=0;i<xs.length;++i){if(i in xs)sum+=+xs[i];}return sum;",
+        "const src=[a,b,7],dst=[];for(let i=0;i<src.length;i++){dst[i]=src[i];}return dst.length===3&&dst[1]===b?1:0;",
+        "const xs=[11,22,33];let sum=0;for(let i=0;i<xs.length;i++){sum+=+xs[i];xs.pop();}return sum;",
+        "const xs=[];for(let i=4294967294;i<4294967295;i++){xs[i]=a;}return xs.length;",
+        "const xs=[11,22];let last=()=>0;for(let i=0;i<xs.length;i++){last=()=>+xs[i];}return last();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn length_indices_observe_mutation_and_count_utf16_units() {
     for body in [
         "const xs=[a];xs[xs.length]=b;return xs.length===2&&xs[1]===b?1:0;",
