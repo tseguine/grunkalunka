@@ -166,7 +166,11 @@ impl Reads {
     }
 }
 
-pub(super) fn collect(semantic: &Semantic<'_>) -> Reads {
+pub(super) fn collect(
+    semantic: &Semantic<'_>,
+    var_symbols: &BTreeSet<SymbolId>,
+    var_aliases: &BTreeMap<SymbolId, SymbolId>,
+) -> Reads {
     let nodes = semantic.nodes();
     let scope = semantic.scoping();
     let mut guarded = BTreeMap::<SymbolId, BTreeMap<NodeId, BTreeMap<Guard, Vec<Span>>>>::new();
@@ -212,12 +216,26 @@ pub(super) fn collect(semantic: &Semantic<'_>) -> Reads {
         }
     }
     let mut reads = BTreeMap::<NodeId, Vec<Guard>>::new();
+    // A var initializer or iteration head can write a parameter cell without
+    // being an assignment reference to the parameter's own symbol.
+    let aliased_parameters: BTreeSet<_> = var_aliases.values().copied().collect();
     for (binding, mut owners) in guarded {
         let declaration = semantic.symbol_declaration(binding);
-        if !matches!(declaration.kind(), AstKind::VariableDeclarator(d) if matches!(d.id,BindingPattern::BindingIdentifier(_)))
-            || !matches!(nodes.parent_kind(declaration.id()),AstKind::VariableDeclaration(d) if matches!(d.kind,VariableDeclarationKind::Let | VariableDeclarationKind::Const))
-            || scope.get_resolved_references(binding).any(|r| r.is_write())
-        {
+        let eligible = match declaration.kind() {
+            AstKind::VariableDeclarator(d) => {
+                matches!(d.id, BindingPattern::BindingIdentifier(_))
+                    && matches!(nodes.parent_kind(declaration.id()), AstKind::VariableDeclaration(parent)
+                    if matches!(parent.kind,VariableDeclarationKind::Let | VariableDeclarationKind::Const))
+            }
+            AstKind::FormalParameter(p) => {
+                matches!(p.pattern, BindingPattern::BindingIdentifier(_))
+                    && !var_symbols.contains(&binding)
+                    && !aliased_parameters.contains(&binding)
+                    && scope.symbol_redeclarations(binding).is_empty()
+            }
+            _ => false,
+        };
+        if !eligible || scope.get_resolved_references(binding).any(|r| r.is_write()) {
             continue;
         }
         for guards in owners.values_mut() {

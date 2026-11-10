@@ -5,6 +5,23 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn guarded_helper_parameters_keep_the_callers_runtime_kind() {
+    for source in [
+        "function read(row){if(row==null)return 7;return +row.n;}export function run(a,b){return read(a?{n:b}:null);}",
+        "function size(v){if(Array.isArray(v))return v.length;return +v.n;}export function run(a,b){return size(a?[b,b]:{n:b});}",
+        "export function run(a,b){const read=v=>{if(typeof v==='string')return v.length;return v+1;};return read(a?'xy':b);}",
+    ] {
+        common::compare_sources(source, source);
+    }
+    for source in [
+        "function read(row){if(!row)return 7;row=null;return +row.n;}export function run(a,b){return read(a?{n:b}:null);}",
+        "function read(row){if(!row)return 7;var row=null;return +row.n;}export function run(a,b){return read(a?{n:b}:null);}",
+    ] {
+        assert!(compile(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn runtime_kind_guards_select_accessible_operations_in_each_arm() {
     for body in [
         "const value=a?[a,b]:{n:b};if(Array.isArray(value))return value.length;return +value.n;",
