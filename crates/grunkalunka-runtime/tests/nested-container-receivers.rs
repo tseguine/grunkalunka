@@ -152,12 +152,20 @@ fn former_unknown_alias_receiver_guard_executes_unchanged() {
 }
 
 #[test]
-fn erased_assignment_targets_preserve_runtime_receiver_semantics() {
+fn assignment_target_type_erasure_keeps_known_runtime_and_ts_guards() {
     // A later Array store supersedes the earlier record. Accessing its missing
     // "x" property yields Undefined, not the original record's Number.
     let js = "export function run(a,b){const initial={child:{x:a}};let child=initial.child;child=[b];const o={child};return o.child.x===a?1:0;}";
+    common::compare_sources(js, js);
+
+    // The retained TS assignment-target wrapper remains a separate unsupported
+    // source form; do not mistake JS admission for TS erasure support.
     let ts = "export function run(a,b){const initial={child:{x:a}};let child=initial.child;(child as unknown)=[b];const o={child};return o.child.x===a?1:0;}";
-    common::compare_sources(js, ts);
+    let error = grunkalunka_compiler::compile(ts, true)
+        .err()
+        .unwrap_or_else(|| panic!("unexpected TS assignment-target admission: {ts}"));
+    assert!(error.contains("unsupported"), "{ts}: {error}");
+    assert!(!error.contains("internal IR"), "{ts}: {error}");
 }
 
 #[test]
