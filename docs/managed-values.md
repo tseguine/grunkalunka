@@ -581,7 +581,10 @@ identifier, String and numeric keys. Computed Boolean and null literals select
 the own names `"true"`, `"false"` and `"null"`. A substitution-free template
 key uses its cooked UTF-16 units, including escapes and lone surrogates. A computed definition can also use a
 proven runtime String. The key evaluates once before its value; a later
-definition with the same key updates the existing position. A computed
+definition with the same key updates the existing position. When the possible
+names are known, each candidate field includes the value it could receive;
+unrelated fields retain their types. A single possible name defines a definite
+field, and a later definite definition replaces earlier alternatives. A computed
 `["__proto__"]` defines an own data field. The uncomputed prototype-setting
 form keeps its existing admission guard. Values can contain
 the four primitive kinds, Strings or other constructed objects and arrays. Properties evaluate left to
