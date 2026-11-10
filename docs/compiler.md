@@ -2812,7 +2812,10 @@ eight JS/TS pairs; all 796 compatibility negatives remain.
 Delete now admits runtime numeric property keys proven unsigned by an original
 unsigned right-shift (>>>) result. Parentheses/erased wrappers, sequence tails,
 plain assignment results and conditional results whose two arms prove unsigned
-compose through a bounded heap traversal. The ordinary evaluator still checks
+compose through a bounded heap traversal. A bitwise AND with a literal integer mask from 0 through 0x7fffffff
+on either side also proves the result unsigned. This allows ring-buffer reads
+such as `slots[cursor & 255]`, writes, and computed destructuring through the
+same key path. The ordinary evaluator still checks
 all operands and effects; annotations, arbitrary Number cells and opaque helpers
 do not prove the range. Existing source depth/size limits still apply.
 

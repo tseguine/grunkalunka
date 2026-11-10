@@ -21,6 +21,14 @@ pub(super) enum Task<'e, 'a> {
     },
 }
 
+// An AND clears the sign bit if either operand is an integer literal in
+// the nonnegative i32 range. Both original operands still execute.
+fn nonnegative_i32_mask(expression: &Expression<'_>, depth: usize) -> bool {
+    closures::unwrapped(expression, depth)
+        .and_then(static_keys::number)
+        .is_some_and(|n| (0.0..=f64::from(i32::MAX)).contains(&n) && n.fract() == 0.0)
+}
+
 // Source operators, never annotations, prove the key's numeric range. The
 // ordinary evaluator still validates every operand and effect of these forms.
 pub(in crate::lower) fn uint32_key(expression: &Expression<'_>, depth: usize) -> bool {
@@ -32,6 +40,10 @@ pub(in crate::lower) fn uint32_key(expression: &Expression<'_>, depth: usize) ->
         match expression {
             Expression::BinaryExpression(binary)
                 if binary.operator == BinaryOperator::ShiftRightZeroFill => {}
+            Expression::BinaryExpression(binary)
+                if binary.operator == BinaryOperator::BitwiseAnd
+                    && (nonnegative_i32_mask(&binary.left, depth + 1)
+                        || nonnegative_i32_mask(&binary.right, depth + 1)) => {}
             Expression::SequenceExpression(sequence) => {
                 let Some(last) = sequence.expressions.last() else {
                     return false;
@@ -244,6 +256,25 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn masked_index_requires_a_clear_sign_bit_and_valid_operands() {
+        for (key, admitted) in [
+            ("a & 0x7fffffff", true),
+            ("0 & (a=b)", true),
+            ("a & (7 as never)", true),
+            ("a & 0x80000000", false),
+            ("-1 & a", false),
+            ("a & b", false),
+            ("(a | 7)", false),
+            ("Math.random() & 0", false),
+        ] {
+            let source = format!(
+                "export function run(a,b){{const xs=[a];return Object.hasOwn(xs,{key})?1:0;}}"
+            );
+            assert_eq!(crate::compile(&source, true).is_ok(), admitted, "{source}");
+        }
+    }
 
     #[test]
     fn uint32_delete_keys_use_source_operators_and_retain_mutation_guards() {

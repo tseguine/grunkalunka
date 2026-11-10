@@ -2,6 +2,19 @@
 mod common;
 
 #[test]
+fn masked_indices_keep_key_effects_and_sparse_array_semantics() {
+    for body in [
+        "const xs=[11,,33,44];return Object.hasOwn(xs,a&3)?+(xs[a&3]):-1;",
+        "const xs=[];let n=0;xs[(n=n+1,a)&3]=(n=n+1,b);return n*10+xs.length;",
+        "const o={[3&a]:b};const {[a&3]:x,...rest}=o;return x===b&&Object.keys(rest).length===0?1:0;",
+        "const xs=[a,b];delete xs[1&a];return ((a&1) in xs)?-1:xs.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn uint32_delete_keys_preserve_properties_boundaries_and_effects() {
     for body in [
         "const xs=[a,b];const removed=delete xs[a>>>0];return removed?xs.length*10+(Object.hasOwn(xs,0)?1:0)+(Object.hasOwn(xs,1)?2:0):-1;",
