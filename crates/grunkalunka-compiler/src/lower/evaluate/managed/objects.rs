@@ -95,7 +95,7 @@ impl Lowering<'_, '_> {
                     ));
                 }
                 if object_create::prototype_setter(property) {
-                    if !object_create::null_prototype_value(&property.value, depth)
+                    if !object_create::null_prototype_value(&property.value, self.semantic, depth)
                         && !self.stored.non_null_primitive(property.value.node_id())
                     {
                         return Err(unsupported(

@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn null_prototype_selection_preserves_await_and_abrupt_completion() {
+    compare_promises(
+        &[
+            "const nil=null;let n=0;const d=Object.create(a?(await b,n=1,nil):(await b,n=2,null));return 'constructor' in d?0:n;",
+            "const nil=null;let n=0;try{const d={x:(n=1),__proto__:(await Promise.reject(b),nil),y:(n=2)};}catch(e){return e===b?n:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn consecutive_optional_reads_skip_awaits_and_keep_each_saved_receiver() {
     compare_promises(
         &[

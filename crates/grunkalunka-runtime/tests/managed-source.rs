@@ -5,6 +5,26 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn null_prototype_expressions_keep_effects_and_literal_and_factory_identity() {
+    for body in [
+        "const nil=null,proto=nil;const d={__proto__:proto};return 'constructor' in d?0:1;",
+        "let n=0;const nil=null;const d=Object.create(a?(n=1,nil):(n=2,null));d.x=b;return !('toString' in d)&&d.x===b?n:0;",
+        "let n=0;const d={x:(n=1),__proto__:(n=n*10+2,null),y:(n=n*10+3)};return !('constructor' in d)?n:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const proto=a?null:{};return +Object.hasOwn(Object.create(proto),'x');",
+        "const {x:proto}={x:{}};const o={__proto__:proto};return +('x' in o);",
+        "let nil=null;nil={};const o=Object.create(nil);return +('x' in o);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn consecutive_optional_reads_skip_keys_at_each_nullish_link() {
     for body in [
         "const root=a?{row:b?{value:7}:null}:null;return +(root?.row?.value??9);",
