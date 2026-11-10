@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn logical_property_names_evaluate_only_selected_fallbacks_across_await() {
+    compare_promises(
+        &[
+            "let o={x:a,y:b},n=0;const v=o[(a?'x':'')||(await b,n++,o={y:7},'y')];return +v+n;",
+            "const o={x:b};try{return +o[(a?'x':null)??(await Promise.reject(b),'x')];}catch(e){return e===b?7:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn optional_string_names_save_utf16_receivers_across_await() {
     compare_promises(
         &[

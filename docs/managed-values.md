@@ -1662,6 +1662,11 @@ Compound writes, destructuring targets, and iteration-head assignments
 cannot establish it. Property operations still load the current value and
 save the key before any later RHS mutation.
 
+Logical key expressions preserve finite names across `||`, `&&` and `??`.
+For example, `(flag ? "save" : "") || "cancel"` can select either handler.
+Nullish left operands of a fallback also skip to the right name. The key
+expression still evaluates with normal short-circuiting.
+
 When a runtime key has a small finite set of literal alternatives, ordinary
 and optional reads combine just those fields' possible values. A dispatch
 table can therefore call `actions[key](value)` when every selected field
