@@ -1441,7 +1441,7 @@ fn string_at_does_not_prove_a_present_string_or_coerce_arguments() {
         "return 'abc'.at(null)===undefined?1:0;",
         "return 'abc'.at(true)===undefined?1:0;",
         "const s=a?'abc':null;return s.at(0)===undefined?1:0;",
-        "return 'abc'.at(...[0])===undefined?1:0;",
+        "const args=[0];return 'abc'.at(...args)===undefined?1:0;",
         "return 'abc'?.at(0)===undefined?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
@@ -1459,7 +1459,7 @@ fn code_point_at_keeps_boxed_results_and_requires_proven_inputs() {
         "return 'abc'.codePointAt(null)===undefined?1:0;",
         "return 'abc'.codePointAt(true)===undefined?1:0;",
         "const s=a?'abc':null;return s.codePointAt(0)===undefined?1:0;",
-        "return 'abc'.codePointAt(...[0])===undefined?1:0;",
+        "const args=[0];return 'abc'.codePointAt(...args)===undefined?1:0;",
         "return 'abc'?.codePointAt(0)===undefined?1:0;",
         "const f='abc'.codePointAt;return f(0);",
     ] {
@@ -1506,7 +1506,7 @@ fn well_formed_validation_requires_text_and_boolean_result() {
     for body in [
         "const s=a?'abc':null;return s.isWellFormed()?1:0;",
         "return 'abc'?.isWellFormed()?1:0;",
-        "return 'abc'.isWellFormed(...[])?1:0;",
+        "const args=[];return 'abc'.isWellFormed(...args)?1:0;",
     ] {
         assert!(
             crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err()
@@ -1539,7 +1539,7 @@ fn well_formed_repair_requires_managed_text_and_result() {
     for body in [
         "const s=a?'abc':null;return s.toWellFormed().length;",
         "return 'abc'?.toWellFormed().length;",
-        "return 'abc'.toWellFormed(...[]).length;",
+        "const args=[];return 'abc'.toWellFormed(...args).length;",
     ] {
         assert!(
             crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err()
@@ -1555,7 +1555,7 @@ fn string_concat_method_requires_string_arguments_and_bounded_arity() {
         "return ''.concat(null).length;",
         "return ''.concat(true).length;",
         "return ''.concat({}).length;",
-        "return ''.concat(...['a']).length;",
+        "const args=['a'];return ''.concat(...args).length;",
         "return ''?.concat('a').length;",
         "const s=a?'a':null;return s.concat('b').length;",
     ] {
