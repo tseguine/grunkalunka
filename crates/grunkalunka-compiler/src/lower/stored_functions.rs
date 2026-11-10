@@ -93,6 +93,7 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
 /// projection. Keeping intermediate nodes makes nested receiver proofs available
 /// without treating a binding's syntax or annotation as a runtime kind.
 fn pattern_definitions(
+    semantic: &Semantic<'_>,
     uint32_keys: &Uint32Keys,
     pattern: &BindingPattern<'_>,
     root: Rule,
@@ -132,6 +133,16 @@ fn pattern_definitions(
                                 .as_expression()
                                 .filter(|key| uint32_keys.contains(key, 0))
                                 .map(|_| Rule::PatternUnsignedMember(id))
+                        })
+                        .or_else(|| {
+                            let key = property.key.as_expression()?;
+                            static_keys::own_string_name(key, semantic, 0).then(|| {
+                                Rule::StringKeyMember {
+                                    receiver: id,
+                                    key: key.node_id(),
+                                    own_name: true,
+                                }
+                            })
                         })
                         .unwrap_or(Rule::Known(Origin::Other));
                     pending.push((&property.value, rule));
@@ -556,6 +567,7 @@ impl Fields {
         let mut has_iterations = !definitions.is_empty() || !patterned_iterations.is_empty();
         for (pattern, rule) in patterned_iterations {
             pattern_definitions(
+                semantic,
                 &uint32_keys,
                 pattern,
                 rule,
@@ -1031,6 +1043,7 @@ impl Fields {
                     }
                     if let Some(initializer) = &declaration.init {
                         pattern_definitions(
+                            semantic,
                             &uint32_keys,
                             &declaration.id,
                             Rule::Copy(vec![initializer.node_id()]),
@@ -1283,7 +1296,9 @@ impl Fields {
                                         Rule::StringKeyMember {
                                             receiver: a.right.node_id(),
                                             key: key.node_id(),
-                                            own_name: false,
+                                            own_name: static_keys::own_string_name(
+                                                key, semantic, 0,
+                                            ),
                                         }
                                     }
                                 };

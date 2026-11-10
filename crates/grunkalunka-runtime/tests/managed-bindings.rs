@@ -4,6 +4,18 @@ use grunkalunka_compiler::compile;
 mod common;
 
 #[test]
+fn record_binding_names_resolve_through_const_aliases() {
+    for body in [
+        "const {[a?'x':'y']:x}={x:a,y:b};return a;",
+        "const key='x';const {[key]:x=a}={};return a;",
+        "const key='x';const {[key]:x}={x:a};return a;",
+        "const key='x';const {[key]:x=a}={};return x===a?1:0;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn primitive_object_assignments_preserve_rhs_and_fresh_rest_targets() {
     for body in [
         "({}=a);return b;",
@@ -504,7 +516,7 @@ fn object_binding_defaults_keep_tdz_kind_and_pattern_guards() {
         "const source={text:undefined,...{text:a}};const {text='fallback'}=source;return text.trim().length;",
         "const source={};const alias=source;alias.text=a;const {text='fallback'}=source;return text.trim().length;",
         "let {text='ready'}={};const read=()=>text.length;text=a;return read();",
-        "const key='x';const {[key]:x=a}={};return a;",
+        "const key=a?'x':'constructor';const {[key]:x=a}={};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -577,8 +589,8 @@ fn object_bindings_reject_unimplemented_patterns_and_unproven_sources() {
     let original = "export function run(a,b){var {x}={x:a};return a;}";
     common::compare_sources(original, original);
     for body in [
-        "const key='x';const {[key]:x}={x:a};return a;",
-        "const {[a?'x':'y']:x}={x:a,y:b};return a;",
+        "const key=a?'x':'constructor';const {[key]:x}={x:a};return a;",
+        "const {[a?'x':'__proto__']:x}={x:a,y:b};return a;",
         "const {x}=a;return a;",
         "const {x}=1;return a;",
         "const {x}='abc';return a;",
