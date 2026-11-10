@@ -26,6 +26,17 @@ numericBreak.push(['break-label', labelledBody, labelledBody, undefined, undefin
   sourceJS: `export function run(a,b) { ${labelledBody} }`,
   sourceTS: `export function run(a:number,b:number):number { ${labelledBody} }`,
 }]);
+for (const [id, body] of [
+  ['gap-label', 'outer: while(1) { a=a+b; break outer; } return a;'],
+  ['for-label', 'outer: for(;;) { return a; } return b;'],
+  ['do-label', 'outer: do { a=b; } while(0); return a;'],
+  ['label', 'here: while (0) { a=b; } return a;'],
+]) {
+  numericBreak.push([id, body, body, undefined, undefined, {
+    sourceJS: `export function run(a,b) { ${body} }`,
+    sourceTS: `export function run(a:number,b:number):number { ${body} }`,
+  }]);
+}
 numericBreak.push(['ts-break-predicate',
   'for(let i=0;i<3;i++) { if(a) break; b+=i; } return b;',
   'for(let i:number=0;i<3;i++) { if(a as number) break; b+=i; } return b;']);

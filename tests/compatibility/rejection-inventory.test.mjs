@@ -368,7 +368,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 795);
+  assert.equal(inventory.records.size, 791);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -378,6 +378,23 @@ test('switch continue retains its former rejected source as a native differentia
   assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),
     '200590f090d7dd2612691762a32769a431eeb6421050ac0b9cb0d3a4abc52400');
   assert.equal(source.oracleSource, source.sourceJS);
+});
+
+test('promoted labelled loops preserve the exact original sources and curated golden', async () => {
+  for (const [id, hash] of [
+    ['gap-label', 'b30d1bd4274e5f766e58c5ec12b4c18aa6b592dd10eb9597faf3c20ac5458611'],
+    ['for-label', '6925b0244e14a04deb8288764be433d63d3ad5ee90272d777015e82e6dd17310'],
+    ['do-label', '2d793648e96085a446b2bff87f3e1645a46493bfa8222c6db74f27795fea95e8'],
+    ['label', 'fc86cdd55a48d51fa44872b18f0cc10de3e5bb475a58bffda0ff9b63485006d8'],
+  ]) {
+    const row = programSources(programs.find(p => p[0] === id));
+    assert.equal(createHash('sha256').update(row.sourceJS).digest('hex'), hash);
+    assert.equal(row.oracleSource, row.sourceJS);
+    if (id === 'gap-label') {
+      const reference = await import(`data:text/javascript;base64,${Buffer.from(row.oracleSource).toString('base64')}`);
+      assert.equal(reference.run(4, 2), 6);
+    }
+  }
 });
 
 test('for-in promotes its exact former rejection into an executable source', () => {

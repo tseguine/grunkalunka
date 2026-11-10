@@ -61,7 +61,6 @@ const negatives = [
   ['for-init-call', 'for(Math.random();0;) {} return a;', expression],
   ['for-missing-return', 'for(let i=0;i<1;i++) { return a; }', returns],
   ['for-omitted-test-return-policy', 'for(;;) { return a; }', returns],
-  ['for-label', 'outer: for(;;) { return a; } return b;', statement],
   ['for-header-statement-limit', `for(let i=0;0;i++) { ${'a=b;'.repeat(253)} } return a;`, 'at most 256 statements'],
   ['for-header-local-limit', `${Array.from({length:128},(_,i)=>`const x${i}=a;`).join(' ')} for(let i=0;0;i++) {} return a;`, 'at most 128 source locals'],
   ['for-source-depth-limit', `${Array.from({length:65},(_,i)=>`for(let i${i}=0;0;i${i}++)`).join('')} {} return a;`, 'statement nesting exceeds 64'],

@@ -177,7 +177,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 195;
+export const corpusVersion = 196;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -442,7 +442,6 @@ export const rejected = [
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
   ['while-leak', 'export function run(a,b) { while (0) { const x=a; } return x; }'],
   ['while-const-write', 'export function run(a,b) { const x=a; while (0) { x=b; } return x; }'],
-  ['label', 'export function run(a,b) { here: while (0) { a=b; } return a; }'],
   ['block-shadow-initializer', 'export function run(a,b) { const x=a; { const x=x+b; return x; } }'],
   ['block-leak', 'export function run(a,b) { { const x=a; } return x; }'],
   ['block-sibling-leak', 'export function run(a,b) { { const x=a; } { return x; } }'],

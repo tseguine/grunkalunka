@@ -1097,13 +1097,6 @@
       "group": "bigint-values"
     },
     {
-      "id": "gap-label",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b30d1bd4274e5f766e58c5ec12b4c18aa6b592dd10eb9597faf3c20ac5458611",
-      "group": "labels"
-    },
-    {
       "id": "gap-nested-function",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1461,13 +1454,6 @@
       "group": "return-policy"
     },
     {
-      "id": "for-label",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6925b0244e14a04deb8288764be433d63d3ad5ee90272d777015e82e6dd17310",
-      "group": "labels"
-    },
-    {
       "id": "for-header-statement-limit",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1557,13 +1543,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "adbb610eb359119e17bef437a5e313e059c6771385e2d19f33e4c892e4973b13",
       "group": "const-errors"
-    },
-    {
-      "id": "do-label",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2d793648e96085a446b2bff87f3e1645a46493bfa8222c6db74f27795fea95e8",
-      "group": "labels"
     },
     {
       "id": "do-after-guaranteed-return",
@@ -3545,13 +3524,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d0f46f139f8ad11051fd52ab4097d50adba958f066bce277832a60bea0c81b36",
       "group": "const-errors"
-    },
-    {
-      "id": "label",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "fc86cdd55a48d51fa44872b18f0cc10de3e5bb475a58bffda0ff9b63485006d8",
-      "group": "labels"
     },
     {
       "id": "block-shadow-initializer",
