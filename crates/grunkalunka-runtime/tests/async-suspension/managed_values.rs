@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn mixed_addition_saves_both_primitive_tags_across_suspension() {
+    compare_promises(
+        &[
+            "let x=a?'x':2;const v=x+(await a,x='z',b?'y':3);return x==='z'&&(v===5||v==='xy'||v==='2y'||v==='x3')?1:0;",
+            "let n=0;try{const v=(n++,a?'x':2)+(await Promise.reject(b),n++,b?'y':3);}catch(e){return n===1&&e===b?7:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn required_optional_chain_tail_keeps_keys_lazy_during_suspension() {
     compare_promises(
         &[

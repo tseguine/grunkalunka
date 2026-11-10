@@ -319,21 +319,26 @@ fn kinds(
             Task::StringConcat => {
                 let right = values.pop().expect("right addition kinds");
                 let left = values.pop().expect("left addition kinds");
+                let scalar = left.iter().chain(&right).all(|kind| {
+                    matches!(
+                        kind,
+                        Kind::Primitive
+                            | Kind::GeneralPrimitive
+                            | Kind::BoxedPrimitive
+                            | Kind::String
+                    )
+                });
                 values.push(if left.is_empty() || right.is_empty() {
                     Kinds::new()
-                } else if (left.iter().all(|kind| *kind == Kind::String)
-                    || right.iter().all(|kind| *kind == Kind::String))
-                    && left.iter().chain(&right).all(|kind| {
-                        matches!(
-                            kind,
-                            Kind::Primitive
-                                | Kind::GeneralPrimitive
-                                | Kind::BoxedPrimitive
-                                | Kind::String
-                        )
-                    })
+                } else if scalar && (left.contains(&Kind::String) || right.contains(&Kind::String))
                 {
-                    [Kind::String].into()
+                    if left.iter().all(|kind| *kind == Kind::String)
+                        || right.iter().all(|kind| *kind == Kind::String)
+                    {
+                        [Kind::String].into()
+                    } else {
+                        [Kind::String, Kind::Primitive].into()
+                    }
                 } else {
                     [Kind::Primitive].into()
                 });

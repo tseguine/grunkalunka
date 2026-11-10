@@ -1956,3 +1956,44 @@ fn unsigned_array_reads_validate_key_receiver_and_result() {
         assert!(verify_module(&m).is_err());
     }
 }
+
+#[test]
+fn mixed_scalar_addition_verifies_operands_result_and_optional_formatter() {
+    let source = "export function run(a,b){const x=a?'x':2,y=b?'y':3;return x+y==='xy'?1:0;}";
+    for invalid in 0..3 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let f = &mut module.functions[0];
+        let (result, left, right) = f
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|o| match &mut o.kind {
+                Op::ManagedScalarAdd {
+                    result,
+                    left,
+                    right,
+                    ..
+                } => Some((*result, left, right)),
+                _ => None,
+            })
+            .unwrap();
+        match invalid {
+            0 => *left = ValueId(usize::MAX),
+            1 => *right = result,
+            _ => f.values[result.0] = Type::Number,
+        }
+        assert!(verify_module(&module).is_err());
+    }
+    assert!(
+        crate::compile(source, false)
+            .unwrap()
+            .wat
+            .contains("(global $inv5")
+    );
+    let text_or_bool =
+        "export function run(a,b){const x=a?'x':true,y=b?'y':null;return x+y==='xy'?1:0;}";
+    let wat = crate::compile(text_or_bool, false).unwrap().wat;
+    assert!(wat.contains("call $gc_scalar_number"));
+    assert!(!wat.contains("(global $inv5"));
+}

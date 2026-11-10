@@ -27,6 +27,10 @@ pub(super) enum ManagedWork<'e, 'a> {
     SpreadCopy(&'e Expression<'a>),
     ArrayLength(&'e Expression<'a>),
     StringLength(&'e Expression<'a>),
+    ScalarAdd {
+        node: &'e Expression<'a>,
+        numbers: bool,
+    },
     ConcatRight {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -423,7 +427,8 @@ impl Lowering<'_, '_> {
                         }
                         Expression::BinaryExpression(b)
                             if b.operator == BinaryOperator::Addition
-                                && self.stored.string(node.node_id()) =>
+                                && (self.stored.string(node.node_id())
+                                    || self.stored.string_or_number(node.node_id())) =>
                         {
                             values.push(Some(Type::ManagedValue));
                         }
@@ -663,6 +668,25 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if matches!(mode, Mode::Managed | Mode::Discard | Mode::Predicate)
+            && let Expression::BinaryExpression(binary) = node
+            && binary.operator == BinaryOperator::Addition
+            && self.stored.string_or_number(node.node_id())
+            && self.stored.scalar_string_operand(binary.left.node_id())
+            && self.stored.scalar_string_operand(binary.right.node_id())
+        {
+            match mode {
+                Mode::Discard => work.push(Work::Forget),
+                Mode::Predicate => work.push(Work::Managed(ManagedWork::Truthy(node))),
+                _ => {}
+            }
+            let numbers = self.stored.may_be_number(binary.left.node_id())
+                || self.stored.may_be_number(binary.right.node_id());
+            work.push(Work::Managed(ManagedWork::ScalarAdd { node, numbers }));
+            work.push(Work::Eval(&binary.right, depth + 1, Mode::Managed));
+            work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+            return Ok(true);
+        }
         if matches!(mode, Mode::Managed)
             && matches!(node, Expression::AwaitExpression(_))
             && self.stored.primitive(node.node_id())
@@ -1631,6 +1655,22 @@ impl Lowering<'_, '_> {
                 let result = self.value(Type::ManagedObject);
                 Self::push(regions.current(), node, Op::ManagedDictionaryNew { result });
                 values.push(Value::Object(result));
+            }
+            ManagedWork::ScalarAdd { node, numbers } => {
+                let right = values.pop().expect("addition right operand").id();
+                let left = values.pop().expect("addition left operand").id();
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedScalarAdd {
+                        result,
+                        left,
+                        right,
+                        numbers,
+                    },
+                );
+                values.push(Value::Managed(result));
             }
             ManagedWork::ConcatRight { node, right, depth } => {
                 let left = values.pop().expect("String addition left operand").id();
