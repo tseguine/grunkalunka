@@ -5,6 +5,29 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn runtime_kind_guards_select_accessible_operations_in_each_arm() {
+    for body in [
+        "const value=a?[a,b]:{n:b};if(Array.isArray(value))return value.length;return +value.n;",
+        "const value=a?'abc':[a,b];if(typeof value==='string')return value.charCodeAt(0);return value.length;",
+        "const value=a?{n:b}:null;if(value===null)return 3;return +value.n;",
+        "const value=a?undefined:[b];if(undefined!==value)return value.length;return 3;",
+        "const v=a?{n:b}:(b?null:undefined);if(v===null)return 1;if(v===undefined)return 2;return +v.n;",
+        "const v=a?'x':b;if('number'===typeof v)return v+1;return v.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const v=a?{n:b}:(b?null:undefined);if(v!==null)return +v.n;return 0;",
+        "const v=a?null:{n:b};if(typeof v==='object')return +v.n;return 0;",
+        "const Array={isArray:x=>true};const v=a?[b]:null;if(Array.isArray(v))return v.length;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn lexical_guards_allow_plain_member_reads_only_on_the_checked_path() {
     for body in [
         "const row=a?{v:b}:null;if(!row)return 7;return +row.v;",

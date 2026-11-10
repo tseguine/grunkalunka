@@ -5,6 +5,8 @@ fn nullish_guards_on_unchanged_locals_survive_suspension() {
     compare_promises(
         &[
             "const row=a?{n:b}:null;if(!row)return 7;await a;return +row.n;",
+            "const value=a?[a,b]:{n:b};if(Array.isArray(value)){await a;return value.length;}await b;return +value.n;",
+            "const value=a?'text':b;await b;if(typeof value==='string')return value.charCodeAt(0);return value+1;",
             "const xs=b?[a,b]:undefined;if(xs!=null){await b;return xs.length;}return 0;",
         ],
         &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],

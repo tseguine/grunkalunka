@@ -555,7 +555,7 @@ impl Fields {
         let var_symbols = var_bindings::symbols(semantic);
         let var_parameters = var_bindings::parameters(semantic);
         let var_aliases = var_bindings::aliases(semantic);
-        let non_nullish_reads = guard_reads::non_nullish(semantic);
+        let guarded_reads = guard_reads::collect(semantic);
         let chain_tails = required_chain_receivers(semantic);
         let chain_receivers: BTreeSet<_> = chain_tails.values().copied().collect();
         let mut reached_containers = BTreeSet::new();
@@ -1957,10 +1957,7 @@ impl Fields {
                         domain,
                     } => members.string_key_value(*receiver, *key, domain),
                 };
-                if non_nullish_reads.contains(id) {
-                    found.remove(&Origin::Null);
-                    found.remove(&Origin::Undefined);
-                }
+                guarded_reads.narrow(*id, &mut found);
                 additions.push((*id, found));
             }
             let snapshots = enumeration_inputs
