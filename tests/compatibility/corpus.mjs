@@ -181,7 +181,9 @@ import { selectedInstancePrograms, selectedInstanceRejected } from './selected-i
 
 import { literalNumericPrograms } from './literal-numeric-operands.mjs';
 
-export const corpusVersion = 208;
+import { localExportEntries } from './module-entries.mjs';
+
+export const corpusVersion = 209;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -303,6 +305,7 @@ programs.push(['array-brand-literal-spread', spreadBrandBody, spreadBrandBody, 1
 }]);
 programs.push(...selectedInstancePrograms);
 programs.push(...literalNumericPrograms);
+programs.push(...localExportEntries);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
 programs.push(...directivePrograms);
@@ -483,7 +486,6 @@ export const rejected = [
   ['extra-top-level', 'sideEffect(); export function run(a,b) { return a+b; }'],
   ['extra-export', 'export function run(a,b) { return a; } export const x = 2;'],
   ['default-export', 'export default function run(a,b) { return a; }'],
-  ['named-export', 'function run(a,b) { return a; } export {run};'],
   ['wrong-name', 'export function other(a,b) { return a; }'],
   ['async', 'export async function run(a,b) { return a; }'],
   ['generator', 'export function* run(a,b) { return a; }'],

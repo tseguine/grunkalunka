@@ -1,7 +1,7 @@
 //! Provisional String/JSON expression heap profile, grown by counterexamples.
 use crate::{Artifact, lower};
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{BindingPattern, Declaration, Expression, Statement};
+use oxc_ast::ast::{BindingPattern, Expression, Statement};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
@@ -26,22 +26,22 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
     if !built.diagnostics.is_empty() {
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
-    let mut items = parsed
+    let items: Vec<_> = parsed
         .program
         .body
         .iter()
-        .filter(|item| !crate::is_empty_module_item(item));
-    let (Some(Statement::ExportDeclaration(export)), None) = (items.next(), items.next()) else {
+        .filter(|item| !crate::is_empty_module_item(item))
+        .collect();
+    let selected = crate::module_entries::select(&parsed.program, &built.semantic, &items)
+        .map_err(|_| "heap spike expects one exported function")?;
+    let [function] = selected.declarations.as_slice() else {
         return Err("heap spike expects one exported function".into());
-    };
-    let Declaration::FunctionDeclaration(function) = &export.declaration else {
-        return Err("heap spike expects a function".into());
     };
     if function.r#async
         || function.generator
         || function.declare
         || function.this_param.is_some()
-        || function.id.as_ref().is_none_or(|id| id.name != "run")
+        || !selected.exports_run
     {
         return Err("heap profile expects a plain synchronous function named run".into());
     }

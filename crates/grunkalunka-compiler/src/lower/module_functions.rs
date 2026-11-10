@@ -14,6 +14,8 @@ fn needs_value(symbol: SymbolId, semantic: &Semantic<'_>) -> bool {
             let mut ancestors = semantic.nodes().ancestor_kinds(reference.node_id());
             loop {
                 match ancestors.next() {
+                    // A module export names a binding without evaluating it.
+                    Some(AstKind::ExportSpecifier(_)) => return false,
                     Some(
                         AstKind::ParenthesizedExpression(_)
                         | AstKind::TSAsExpression(_)
