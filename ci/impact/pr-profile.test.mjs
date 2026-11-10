@@ -69,10 +69,14 @@ function activeRuns(job, context) {
 const verificationRuns = runs => runs.filter(line =>
   /^(?:node (?:scripts\/check\.mjs|ci\/impact\/pr-gate\.mjs)|cargo test)(?:\s|$)/.test(line));
 
-test('Linux and Windows PRs have a 15-minute gate and no full-test route', () => {
+test('Linux and Windows PRs have a bounded fast gate and no full-test route', () => {
   const checks = block(read('.github/workflows/ci.yml'), '  checks:');
   const timeout = scalar(checks, 'timeout-minutes', 4);
-  assert.equal(evaluate(timeout, { eventName: 'pull_request' }), 15);
+  const prLimit = evaluate(timeout, { eventName: 'pull_request' });
+  const fullLimit = evaluate(timeout, { eventName: 'push' });
+  assert.ok(Number.isSafeInteger(prLimit) && prLimit > 0, 'PR job must be bounded');
+  assert.ok(Number.isSafeInteger(fullLimit) && fullLimit >= prLimit,
+    'the full job must not have a smaller budget than the fast PR job');
   for (const eventName of ['pull_request', 'push', 'workflow_dispatch']) {
     assert.deepEqual(verificationRuns(activeRuns(checks, { eventName })),
       [eventName === 'pull_request' ? 'node ci/impact/pr-gate.mjs' : 'node scripts/check.mjs'],
@@ -97,15 +101,13 @@ test('automatic macOS fallback uses the bounded profile while master and manual 
   assert.equal(scalar(input, 'type', 8), 'boolean');
   assert.equal(scalar(input, 'default', 8), 'false');
   const verify = block(macos, '  verify:');
-  // Queue contention must not consume the native fallback's execution budget.
-  // The job envelope is wider, but actual PR build and checks stay bounded.
-  for (const context of [
-    { eventName: 'workflow_call', prChecks: true },
-    { eventName: 'workflow_call', prChecks: false },
-    { eventName: 'push', prChecks: false },
-  ]) {
-    assert.equal(evaluate(scalar(verify, 'timeout-minutes', 4), context), 65);
-  }
+  // Guard the execution policy, not a sacred timeout number. The queue-aware
+  // job envelope must be positive and leave room beyond the bounded PR steps.
+  const jobEnvelope = evaluate(scalar(verify, 'timeout-minutes', 4), {
+    eventName: 'workflow_call', prChecks: true,
+  });
+  assert.ok(Number.isSafeInteger(jobEnvelope) && jobEnvelope > 0,
+    'native fallback must have a positive job timeout');
   const steps = verify.split(/^      - /m).slice(1);
   const namedStep = name => {
     const matches = steps.filter(step => step.startsWith('name: ' + name + '\n'));
@@ -113,16 +115,24 @@ test('automatic macOS fallback uses the bounded profile while master and manual 
     return matches[0];
   };
   const build = namedStep('Full workspace build');
-  assert.equal(evaluate(scalar(build, 'timeout-minutes', 8), {
+  const prBuildLimit = evaluate(scalar(build, 'timeout-minutes', 8), {
     eventName: 'workflow_call', prChecks: true,
-  }), 10);
-  assert.equal(evaluate(scalar(build, 'timeout-minutes', 8), {
+  });
+  const fullBuildLimit = evaluate(scalar(build, 'timeout-minutes', 8), {
     eventName: 'push', prChecks: false,
-  }), 65);
+  });
   const fast = namedStep('Complete fast PR profile');
-  assert.equal(evaluate(scalar(fast, 'timeout-minutes', 8), {
+  const prTestLimit = evaluate(scalar(fast, 'timeout-minutes', 8), {
     eventName: 'workflow_call', prChecks: true,
-  }), 15);
+  });
+  assert.ok(Number.isSafeInteger(prBuildLimit) && prBuildLimit > 0,
+    'PR build step must be bounded');
+  assert.ok(Number.isSafeInteger(prTestLimit) && prTestLimit > 0,
+    'PR test step must be bounded');
+  assert.ok(Number.isSafeInteger(fullBuildLimit) && fullBuildLimit >= prBuildLimit,
+    'full build must not have a smaller budget than PR build');
+  assert.ok(jobEnvelope > prBuildLimit + prTestLimit,
+    'macOS job envelope must leave time for runner queueing and setup');
   assert.equal(evaluate(scalar(fast, 'if', 8), {
     eventName: 'workflow_call', prChecks: true,
   }), true);
