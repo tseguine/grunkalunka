@@ -1,4 +1,4 @@
-//! String-only += saves its reference and old value before evaluating its RHS.
+//! Managed scalar += saves its reference and old value before evaluating its RHS.
 use super::managed::ManagedWork;
 use super::*;
 
@@ -47,14 +47,18 @@ impl Lowering<'_, '_> {
             return Ok(false);
         };
         if assignment.operator != AssignmentOperator::Addition
-            || !self.stored.string(node.node_id())
+            || !(self.stored.string(node.node_id()) || self.stored.string_or_number(node.node_id()))
         {
             return Ok(false);
         }
         let Some(target) = assignment.left.as_simple_assignment_target() else {
             return Ok(false);
         };
-        if !self.stored.scalar_string_operand(target.node_id()) {
+        if !self.stored.scalar_string_operand(target.node_id())
+            || !self
+                .stored
+                .scalar_string_operand(assignment.right.node_id())
+        {
             return Ok(false);
         }
         let property = match target {
@@ -133,7 +137,7 @@ impl Lowering<'_, '_> {
                 destination: Destination::Local(slot),
                 left,
             }));
-            self.schedule_string_operand(&assignment.right, depth + 1, work)?;
+            self.schedule_addition_rhs(node, &assignment.right, depth + 1, work)?;
         } else if let Some((object, key, array)) = property {
             work.push(Work::StringAddition(Task::Receiver {
                 node,
@@ -227,7 +231,22 @@ impl Lowering<'_, '_> {
             destination: Destination::Property { object, key },
             left,
         }));
-        self.schedule_string_operand(right, depth, work)
+        self.schedule_addition_rhs(node, right, depth, work)
+    }
+
+    fn schedule_addition_rhs<'e, 'a>(
+        &self,
+        node: &Expression<'_>,
+        right: &'e Expression<'a>,
+        depth: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        if self.stored.string_or_number(node.node_id()) {
+            work.push(Work::Eval(right, depth, Mode::Managed));
+            Ok(())
+        } else {
+            self.schedule_string_operand(right, depth, work)
+        }
     }
 
     fn finish_string_addition(
@@ -245,7 +264,8 @@ impl Lowering<'_, '_> {
             .left
             .as_simple_assignment_target()
             .expect("validated reference");
-        let left = if self.stored.string(target.node_id()) {
+        let mixed = self.stored.string_or_number(node.node_id());
+        let left = if mixed || self.stored.string(target.node_id()) {
             left
         } else {
             let result = self.value(Type::ManagedValue);
@@ -265,10 +285,20 @@ impl Lowering<'_, '_> {
         Self::push(
             regions.current(),
             node,
-            Op::ManagedStringConcat {
-                result,
-                left,
-                right,
+            if mixed {
+                Op::ManagedScalarAdd {
+                    result,
+                    left,
+                    right,
+                    numbers: self.stored.may_be_number(target.node_id())
+                        || self.stored.may_be_number(assignment.right.node_id()),
+                }
+            } else {
+                Op::ManagedStringConcat {
+                    result,
+                    left,
+                    right,
+                }
             },
         );
         Self::push(

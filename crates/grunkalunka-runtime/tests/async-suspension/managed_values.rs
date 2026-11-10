@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn mixed_scalar_compounds_commit_after_the_rhs_and_keep_the_old_reference() {
+    compare_promises(
+        &[
+            "let x=a?'x':2;const v=x+=(await b,x='reset',b?'y':3);return x===v&&(v===5||v==='xy'||v==='2y'||v==='x3')?1:0;",
+            "let row={v:a?'x':2};const old=row,k='v';const v=row[k]+=(await b,row={v:'new'},b?'y':3);return old.v===v&&row.v==='new'?1:0;",
+            "const row={v:a?'x':2};const old=row.v;try{row.v+=(await Promise.reject(b),b?'y':3);}catch(e){return row.v===old&&e===b?7:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn mixed_addition_saves_both_primitive_tags_across_suspension() {
     compare_promises(
         &[

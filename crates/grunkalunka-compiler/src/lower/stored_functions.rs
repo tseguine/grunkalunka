@@ -23,6 +23,15 @@ pub(super) enum Origin {
     Undefined,
     Other,
 }
+impl Origin {
+    fn scalar(&self) -> bool {
+        matches!(
+            self,
+            Self::String | Self::Number | Self::Boolean | Self::Null | Self::Undefined
+        )
+    }
+}
+
 type Alternatives = BTreeSet<Origin>;
 type Key = Vec<u16>;
 enum Rule {
@@ -672,6 +681,7 @@ impl Fields {
         let mut writes = Vec::new();
         let mut member_iteration_rules = Vec::new();
         let mut numeric_targets = Vec::new();
+        let mut local_additions = BTreeSet::new();
         let mut lexical_initializers = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
@@ -933,11 +943,19 @@ impl Fields {
                         .left
                         .as_simple_assignment_target()
                         .expect("checked simple assignment target");
-                    Some(if target_identifier(target, 0).ok().flatten().is_some() {
-                        Rule::Addition(target.node_id(), assignment.right.node_id())
-                    } else {
-                        Rule::PropertyAddition(target.node_id(), assignment.right.node_id())
-                    })
+                    Some(
+                        if let Some(local) = target_identifier(target, 0)
+                            .ok()
+                            .flatten()
+                            .and_then(|id| symbol(id, semantic))
+                        {
+                            definitions.push(Definition::Value(local, id));
+                            local_additions.insert(local);
+                            Rule::Addition(target.node_id(), assignment.right.node_id())
+                        } else {
+                            Rule::PropertyAddition(target.node_id(), assignment.right.node_id())
+                        },
+                    )
                 }
                 AstKind::AssignmentExpression(assignment)
                     if evaluate::property_update::compound(assignment.operator).is_some() =>
@@ -1782,34 +1800,17 @@ impl Fields {
                         let right = get(right);
                         if left.is_empty() || right.is_empty() {
                             Alternatives::new()
-                        } else if (left.iter().all(|v| *v == Origin::String)
-                            || right.iter().all(|v| *v == Origin::String))
-                            && left.iter().chain(&right).all(|v| {
-                                matches!(
-                                    v,
-                                    Origin::String
-                                        | Origin::Number
-                                        | Origin::Boolean
-                                        | Origin::Null
-                                        | Origin::Undefined
-                                )
-                            })
+                        } else if (left.contains(&Origin::String)
+                            || right.contains(&Origin::String))
+                            && left.iter().chain(&right).all(Origin::scalar)
                         {
-                            BTreeSet::from([Origin::String])
-                        } else if matches!(semantic.nodes().kind(*id), AstKind::BinaryExpression(_))
-                            && (left.contains(&Origin::String) || right.contains(&Origin::String))
-                            && left.iter().chain(&right).all(|v| {
-                                matches!(
-                                    v,
-                                    Origin::String
-                                        | Origin::Number
-                                        | Origin::Null
-                                        | Origin::Undefined
-                                        | Origin::Boolean
-                                )
-                            })
-                        {
-                            BTreeSet::from([Origin::String, Origin::Number])
+                            let mut result = BTreeSet::from([Origin::String]);
+                            if !left.iter().all(|v| *v == Origin::String)
+                                && !right.iter().all(|v| *v == Origin::String)
+                            {
+                                result.insert(Origin::Number);
+                            }
+                            result
                         } else if left
                             .iter()
                             .chain(&right)
@@ -2174,6 +2175,11 @@ impl Fields {
                                     })
                             })
                         });
+                    let preserves_scalar_sum = local_additions.contains(&symbol)
+                        && bindings.get(&symbol).is_some_and(|origins| origins.contains(&Origin::String)
+                            && origins.iter().all(Origin::scalar))
+                        && numeric_targets.iter().filter(|(_,_,target)| *target == symbol).all(|(_,result,_)|
+                            matches!(semantic.nodes().kind(*result), AstKind::AssignmentExpression(a) if a.operator == AssignmentOperator::Addition || a.operator.is_logical()));
                     // A logical assignment retains the old reference or stores
                     // its RHS, already tracked in the binding definitions.
                     let preserves_container = bindings.get(&symbol).is_some_and(|origins| {
@@ -2226,6 +2232,7 @@ impl Fields {
                     } else if !preserves_string
                         && !preserves_boolean
                         && !preserves_functions
+                        && !preserves_scalar_sum
                         && !preserves_container
                     {
                         changed |= extend(&mut bindings, symbol, BTreeSet::from([Origin::Other]));
@@ -2270,7 +2277,13 @@ impl Fields {
                         )
                     })
                 });
-                (starts_nullish && needs_reference).then_some(symbol)
+                let mixed_sum = local_additions.contains(&symbol)
+                    && bindings.get(&symbol).is_some_and(|origins| {
+                        origins.contains(&Origin::String)
+                            && origins.len() > 1
+                            && origins.iter().all(Origin::scalar)
+                    });
+                ((starts_nullish && needs_reference) || mixed_sum).then_some(symbol)
             })
             .collect();
         let required_chain_reads = chain_tails
