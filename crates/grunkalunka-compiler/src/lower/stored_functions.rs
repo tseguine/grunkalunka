@@ -625,20 +625,17 @@ impl Fields {
                 has_iterations = true;
                 let value = left.node_id();
                 member_iteration_rules.push((value, rule));
-                match key {
-                    iteration::PropertyKey::Literal(key) => {
-                        writes.push((receiver.node_id(), key, value))
-                    }
-                    iteration::PropertyKey::Runtime(_) => {
-                        mutations.push(mutations::Mutation::AnyKeyWrite {
-                            receiver: receiver.node_id(),
-                            value,
-                        })
-                    }
-                }
+                mutations::write(
+                    receiver.node_id(),
+                    key,
+                    value,
+                    &record_names,
+                    &mut writes,
+                    &mut mutations,
+                );
             }
             if let AstKind::UnaryExpression(unary) = node.kind()
-                && let Some(mutation) = mutations::delete(unary, &uint32_keys)
+                && let Some(mutation) = mutations::delete(unary, &uint32_keys, &record_names)
             {
                 mutations.push(mutation);
             }
@@ -731,16 +728,14 @@ impl Fields {
                         id,
                     )),
                     SimpleAssignmentTarget::ComputedMemberExpression(member) => {
-                        if let Some(key) = closures::unwrapped(&member.expression, 0)
-                            .and_then(static_keys::literal)
-                        {
-                            writes.push((member.object.node_id(), key, id));
-                        } else {
-                            mutations.push(mutations::Mutation::AnyKeyWrite {
-                                receiver: member.object.node_id(),
-                                value: id,
-                            });
-                        }
+                        mutations::write(
+                            member.object.node_id(),
+                            iteration::PropertyKey::Runtime(&member.expression),
+                            id,
+                            &record_names,
+                            &mut writes,
+                            &mut mutations,
+                        );
                     }
                     _ => (),
                 }
@@ -1229,17 +1224,14 @@ impl Fields {
                                     } else {
                                         pattern_rules.push((id, selection));
                                     }
-                                    match key {
-                                        iteration::PropertyKey::Literal(key) => {
-                                            writes.push((receiver.node_id(), key, id))
-                                        }
-                                        iteration::PropertyKey::Runtime(_) => {
-                                            mutations.push(mutations::Mutation::AnyKeyWrite {
-                                                receiver: receiver.node_id(),
-                                                value: id,
-                                            })
-                                        }
-                                    }
+                                    mutations::write(
+                                        receiver.node_id(),
+                                        key,
+                                        id,
+                                        &record_names,
+                                        &mut writes,
+                                        &mut mutations,
+                                    );
                                 }
                             }
                         }
@@ -1266,17 +1258,14 @@ impl Fields {
                                 let id = rest.target.node_id();
                                 pattern_rules
                                     .push((id, Rule::Known(Origin::Array(rest.node_id()))));
-                                match key {
-                                    iteration::PropertyKey::Literal(key) => {
-                                        writes.push((receiver.node_id(), key, id))
-                                    }
-                                    iteration::PropertyKey::Runtime(_) => {
-                                        mutations.push(mutations::Mutation::AnyKeyWrite {
-                                            receiver: receiver.node_id(),
-                                            value: id,
-                                        })
-                                    }
-                                }
+                                mutations::write(
+                                    receiver.node_id(),
+                                    key,
+                                    id,
+                                    &record_names,
+                                    &mut writes,
+                                    &mut mutations,
+                                );
                             }
                         }
                     }
@@ -1357,17 +1346,14 @@ impl Fields {
                                     } else {
                                         pattern_rules.push((id, selection));
                                     }
-                                    match member_key {
-                                        iteration::PropertyKey::Literal(key) => {
-                                            writes.push((receiver.node_id(), key, id))
-                                        }
-                                        iteration::PropertyKey::Runtime(_) => {
-                                            mutations.push(mutations::Mutation::AnyKeyWrite {
-                                                receiver: receiver.node_id(),
-                                                value: id,
-                                            })
-                                        }
-                                    }
+                                    mutations::write(
+                                        receiver.node_id(),
+                                        member_key,
+                                        id,
+                                        &record_names,
+                                        &mut writes,
+                                        &mut mutations,
+                                    );
                                 }
                             }
                         }
@@ -1397,17 +1383,14 @@ impl Fields {
                                 let id = rest.target.node_id();
                                 pattern_rules
                                     .push((id, Rule::Known(Origin::Object(rest.node_id()))));
-                                match key {
-                                    iteration::PropertyKey::Literal(key) => {
-                                        writes.push((receiver.node_id(), key, id))
-                                    }
-                                    iteration::PropertyKey::Runtime(_) => {
-                                        mutations.push(mutations::Mutation::AnyKeyWrite {
-                                            receiver: receiver.node_id(),
-                                            value: id,
-                                        })
-                                    }
-                                }
+                                mutations::write(
+                                    receiver.node_id(),
+                                    key,
+                                    id,
+                                    &record_names,
+                                    &mut writes,
+                                    &mut mutations,
+                                );
                             }
                         }
                     }
@@ -1429,16 +1412,14 @@ impl Fields {
                                 ))
                             }
                             Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
-                                if let Some(key) = closures::unwrapped(&m.expression, 0)
-                                    .and_then(static_keys::literal)
-                                {
-                                    writes.push((m.object.node_id(), key, a.right.node_id()));
-                                } else {
-                                    mutations.push(mutations::Mutation::AnyKeyWrite {
-                                        receiver: m.object.node_id(),
-                                        value: a.right.node_id(),
-                                    });
-                                }
+                                mutations::write(
+                                    m.object.node_id(),
+                                    iteration::PropertyKey::Runtime(&m.expression),
+                                    a.right.node_id(),
+                                    &record_names,
+                                    &mut writes,
+                                    &mut mutations,
+                                );
                             }
                             _ => (),
                         }
@@ -1854,20 +1835,24 @@ impl Fields {
             let mut wildcard_additions = Vec::new();
             for mutation in &mutations {
                 match mutation {
-                    mutations::Mutation::KeyDelete { receiver, key } => {
-                        for origin in get(receiver) {
-                            if let Origin::Object(object)
-                            | Origin::NullObject(object)
-                            | Origin::Array(object) = origin
-                            {
-                                let undefined = BTreeSet::from([Origin::Undefined]);
-                                write_additions.push(((object, key.clone()), undefined.clone()));
-                                if matches!(origin, Origin::Array(_))
-                                    && mutations::array_index(key).is_some()
+                    mutations::Mutation::KeyDelete { receiver, keys } => {
+                        for key in keys {
+                            for origin in get(receiver) {
+                                if let Origin::Object(object)
+                                | Origin::NullObject(object)
+                                | Origin::Array(object) = origin
                                 {
-                                    deleted.push(object);
-                                    if track_elements {
-                                        changed |= elements.write(object, key, undefined, &fields);
+                                    let undefined = BTreeSet::from([Origin::Undefined]);
+                                    write_additions
+                                        .push(((object, key.clone()), undefined.clone()));
+                                    if matches!(origin, Origin::Array(_))
+                                        && mutations::array_index(key).is_some()
+                                    {
+                                        deleted.push(object);
+                                        if track_elements {
+                                            changed |=
+                                                elements.write(object, key, undefined, &fields);
+                                        }
                                     }
                                 }
                             }

@@ -285,6 +285,9 @@ mod tests {
     fn finite_field_selection_preserves_misses_and_writes() {
         for body in [
             "const o={x:v=>v};const k=a?'x':'missing';return o[k](b);",
+            "const o={f:x=>x,y:2},k=a?'y':'f';o[k]=b;return o.f(a);",
+            "const o={f:x=>x,y:2},k=a?'y':'f';delete o[k];return o.f(a);",
+            "const o={f:x=>x};let k='f';const alias=o;alias[k]=0;return o.f(a);",
             "const o={x:v=>v,y:3};const k=a?'x':'y';return o[k](b);",
             "const o={x:v=>v};const k='x';const alias=o;alias.x=3;return o[k](b);",
             "const o={x:'yes'};const k='x';delete o.x;return o[k].length;",
