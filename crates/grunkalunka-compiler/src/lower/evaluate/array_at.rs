@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) struct Task<'e, 'a> {
     pub node: &'e Expression<'a>,
-    pub call: &'e CallExpression<'a>,
+    pub arguments: invocation::Arguments<'e, 'a>,
     pub array: Option<ValueId>,
     pub index: Option<ValueId>,
     pub argument: usize,
@@ -22,13 +22,14 @@ impl Lowering<'_, '_> {
         } else if task.argument == 1 && task.index.is_none() {
             task.index = Some(values.pop().expect("at index").id());
         }
-        if task.call.arguments.len() > 1000 {
+        if task.arguments.len() > 1000 {
             return Err(unsupported(
                 task.node,
                 "at most 1000 at arguments are admitted",
             ));
         }
-        if let Some(argument) = task.call.arguments.get(task.argument) {
+        if let Some(argument) = task.arguments.get(task.argument) {
+            let depth = task.depth + 1 + argument.depth;
             let argument = argument
                 .as_expression()
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
@@ -37,7 +38,6 @@ impl Lowering<'_, '_> {
             } else {
                 Mode::Discard
             };
-            let depth = task.depth + 1;
             task.argument += 1;
             work.push(Work::ArrayAt(task));
             work.push(Work::Eval(argument, depth, mode));

@@ -830,7 +830,7 @@ new admission from these facts.
 This specializes the intrinsic only for known arrays: admitted source cannot
 replace their `at` property, mutate their prototypes or import a foreign array.
 Ordinary objects with their own callable `at` retain the ordinary call path.
-Non-Number index coercion, borrowed `.at.call`, optional calls, spread arguments,
+Non-Number index coercion, borrowed `.at.call`, optional calls, dynamic iterable spreads,
 generic computed properties and arbitrary boxed-element numeric arithmetic remain
 separate work. TypeScript annotations do not widen this admission.
 
@@ -1470,8 +1470,8 @@ source indices, including aliases and writes to either array. Dynamic endpoints
 may select any subset, so analysis conservatively includes all source positions.
 Named fields do not contribute. Direct indexed reads can miss; holes, resizing
 and incompatible writes retain conservative guards. Shared child identities
-remain linked for field mutation analysis. Borrowed/optional calls, spread call
-arguments, endpoint object coercion, custom species and prototype changes remain
+remain linked for field mutation analysis. Borrowed/optional calls, dynamic iterable spreads,
+endpoint object coercion, custom species and prototype changes remain
 outside the admitted surface. Ordinary source methods named `slice` retain their
 existing call behavior. Tests in `managed-arrays.rs`, the suspension suite and
 `a1_ui_import.rs` compare source behavior across native JS, Node-Wasm and Wasmtime.
@@ -1821,3 +1821,9 @@ When both arms of an `if/else` end in a plain assignment to the same local
 and those are its only writes, reads after the conditional in its block
 can use the union of the two RHS values. Both alternatives must support
 the subsequent operation.
+
+
+Calls to `at`, `slice`, `includes`, `indexOf` and
+`lastIndexOf` on proven Arrays accept nested, hole-free Array-literal
+argument spreads. The receiver and earlier arguments are saved while later
+arguments run; the operation observes mutations up to the actual call.

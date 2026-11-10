@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn array_method_spreads_save_earlier_arguments_across_await() {
+    compare_promises(
+        &[
+            "let xs=[a,b];const saved=xs;const v=xs.at(...[(await a,0)],...[(xs=[],await b,saved[0]=b)]);return v===b?1:0;",
+            "let n=0;const xs=[a,b];try{xs.slice(...[(n++,0),await Promise.reject(b)],n++);}catch(e){return n===1&&e===b?1:0;}return 99;",
+            "const xs=[a];return xs.includes(...[b,...[(await b,xs[0]=b,0)]])?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn completed_lexical_assignment_keeps_its_reference_across_await() {
     compare_promises(
         &[

@@ -920,7 +920,7 @@ impl Lowering<'_, '_> {
             // their ordinary call path; this is not a generic receiver cast.
             work.push(Work::ArrayAt(super::array_at::Task {
                 node,
-                call,
+                arguments: invocation::plain_arguments(&call.arguments),
                 array: None,
                 index: None,
                 argument: 0,
@@ -1137,7 +1137,7 @@ impl Lowering<'_, '_> {
         {
             work.push(Work::ArraySlice(super::array_slice::Task {
                 node,
-                call,
+                arguments: invocation::plain_arguments(&call.arguments),
                 array: None,
                 inputs: [None; 2],
                 argument: 0,

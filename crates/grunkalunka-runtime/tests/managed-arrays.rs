@@ -2,6 +2,23 @@
 mod common;
 
 #[test]
+fn fixed_spreads_in_array_reads_preserve_argument_order_and_receiver() {
+    for body in [
+        "const x=[a];return +x.at(...[0]);",
+        "const xs=[b];return xs.includes(...[b])?1:0;",
+        "const xs=[b];return xs.slice(...[0]).length;",
+        "let xs=[a,b];const saved=xs;const v=xs.at(...[0,...[(xs=[],saved[0]=b)]]);return v===saved[0]?1:0;",
+        "const xs=[a,,b];const c=xs.slice(...[],...[1,undefined]);return c.length===2&&!Object.hasOwn(c,0)?1:0;",
+        "const xs=[a,b,a];return xs.indexOf(...[a],1)+xs.lastIndexOf(...[a,...[1]]);",
+        "const xs=[a];let n=0;const v=xs.includes(...[(n=1,b),0],(n=n*10+2,xs[0]=b));return v?n:0;",
+        "const xs=[undefined,1];return xs.lastIndexOf(...[])===xs.lastIndexOf(undefined)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn array_lengths_accept_unsigned_choices_and_preserve_evaluation() {
     for body in [
         "const xs=[a,b];xs.length=a?1:0;return xs.length;",
@@ -498,6 +515,7 @@ fn array_at_keeps_unsupported_receivers_coercions_and_overrides_explicit() {
         "const x=[a];return x.at.call(x,0);",
         "const x=a?[a]:null;return x.at(0);",
         "const x=[a];return x.at(...[0]);",
+        "const x=[a],args=[0];return +x.at(...args);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -830,7 +848,7 @@ fn array_includes_requires_a_checked_receiver_and_position() {
     for body in [
         "const xs=a?[b]:null;return xs.includes(b)?1:0;",
         "const xs=[b];return xs.includes(b,{})?1:0;",
-        "const xs=[b];return xs.includes(...[b])?1:0;",
+        "const xs=[b],args=[b];return xs.includes(...args)?1:0;",
         "const xs=[b];xs.includes=()=>a;return xs.includes(b)?1:0;",
         "const xs=[b];return xs.includes?.(b)?1:0;",
     ] {

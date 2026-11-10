@@ -18,13 +18,14 @@ impl Lowering<'_, '_> {
         depth: usize,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        if call.arguments.len() > 1000 {
+        let arguments = invocation::plain_arguments(&call.arguments);
+        if arguments.len() > 1000 {
             return Err(unsupported(
                 node,
                 "at most 1000 array search arguments are admitted",
             ));
         }
-        let from = match call.arguments.get(1).and_then(|arg| arg.as_expression()) {
+        let from = match arguments.get(1).and_then(|arg| arg.as_expression()) {
             None => Start::Omitted,
             Some(arg) if crate::lower::string_methods::undefined(arg, self.semantic) => {
                 Start::Undefined
@@ -34,10 +35,11 @@ impl Lowering<'_, '_> {
         work.push(Work::ArraySearch {
             node,
             kind,
-            has_needle: !call.arguments.is_empty(),
+            has_needle: arguments.first().is_some(),
             from,
         });
-        for (index, arg) in call.arguments.iter().enumerate().rev() {
+        for (index, arg) in arguments.into_iter().enumerate().rev() {
+            let arg_depth = depth + 1 + arg.depth;
             let arg = arg
                 .as_expression()
                 .ok_or_else(|| unsupported(node, "spread call arguments are not admitted"))?;
@@ -46,7 +48,7 @@ impl Lowering<'_, '_> {
                 1 if matches!(from, Start::Number) => Mode::Number,
                 _ => Mode::Discard,
             };
-            work.push(Work::Eval(arg, depth + 1, mode));
+            work.push(Work::Eval(arg, arg_depth, mode));
         }
         work.push(Work::Eval(receiver, depth + 1, Mode::Array));
         Ok(())
