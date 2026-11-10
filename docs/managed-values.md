@@ -1836,3 +1836,8 @@ arguments run; the operation observes mutations up to the actual call.
 Supported String methods also accept fixed Array-literal spreads, including
 UTF-16 indexing, range selection, search, concatenation and repetition.
 Each method applies its ordinary defaults to the expanded argument list.
+
+
+When all writes to a lexical local are plain assignments in one statement
+list, later reads in that block use the most recent completed assignment.
+A read inside a subsequent RHS still sees the previous value.

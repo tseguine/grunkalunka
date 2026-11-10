@@ -5,6 +5,28 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn sequential_local_stores_select_the_most_recent_completed_value() {
+    for body in [
+        "let item;item={n:a};const first=item.n;item=[first,b];return item.length+ +item[0];",
+        "let x;x=[b];x={count:x.length};x=[x.count,a];return +x[0]+x.length;",
+        "let row;if(a){row={v:b};const old=row;row={v:a};return old===row?99:+row.v;}return 0;",
+        "let x;let n=0;for(const v of [a,b]){x=[v];n+=x.length;x={v:v};n+= +x.v;}return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "let x;x=[b];if(a)x=null;return x.length;",
+        "let x;if(a){x=[b];x=[a];}return x.length;",
+        "let x;x=[a];x=null;return x.length;",
+        "let x;const read=()=>x.length;x=[a];x=null;return read();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn required_members_after_optional_links_skip_only_unreached_receivers() {
     for body in [
         "const root=a?{row:{n:b}}:null;return +(root?.row.n??7);",
