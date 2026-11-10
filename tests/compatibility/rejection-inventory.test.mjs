@@ -373,7 +373,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
 
-test('mixed String addition executes both original rejection sources', () => {
+test('mixed String addition executes both original rejection sources', async () => {
   for (const [id, hash] of [
     ['gap-string-coercion', 'f62e0982596b138842c8528ee56dbbf8d24e5bb9cabc664c2c7ba76a5609586c'],
     ['directive-asi-add', 'f51fcf8b3a858340a08fb654d6bdbc48f02b86807364041fca227c1f85347b12'],
@@ -382,7 +382,11 @@ test('mixed String addition executes both original rejection sources', () => {
     const source = programSources(row);
     assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), hash);
     assert.equal(source.oracleSource, source.sourceJS);
-    if (id === 'gap-string-coercion') assert.equal(row[3], 1);
+    if (id === 'gap-string-coercion') {
+      const oracle = await import(`data:text/javascript;base64,${Buffer.from(source.oracleSource).toString('base64')}`);
+      assert.equal(oracle.run(4, 2), 1);
+      assert.equal(oracle.run(0, 0), 0);
+    }
   }
 });
 

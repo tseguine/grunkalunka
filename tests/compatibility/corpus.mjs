@@ -283,7 +283,7 @@ programs.push(...emptyStatementPrograms);
 programs.push(...multipleDeclarators);
 programs.push(...intrinsicNumberPrograms);
 const stringCoercionBody = 'return a + "2" === "42" ? 1 : 0;';
-programs.push(['gap-string-coercion', stringCoercionBody, stringCoercionBody, 1, undefined, {
+programs.push(['gap-string-coercion', stringCoercionBody, stringCoercionBody, undefined, undefined, {
   sourceJS: `export function run(a,b) { ${stringCoercionBody} }`,
   sourceTS: `export function run(a:number,b:number):number { ${stringCoercionBody} }`,
 }]);
