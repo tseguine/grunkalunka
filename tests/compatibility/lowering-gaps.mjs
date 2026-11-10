@@ -28,7 +28,6 @@ for (const [id, body, expected, diagnostic] of [
 ]) add(id, 'operators', body, expected, diagnostic);
 
 for (const [id, body, expected, diagnostic] of [
-  ['string-coercion', 'return a + "2" === "42" ? 1 : 0;', 1, expression],
   ['bigint', 'return 1n === 1n ? a : b;', 4, expression],
 ]) add(id, 'values', body, expected, diagnostic);
 

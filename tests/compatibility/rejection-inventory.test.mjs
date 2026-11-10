@@ -368,9 +368,22 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 791);
+  assert.equal(inventory.records.size, 789);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('mixed String addition executes both original rejection sources', () => {
+  for (const [id, hash] of [
+    ['gap-string-coercion', 'f62e0982596b138842c8528ee56dbbf8d24e5bb9cabc664c2c7ba76a5609586c'],
+    ['directive-asi-add', 'f51fcf8b3a858340a08fb654d6bdbc48f02b86807364041fca227c1f85347b12'],
+  ]) {
+    const row = programs.find(program => program[0] === id);
+    const source = programSources(row);
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), hash);
+    assert.equal(source.oracleSource, source.sourceJS);
+    if (id === 'gap-string-coercion') assert.equal(row[3], 1);
+  }
 });
 
 test('switch continue retains its former rejected source as a native differential oracle', () => {

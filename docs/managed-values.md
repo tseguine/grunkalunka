@@ -228,8 +228,7 @@ Operand throws still bypass the String suspension, and every executed String
 await consumes the normal await/job budgets. String-valued Promises, async String
 return interfaces and reference/unknown thenable results remain separate work.
 
-Mutable source-proven String locals now support `+=` with a source-proven String
-RHS. The old String is saved before RHS effects or suspension, concatenated with
+Mutable source-proven String locals accept `+=` with a represented primitive RHS. The old String is saved before RHS effects or suspension, concatenated with
 the completed RHS, then stored and returned. Captures observe the new String;
 RHS rejection performs no store. UTF-16 units use the existing concatenation
 operation unchanged. Destructured and iteration cells follow the same path.
@@ -238,7 +237,7 @@ receiver and old String are saved before the RHS; receiver rebinding does not
 redirect the final store. The same operation covers nested receivers. Successful
 completion stores once, and a throw or rejection leaves the saved reference
 untouched by the compound store.
-Type assertions, mixed coercion, const local targets, runtime keys, missing fields,
+Type assertions, const local targets, runtime keys, missing fields,
 array length and accessors do not acquire String support from this increment.
 Dictionary fields retain an absent alternative in the source analysis; an earlier
 plain write alone does not prove that such a field contains only Strings.
@@ -664,15 +663,15 @@ helpers, captures, snapshots, erased types and async settlement traces.
 
 ## String concatenation
 
-Binary `+` concatenates two known String operands in the ordinary managed lane.
+Binary `+` concatenates when either operand is a known String and the other is a represented primitive.
 Both operands execute once, left to right; the saved left value survives a write
 or primitive await in the right expression. Concatenation creates a fresh UTF-16
 payload and preserves empty text, NULs, surrogate pairs and lone surrogates
 without normalization. Results compose with `.length`, equality, truthiness,
 local/property storage, admitted helper signatures and captures.
 
-This slice requires positive String facts for both operands. Mixed-kind `+`
-needs separate JavaScript coercion work. String-only `+=` over mutable locals and
+Object conversion and addition that can choose between numeric and String results
+remain guarded. String `+=` over mutable locals and
 static own data references uses the same concatenation operation as described above.
 The private helper is included only when the module needs it. It checks the sum
 in an unsigned 64-bit lane before allocating the Wasm32 array; overflow and

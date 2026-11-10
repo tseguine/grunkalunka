@@ -1680,36 +1680,30 @@ impl Fields {
                     Rule::Addition(left, right) | Rule::PropertyAddition(left, right) => {
                         let left = get(left);
                         let right = get(right);
-                        if matches!(rule, Rule::PropertyAddition(_, _))
-                            && !left.is_empty()
-                            && left.iter().all(|origin| {
+                        if left.is_empty() || right.is_empty() {
+                            Alternatives::new()
+                        } else if (left.iter().all(|v| *v == Origin::String)
+                            || right.iter().all(|v| *v == Origin::String))
+                            && left.iter().chain(&right).all(|v| {
                                 matches!(
-                                    origin,
-                                    Origin::Number
+                                    v,
+                                    Origin::String
+                                        | Origin::Number
                                         | Origin::Boolean
                                         | Origin::Null
                                         | Origin::Undefined
                                 )
                             })
                         {
-                            // Preserve the primitive numeric property path: its RHS is
-                            // independently checked for admitted primitive
-                            // ToNumber conversion (e.g. += undefined). This is
-                            // not a proof that a mixed/string RHS is numeric.
-                            BTreeSet::from([Origin::Number])
-                        } else if left.is_empty() || right.is_empty() {
-                            Alternatives::new()
-                        } else if left
-                            .iter()
-                            .chain(&right)
-                            .all(|origin| *origin == Origin::String)
-                        {
                             BTreeSet::from([Origin::String])
-                        } else if left
-                            .iter()
-                            .chain(&right)
-                            .all(|origin| *origin == Origin::Number)
-                        {
+                        } else if left.iter().chain(&right).all(|origin| {
+                            *origin == Origin::Number
+                                || (matches!(rule, Rule::PropertyAddition(_, _))
+                                    && matches!(
+                                        origin,
+                                        Origin::Boolean | Origin::Null | Origin::Undefined
+                                    ))
+                        }) {
                             BTreeSet::from([Origin::Number])
                         } else {
                             BTreeSet::from([Origin::Other])

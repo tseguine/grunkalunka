@@ -321,7 +321,18 @@ fn kinds(
                 let left = values.pop().expect("left addition kinds");
                 values.push(if left.is_empty() || right.is_empty() {
                     Kinds::new()
-                } else if left.iter().chain(&right).all(|kind| *kind == Kind::String) {
+                } else if (left.iter().all(|kind| *kind == Kind::String)
+                    || right.iter().all(|kind| *kind == Kind::String))
+                    && left.iter().chain(&right).all(|kind| {
+                        matches!(
+                            kind,
+                            Kind::Primitive
+                                | Kind::GeneralPrimitive
+                                | Kind::BoxedPrimitive
+                                | Kind::String
+                        )
+                    })
+                {
                     [Kind::String].into()
                 } else {
                     [Kind::Primitive].into()

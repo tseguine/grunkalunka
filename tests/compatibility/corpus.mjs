@@ -177,7 +177,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 197;
+export const corpusVersion = 198;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -282,6 +282,11 @@ programs.push(...predicateConditional);
 programs.push(...emptyStatementPrograms);
 programs.push(...multipleDeclarators);
 programs.push(...intrinsicNumberPrograms);
+const stringCoercionBody = 'return a + "2" === "42" ? 1 : 0;';
+programs.push(['gap-string-coercion', stringCoercionBody, stringCoercionBody, 1, undefined, {
+  sourceJS: `export function run(a,b) { ${stringCoercionBody} }`,
+  sourceTS: `export function run(a:number,b:number):number { ${stringCoercionBody} }`,
+}]);
 const arrayInstanceBody = 'return [] instanceof Array ? 1 : 0;';
 programs.push(['instanceof-array', arrayInstanceBody, arrayInstanceBody, 1, undefined, {
   sourceJS: `export function run(a,b) { ${arrayInstanceBody} }`,
