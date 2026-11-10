@@ -299,20 +299,7 @@ impl Lowering<'_, '_> {
         depth: usize,
     ) -> Option<(&'e Expression<'a>, Type)> {
         let (node, depth) = closures::unwrapped_at(node, depth)?;
-        let receiver = match node {
-            Expression::StaticMemberExpression(m) if !m.optional && m.property.name == "length" => {
-                &m.object
-            }
-            Expression::ComputedMemberExpression(m)
-                if !m.optional
-                    && closures::unwrapped_at(&m.expression, depth + 1).is_some_and(
-                        |(key, _)| matches!(key,Expression::StringLiteral(s) if s.value=="length"),
-                    ) =>
-            {
-                &m.object
-            }
-            _ => return None,
-        };
+        let receiver = static_keys::length_receiver(node, depth)?;
         if self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray) {
             Some((receiver, Type::ManagedArray))
         } else {

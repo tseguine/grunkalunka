@@ -2819,6 +2819,9 @@ same key path. The ordinary evaluator still checks
 all operands and effects. A simple `const` initialized with a proven unsigned
 expression or a uint32 integer literal retains the proof at subsequent reads,
 including through further const aliases. Its initializer executes once.
+Array and String literals, and const aliases of those receivers, also supply an
+unsigned `.length` or `["length"]`. Each read observes the current length, so
+`xs[xs.length] = value` snapshots the append position before RHS effects.
 Mutable Number cells, annotations and opaque helper results do not prove the range. Existing source depth/size limits still apply.
 
 Objects, dictionaries and Arrays evaluate and save the receiver before the key.

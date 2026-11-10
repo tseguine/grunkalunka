@@ -42,3 +42,23 @@ pub(super) fn number(expr: &Expression<'_>) -> Option<f64> {
         _ => None,
     }
 }
+
+pub(super) fn length_receiver<'e, 'a>(
+    node: &'e Expression<'a>,
+    depth: usize,
+) -> Option<&'e Expression<'a>> {
+    match node {
+        Expression::StaticMemberExpression(m) if !m.optional && m.property.name == "length" => {
+            Some(&m.object)
+        }
+        Expression::ComputedMemberExpression(m)
+            if !m.optional
+                && closures::unwrapped_at(&m.expression, depth + 1).is_some_and(
+                    |(key, _)| matches!(key,Expression::StringLiteral(s) if s.value=="length"),
+                ) =>
+        {
+            Some(&m.object)
+        }
+        _ => None,
+    }
+}
