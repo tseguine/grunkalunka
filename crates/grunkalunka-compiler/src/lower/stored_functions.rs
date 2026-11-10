@@ -555,7 +555,7 @@ impl Fields {
         let var_symbols = var_bindings::symbols(semantic);
         let var_parameters = var_bindings::parameters(semantic);
         let var_aliases = var_bindings::aliases(semantic);
-        let guarded_reads = guard_reads::collect(semantic);
+        let guarded_reads = guard_reads::collect(semantic, &var_symbols, &var_aliases);
         let chain_tails = required_chain_receivers(semantic);
         let chain_receivers: BTreeSet<_> = chain_tails.values().copied().collect();
         let mut reached_containers = BTreeSet::new();

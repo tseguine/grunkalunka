@@ -1884,3 +1884,8 @@ Both branches of a `typeof` comparison or unshadowed `Array.isArray` check
 retain the matching source kinds. Strict null and undefined comparisons
 exclude only the tested value, so separate checks can compose.
 `typeof null` remains `"object"`.
+
+
+The same guards apply to unchanged simple parameters of helpers and arrows.
+An assignment, a redeclaration, or an aliased `var` cell prevents parameter
+narrowing; source argument kinds still determine the callable interface.
