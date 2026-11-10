@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn deferred_managed_local_retains_nullish_state_until_assignment_finishes() {
+    compare_promises(
+        &[
+            "let row;const chosen=row??=(await b,{n:b});await a;return row===chosen?+chosen.n:0;",
+            "let xs=null;try{xs??=(await Promise.reject(b),[a]);}catch(e){const v=xs??=[a,b];return e===b?v.length:99;}return 0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn lazy_container_assignment_preserves_suspended_choice_and_abrupt_rhs() {
     compare_promises(
         &[

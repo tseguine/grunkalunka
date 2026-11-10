@@ -5,6 +5,21 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn nullish_lexical_locals_store_later_records_arrays_and_strings() {
+    for body in [
+        "let row;const chosen=row??={n:b};return +chosen.n;",
+        "let row=null;return +(row??={n:b}).n;",
+        "let xs;const initial=xs===undefined;const v=xs??=[a,b];return initial&&xs===v?v.length:99;",
+        "let text=null;const v=text||='abc';return v.length;",
+        "let row;row={v:b};return +(row?.v??0);",
+        "let row=null;const init=()=>row??={n:b};return +init().n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn logical_assignment_results_keep_selected_containers_and_identity() {
     for body in [
         "let row={n:a};const old=row;const picked=row&&={n:b};return picked===row&&old!==row?+picked.n:99;",

@@ -981,7 +981,8 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
             .or_default()
             .insert(Kind::BoxedPrimitive);
     }
-    let assignment_bindings = assignment_patterns::local_symbols(semantic);
+    let mut assignment_bindings = assignment_patterns::local_symbols(semantic);
+    assignment_bindings.extend(&stored.deferred_managed_locals);
     for symbol in &assignment_bindings {
         bindings
             .entry(*symbol)

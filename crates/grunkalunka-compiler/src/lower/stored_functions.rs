@@ -77,6 +77,7 @@ pub(crate) struct Fields {
     values: BTreeMap<NodeId, Alternatives>,
     number_updates: BTreeSet<NodeId>,
     var_symbols: BTreeSet<SymbolId>,
+    pub(super) deferred_managed_locals: BTreeSet<SymbolId>,
 }
 fn symbol(id: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
     id.reference_id
@@ -630,6 +631,7 @@ impl Fields {
         let mut writes = Vec::new();
         let mut member_iteration_rules = Vec::new();
         let mut numeric_targets = Vec::new();
+        let mut lexical_initializers = Vec::new();
         let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
         let parameters = |parameters: &oxc_ast::ast::FormalParameters<'_>| {
@@ -1133,6 +1135,11 @@ impl Fields {
                     if let BindingPattern::BindingIdentifier(name) = &declaration.id
                         && let Some(symbol) = name.symbol_id.get()
                     {
+                        if matches!(semantic.nodes().parent_kind(id), AstKind::VariableDeclaration(parent) if parent.kind == VariableDeclarationKind::Let)
+                        {
+                            lexical_initializers
+                                .push((symbol, declaration.init.as_ref().map(GetNodeId::node_id)));
+                        }
                         if let Some(initializer) = &declaration.init {
                             definitions.push(Definition::Value(symbol, initializer.node_id()));
                         } else if !var_symbols.contains(&symbol)
@@ -2164,7 +2171,45 @@ impl Fields {
                 break;
             }
         }
+        // An initially nullish lexical cell can later hold a String or heap
+        // reference. Choose its storage before emitting the initializer.
+        let deferred_managed_locals = lexical_initializers
+            .into_iter()
+            .filter_map(|(symbol, init)| {
+                let starts_nullish = init.is_none_or(|id| {
+                    values.get(&id).is_some_and(|origins| {
+                        !origins.is_empty()
+                            && origins
+                                .iter()
+                                .all(|o| matches!(o, Origin::Null | Origin::Undefined))
+                    })
+                });
+                let needs_reference = bindings.get(&symbol).is_some_and(|origins| {
+                    origins.iter().any(|o| {
+                        matches!(
+                            o,
+                            Origin::String
+                                | Origin::Array(_)
+                                | Origin::Object(_)
+                                | Origin::NullObject(_)
+                        )
+                    }) && origins.iter().all(|o| {
+                        matches!(
+                            o,
+                            Origin::String
+                                | Origin::Array(_)
+                                | Origin::Object(_)
+                                | Origin::NullObject(_)
+                                | Origin::Null
+                                | Origin::Undefined
+                        )
+                    })
+                });
+                (starts_nullish && needs_reference).then_some(symbol)
+            })
+            .collect();
         Self {
+            deferred_managed_locals,
             record_names,
             uint32_keys,
             values,
