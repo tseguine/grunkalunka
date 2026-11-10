@@ -195,13 +195,26 @@ impl RecordNames {
             let BindingPattern::BindingIdentifier(binding) = &decl.id else {
                 continue;
             };
-            let (Some(init), Some(symbol)) = (decl.init.as_ref(), binding.symbol_id.get()) else {
+            let Some(symbol) = binding.symbol_id.get() else {
                 continue;
             };
             if !matches!(
                 parent.kind,
                 VariableDeclarationKind::Let | VariableDeclarationKind::Const
             ) {
+                continue;
+            }
+
+            // An ordinary initializer-free let starts undefined. Iteration
+            // declarations take their value from the iterable or property name.
+            let init = decl.init.as_ref();
+            if init.is_none()
+                && (parent.kind != VariableDeclarationKind::Let
+                    || matches!(
+                        nodes.parent_kind(parent.node_id()),
+                        AstKind::ForInStatement(_) | AstKind::ForOfStatement(_)
+                    ))
+            {
                 continue;
             }
 
@@ -221,20 +234,22 @@ impl RecordNames {
                 true
             };
             let mut literals = Some(BTreeSet::new());
-            let mut may_be_nullish = false;
+            let mut may_be_nullish = init.is_none();
             let mut observe_nullish = || {
                 may_be_nullish = true;
                 true
             };
             let mut observe = |name| add_literal(&mut literals, name);
-            if !name_from(
-                init,
-                0,
-                &global_undefined,
-                &mut read,
-                &mut observe_nullish,
-                &mut observe,
-            ) {
+            if let Some(init) = init
+                && !name_from(
+                    init,
+                    0,
+                    &global_undefined,
+                    &mut read,
+                    &mut observe_nullish,
+                    &mut observe,
+                )
+            {
                 continue;
             }
             // A plain or logical assignment either keeps the old value or
