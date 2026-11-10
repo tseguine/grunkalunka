@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn completed_lexical_assignment_keeps_its_reference_across_await() {
+    compare_promises(
+        &[
+            "let row;row=(await a,{v:b});await b;return +row.v;",
+            "let xs=null;xs=[a,b];await b;return xs.length;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn deferred_managed_local_retains_nullish_state_until_assignment_finishes() {
     compare_promises(
         &[

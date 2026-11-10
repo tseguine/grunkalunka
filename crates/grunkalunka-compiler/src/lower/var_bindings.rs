@@ -324,6 +324,65 @@ pub(super) fn reads(semantic: &Semantic<'_>) -> BTreeMap<NodeId, Vec<NodeId>> {
     result
 }
 
+/// A single completed assignment to a lexical local dominates later reads
+/// in the same activation when it is a standalone, unconditional statement.
+/// Keep captured reads, conditional writes and loop backedges conservative.
+pub(super) fn lexical_assignment_reads(
+    semantic: &Semantic<'_>,
+    reads: &mut BTreeMap<NodeId, Vec<NodeId>>,
+) {
+    let nodes = semantic.nodes();
+    let scope = semantic.scoping();
+    for node in nodes.iter() {
+        let AstKind::VariableDeclarator(decl) = node.kind() else {
+            continue;
+        };
+        if !matches!(nodes.parent_kind(node.id()), AstKind::VariableDeclaration(d) if d.kind == VariableDeclarationKind::Let)
+        {
+            continue;
+        }
+        let BindingPattern::BindingIdentifier(name) = &decl.id else {
+            continue;
+        };
+        let Some(symbol) = name.symbol_id.get() else {
+            continue;
+        };
+        let mut writes = scope
+            .get_resolved_references(symbol)
+            .filter(|r| r.is_write());
+        let Some(write) = writes.next() else { continue };
+        if writes.next().is_some() {
+            continue;
+        }
+        let assignment_id = nodes.parent_id(write.node_id());
+        let AstKind::AssignmentExpression(assign) = nodes.kind(assignment_id) else {
+            continue;
+        };
+        if assign.operator != AssignmentOperator::Assign
+            || assign.span.start < decl.span.end
+            || !matches!(assign.left.as_simple_assignment_target(),Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) if id.node_id()==write.node_id())
+            || !straight(assignment_id, semantic, false)
+        {
+            continue;
+        }
+        let Some(body) = owner(node.id(), semantic) else {
+            continue;
+        };
+        if owner(assignment_id, semantic) != Some(body) {
+            continue;
+        }
+        for read in scope
+            .get_resolved_references(symbol)
+            .filter(|r| r.is_read())
+        {
+            let id = read.node_id();
+            if nodes.kind(id).span().start >= assign.span.end && owner(id, semantic) == Some(body) {
+                reads.insert(id, vec![assign.right.node_id()]);
+            }
+        }
+    }
+}
+
 impl Lowering<'_, '_> {
     fn box_var_input(
         &mut self,
