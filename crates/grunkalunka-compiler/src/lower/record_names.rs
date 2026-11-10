@@ -7,6 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Default)]
 pub(super) struct RecordNames {
     reads: BTreeMap<NodeId, SymbolId>,
+    nullable: BTreeSet<SymbolId>,
+    global_undefined: BTreeSet<NodeId>,
     sources: BTreeMap<SymbolId, NameSources>,
 }
 
@@ -75,11 +77,20 @@ fn add_literal(names: &mut Option<BTreeSet<Vec<u16>>>, literal: Option<Vec<u16>>
 }
 
 impl RecordNames {
+    fn selected_symbol(&self, id: NodeId, selected: Selected) -> Option<SymbolId> {
+        self.reads
+            .get(&id)
+            .copied()
+            .filter(|symbol| !selected.nullish || !self.nullable.contains(symbol))
+    }
+
     pub(super) fn contains(&self, expression: &Expression<'_>, depth: usize) -> bool {
         name_from(
             expression,
             depth,
-            |id, _| self.reads.contains_key(&id.node_id()),
+            &self.global_undefined,
+            |id, selected| self.selected_symbol(id.node_id(), selected).is_some(),
+            || false,
             |_| {},
         )
     }
@@ -90,14 +101,16 @@ impl RecordNames {
         if !name_from(
             expression,
             depth,
+            &self.global_undefined,
             |id, selected| {
-                if let Some(symbol) = self.reads.get(&id.node_id()) {
-                    pending.push((*symbol, selected));
+                if let Some(symbol) = self.selected_symbol(id.node_id(), selected) {
+                    pending.push((symbol, selected));
                     true
                 } else {
                     false
                 }
             },
+            || false,
             |literal| add_literal(&mut names, literal),
         ) {
             return Domain::Unknown;
@@ -142,10 +155,18 @@ impl RecordNames {
 
     pub(super) fn collect(semantic: &Semantic<'_>) -> Self {
         let scope = semantic.scoping();
+        let global_undefined = scope
+            .root_unresolved_references()
+            .get("undefined")
+            .into_iter()
+            .flat_map(|ids| ids.iter())
+            .map(|id| scope.get_reference(*id).node_id())
+            .collect();
         let nodes = semantic.nodes();
         let mut sources = BTreeMap::new();
         let mut candidates = BTreeSet::new();
-        let mut users: BTreeMap<SymbolId, Vec<SymbolId>> = BTreeMap::new();
+        let mut nullable = BTreeSet::new();
+        let mut users: BTreeMap<SymbolId, Vec<(SymbolId, Selected)>> = BTreeMap::new();
         for node in nodes.iter() {
             let AstKind::VariableDeclarator(decl) = node.kind() else {
                 continue;
@@ -182,8 +203,20 @@ impl RecordNames {
                 true
             };
             let mut literals = Some(BTreeSet::new());
+            let mut may_be_nullish = false;
+            let mut observe_nullish = || {
+                may_be_nullish = true;
+                true
+            };
             let mut observe = |name| add_literal(&mut literals, name);
-            if !name_from(init, 0, &mut read, &mut observe) {
+            if !name_from(
+                init,
+                0,
+                &global_undefined,
+                &mut read,
+                &mut observe_nullish,
+                &mut observe,
+            ) {
                 continue;
             }
             // Every write, including one inside a closure or iteration head,
@@ -192,11 +225,14 @@ impl RecordNames {
                 let AstKind::AssignmentExpression(assign)=nodes.parent_kind(r.node_id()) else {return false};
                 assign.operator==AssignmentOperator::Assign
                     && matches!(assign.left.as_simple_assignment_target(),Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(id)) if id.node_id()==r.node_id())
-                    && name_from(&assign.right,0,&mut read,&mut observe)
+                    && name_from(&assign.right,0,&global_undefined,&mut read,&mut observe_nullish,&mut observe)
             }) {continue}
             candidates.insert(symbol);
-            for &(dep, _) in &dependencies {
-                users.entry(dep).or_default().push(symbol);
+            if may_be_nullish {
+                nullable.insert(symbol);
+            }
+            for &(dep, selected) in &dependencies {
+                users.entry(dep).or_default().push((symbol, selected));
             }
             sources.insert(
                 symbol,
@@ -214,9 +250,19 @@ impl RecordNames {
             .copied()
             .collect::<Vec<_>>();
         while let Some(dep) = invalid.pop() {
-            for &user in users.get(&dep).into_iter().flatten() {
+            for &(user, _) in users.get(&dep).into_iter().flatten() {
                 if candidates.remove(&user) {
                     invalid.push(user);
+                }
+            }
+        }
+        // Nullish values reach a dependent binding only along edges whose
+        // logical operator can select them. Propagate across every write.
+        let mut pending: Vec<_> = nullable.iter().copied().collect();
+        while let Some(dep) = pending.pop() {
+            for &(user, selected) in users.get(&dep).into_iter().flatten() {
+                if selected.nullish && nullable.insert(user) {
+                    pending.push(user);
                 }
             }
         }
@@ -230,7 +276,12 @@ impl RecordNames {
                     .map(|r| (r.node_id(), symbol)),
             );
         }
-        Self { reads, sources }
+        Self {
+            reads,
+            global_undefined,
+            sources,
+            nullable,
+        }
     }
 }
 
@@ -287,7 +338,9 @@ fn constructed_own_name(expression: &Expression<'_>, depth: usize) -> bool {
 fn name_from<'a>(
     expression: &Expression<'a>,
     depth: usize,
+    global_undefined: &BTreeSet<NodeId>,
     mut valid_read: impl FnMut(&IdentifierReference<'a>, Selected) -> bool,
+    mut accept_nullish: impl FnMut() -> bool,
     mut observe: impl FnMut(Option<Vec<u16>>),
 ) -> bool {
     let all = Selected {
@@ -301,9 +354,15 @@ fn name_from<'a>(
             return false;
         };
         match node {
-            Expression::NullLiteral(_) if !selected.nullish => {}
+            Expression::Identifier(id) if global_undefined.contains(&id.node_id()) => {
+                if selected.nullish && !accept_nullish() {
+                    return false;
+                }
+            }
+            Expression::NullLiteral(_) if !selected.nullish || accept_nullish() => {}
             Expression::UnaryExpression(u)
-                if u.operator == UnaryOperator::Void && !selected.nullish => {}
+                if u.operator == UnaryOperator::Void && (!selected.nullish || accept_nullish()) => {
+            }
             Expression::StringLiteral(_) => {
                 let Some(name) = static_keys::literal(node) else {
                     return false;
