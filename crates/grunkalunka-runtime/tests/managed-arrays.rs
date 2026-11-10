@@ -29,6 +29,18 @@ fn counted_loops_use_the_live_index_for_reads_and_writes() {
 }
 
 #[test]
+fn unreassigned_let_bindings_keep_index_and_length_facts() {
+    for body in [
+        "let xs=[11,22];let i=a&1;const read=()=>+xs[i];return read();",
+        "let xs=[a,b],sum=0;for(let i=0;i<xs.length;i++){sum+=+xs[i];}return sum;",
+        "let xs=[a];let saved=xs.length;xs.push(b);return Object.hasOwn(xs,saved)&&!Object.hasOwn(xs,xs.length)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn length_indices_observe_mutation_and_count_utf16_units() {
     for body in [
         "const xs=[a];xs[xs.length]=b;return xs.length===2&&xs[1]===b?1:0;",

@@ -560,6 +560,21 @@ fn imported_handler_invokes_proven_arrow_empty_apply() {
 }
 
 #[test]
+fn imported_handler_scans_action_ids_with_a_counted_loop() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             let actions=[1,3];
+             let selected=0;
+             for(let i=0;i<actions.length;i++){
+               if(actions[i]===a){selected=1;break;}
+             }
+             return choose(selected,b);
+           }"#,
+    );
+}
+
+#[test]
 fn imported_handler_builds_lists_with_array_push() {
     for body in [
         "const actions=[a];const length=actions.push(b);return choose(length===actions.length?a:0,b);",
