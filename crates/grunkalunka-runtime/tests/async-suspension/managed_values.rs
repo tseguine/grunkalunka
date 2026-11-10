@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn computed_string_compounds_save_references_across_awaits() {
+    compare_promises(
+        &[
+            "let o={x:'a'};const old=o;let k='x';const out=o[(await a,k)]+=(await b,o={x:'b'},k='y',String(b));return old.x===out&&o.x==='b'?out.length:0;",
+            "const xs=[];try{xs[a]+=(await Promise.reject(b),'!');}catch(e){return Object.hasOwn(xs,a)?0:1;}return 9;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0)],
+    );
+}
+
+#[test]
 fn literal_prototype_setters_preserve_await_order_and_rejection() {
     compare_promises(
         &[
