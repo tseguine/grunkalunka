@@ -119,7 +119,15 @@ impl Lowering<'_, '_> {
             })?;
             work.push(Work::Eval(arg, depth + actual.depth + 1, Mode::Discard));
         }
-        work.push(Work::Eval(first, first_depth, mode));
+        if kind == object_intrinsics::ConversionCall::Number
+            && let Some(value) = string_number::literal(first, first_depth)
+        {
+            let result = self.value(Type::Number);
+            Self::push(regions.current(), first, Op::Constant { result, value });
+            values.push(Value::Number(result));
+        } else {
+            work.push(Work::Eval(first, first_depth, mode));
+        }
         Ok(())
     }
 

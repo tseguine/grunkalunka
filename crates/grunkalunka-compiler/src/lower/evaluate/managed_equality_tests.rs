@@ -158,7 +158,7 @@ fn boxed_number_loose_equality_accepts_proven_primitive_pairs() {
         ("const o={n:a};return o.n==b?1:0;", true),
         ("const xs=[a,b];return xs[0]!=xs[1]?1:0;", true),
         ("const o={n:NaN};return o.n==o.n?1:0;", true),
-        ("const o={n:a};return o.n=='0'?1:0;", false),
+        ("const o={n:a};return o.n=='0'?1:0;", true),
         ("const o={n:a?b:false};return o.n==b?1:0;", true),
         ("const o={n:a};delete o.n;return o.n==b?1:0;", true),
         ("const o={};return o.n==b?1:0;", true),
@@ -178,7 +178,7 @@ fn boxed_number_loose_equality_accepts_proven_primitive_pairs() {
             "export function run(a,b){const o={n:a};return o.n==('0' as unknown as number)?1:0;}",
             true
         )
-        .is_err()
+        .is_ok()
     );
 }
 
@@ -267,7 +267,7 @@ fn managed_loose_equality_requires_nullish_or_string_pair_proofs() {
             "export function run(a,b){return 'text'==(a as unknown as string)?1:0;}",
             true
         )
-        .is_err()
+        .is_ok()
     );
 }
 #[test]

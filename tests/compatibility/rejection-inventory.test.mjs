@@ -368,7 +368,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 786);
+  assert.equal(inventory.records.size, 782);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -675,7 +675,6 @@ test('General discarded values retain all four original numeric promotion source
 test('primitive loose equality retains nineteen exact original numeric promotion observations',()=>{
  assert.equal(primitiveLooseEqualityPromotions.length,19);
  for(const [id,js,ts,hash] of primitiveLooseEqualityPromotions){const source=programSources(primitiveLooseEquality.find(p=>p[0]===id));assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(p=>p[0]===id));}
- assert.ok(rejected.some(p=>p[0]==='gap-loose-equality-coercion'),'String coercion reference remains open');
 });
 
 
@@ -687,6 +686,21 @@ test('definite assignment assertions execute both original TS sources against th
     const source = programSources(programs.find(row => row[0] === id));
     assert.equal(createHash('sha256').update(source.sourceTS).digest('hex'), hash);
     assert.equal(source.oracleSource, source.sourceJS);
+    assert.ok(!rejected.some(row => row[0] === id));
+  }
+});
+
+test('numeric equality executes all four original String literal reference sources', () => {
+  for (const [id, language, hash] of [
+    ['gap-loose-equality-coercion', 'js', 'a871485acfb6d0d7d9f6fc87ab3f3223e426a76e56de6c144ae5912af944121a'],
+    ['equality-string-left', 'js', '8daf7999307f758b4d6adb11f3699730de9623d7ae76defe34360818403bc3a7'],
+    ['inequality-string-right', 'js', '3d0eecebf0fe94d32f99e5ea6189454ea91795fc34c71b4c06b108b159513e5c'],
+    ['equality-asserted-string', 'ts', '21a56630b256242fbb1ce148df3b0b9a2ab66923f5244907871ba95ed39abe8f'],
+  ]) {
+    const sources = programSources(programs.find(row => row[0] === id));
+    const original = language === 'ts' ? sources.sourceTS : sources.sourceJS;
+    assert.equal(createHash('sha256').update(original).digest('hex'), hash);
+    assert.equal(sources.oracleSource, sources.sourceJS);
     assert.ok(!rejected.some(row => row[0] === id));
   }
 });

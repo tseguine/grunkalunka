@@ -366,7 +366,7 @@
     {
       "id": "coercive-equality",
       "kind": "open-requirement",
-      "assessment": "Loose ==/!= now admit the four represented primitive kinds. Same-kind comparisons retain strict equality semantics, null and undefined compare equal, Boolean/Number pairs use numeric equality, and nullish/non-nullish pairs differ. Number-only comparisons retain scalar paths. Strings, BigInts, Symbols, objects, ToPrimitive and optional IsHTMLDDA behavior remain separate requirements; successful rejection is not support.",
+      "assessment": "Loose equality handles the four represented non-String primitive kinds, String pairs and a source-proven Number compared to a String literal. Object coercion and BigInt comparisons still need runtime support.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-equality-operators",
@@ -1043,13 +1043,6 @@
       "group": "exponentiation"
     },
     {
-      "id": "gap-loose-equality-coercion",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a871485acfb6d0d7d9f6fc87ab3f3223e426a76e56de6c144ae5912af944121a",
-      "group": "coercive-equality"
-    },
-    {
       "id": "instanceof-selected-shadowed",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1554,20 +1547,6 @@
       "group": "predicate-depth"
     },
     {
-      "id": "equality-string-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8daf7999307f758b4d6adb11f3699730de9623d7ae76defe34360818403bc3a7",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "inequality-string-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "3d0eecebf0fe94d32f99e5ea6189454ea91795fc34c71b4c06b108b159513e5c",
-      "group": "coercive-equality"
-    },
-    {
       "id": "equality-object",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1594,13 +1573,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "29680d31ff9438134ff2027aefda98a50913e9c637314f1626f75f188f79e252",
       "group": "function-calls"
-    },
-    {
-      "id": "equality-asserted-string",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "21a56630b256242fbb1ce148df3b0b9a2ab66923f5244907871ba95ed39abe8f",
-      "group": "coercive-equality"
     },
     {
       "id": "equality-predicate-depth-limit",

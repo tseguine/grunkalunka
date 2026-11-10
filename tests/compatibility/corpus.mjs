@@ -179,7 +179,7 @@ import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
 import { selectedInstancePrograms, selectedInstanceRejected } from './selected-instanceof.mjs';
 
-export const corpusVersion = 202;
+export const corpusVersion = 203;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [

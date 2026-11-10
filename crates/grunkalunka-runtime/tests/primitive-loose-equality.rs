@@ -325,7 +325,7 @@ fn loose_inequality_negates_the_primitive_result() {
 #[test]
 fn loose_equality_retains_unrepresented_kind_scope_and_depth_guards() {
     for body in [
-        "return a==\"4\"?1:0;",
+        "const s=b?\"3\":\"4\";return a==s?1:0;",
         "return 1n==a?1:0;",
         "return {}==a?1:0;",
         "return Symbol()==a?1:0;",

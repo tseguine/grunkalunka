@@ -25,16 +25,38 @@ numericEqualityPrograms.push(['equality-typescript-wrappers',
   'return a==b?-0:0;',
   'return (((a as number)! == (<number>b)) as boolean)?-0:0;']);
 
+// Exact former catalog and Rust rejection sources, including their original formatting.
+const literalNumericEqualities = [
+  ['gap-loose-equality-coercion', 'return a == "4" ? 1 : 0;'],
+  ['equality-string-left', 'return "4"==a?1:0;'],
+  ['inequality-string-right', 'return a!="4"?1:0;'],
+  ['equality-asserted-string', 'return a=="4"?1:0;', 'return ((a==("4" as number)) as boolean)?1:0;'],
+];
+for (const [id, js, ts = js] of literalNumericEqualities) {
+  numericEqualityPrograms.push([id, js, ts, undefined, undefined, {
+    sourceJS: `export function run(a,b) { ${js} }`, sourceTS: `export function run(a,b) { ${ts} }`,
+  }]);
+}
+numericEqualityPrograms.push(['equality-literal-runtime-original', '', '', undefined, undefined, {
+  sourceJS: 'export function run(a,b) {return a=="4"?1:0;}',
+  sourceTS: 'export function run(a,b) {return a=="4"?1:0;}',
+}]);
+numericEqualityPrograms.push(['equality-literal-boxed-number', '', '', undefined, undefined, {
+  sourceJS: "export function run(a,b){const o={n:a};return o.n=='0'?1:0;}",
+  sourceTS: "export function run(a,b){const o={n:a};return o.n==('0' as unknown as number)?1:0;}",
+}]);
+numericEqualityPrograms.push(['equality-literal-invalid-number', '', '', undefined, undefined, {
+  sourceJS: "export function run(a,b){return 'text'==a?1:0;}",
+  sourceTS: "export function run(a,b){return 'text'==(a as unknown as string)?1:0;}",
+}]);
+
 const expression = 'expression is outside the numeric experiment';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const negatives = [
-  ['equality-string-left', 'return "4"==a?1:0;', expression],
-  ['inequality-string-right', 'return a!="4"?1:0;', expression],
   ['equality-object', 'return a==({})?1:0;', expression],
   ['inequality-bigint', 'return a!=1n?1:0;', expression],
   ['equality-numeric-return', 'return a==b;', binary],
   ['equality-unselected-call', 'return 0?(a==Math.random()?1:0):b;', expression],
-  ['equality-asserted-string', 'return ((a==("4" as number)) as boolean)?1:0;', expression, 'ts'],
   ['equality-predicate-depth-limit', `return ${'('.repeat(127)}a==b${')'.repeat(127)}?a:b;`, 'expression nesting exceeds'],
   ['inequality-operand-depth-limit', `return ${'('.repeat(127)}a${')'.repeat(127)}!=b?a:b;`, 'expression nesting exceeds'],
 ];
