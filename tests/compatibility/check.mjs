@@ -1,6 +1,8 @@
 // Differential experiment: original JS vs emitted Wasm in Wasmtime and Node.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
+import { pipeline } from 'node:stream/promises';
+import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { corpusVersion, programs, rejected, unimplemented, externalSources, additionalVectors } from './corpus.mjs';
 import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
@@ -25,11 +27,27 @@ process.on('uncaughtExceptionMonitor', () => {
 const seed = 0x4752554en;
 const started = performance.now();
 
+const compilerOptions = {
+  cwd: directory, encoding: 'utf8', shell: false, timeout: 30_000, maxBuffer: 4 * 1024 * 1024,
+};
+const execute = promisify(execFile);
+async function invokeVariant(args, input) {
+  assertWithinWatchdog(performance.now() - started, innerMs);
+  const child = execute(binary, args, compilerOptions);
+  // Compilation takes no stdin and may exit before a pipe write.
+  if (input === undefined) return (await child).stdout;
+  // Reap the evaluator and finish its stdin before reporting either error.
+  const [result, written] = await Promise.allSettled([
+    child, pipeline([input], child.child.stdin),
+  ]);
+  if (result.status === 'rejected') throw result.reason;
+  if (written.status === 'rejected') throw written.reason;
+  return result.value.stdout;
+}
+
 function invoke(args, input = '', success = true) {
   assertWithinWatchdog(performance.now() - started, innerMs);
-  const result = spawnSync(binary, args, {
-    cwd: directory, input, encoding: 'utf8', shell: false, timeout: 30_000, maxBuffer: 4 * 1024 * 1024,
-  });
+  const result = spawnSync(binary, args, { ...compilerOptions, input });
   if (result.error) throw result.error;
   assert.equal(result.signal, null);
   if (success) assert.equal(result.status, 0, `${args.join(' ')}\n${result.stderr}`);
@@ -123,6 +141,25 @@ const runtime = {
   version: process.versions.bun ?? process.versions.node,
   versions: process.versions, platform: process.platform, arch: process.arch,
 };
+async function prepareVariant(name, extension, source) {
+  const sourcePath = join(output, `${name}.${extension}`);
+  const wasmPath = join(output, `${name}-${extension}.wasm`);
+  await writeFile(sourcePath, source, { flag: 'wx' });
+  const retainedSource = await readFile(sourcePath);
+  assert.equal(sha256(retainedSource), sha256(source), `${name}: retained source changed`);
+  const wat = await invokeVariant(['compile', sourcePath, wasmPath, '--print-wat']);
+  await writeFile(join(output, `${name}-${extension}.wat`), wat, { flag: 'wx' });
+  const wasm = await readFile(wasmPath);
+  assert.ok(WebAssembly.validate(wasm));
+  const module = new WebAssembly.Module(wasm);
+  assert.deepEqual(WebAssembly.Module.imports(module), []);
+  assert.deepEqual(WebAssembly.Module.exports(module), [{ name: 'run', kind: 'function' }]);
+  const native = new WebAssembly.Instance(module).exports.run;
+  const wasmtime = (await invokeVariant(['eval', wasmPath], input)).trim().split(/\r?\n/);
+  assert.equal(wasmtime.length, vectors.length, 'missing/extra Wasmtime results');
+  return { extension, retainedSource, wasm, native, wasmtime };
+}
+
 const observations = [];
 const fixtures = [];
 let comparisons = 0;
@@ -140,22 +177,14 @@ for (const [name, , , expectedResult, , metadata] of programs) {
   const reference = await import(`data:text/javascript;base64,${Buffer.from(oracleSource).toString('base64')}`);
   const modules = [];
   const variants = [];
-  for (const [extension, source] of [['js', sourceJS], ['ts', sourceTS]]) {
-    const sourcePath = join(output, `${name}.${extension}`);
-    const wasmPath = join(output, `${name}-${extension}.wasm`);
-    await writeFile(sourcePath, source, { flag: 'wx' });
-    const retainedSource = await readFile(sourcePath);
-    assert.equal(sha256(retainedSource), sha256(source), `${name}: retained source changed`);
-    const { stdout: wat } = invoke(['compile', sourcePath, wasmPath, '--print-wat']);
-    await writeFile(join(output, `${name}-${extension}.wat`), wat, { flag: 'wx' });
-    const wasm = await readFile(wasmPath);
-    assert.ok(WebAssembly.validate(wasm));
-    const module = new WebAssembly.Module(wasm);
-    assert.deepEqual(WebAssembly.Module.imports(module), []);
-    assert.deepEqual(WebAssembly.Module.exports(module), [{ name: 'run', kind: 'function' }]);
-    const native = new WebAssembly.Instance(module).exports.run;
-    const wasmtime = invoke(['eval', wasmPath], input).stdout.trim().split(/\r?\n/);
-    assert.equal(wasmtime.length, vectors.length, 'missing/extra Wasmtime results');
+  // Only the two independent variants of this fixture run concurrently.
+  // Compare against the native oracle in source order after both have settled.
+  const pair = await Promise.allSettled([
+    prepareVariant(name, 'js', sourceJS), prepareVariant(name, 'ts', sourceTS),
+  ]);
+  for (const result of pair) {
+    if (result.status === 'rejected') throw result.reason;
+    const { extension, retainedSource, wasm, native, wasmtime } = result.value;
     for (let i = 0; i < vectors.length; i++) {
       const [a, b] = vectors[i];
       const expected = reference.run(a, b);
