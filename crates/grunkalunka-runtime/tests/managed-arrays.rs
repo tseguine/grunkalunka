@@ -607,6 +607,8 @@ fn unsupported_array_semantics_reject_before_ir_validation() {
         "const x=[];x.length='2';return a;",
         "const x=[];x.length+=1;return a;",
         "const x=[];x.length++;return a;",
+        "const x=[];return --x['length'];",
+        "const x=[];x['length']-=1;return a;",
         "const x=[...a];return a;",
         "const x=[...{length:1,0:b}];return a;",
         "const x=[a];return x;",
