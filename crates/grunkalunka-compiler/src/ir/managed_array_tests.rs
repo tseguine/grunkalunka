@@ -750,7 +750,7 @@ fn array_slice_keeps_unsupported_receivers_coercions_and_calls_explicit() {
         "let xs=[b];const copy=xs.slice();xs=null;return copy.length;",
         "const xs=[b];return xs.slice('1').length;",
         "const xs=[b];return xs.slice(0,{}).length;",
-        "const xs=[b];return xs.slice(...[0]).length;",
+        "const xs=[b],args=[0];return xs.slice(...args).length;",
         "const xs=[b];return xs?.slice().length;",
         "const xs=[b];return xs.slice?.().length;",
         "const xs=[b];xs.slice=()=>[];return xs.slice().length;",
