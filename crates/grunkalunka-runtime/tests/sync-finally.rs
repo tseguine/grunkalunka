@@ -87,6 +87,7 @@ fn nested_finalizers_and_handlers_restore_the_right_pending_completion() {
 #[test]
 fn finalizers_keep_loop_updates_and_nested_loop_destinations() {
     for body in [
+        "let n=0;outer:for(let i=0;i<2;i++){try{break outer;}finally{n++;}}return n;",
         "let n=0,updates=0;for(let i=0;i<3;i++,updates++){try{n=n*10+i;continue;}finally{n=n*10+5;}}return n+updates;",
         "let n=0;while(n<3){try{n++;break;}finally{n+=10;}}return n;",
         "let n=0,cleanups=0;do{try{n++;continue;}finally{cleanups++;}}while(n<3);return n*10+cleanups;",
@@ -309,7 +310,7 @@ fn finalizers_do_not_authorize_escaping_throws_or_unsupported_reason_values() {
         "const fail=()=>{try{throw a;}finally{return b;}};try{return fail();}catch(e){return +e;}",
         "const fail=()=>{try{if(a)throw b;return 0;}finally{a;}};try{return fail();}catch(e){return +e;}",
         "try{throw a;}catch({value}){return 0;}finally{b;}",
-        "outer:for(let i=0;i<2;i++){try{break outer;}finally{b;}}return a;",
+        "outer:for(let i=0;i<2;i++){while(b){try{break outer;}finally{b;}}}return a;",
         "try{return a;}finally{b;}return b;",
         "try{return a;}finally{return b;a;}",
         "try{throw a;}catch(e){return +e;}finally{return +e;}",
