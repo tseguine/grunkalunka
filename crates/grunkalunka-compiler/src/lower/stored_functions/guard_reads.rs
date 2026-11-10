@@ -1,4 +1,4 @@
-//! Nullish exclusions established by checks on unwritten lexical bindings.
+//! Runtime kind exclusions established by guards on unchanged bindings.
 use super::*;
 use oxc_span::Span;
 
@@ -175,10 +175,24 @@ pub(super) fn collect(
     let scope = semantic.scoping();
     let mut guarded = BTreeMap::<SymbolId, BTreeMap<NodeId, BTreeMap<Guard, Vec<Span>>>>::new();
     for node in nodes.iter() {
-        let AstKind::IfStatement(choice) = node.kind() else {
-            continue;
+        let (test, truthy_arm, falsy_arm) = match node.kind() {
+            AstKind::IfStatement(c) => (
+                &c.test,
+                Some(c.consequent.span()),
+                c.alternate.as_ref().map(GetSpan::span),
+            ),
+            AstKind::ConditionalExpression(c) => {
+                (&c.test, Some(c.consequent.span()), Some(c.alternate.span()))
+            }
+            AstKind::LogicalExpression(l) if l.operator == LogicalOperator::And => {
+                (&l.left, Some(l.right.span()), None)
+            }
+            AstKind::LogicalExpression(l) if l.operator == LogicalOperator::Or => {
+                (&l.left, None, Some(l.right.span()))
+            }
+            _ => continue,
         };
-        let Some((binding, guard)) = condition(&choice.test, semantic) else {
+        let Some((binding, guard)) = condition(test, semantic) else {
             continue;
         };
         let Some(owner) = var_bindings::owner(node.id(), semantic) else {
@@ -189,29 +203,30 @@ pub(super) fn collect(
             .or_default()
             .entry(owner)
             .or_default();
-        for (positive, arm, opposite) in [
-            (
-                guard.positive,
-                Some(&choice.consequent),
-                choice.alternate.as_ref(),
-            ),
-            (
-                !guard.positive,
-                choice.alternate.as_ref(),
-                Some(&choice.consequent),
-            ),
-        ] {
-            let ranges = guards.entry(Guard { positive, ..guard }).or_default();
-            if let Some(arm) = arm {
-                ranges.push(arm.span());
+        for (positive, arm) in [(guard.positive, truthy_arm), (!guard.positive, falsy_arm)] {
+            if let Some(span) = arm {
+                guards
+                    .entry(Guard { positive, ..guard })
+                    .or_default()
+                    .push(span);
             }
-            if opposite.is_some_and(exits) {
-                let end = match nodes.parent_kind(node.id()) {
-                    AstKind::BlockStatement(b) => b.span.end,
-                    AstKind::FunctionBody(b) => b.span.end,
-                    _ => continue,
-                };
-                ranges.push(Span::new(choice.span.end, end));
+        }
+        if let AstKind::IfStatement(choice) = node.kind() {
+            let end = match nodes.parent_kind(node.id()) {
+                AstKind::BlockStatement(b) => b.span.end,
+                AstKind::FunctionBody(b) => b.span.end,
+                _ => continue,
+            };
+            for (positive, opposite) in [
+                (guard.positive, choice.alternate.as_ref()),
+                (!guard.positive, Some(&choice.consequent)),
+            ] {
+                if opposite.is_some_and(exits) {
+                    guards
+                        .entry(Guard { positive, ..guard })
+                        .or_default()
+                        .push(Span::new(choice.span.end, end));
+                }
             }
         }
     }

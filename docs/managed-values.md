@@ -1889,3 +1889,5 @@ exclude only the tested value, so separate checks can compose.
 The same guards apply to unchanged simple parameters of helpers and arrows.
 An assignment, a redeclaration, or an aliased `var` cell prevents parameter
 narrowing; source argument kinds still determine the callable interface.
+Ternary arms and the right operands of `&&` and `||` also use the guard
+established by the branch that selects them.
