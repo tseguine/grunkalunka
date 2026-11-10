@@ -1729,3 +1729,7 @@ effects. Numeric keys preserve their JavaScript spelling, including fractions.
 Both `delete obj[key]` and `delete obj?.[key]` accept runtime primitive keys.
 Array deletions preserve length and leave holes. Dynamic Strings that could
 name the non-configurable Array length remain guarded.
+
+Destructuring assignments use the same primitive keys to select a property,
+exclude it from object rest, or write a saved member destination. Defaults
+and subsequent assignments retain the original receiver and key.
