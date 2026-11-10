@@ -22,6 +22,9 @@ fn consecutive_optional_reads_skip_keys_at_each_nullish_link() {
 #[test]
 fn logical_property_names_preserve_fallback_values_and_effects() {
     for body in [
+        "const raw=a?'x':'';const alias=raw;const key=alias||'y';const handlers={x:v=>v+1,y:v=>v-1};return handlers[key](b);",
+        "const raw=a?'skip':'';const key=raw&&'run';const actions={'':x=>x,run:x=>x+1};return actions[key](b);",
+        "let raw='x';if(a)raw='';const key=raw||'y';const items={x:2,y:3};return +items[key];",
         "const row={x:v=>v+1,y:v=>v-1};const k=(a?'x':'')||'y';return row[k](b);",
         "const row={x:a,y:b};const k=(a?null:'x')??'y';return +row[k];",
         "const xs=[a,b];const k=(a?'0':void 0)??'length';return +xs[k];",
@@ -32,6 +35,7 @@ fn logical_property_names_preserve_fallback_values_and_effects() {
         common::compare_sources(&source, &source);
     }
     for body in [
+        "const raw=a?'x':'';const key=b?(raw||'y'):(raw&&'x');const actions={x:v=>v,y:v=>v};return actions[key](b);",
         "const o={};const k=(a?'constructor':'')||'x';return +o[k];",
         "const o={};const k=(a?null:'x')??'constructor';return +o[k];",
         "const xs=[a];const k=(a?'map':null)??'0';return +xs[k];",

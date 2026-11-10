@@ -31,9 +31,35 @@ impl Domain {
     }
 }
 
+// Retain the values which can reach a property read through logical choices.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct Selected {
+    empty: bool,
+    text: bool,
+    nullish: bool,
+}
+
+impl Selected {
+    fn includes(self, name: &[u16]) -> bool {
+        if name.is_empty() {
+            self.empty
+        } else {
+            self.text
+        }
+    }
+
+    fn intersect(self, other: Self) -> Self {
+        Self {
+            empty: self.empty && other.empty,
+            text: self.text && other.text,
+            nullish: self.nullish && other.nullish,
+        }
+    }
+}
+
 struct NameSources {
     literals: Option<BTreeSet<Vec<u16>>>,
-    dependencies: BTreeSet<SymbolId>,
+    dependencies: BTreeSet<(SymbolId, Selected)>,
 }
 
 fn add_literal(names: &mut Option<BTreeSet<Vec<u16>>>, literal: Option<Vec<u16>>) {
@@ -53,7 +79,7 @@ impl RecordNames {
         name_from(
             expression,
             depth,
-            |id| self.reads.contains_key(&id.node_id()),
+            |id, _| self.reads.contains_key(&id.node_id()),
             |_| {},
         )
     }
@@ -64,9 +90,9 @@ impl RecordNames {
         if !name_from(
             expression,
             depth,
-            |id| {
+            |id, selected| {
                 if let Some(symbol) = self.reads.get(&id.node_id()) {
-                    pending.push(*symbol);
+                    pending.push((*symbol, selected));
                     true
                 } else {
                     false
@@ -80,22 +106,32 @@ impl RecordNames {
             return Domain::AnyOwn;
         };
         let mut visited = BTreeSet::new();
-        while let Some(symbol) = pending.pop() {
-            if !visited.insert(symbol) {
+        while let Some((symbol, selected)) = pending.pop() {
+            if (!selected.empty && !selected.text) || !visited.insert((symbol, selected)) {
                 continue;
             }
             let source = &self.sources[&symbol];
             let Some(literals) = &source.literals else {
                 return Domain::AnyOwn;
             };
-            names.extend(literals.iter().cloned());
+            names.extend(
+                literals
+                    .iter()
+                    .filter(|name| selected.includes(name))
+                    .cloned(),
+            );
             if names.len() > MAX_CHOICES
                 || visited.len() > MAX_CHOICES
                 || source.dependencies.len() > MAX_CHOICES
             {
                 return Domain::AnyOwn;
             }
-            pending.extend(source.dependencies.iter().copied());
+            pending.extend(
+                source
+                    .dependencies
+                    .iter()
+                    .map(|(dep, edge)| (*dep, selected.intersect(*edge))),
+            );
         }
         if names.is_empty() {
             Domain::AnyOwn
@@ -131,7 +167,7 @@ impl RecordNames {
             }
 
             let mut dependencies = BTreeSet::new();
-            let mut read = |id: &IdentifierReference<'_>| {
+            let mut read = |id: &IdentifierReference<'_>, selected| {
                 let Some(dep) = id
                     .reference_id
                     .get()
@@ -142,7 +178,7 @@ impl RecordNames {
                 if semantic.symbol_declaration(dep).kind().span().end > id.span.start {
                     return false;
                 }
-                dependencies.insert(dep);
+                dependencies.insert((dep, selected));
                 true
             };
             let mut literals = Some(BTreeSet::new());
@@ -159,7 +195,7 @@ impl RecordNames {
                     && name_from(&assign.right,0,&mut read,&mut observe)
             }) {continue}
             candidates.insert(symbol);
-            for &dep in &dependencies {
+            for &(dep, _) in &dependencies {
                 users.entry(dep).or_default().push(symbol);
             }
             sources.insert(
@@ -251,17 +287,9 @@ fn constructed_own_name(expression: &Expression<'_>, depth: usize) -> bool {
 fn name_from<'a>(
     expression: &Expression<'a>,
     depth: usize,
-    mut valid_read: impl FnMut(&IdentifierReference<'a>) -> bool,
+    mut valid_read: impl FnMut(&IdentifierReference<'a>, Selected) -> bool,
     mut observe: impl FnMut(Option<Vec<u16>>),
 ) -> bool {
-    // On the left of a short-circuit operator only selected values can name a
-    // property. Its operands still go through ordinary expression lowering.
-    #[derive(Clone, Copy)]
-    struct Selected {
-        empty: bool,
-        text: bool,
-        nullish: bool,
-    }
     let all = Selected {
         empty: true,
         text: true,
@@ -280,7 +308,7 @@ fn name_from<'a>(
                 let Some(name) = static_keys::literal(node) else {
                     return false;
                 };
-                if (name.is_empty() && !selected.empty) || (!name.is_empty() && !selected.text) {
+                if !selected.includes(&name) {
                     continue;
                 }
                 if crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &name) {
@@ -322,7 +350,7 @@ fn name_from<'a>(
                 };
                 pending.push((last, depth + 1, selected));
             }
-            Expression::Identifier(id) if valid_read(id) => {}
+            Expression::Identifier(id) if valid_read(id, selected) => {}
             _ => return false,
         }
     }
