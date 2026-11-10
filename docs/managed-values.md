@@ -62,7 +62,8 @@ kinds and annotation-only proofs remain guarded.
 `for...of` and `for...in` can assign each selection directly to a member target.
 Static/literal own properties work on source-proven objects and Arrays;
 `>>>`-proven unsigned runtime keys also work, and null-prototype dictionaries
-accept source-proven String keys. The iterable is evaluated once, then each
+accept source-proven String keys. Ordinary records accept String keys proven to
+exclude Object prototype names. The iterable is evaluated once, then each
 selection is saved before evaluating that visit's receiver and key. These target
 effects, including supported awaits, do not run on an empty loop or on a removed
 `for...in` key. Rebinding during key evaluation still writes to the captured
@@ -1529,10 +1530,11 @@ before its value is selected and before its lazy default; supported awaits retai
 that address. Array patterns use a live, sticky-done iterator when target effects
 can change the source. Alias field facts include every assigned selection/default.
 Computed destinations additionally admit unsigned numeric keys on owned objects/Arrays
-and source-proven String keys on null-prototype dictionaries. The receiver and key
+and source-proven String keys on null-prototype dictionaries. On ordinary records
+the String key must also exclude Object prototype names. The receiver and key
 execute once, in that order, before source selection; both survive awaited keys and
 lazy defaults. Elisions finish before evaluating the next member reference, so an
-exhausted iterator cannot be revived by a destination effect. Dynamic writes widen all potentially aliased field/element facts.
+exhausted iterator cannot be revived by a destination effect. Finite key sets widen only the possible target fields across aliases.
 Nested target patterns, unproven/coercing keys, nullable/unknown
 receivers and unchecked Array length writes remain guarded.
 
