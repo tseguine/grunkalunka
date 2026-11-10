@@ -1377,8 +1377,94 @@ fn concat_method_saves_all_fragments_and_preserves_utf16() {
 }
 
 #[test]
+fn number_template_spelling_matches_javascript_across_binary64_exponents() {
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
+    let source =
+        "export function run(a,b){const text=`${a}`;return b<0?text.length:text.charCodeAt(b);}";
+    let artifact = grunkalunka_compiler::compile(source, false).unwrap();
+    let oracle = r#"
+const assert = require('node:assert/strict');
+const bytes = require('node:fs').readFileSync(0);
+const run = new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports.run;
+const view = new DataView(new ArrayBuffer(8));
+function verify(bits) {
+  view.setBigUint64(0, bits);
+  const value = view.getFloat64(0);
+  const expected = String(value);
+  assert.equal(run(value, -1), expected.length, expected);
+  for (let i = 0; i < expected.length; i++) {
+    assert.equal(run(value, i), expected.charCodeAt(i), expected);
+  }
+}
+for (let biased = 0n; biased <= 2047n; biased++) {
+  for (const fraction of [0n, 1n, 0x8000000000000n, 0xffffffffffffen, 0xfffffffffffffn]) {
+    const bits = (biased << 52n) | fraction;
+    verify(bits);
+    verify(bits | (1n << 63n));
+  }
+}
+for (let power = -323; power <= 308; power++) {
+  view.setFloat64(0, 10 ** power);
+  const bits = view.getBigUint64(0);
+  verify(bits - 1n);
+  verify(bits);
+  verify(bits + 1n);
+}
+let state = 0xb843c0ffee123456n;
+for (let i = 0; i < 14000; i++) {
+  state = BigInt.asUintN(64, state * 6364136223846793005n + 1442695040888963407n);
+  verify(state);
+}
+"#;
+    let mut child = Command::new("node")
+        .arg("-e")
+        .arg(oracle)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&artifact.wasm)
+        .unwrap();
+    assert!(child.wait().unwrap().success());
+
+    // Exercise exact spellings in Wasmtime under the normal per-call fuel budget.
+    let mut instance = grunkalunka_runtime::NumericInstance::new(&artifact.wasm).unwrap();
+    for (number, text) in [
+        (f64::from_bits(1), "5e-324"),
+        (f64::MIN_POSITIVE, "2.2250738585072014e-308"),
+        (f64::MAX, "1.7976931348623157e+308"),
+        (-0.0, "0"),
+        (f64::NAN, "NaN"),
+        (f64::NEG_INFINITY, "-Infinity"),
+        (1e-6, "0.000001"),
+        (1e-7, "1e-7"),
+        (1e20, "100000000000000000000"),
+        (1e21, "1e+21"),
+        (1000000000000000128.0, "1000000000000000100"),
+    ] {
+        assert_eq!(instance.run(number, -1.0).unwrap(), text.len() as f64);
+        for (i, unit) in text.bytes().enumerate() {
+            assert_eq!(
+                instance.run(number, i as f64).unwrap(),
+                f64::from(unit),
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
 fn template_literals_use_cooked_utf16_and_ordered_string_substitutions() {
     for body in [
+        "const v=a?b:'none';const text=`x${v}`;return text.length;",
+        "let n=0;const text=`${(n++,a)}:${(n++,b)}`;return n+text.length;",
+        "const v=a?'key':b;const o={[`item:${v}`]:b};return o[`item:${v}`]===b?1:0;",
         "const v=a?'ready':null;return `[${v}]`===(a?'[ready]':'[null]')?1:0;",
         "const row={flag:a>b};return `${row.flag}/${undefined}/${null}`===(a>b?'true/undefined/null':'false/undefined/null')?1:0;",
         "return `${-0},${1e21},${0.125},${-1e-7}`==='0,1e+21,0.125,-1e-7'?1:0;",

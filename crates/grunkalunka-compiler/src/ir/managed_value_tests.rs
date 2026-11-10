@@ -1574,7 +1574,7 @@ fn string_concat_method_requires_string_arguments_and_bounded_arity() {
 #[test]
 fn templates_require_supported_primitives_and_bound_substitution_count() {
     for body in [
-        "return `${a}`.length;",
+        "return `${a?b:[]}`.length;",
         "return `${{}}`.length;",
         "return `${a?'a':{}}`.length;",
         "return `${()=>a}`.length;",
@@ -1584,6 +1584,17 @@ fn templates_require_supported_primitives_and_bound_substitution_count() {
             crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err(),
             "{body}"
         );
+    }
+    for (operand, needs_formatter) in [
+        ("a", true),
+        ("a?'text':b", true),
+        ("a>0", false),
+        ("12.75", false),
+        ("'only text'", false),
+    ] {
+        let source = format!("export function run(a,b){{return `${{{operand}}}`.length;}}");
+        let wat = crate::compile(&source, false).unwrap().wat;
+        assert_eq!(wat.contains("(global $inv5"), needs_formatter, "{source}");
     }
     for (n, admitted) in [(0, true), (1000, true), (1001, false)] {
         let parts = "${''}".repeat(n);

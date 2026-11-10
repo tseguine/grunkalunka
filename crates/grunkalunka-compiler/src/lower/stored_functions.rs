@@ -318,10 +318,20 @@ impl Fields {
                 && values.iter().all(|origin| {
                     matches!(
                         origin,
-                        Origin::String | Origin::Boolean | Origin::Null | Origin::Undefined
+                        Origin::String
+                            | Origin::Boolean
+                            | Origin::Null
+                            | Origin::Undefined
+                            | Origin::Number
                     )
                 })
         })
+    }
+
+    pub(super) fn may_be_number(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.contains(&Origin::Number))
     }
 
     pub(super) fn number(&self, node: NodeId) -> bool {
