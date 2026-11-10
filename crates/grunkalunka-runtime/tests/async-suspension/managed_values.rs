@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn lazy_container_assignment_preserves_suspended_choice_and_abrupt_rhs() {
+    compare_promises(
+        &[
+            "let row=a?{n:a}:null;const chosen=row??=(await b,{n:b});await a;return +chosen.n;",
+            "let xs=a?[a]:null,n=0;try{const saved=xs||=(n++,await Promise.reject(b),[b]);return saved.length;}catch(e){return xs===null&&n===1&&e===b?7:0;}",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn logical_assignment_key_saves_table_before_suspended_default() {
     compare_promises(
         &[

@@ -2102,6 +2102,31 @@ impl Fields {
                                     })
                             })
                         });
+                    // A logical assignment retains the old reference or stores
+                    // its RHS, already tracked in the binding definitions.
+                    let preserves_container = bindings.get(&symbol).is_some_and(|origins| {
+                        origins.iter().any(|origin| {
+                            matches!(
+                                origin,
+                                Origin::Object(_) | Origin::NullObject(_) | Origin::Array(_)
+                            )
+                        }) && origins.iter().all(|origin| {
+                            matches!(
+                                origin,
+                                Origin::Object(_)
+                                    | Origin::NullObject(_)
+                                    | Origin::Array(_)
+                                    | Origin::Null
+                                    | Origin::Undefined
+                            )
+                        })
+                    }) && numeric_targets
+                        .iter()
+                        .filter(|(_, _, target_symbol)| *target_symbol == symbol)
+                        .all(|(_, result, _)| {
+                            matches!(semantic.nodes().kind(*result),
+                                AstKind::AssignmentExpression(a) if a.operator.is_logical())
+                        });
                     let primitive_var = var_symbols.contains(&symbol)
                         && bindings.get(&symbol).is_some_and(|origins| {
                             !origins.is_empty()
@@ -2126,7 +2151,11 @@ impl Fields {
                                 .filter(|(_, _, target_symbol)| *target_symbol == symbol)
                                 .map(|(target, _, _)| *target),
                         );
-                    } else if !preserves_string && !preserves_boolean && !preserves_functions {
+                    } else if !preserves_string
+                        && !preserves_boolean
+                        && !preserves_functions
+                        && !preserves_container
+                    {
                         changed |= extend(&mut bindings, symbol, BTreeSet::from([Origin::Other]));
                     }
                 }
