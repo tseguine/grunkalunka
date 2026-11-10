@@ -61,7 +61,6 @@ const negatives=[
   ['comparison-depth',`${'('.repeat(128)}a<b${')'.repeat(128)}; return a;`,'expression nesting exceeds'],
   ['comma-depth-limit',`return ${'('.repeat(127)}a<b,a${')'.repeat(127)};`,'expression nesting exceeds'],
   ['count-limit',`${'true;'.repeat(256)}return a;`,'at most 256 statements'],
-  ['after-return','return a; true;','statements after a guaranteed return'],
   ['for-update-dead','for(;false;true&&Math.random()) {} return a;',expression],
 ];
 export const discardedValuesRejected=negatives.map(([id,body,diagnostic,extension='js'])=>[
@@ -181,3 +180,15 @@ const promotedJS={
   'statement-asserted-negation':'export function run(a,b) { (!a); return a; }',
 };
 for(const ref of discardedPromotions){const js=ref.extension==='ts'?promotedJS[ref.id]:ref.source;discardedValues.push([ref.id,'','',undefined,undefined,{sourceJS:js,sourceTS:ref.source}]);}
+
+const formerAbruptLiteral = 'export function run(a,b) { return a; true; }';
+discardedValues.push(['discarded-after-return', '', '', undefined, undefined, {
+  sourceJS: formerAbruptLiteral, sourceTS: formerAbruptLiteral,
+}]);
+for (const [id, body] of [
+  ['literal-tail-loop', 'while(true){return a; false;} void 0;'],
+  ['literal-tail-mixed', 'do {if(a)break;else return b; null;`unused`;}while(true);return a+b;'],
+  ['literal-tail-continue', 'let n=0;for(let i=0;i<2;i++){n+=b;continue;42;}return n;'],
+]) {
+  discardedValues.push([id, body, body]);
+}

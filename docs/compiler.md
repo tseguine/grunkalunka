@@ -790,7 +790,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   with `export {run}` or `export {localName as run}`. The declaration may
   precede or follow the export. Calls inside the module use the local binding.
   The separate export statement counts once in the source statement budget.
-- Empty statements, `debugger;` and erased type declarations may follow an
+- Discarded literal expressions, empty statements, `debugger;` and erased
+  type declarations may follow an
   unconditional return, throw, break or continue. They still count toward
   source limits. A following executable statement receives its own diagnostic.
 - Standalone module literals (including untagged templates without

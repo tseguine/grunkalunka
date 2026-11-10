@@ -81,7 +81,7 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
 // Oxc represents re-exports from another module with a distinct AST kind.
 fn is_inert_module_item(statement: &Statement<'_>) -> bool {
     matches!(statement, Statement::EmptyStatement(_))
-        || matches!(statement, Statement::ExpressionStatement(source) if lower::discarded_module_literal(&source.expression))
+        || lower::discarded_literal_statement(statement)
         || matches!(statement, Statement::ExportNamedDeclaration(export) if export.specifiers.is_empty())
 }
 
@@ -1228,6 +1228,31 @@ mod tests {
     fn inert_abrupt_tails_keep_the_statement_budget_and_first_runtime_error() {
         for ts in [false, true] {
             let boundary = format!("export function run(a,b){{return a;{}}}", ";".repeat(255));
+            let literal_tail = format!(
+                "export function run(a,b){{return a;{}}}",
+                "true;".repeat(256)
+            );
+            assert!(
+                compile(&literal_tail, ts)
+                    .err()
+                    .unwrap()
+                    .contains("at most 256 statements")
+            );
+            for tail in [
+                "void missing;",
+                "missing;",
+                "void effect();",
+                "`x${effect()}`;",
+            ] {
+                let source = format!("export function run(a,b){{return a;{tail}}}");
+                assert!(
+                    compile(&source, ts)
+                        .err()
+                        .unwrap()
+                        .contains("statements after a guaranteed"),
+                    "{tail}"
+                );
+            }
             let over = boundary.replace("return a;", "return a;debugger;");
             assert!(compile(&boundary, ts).is_ok());
             assert!(
@@ -1236,7 +1261,7 @@ mod tests {
                     .unwrap()
                     .contains("at most 256 statements")
             );
-            let source = "export function run(a,b){return a; ;debugger; a=b;}";
+            let source = "export function run(a,b){return a; true; ;debugger; a=b;}";
             let error = compile(source, ts).err().unwrap();
             let start = source.find("a=b;").unwrap();
             assert!(
