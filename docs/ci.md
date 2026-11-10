@@ -105,7 +105,7 @@ or stale profile metadata cannot silently discard coverage.
 | Coverage | PR profile | Full master/manual profile |
 | --- | --- | --- |
 | Compiler and other non-runtime Cargo packages | All package tests | All package tests |
-| Runtime | Library tests and 21 explicitly classified integration targets | Every runtime integration matrix and doc test |
+| Runtime | Library tests and 22 explicitly classified integration targets | Every runtime integration matrix and doc test |
 | Node contracts, client, transport, portable native smoke, JSON composition | Complete existing checks | Complete existing checks |
 | Document outline | All nine fixtures and native/component parity; driver policy, quota, cleanup and fuel checks | Same checks plus repeated cost/capture benchmarks |
 | A1 note preview | 14 static, compiled JS/TS and native UI/build smoke tests | Complete application and packaging scenarios |
