@@ -36,6 +36,28 @@ fn nested_object_fields_can_act_as_receivers() {
 }
 
 #[test]
+fn abrupt_guard_arms_narrow_only_the_rest_of_the_current_statement_list() {
+    for body in [
+        "const xs=a?[b,b]:null;let n=0;for(let i=0;i<2;i++){if(!xs)continue;n+=xs.length;}return n;",
+        "const row=a?{v:b}:null;let n=0;while(n<2){if(row){}else{break;}return +row.v;}return n;",
+        "const row=a?{v:b}:null;switch(b){case 0:if(!row)break;return +row.v;default:return 7;}return 3;",
+    ] {
+        compare(body);
+    }
+    for body in [
+        "const row=a?{v:b}:null;for(let i=0;i<2;i++){if(!row)break;}return +row.v;",
+        "const row=a?{v:b}:null;switch(b){case 0:if(!row)break;case 1:return +row.v;}return 3;",
+        "const row=a?{v:b}:null;while(a){if(!row){while(b){break;}}return +row.v;}return 7;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_object_array_combinations_keep_original_values() {
     for body in [
         "const o={child:[a,b]};return o.child[0]===a?1:0;",
