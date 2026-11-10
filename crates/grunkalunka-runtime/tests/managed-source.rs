@@ -5,6 +5,18 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn finite_record_mutations_preserve_unrelated_field_kinds() {
+    for body in [
+        "const row={label:'foo',x:0,y:1},k=a?'x':'y';row[k]=b;return row.label.length;",
+        "const row={apply:x=>x+1,x:a,y:b},alias=row,k=a?'x':'y';delete alias[k];return row.apply(2);",
+        "const row={x:{v:7},y:2},k='y';row[k]++;return +row.x.v;",
+        "const row={tag:'ok',x:false,y:null};let k='x';if(a)k='y';row[k]??=b;return row.tag.length;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
 fn intrinsic_instance_tests_preserve_null_prototypes_and_callable_identity() {
     for body in [
         "const d=Object.create(null),o=a?d:{};return o instanceof Object?1:0;",

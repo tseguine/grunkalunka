@@ -1680,3 +1680,8 @@ length overload. The elements preserve their represented kinds and identities.
 Fixed, non-elided array-literal spreads expand before overload selection,
 so `Array(...[3])` has three holes while `Array(...[undefined])` has one
 own slot. Both source and expanded argument counts use the call width limit.
+
+Finite key alternatives also narrow mutation effects. A write or delete
+through an alias widens every field it could select. Unrelated fields
+retain their kinds, so a table's callback or label can still be used after
+updating one of its counters. Open-ended keys retain wildcard effects.

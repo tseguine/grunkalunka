@@ -2,16 +2,47 @@
 use super::*;
 
 pub(super) enum Mutation {
-    KeyDelete { receiver: NodeId, key: Key },
+    KeyDelete { receiver: NodeId, keys: Vec<Key> },
     AnyKeyDelete(NodeId),
     IndexDelete(NodeId),
     Reorder(NodeId),
     AnyKeyWrite { receiver: NodeId, value: NodeId },
 }
 
+fn affected_names(key: iteration::PropertyKey<'_, '_>, names: &RecordNames) -> Option<Vec<Key>> {
+    match key {
+        iteration::PropertyKey::Literal(key) => Some(vec![key]),
+        iteration::PropertyKey::Runtime(expr) => {
+            if let Some(key) = closures::unwrapped(expr, 0).and_then(static_keys::literal) {
+                return Some(vec![key]);
+            }
+            match names.domain(expr, 0) {
+                record_names::Domain::Fields(fields) => Some(fields.into_iter().collect()),
+                _ => None,
+            }
+        }
+    }
+}
+
+pub(super) fn write(
+    receiver: NodeId,
+    key: iteration::PropertyKey<'_, '_>,
+    value: NodeId,
+    names: &RecordNames,
+    writes: &mut Vec<(NodeId, Key, NodeId)>,
+    mutations: &mut Vec<Mutation>,
+) {
+    if let Some(keys) = affected_names(key, names) {
+        writes.extend(keys.into_iter().map(|key| (receiver, key, value)));
+    } else {
+        mutations.push(Mutation::AnyKeyWrite { receiver, value });
+    }
+}
+
 pub(super) fn delete(
     unary: &oxc_ast::ast::UnaryExpression<'_>,
     uint32_keys: &Uint32Keys,
+    names: &RecordNames,
 ) -> Option<Mutation> {
     if unary.operator != UnaryOperator::Delete {
         return None;
@@ -19,29 +50,33 @@ pub(super) fn delete(
     let (receiver, key) = match closures::unwrapped(&unary.argument, 0)? {
         Expression::StaticMemberExpression(member) => (
             &member.object,
-            Some(member.property.name.encode_utf16().collect()),
+            iteration::PropertyKey::Literal(member.property.name.encode_utf16().collect()),
         ),
         Expression::ComputedMemberExpression(member) => (
             &member.object,
-            closures::unwrapped(&member.expression, 0).and_then(static_keys::literal),
+            iteration::PropertyKey::Runtime(&member.expression),
         ),
         Expression::ChainExpression(chain) => {
             let (receiver, key) = evaluate::optional_member::parts(chain, 0, uint32_keys)?;
-            let key = match key {
-                evaluate::optional_member::Key::Literal(key) => Some(key),
-                evaluate::optional_member::Key::Uint32(_)
-                | evaluate::optional_member::Key::Runtime(_) => None,
-            };
-            (receiver, key)
+            (
+                receiver,
+                match key {
+                    evaluate::optional_member::Key::Literal(key) => {
+                        iteration::PropertyKey::Literal(key)
+                    }
+                    evaluate::optional_member::Key::Uint32(expr)
+                    | evaluate::optional_member::Key::Runtime(expr) => {
+                        iteration::PropertyKey::Runtime(expr)
+                    }
+                },
+            )
         }
         _ => return None,
     };
-    Some(match key {
-        Some(key) => Mutation::KeyDelete {
-            receiver: receiver.node_id(),
-            key,
-        },
-        None => Mutation::AnyKeyDelete(receiver.node_id()),
+    let receiver = receiver.node_id();
+    Some(match affected_names(key, names) {
+        Some(keys) => Mutation::KeyDelete { receiver, keys },
+        None => Mutation::AnyKeyDelete(receiver),
     })
 }
 
