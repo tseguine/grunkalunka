@@ -1746,6 +1746,12 @@ Lexical binding patterns also share primitive-key conversion, including nested
 records, rest exclusions, and per-iteration bindings. Member targets in
 `for...of` and `for...in` evaluate the receiver and computed key on each visit.
 
+The pristine `Number` function accepts the four scalar primitive kinds.
+`Number()` returns positive zero, while `Number(undefined)` returns NaN.
+The selected input is saved while additional arguments evaluate, including
+across suspension. String parsing, reference coercion and boxed Number
+construction remain outside this conversion.
+
 Calling the pristine `Boolean` function applies the language truthiness rules
 to the saved first argument. Omission produces false, and surplus arguments
 still execute in source order, including their effects and rejections.

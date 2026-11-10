@@ -26,6 +26,7 @@ pub(super) fn instance_test(
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ConversionCall {
+    Number,
     String,
     Boolean,
 }
@@ -42,6 +43,7 @@ pub(super) fn conversion_call(
         return None;
     }
     match id.name.as_str() {
+        "Number" => Some(ConversionCall::Number),
         "String" => Some(ConversionCall::String),
         "Boolean" => Some(ConversionCall::Boolean),
         _ => None,

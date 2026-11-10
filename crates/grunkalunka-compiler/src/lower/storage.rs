@@ -718,6 +718,11 @@ pub(crate) fn general_mutable_bindings(
             let AstKind::CallExpression(call) = node.kind() else {
                 return None;
             };
+            if object_intrinsics::conversion_call(call, semantic, 0)
+                == Some(object_intrinsics::ConversionCall::Number)
+            {
+                return Some(call.node_id.get());
+            }
             let (receiver, method) = string_methods::call(call)?;
             (method.result() == Type::Number
                 && (stored.string(receiver.node_id())

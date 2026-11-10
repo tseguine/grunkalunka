@@ -678,6 +678,17 @@ impl Lowering<'_, '_> {
             && let Some(kind) = object_intrinsics::conversion_call(call, self.semantic, depth + 1)
         {
             match kind {
+                object_intrinsics::ConversionCall::Number => match mode {
+                    Mode::Number => (),
+                    Mode::Predicate => work.push(Work::Truthy(node)),
+                    Mode::General => work.push(Work::Pack(node)),
+                    Mode::Managed => {
+                        work.push(Work::Managed(ManagedWork::Primitive(node)));
+                        work.push(Work::Pack(node));
+                    }
+                    Mode::Discard => work.push(Work::Forget),
+                    _ => return Ok(false),
+                },
                 object_intrinsics::ConversionCall::Boolean => {
                     boolean_consumer(node, mode, "Boolean produces a primitive Boolean", work)?
                 }

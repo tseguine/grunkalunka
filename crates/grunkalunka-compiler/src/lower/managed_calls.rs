@@ -431,6 +431,7 @@ fn kinds(
                     {
                         values.push(
                             [match kind {
+                                object_intrinsics::ConversionCall::Number => Kind::Primitive,
                                 object_intrinsics::ConversionCall::String => Kind::String,
                                 object_intrinsics::ConversionCall::Boolean => {
                                     Kind::GeneralPrimitive
