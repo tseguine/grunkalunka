@@ -919,3 +919,23 @@ fn array_at_defaults_do_not_establish_presence_or_erase_other_kinds() {
         }
     }
 }
+
+#[test]
+fn runtime_resize_requires_a_visible_number_and_invalidates_elements() {
+    let src = "export function run(a,b){const xs=[a];xs.length=b>>>0;return xs.length;}";
+    let mut module = crate::lower_source(src, false).unwrap();
+    verify_module(&module).unwrap();
+    let op = module.functions[0]
+        .body
+        .operations
+        .iter_mut()
+        .find_map(|op| match &mut op.kind {
+            Op::ManagedArrayResizeDynamic { array, length } => Some((*array, length)),
+            _ => None,
+        })
+        .unwrap();
+    *op.1 = op.0;
+    assert!(verify_module(&module).is_err());
+    let src = "export function run(a,b){const xs=['safe'];const alias=xs;alias.length=a>>>0;return xs[0].trim().length;}";
+    assert!(crate::compile(src, false).is_err());
+}

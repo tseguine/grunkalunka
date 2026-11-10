@@ -1741,3 +1741,8 @@ records, rest exclusions, and per-iteration bindings. Member targets in
 Calling the pristine `Boolean` function applies the language truthiness rules
 to the saved first argument. Omission produces false, and surplus arguments
 still execute in source order, including their effects and rejections.
+
+Array length assignments accept runtime values proven to be uint32, including
+another array's length, a checked loop counter or an unsigned shift. Shrinking
+deletes indexed properties, growing creates holes, and the assignment returns
+the original RHS Number (including negative zero).

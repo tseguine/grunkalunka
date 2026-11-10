@@ -2,6 +2,20 @@
 mod common;
 
 #[test]
+fn runtime_array_lengths_shrink_grow_and_preserve_rhs_values() {
+    for body in [
+        "const xs=[a,b];xs.note=7;const n=a>>>0;const result=xs.length=n;return result===n&&xs.length===n&&xs.note===7?1:0;",
+        "const xs=['x','y'];xs.length=(a&1);xs.length=2;return Object.hasOwn(xs,1)?0:1;",
+        "let xs=[a,b];const old=xs;const v=xs.length=(xs=[],b>>>0);return old.length===v&&xs.length===0?1:0;",
+        "const xs=[a],ys=[a,b,b];xs.length=ys.length;return xs.length===3&&!Object.hasOwn(xs,2)?1:0;",
+        "const xs=[a];const v=xs.length=-0;return 1/v;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn private_helpers_return_arrays_without_a_literal_array_witness() {
     for source in [
         "function make(x){return new Array(x>>>0);}export function run(a,b){return make(a).length;}",

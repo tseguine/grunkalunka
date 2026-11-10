@@ -787,6 +787,12 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_object_new\n");
                 self.set(*result);
             }
+            Op::ManagedArrayResizeDynamic { array, length } => {
+                self.get(*array);
+                self.get(*length);
+                self.output
+                    .push_str("i32.trunc_f64_u\ncall $gc_array_resize\n");
+            }
             Op::ManagedArrayResize { array, length } => {
                 self.get(*array);
                 writeln!(

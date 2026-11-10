@@ -2,38 +2,6 @@
 use super::*;
 use crate::lower::iteration::LiteralElement;
 
-pub(super) fn literal_length(mut node: &Expression<'_>, mut depth: usize) -> Result<u32, String> {
-    loop {
-        if depth > 128 {
-            return Err(unsupported(
-                node,
-                "expression nesting exceeds this experiment's limit",
-            ));
-        }
-        if let Some(inner) = erased_inner(node) {
-            node = inner;
-            depth += 1;
-            continue;
-        }
-        if let Expression::ParenthesizedExpression(w) = node {
-            node = &w.expression;
-            depth += 1;
-            continue;
-        }
-        if let Expression::NumericLiteral(n) = node
-            && n.value >= 0.0
-            && n.value <= f64::from(u32::MAX)
-            && n.value.fract() == 0.0
-        {
-            return Ok(n.value as u32);
-        }
-        return Err(unsupported(
-            node,
-            "array length writes require a valid unsigned integer literal",
-        ));
-    }
-}
-
 pub(in crate::lower::evaluate) struct ArrayWork<'e, 'a> {
     pub node: &'e Expression<'a>,
     pub elements: Vec<LiteralElement<'e, 'a>>,
