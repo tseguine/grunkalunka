@@ -7,6 +7,7 @@ import { loadCanonicalCommands } from './check-catalog.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const failures = [];
+console.log('Checking full canonical commands independently after workspace Cargo validation');
 let passed = 0;
 for (const { command, args } of loadCanonicalCommands(undefined, { profile: 'full' })) {
   if (command === 'cargo' && args[0] === 'test' && args.includes('--workspace')) continue;
