@@ -54,6 +54,10 @@ fn scalar_iteration_assignments_preserve_cells_effects_and_numeric_bits() {
 #[test]
 fn member_iteration_heads_preserve_assignment_targets_and_selected_values() {
     for body in [
+        "const o={f:x=>x+1};const k=a?'left':'right';for(o[k] of [a,b]){}return o[k]===b?o.f(a):0;",
+        "let n=0;const o={};const k='name';for(o[(n++,k)] in {aa:a,bbb:b}){}return n*10+(o[k]==='bbb'?1:0);",
+        "let n=0;const o={};const k='x';for(o[(n++,k)] of [])n++;return n;",
+        "let o={x:a};const old=o;const k='x';for(o[(o={x:b},k)] of [0]){}return old.x===0&&o.x===b?1:0;",
         "const fill=(o,values)=>{for(o.x of values){}return o.x;};const o={x:a};return fill(o,[b]);",
         "const o={f:()=>a};for(o.f of [()=>b]){}return o.f();",
         "const row={value:a};for(row.value of [b]){}return a;",

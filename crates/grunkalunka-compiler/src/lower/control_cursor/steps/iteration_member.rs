@@ -8,18 +8,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         object: &Expression<'ast>,
         key: iteration::PropertyKey<'_, 'ast>,
     ) -> Result<(), String> {
-        let ty = self.receiver_type(object, 1);
-        if !matches!(ty, Some(Type::ManagedObject | Type::ManagedArray)) {
+        let Some(ty @ (Type::ManagedObject | Type::ManagedArray)) = self.receiver_type(object, 1)
+        else {
             return Err(unsupported(
                 source.left(),
                 "iteration member targets require a proven object or array",
             ));
-        }
+        };
         match key {
             iteration::PropertyKey::Literal(key) => {
-                if ty == Some(Type::ManagedArray)
-                    && key.as_slice() == [108, 101, 110, 103, 116, 104]
-                {
+                if ty == Type::ManagedArray && key.as_slice() == [108, 101, 110, 103, 116, 104] {
                     return Err(unsupported(
                         source.left(),
                         "iteration cannot assign unchecked array length",
@@ -28,18 +26,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 evaluate::managed_member_key(
                     source.left(),
                     key,
-                    ty == Some(Type::ManagedArray),
+                    ty == Type::ManagedArray,
                     self.stored.dictionary(object.node_id()),
                 )?;
             }
             iteration::PropertyKey::Runtime(key) => {
-                if !self.stored.uint32_keys.contains(key, 1)
-                    && !(self.stored.dictionary(object.node_id())
-                        && self.stored.string(key.node_id()))
-                {
+                if !self.accepts_runtime_destination_key(object, ty, key, 1) {
                     return Err(unsupported(
                         source.left(),
-                        "iteration member runtime keys require unsigned syntax or a dictionary String",
+                        "iteration member runtime keys require an unsigned index or a proven own String key",
                     ));
                 }
             }
@@ -149,6 +144,14 @@ mod tests {
             ),
             (
                 "const o={x:a};const k='x';for(o[k] of [b]){}return a;",
+                true,
+            ),
+            (
+                "const o={};const k=a?'x':'constructor';for(o[k] of [b]){}return a;",
+                false,
+            ),
+            (
+                "const o={x:'ok'};const k=a?'x':'y';for(o[k] of [b]){}return o.x.trim().length;",
                 false,
             ),
             ("const xs=[];for(xs[a] of [b]){}return a;", false),

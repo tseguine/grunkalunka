@@ -35,6 +35,20 @@ pub(super) enum Task<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    pub(in crate::lower) fn accepts_runtime_destination_key(
+        &self,
+        object: &Expression<'_>,
+        receiver: Type,
+        key: &Expression<'_>,
+        depth: usize,
+    ) -> bool {
+        self.stored.uint32_keys.contains(key, depth)
+            || (self.stored.string(key.node_id())
+                && (self.stored.dictionary(object.node_id())
+                    || (receiver == Type::ManagedObject
+                        && self.stored.record_names.contains(key, depth))))
+    }
+
     pub(super) fn runtime_member_receiver(
         &self,
         member: &oxc_ast::ast::ComputedMemberExpression<'_>,

@@ -122,13 +122,10 @@ impl Lowering<'_, '_> {
                     )?)
                 }
                 iteration::PropertyKey::Runtime(key) => {
-                    if !self.stored.uint32_keys.contains(key, depth)
-                        && !(self.stored.dictionary(object.node_id())
-                            && self.stored.string(key.node_id()))
-                    {
+                    if !self.accepts_runtime_destination_key(object, ty, key, depth) {
                         return Err(unsupported(
                             target,
-                            "assignment member runtime keys require unsigned syntax or a dictionary String",
+                            "assignment member runtime keys require an unsigned index or a proven own String key",
                         ));
                     }
                     iteration::PropertyKey::Runtime(key)
@@ -1269,7 +1266,7 @@ mod member_tests {
             ("const o=a?{}:null;[o.x]=[b];return a;", false),
             ("const o={};[o.__proto__]=[b];return a;", false),
             ("const xs=[];[xs.length]=[b];return a;", false),
-            ("const o={};const k='x';[o[k]]=[b];return a;", false),
+            ("const o={};const k='x';[o[k]]=[b];return a;", true),
             ("const o={};[...o.x]=[b];return a;", true),
             ("const o={};({...o.x}={x:b});return a;", true),
             (
@@ -1327,7 +1324,15 @@ mod computed_member_tests {
             ("const xs=[];[xs[a]]=[b];return a;", false),
             ("const xs=[];const k='0';[xs[k]]=[b];return a;", false),
             ("const d=Object.create(null);[d[a]]=[b];return a;", false),
-            ("const o={x:a};const k='x';[o[k]]=[b];return a;", false),
+            ("const o={x:a};const k='x';[o[k]]=[b];return a;", true),
+            (
+                "const o={};const k=a?'x':'__proto__';[o[k]]=[b];return a;",
+                false,
+            ),
+            (
+                "const o={x:'s'};const k=a?'x':'y';[o[k]]=[b];return o.x.trim().length;",
+                false,
+            ),
             (
                 "const xs=['safe'];const alias=xs;[alias[a>>>0]]=[b];return xs[0].length;",
                 false,
