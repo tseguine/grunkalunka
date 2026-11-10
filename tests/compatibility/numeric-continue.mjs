@@ -31,6 +31,11 @@ const cases = [
 ];
 export const numericContinue = cases.map(([id, body]) => [id, body, body]);
 const promotedSwitchBody = 'while(0) { switch(a) { default: continue; } } return b;';
+const labelledBody = 'outer: while(0) { continue outer; } return a;';
+numericContinue.push(['continue-label', labelledBody, labelledBody, undefined, undefined, {
+  sourceJS: `export function run(a,b) { ${labelledBody} }`,
+  sourceTS: `export function run(a:number,b:number):number { ${labelledBody} }`,
+}]);
 numericContinue.push(['continue-switch-remains', promotedSwitchBody, promotedSwitchBody, undefined, undefined, {
   sourceJS: `export function run(a,b) { ${promotedSwitchBody} }`,
   sourceTS: `export function run(a:number,b:number):number { ${promotedSwitchBody} }`,
@@ -45,7 +50,7 @@ const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized';
 const negatives = [
   ['continue-no-loop', 'continue; return a;'],
-  ['continue-label', 'outer: while(0) { continue outer; } return a;', 'statement is outside'],
+  ['continue-outer-loop-label', 'outer: while(a) { while(b) { continue outer; } break; } return a;', 'label must name the nearest continue target'],
   ['continue-do-needs-return', 'do { continue; } while(0);', missing],
   ['continue-do-mixed-needs-return', 'do { if(a) continue; else return b; } while(0);', missing],
   ['continue-do-suffix-needs-return', 'do { if(a) continue; a++; return b; } while(0);', missing],

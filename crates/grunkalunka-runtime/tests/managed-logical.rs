@@ -32,6 +32,19 @@ fn source_with_module_helper(body: &str) -> String {
 }
 
 #[test]
+fn labelled_loop_and_switch_transfers_keep_the_lexical_target() {
+    for body in [
+        "let n=0;outer:for(let i=0;i<4;i++){switch(i){case 1:continue outer;default:break;}n+=i;}return n;",
+        "let n=0;first:second:while(n<3){n++;if(n===1)continue first;break second;}return n;",
+        "let n=0;for(let i=0;i<3;i++){pick:switch(i){case 1:break pick;default:n+=10;}n++;}return n;",
+        "let n=0;loop:for(const x of [1,2,3]){try{if(x===2)break loop;n+=x;}finally{n++;}}return n;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn switch_continue_reaches_the_enclosing_loop_after_cleanup() {
     for body in [
         "let n=0;for(let i=0;i<4;i++){switch(i){case 0:case 2:continue;case 1:break;default:n+=10;}n++;}return n;",

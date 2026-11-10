@@ -2147,10 +2147,10 @@
       "group": "illegal-loop-control"
     },
     {
-      "id": "break-label",
+      "id": "break-outer-loop-label",
       "extension": "js",
       "sourceMode": "module-strict",
-      "sourceSha256": "c7cbfbd802ebe06d4bd97a22b8245276f84eafa63e05100dbe7cb99bca827556",
+      "sourceSha256": "1198e53702e43395407038f2ce431291287cbaf84300e0a6d5a31a95f6c35e39",
       "group": "labels"
     },
     {
@@ -2252,10 +2252,10 @@
       "group": "illegal-loop-control"
     },
     {
-      "id": "continue-label",
+      "id": "continue-outer-loop-label",
       "extension": "js",
       "sourceMode": "module-strict",
-      "sourceSha256": "ef5cccfadd16dfe8abb8d79dfa33f205edc853723e3bac296758ca1cd7642644",
+      "sourceSha256": "2bb94bf3cf33d52e917a2a869c8c58326db47329771e4c17edb86e40cc0f330f",
       "group": "labels"
     },
     {

@@ -107,6 +107,7 @@ pub(super) fn normal_completion(function: &oxc_ast::ast::Function<'_>) -> bool {
                 Statement::ReturnStatement(_) => values.push(Completion::RETURN),
                 Statement::ThrowStatement(_) => values.push(Completion::THROW),
                 Statement::BreakStatement(_) => values.push(Completion::BREAK),
+                Statement::LabeledStatement(label) => work.push(Task::Statement(&label.body)),
                 Statement::ContinueStatement(_) => values.push(Completion::CONTINUE),
                 Statement::BlockStatement(block) => {
                     work.push(Task::Sequence(block.body.as_slice()))

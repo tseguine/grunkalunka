@@ -59,3 +59,8 @@ and Wasmtime, including the exact former `gap-switch` source and its original
 fixed golden. Primitive-return, async reaction-order and forced-GC suites cover
 the other existing interfaces. Canonical fixtures retain the promoted source hash
 and independent native oracle. The remaining switch rejection group stays open.
+
+Labels directly on a loop or switch, including consecutive labels, can name
+the nearest break target. A labelled continue names the nearest iteration,
+including from inside a switch. The existing cleanup and iteration steps
+still run. Jumps past an intervening target remain guarded.
