@@ -555,6 +555,11 @@ fn numeric_return_continuation_preserves_abrupt_paths_and_first_errors() {
     for (body, admitted) in [
         ("return (a+b)*(a-b);", true),
         ("if(a){return a+1;}return b+2;", true),
+        ("while(true){if(a)return a;else return b;}", true),
+        ("while(false){return a;}", false),
+        ("while(a){return a;}", false),
+        ("while(1){if(a)break;return b;}", false),
+        ("while((a++,0)){return b;}", false),
         ("while(a){return a+b;}return b;", true),
         ("return a ** b;", false),
         ("return;", false),

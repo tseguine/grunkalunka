@@ -181,7 +181,7 @@ import { selectedInstancePrograms, selectedInstanceRejected } from './selected-i
 
 import { literalNumericPrograms } from './literal-numeric-operands.mjs';
 
-export const corpusVersion = 205;
+export const corpusVersion = 206;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -460,7 +460,6 @@ export const rejected = [
   ...typeOnlyModuleRejected,
   ...genericDeclarationsRejected,
   ...typescriptRejected,
-  ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
   ['while-leak', 'export function run(a,b) { while (0) { const x=a; } return x; }'],
   ['while-const-write', 'export function run(a,b) { const x=a; while (0) { x=b; } return x; }'],

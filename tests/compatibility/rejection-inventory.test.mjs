@@ -369,9 +369,20 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 768);
+  assert.equal(inventory.records.size, 766);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('terminal while loops execute their original rejected source', () => {
+  for (const [id, hash] of [
+    ['gap-while-guaranteed-return', '5dbc7444053d63cef1a3c3939c25bd88bade309a5f744d52acbb696e93460717'],
+    ['while-only-return', '7cc963114529d8a21abaa51026704a64cb02e614bc182ce3c638383a8274dc4c'],
+  ]) {
+    const source = programSources(programs.find(row => row[0] === id));
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), hash);
+    assert.equal(source.oracleSource, source.sourceJS);
+  }
 });
 
 test('conditional instanceof executes the original reference source', () => {
@@ -520,7 +531,7 @@ test('feature dependency cycles are descriptive and legal', () => {
 test('valid throwing/unselected programs and temporary entry/return policies remain open', () => {
   const inventory = validate(catalog);
   for (const id of ['while-const-write','dead-branch-const-write','self-reference','global',
-    'type-declaration-type-not-value','gap-one-parameter','gap-export-name','while-only-return','gap-unreachable-after-return']) {
+    'type-declaration-type-not-value','gap-one-parameter','gap-export-name','gap-unreachable-after-return']) {
     assert.equal(rejectionClassification(inventory, id).kind, 'open-requirement', id);
   }
   assert.equal(rejectionClassification(inventory, 'compound-destructuring-target').kind, 'invalid-source');

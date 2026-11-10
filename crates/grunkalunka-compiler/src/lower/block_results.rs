@@ -30,10 +30,56 @@ pub(super) fn return_statements<'a>(
         .collect()
 }
 
+// A side-effect-free true test may be moved to the back edge when the first
+// iteration must exit. Restrict that proof to tail position so previously
+// admitted fallback statements still undergo their ordinary lowering.
+pub(super) fn terminal_truthy_while(
+    semantic: &Semantic<'_>,
+    source: &oxc_ast::ast::WhileStatement<'_>,
+) -> bool {
+    let truthy = match closures::unwrapped(&source.test, 0) {
+        Some(Expression::BooleanLiteral(value)) => value.value,
+        Some(Expression::NumericLiteral(value)) => value.value != 0.0 && !value.value.is_nan(),
+        _ => false,
+    };
+    if !truthy {
+        return false;
+    }
+    let nodes = semantic.nodes();
+    let mut child = source.node_id();
+    loop {
+        let parent = nodes.parent_id(child);
+        let statements = match nodes.kind(parent) {
+            AstKind::FunctionBody(body) => &body.statements,
+            AstKind::BlockStatement(block) => &block.body,
+            AstKind::IfStatement(_) => {
+                child = parent;
+                continue;
+            }
+            _ => return false,
+        };
+        if statements
+            .iter()
+            .rev()
+            .find(|stmt| !is_type_declaration(stmt))
+            .is_none_or(|last| last.node_id() != child)
+        {
+            return false;
+        }
+        if matches!(nodes.kind(parent), AstKind::FunctionBody(_)) {
+            return true;
+        }
+        child = parent;
+    }
+}
+
 // Representation planning uses the same completion algebra as lowering, but
 // visits source statements with a heap worklist and never evaluates expressions.
 // Unknown/unsupported statements still undergo the ordinary admission checks.
-pub(super) fn normal_completion(function: &oxc_ast::ast::Function<'_>) -> bool {
+pub(super) fn normal_completion(
+    semantic: &Semantic<'_>,
+    function: &oxc_ast::ast::Function<'_>,
+) -> bool {
     enum Task<'n, 'a> {
         Sequence(&'n [Statement<'a>]),
         Statement(&'n Statement<'a>),
@@ -122,7 +168,11 @@ pub(super) fn normal_completion(function: &oxc_ast::ast::Function<'_>) -> bool {
                     work.push(Task::Statement(&branch.consequent));
                 }
                 Statement::WhileStatement(loop_) => {
-                    work.push(Task::Pretest);
+                    work.push(if terminal_truthy_while(semantic, loop_) {
+                        Task::Do
+                    } else {
+                        Task::Pretest
+                    });
                     work.push(Task::Statement(&loop_.body));
                 }
                 Statement::ForStatement(loop_) => {

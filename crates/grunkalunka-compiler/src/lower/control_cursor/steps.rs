@@ -922,16 +922,29 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             } => {
                 self.in_loop_body = old_loop;
                 self.bindings.truncate(visible);
-                Self::push(
-                    &mut output,
-                    source,
-                    Op::While {
-                        condition,
-                        body: finished_region,
-                        step: None,
-                    },
-                );
-                cursor.completed = Some(Outcome::Statement(output, completion.pretest_loop()));
+                let entered = completion.do_loop();
+                let (op, completion) = if !entered.normal
+                    && block_results::terminal_truthy_while(self.semantic, source)
+                {
+                    (
+                        Op::DoWhile {
+                            body: finished_region,
+                            condition,
+                        },
+                        entered,
+                    )
+                } else {
+                    (
+                        Op::While {
+                            condition,
+                            body: finished_region,
+                            step: None,
+                        },
+                        completion.pretest_loop(),
+                    )
+                };
+                Self::push(&mut output, source, op);
+                cursor.completed = Some(Outcome::Statement(output, completion));
             }
             Frame::For(frame) => {
                 self.resume_for_loop(frame, finished_region, completion, cursor)?;

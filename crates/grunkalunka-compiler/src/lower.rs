@@ -814,7 +814,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     }
 
     pub(crate) fn undefined_completion(&self, function: &oxc_ast::ast::Function<'_>) -> bool {
-        block_results::normal_completion(function)
+        block_results::normal_completion(self.semantic, function)
             || block_results::return_statements(self.semantic, function.node_id.get())
                 .iter()
                 .all(|statement| statement.argument.is_none())

@@ -469,6 +469,8 @@ fn conditional_helper_values_keep_the_implicit_undefined_path() {
 #[test]
 fn helper_control_flow_preserves_normal_and_abrupt_completions() {
     compare_helpers(&[
+        "function helper(x){while(true){if(x)return x;else return 7;}}export function run(a,b){return helper(a);}",
+        "function helper(x){while(true){if(x)break;return x;}}export function run(a,b){return helper(a);}",
         "function helper(x){while(x){return x;}}export function run(a,b){return helper(a);}",
         "function helper(x){for(const y of [x]){if(x)return y;}}export function run(a,b){return helper(a);}",
         "function helper(x){const o=Object.create(null);o.a=x;for(const key in o){if(x)return x;}}export function run(a,b){return helper(a);}",

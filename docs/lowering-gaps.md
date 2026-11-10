@@ -67,7 +67,11 @@ their specific declaration diagnostic.
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export` |
-| Conservative return analysis | `gap-while-guaranteed-return`, `gap-unreachable-after-return` |
+| Conservative return analysis | `gap-unreachable-after-return` |
+
+A terminal `while` with a true Boolean or nonzero Number literal can now supply
+the required return when every path through its first iteration returns or
+throws. The corpus executes both original `while(1)` return fixtures.
 
 This separates missing operators/value semantics from functions/modules and later
 closure, exception and async work. Export naming/arity and
