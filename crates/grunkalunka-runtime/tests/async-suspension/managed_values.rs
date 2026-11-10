@@ -4,6 +4,8 @@ use super::*;
 fn nullish_guards_on_unchanged_locals_survive_suspension() {
     compare_promises(
         &[
+            "const row=a?{n:b}:null;return row?(await b,+row.n):7;",
+            "const row=a?{n:b}:null;return +(row===null || (await a,row.n));",
             "const row=a?{n:b}:null;if(!row)return 7;await a;return +row.n;",
             "const value=a?[a,b]:{n:b};if(Array.isArray(value)){await a;return value.length;}await b;return +value.n;",
             "const value=a?'text':b;await b;if(typeof value==='string')return value.charCodeAt(0);return value+1;",

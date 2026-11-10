@@ -5,6 +5,29 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn expression_guards_narrow_only_the_selected_operand() {
+    for body in [
+        "const row=a?{n:b}:null;return row?+row.n:7;",
+        "const v=a?[a,b]:{n:b};return Array.isArray(v)?v.length:+v.n;",
+        "const row=a?{n:b}:null;return +(row!=null && row.n);",
+        "const row=a?{n:b}:null;return +(row===null || row.n);",
+        "const row=a?{n:b}:null;let count=0;row && (count++,row.n);return count;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const row=a?{n:b}:null;return row?7:+row.n;",
+        "const row=a?{n:b}:null;return +(row===null && row.n);",
+        "const row=a?{n:b}:null;return +(row!=null || row.n);",
+        "let row=a?{n:b}:null;return row?(row=null,+row.n):7;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn guarded_helper_parameters_keep_the_callers_runtime_kind() {
     for source in [
         "function read(row){if(row==null)return 7;return +row.n;}export function run(a,b){return read(a?{n:b}:null);}",
