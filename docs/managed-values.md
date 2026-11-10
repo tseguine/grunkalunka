@@ -1827,3 +1827,8 @@ Calls to `at`, `slice`, `includes`, `indexOf` and
 `lastIndexOf` on proven Arrays accept nested, hole-free Array-literal
 argument spreads. The receiver and earlier arguments are saved while later
 arguments run; the operation observes mutations up to the actual call.
+
+
+Supported String methods also accept fixed Array-literal spreads, including
+UTF-16 indexing, range selection, search, concatenation and repetition.
+Each method applies its ordinary defaults to the expanded argument list.

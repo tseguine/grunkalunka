@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn string_method_spreads_keep_receiver_and_skip_after_rejection() {
+    compare_promises(
+        &[
+            "let s='abc';const v=s.substring(...[(await a,s='x',1),...[(await b,3)]]);return v==='bc'?1:0;",
+            "let n=0;try{'a'.concat(...[(n++,'b'),(await Promise.reject(b),'c')],(n++,'d'));}catch(e){return n===1&&e===b?1:0;}return 99;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_method_spreads_save_earlier_arguments_across_await() {
     compare_promises(
         &[

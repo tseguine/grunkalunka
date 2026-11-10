@@ -2,6 +2,32 @@
 mod common;
 
 #[test]
+fn fixed_spreads_in_string_methods_preserve_utf16_and_argument_effects() {
+    for body in [
+        "return 'abc'.codePointAt(...[0])===undefined?1:0;",
+        "return 'abc'.isWellFormed(...[])?1:0;",
+        "return 'abc'.toWellFormed(...[]).length;",
+        "return ''.concat(...['a']).length;",
+        "return 'ab'.repeat(...[2]).length;",
+        "return 'abc'.endsWith(...['c'])?1:0;",
+        "return ' x '.trimEnd(...[a]).length;",
+        "return 'abc'.charCodeAt(...[0]);",
+        "return 'abc'.at(...[0])===undefined?1:0;",
+        "return 'abc'.lastIndexOf(...['c']);",
+        "return 'abc'.includes(...['a'])?1:0;",
+        "const s='abc';return s.slice(...[0]).length;",
+        "let s='ab',n=0;const v=s.concat(...[(s='x','c'),...[(n++,'d')]]);return v==='abcd'?n:0;",
+        "return '😀x'.charCodeAt(...[],...[1]);",
+        "return '😀x'.substring(...[2,0]).length;",
+        "let n=0;return 'a'.repeat(...[2],(n++,'unused')).length+n;",
+        "let s='abc';const v=s.startsWith(...[(s='x','b'),...[1]]);return v?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn finite_string_keys_read_utf16_units_or_intrinsic_length() {
     for body in [
         "const s='😀x',k=a?'length':'1';return s[k]===3||s[k]==='\\ude00'?1:0;",
@@ -128,7 +154,7 @@ fn string_repeat_keeps_receiver_coercion_and_dynamic_invocation_guarded() {
     for body in [
         "return a.repeat(2);",
         "return 'ab'.repeat('2').length;",
-        "return 'ab'.repeat(...[2]).length;",
+        "const args=[2];return 'ab'.repeat(...args).length;",
         "const key='repeat';return 'ab'[key](2).length;",
         "return 'ab'.repeat?.(2).length;",
         "return String.prototype.repeat.call('ab',2).length;",
@@ -350,7 +376,7 @@ fn string_indices_reject_unproven_strings_and_unrepresented_coercions() {
         "const s='abc';return s?.indexOf('c');",
         "const s='abc';return s.lastIndexOf?.('c');",
         "return 'abc'.indexOf.call('abc','c');",
-        "return 'abc'.lastIndexOf(...['c']);",
+        "const args=['c'];return 'abc'.lastIndexOf(...args);",
         "const key='indexOf';return 'abc'[key]('c');",
         "return 'abc'.lastIndexOf('c').length;",
         "return ('abc'.indexOf('a')+'!').length;",
@@ -449,7 +475,7 @@ fn string_ends_with_rejects_unproven_strings_and_unrepresented_coercions() {
         "const s='abc';return s?.endsWith('c')?1:0;",
         "const s='abc';return s.endsWith?.('c')?1:0;",
         "return 'abc'.endsWith.call('abc','c')?1:0;",
-        "return 'abc'.endsWith(...['c'])?1:0;",
+        "const args=['c'];return 'abc'.endsWith(...args)?1:0;",
         "const key='endsWith';return 'abc'[key]('c')?1:0;",
         "return 'abc'.endsWith('c').length;",
         "return 'abc'.endsWith('c');",
@@ -566,7 +592,7 @@ fn string_trim_rejects_unproven_receivers_and_unrepresented_call_forms() {
         "const xs=[' x '];return xs.at(0).trim().length;",
         "const s=' x ';return s?.trim().length;",
         "const s=' x ';return s.trimStart?.().length;",
-        "return ' x '.trimEnd(...[a]).length;",
+        "const args=[a];return ' x '.trimEnd(...args).length;",
         "const key='trim';return ' x '[key]().length;",
         "return ' x '.trim.call(' x ').length;",
         "return ' x '.trim();",
@@ -702,7 +728,7 @@ fn string_search_rejects_unproven_strings_and_unrepresented_coercions() {
         "const s='abc';return s?.startsWith('a')?1:0;",
         "const s='abc';return s.includes?.('a')?1:0;",
         "return 'abc'.startsWith.call('abc','a')?1:0;",
-        "return 'abc'.includes(...['a'])?1:0;",
+        "const args=['a'];return 'abc'.includes(...args)?1:0;",
         "const key='includes';return 'abc'[key]('a')?1:0;",
         "return 'abc'.includes('a').length;",
         "return ('abc'.startsWith('a')+'!').length;",
@@ -807,7 +833,7 @@ fn string_characters_preserve_receiver_and_result_kind_guards() {
         "return 'abc'.charCodeAt(a).length;",
         "return 'abc'.charCodeAt(a)+'x';",
         "return 'abc'.charAt?.(0).length;",
-        "return 'abc'.charCodeAt(...[0]);",
+        "const args=[0];return 'abc'.charCodeAt(...args);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {
@@ -911,7 +937,7 @@ fn string_ranges_reject_unproven_receivers_and_unrepresented_coercions() {
         "const o={text:'abc'};o.text=a?'abc':null;return o.text.substring(0).length;",
         "const s='abc';return s?.slice(0).length;",
         "const s='abc';return s.slice?.(0).length;",
-        "const s='abc';return s.slice(...[0]).length;",
+        "const s='abc',args=[0];return s.slice(...args).length;",
         "const key='slice';return 'abc'[key](0).length;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

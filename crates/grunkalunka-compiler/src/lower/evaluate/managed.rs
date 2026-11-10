@@ -879,7 +879,7 @@ impl Lowering<'_, '_> {
             }
             work.push(Work::StringMethod(super::string_methods::Task {
                 node,
-                call,
+                arguments: invocation::plain_arguments(&call.arguments),
                 method,
                 receiver: None,
                 inputs: [None; 2],
