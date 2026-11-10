@@ -1865,3 +1865,9 @@ String concatenation and search methods convert represented primitive
 arguments with the same UTF-16 and Number spelling as explicit `String`.
 An omitted search argument denotes the text `"undefined"`. Objects and
 regular expressions still require coercions outside this profile.
+
+
+A sum whose operands can only be Numbers, Booleans, null or undefined
+produces a Number on every completing path. This fact is retained in
+record fields, Array elements and destructuring, including when the
+actual result is NaN.

@@ -1820,7 +1820,7 @@ impl Fields {
                         } else if left
                             .iter()
                             .chain(&right)
-                            .all(|origin| *origin == Origin::Number)
+                            .all(|origin| origin.scalar() && *origin != Origin::String)
                             || (matches!(rule, Rule::PropertyAddition(_, _))
                                 && !right.contains(&Origin::String)
                                 && left.iter().all(|origin| {

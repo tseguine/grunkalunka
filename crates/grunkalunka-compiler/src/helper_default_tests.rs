@@ -439,7 +439,7 @@ fn earlier_parameter_logical_defaults_keep_scope_purity_and_arity_guards() {
         "function f(x,y=z||'missing',z=3){return y;}export function run(a,b){return f();}",
         "function f(x,y=x||g()){return y;}export function run(a,b){return f();}",
         "function f(x,y=x||missing){return y;}export function run(a,b){return f();}",
-        "function f(x,y=x+1){return y;}export function run(a,b){return f();}",
+        "function f(x,y=x+1){return y;}export function run(a,b){return f({});}",
         "export function run(a,b){const f=(x,y=a||'wrong')=>y;return f();}",
         "export function run(a,b){const f=(x,y=(!x)||'wrong')=>y;return f();}",
     ] {
