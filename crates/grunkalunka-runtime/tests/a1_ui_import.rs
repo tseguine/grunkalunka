@@ -1328,3 +1328,16 @@ fn imported_handler_reads_a_label_through_nullable_state() {
         }"#,
     );
 }
+
+#[test]
+fn imported_handler_dispatches_an_initially_unset_action() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+        export function run(a, b) {
+            let action;
+            if (a > 0) action='expand';
+            const handlers={expand:n=>n,collapse:n=>0};
+            return choose(handlers[action ?? 'collapse'](1),b);
+        }"#,
+    );
+}

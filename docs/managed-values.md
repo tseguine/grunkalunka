@@ -1670,7 +1670,8 @@ For example, `(flag ? "save" : "") || "cancel"` can select either handler.
 The same finite choice survives a local alias such as `const key = raw || "cancel"`
 when every assignment to `raw` supplies a proven name. Nullish left operands
 of a fallback also skip to the right name, including null, unshadowed `undefined`, or `void` values
-flowing through local aliases. Under `??`, the empty String still selects its own field. The key
+flowing through local aliases. An ordinary initializer-free `let key` contributes undefined until a checked
+write supplies a name. Under `??`, the empty String still selects its own field. The key
 expression still evaluates with normal short-circuiting.
 
 A local assignment result can name a computed field. For example,
