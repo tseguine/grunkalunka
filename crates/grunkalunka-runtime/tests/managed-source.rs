@@ -100,6 +100,8 @@ fn required_members_after_optional_links_skip_only_unreached_receivers() {
 fn exhaustive_lexical_writes_join_both_branch_values() {
     for body in [
         "let row;if(a)row={n:a};else row={n:b};return +row.n;",
+        "let xs;if(a<0)xs=[a];else if(b<0)xs=[b,b];else xs=[a,b,b];return xs.length;",
+        "let row,n=0;if(a){n++;if(b)row={v:a};else row={v:b};}else{n+=3;row={v:7};}return n+ +row.v;",
         "let xs,n=0;if(a){n++;xs=[b];}else{n+=2;xs=[a,b];}return n+xs.length;",
         "let xs;if(a){if(b){xs=[a];}else{xs=[a,b];}return xs.length;}return 0;",
     ] {
@@ -110,6 +112,9 @@ fn exhaustive_lexical_writes_join_both_branch_values() {
         "let row;if(a){if(b)row={n:b};}else{row={n:a};}return +row.n;",
         "let row;if(a){row={n:b};row={n:a};}return +row.n;",
         "let row;if(a)row={n:a};else row=null;return +row.n;",
+        "let xs;if(a>0)xs=[];else if(b>0)xs=[a];return xs.length;",
+        "let xs;if(a)xs=[];else if(b)xs=[a];else xs=null;return xs.length;",
+        "let xs;if(a)xs=[];else{if(b)xs=[a];else xs=[b];}xs=null;return xs.length;",
         "let row;while(a){if(b)row={n:b};else row={n:a};break;}return +row.n;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

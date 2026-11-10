@@ -61,6 +61,7 @@ fn array_method_spreads_save_earlier_arguments_across_await() {
 fn completed_lexical_assignment_keeps_its_reference_across_await() {
     compare_promises(
         &[
+            "let xs;if(a<0)xs=(await b,[a]);else if(b<0)xs=(await a,[a,b]);else xs=[a,b,b];return xs.length;",
             "let row;if(a){row=(await a,{v:a});}else{row=(await b,{v:b});}await b;return +row.v;",
             "let item;item={n:a};const saved=item;item=(await b,[item.n,b]);return item.length+ +saved.n;",
             "let row;row=(await a,{v:b});await b;return +row.v;",

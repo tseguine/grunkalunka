@@ -377,42 +377,54 @@ fn single_store_region(write: NodeId, semantic: &Semantic<'_>) -> Option<Initial
     })
 }
 
-// An arm supplies its value only when its final statement is the store.
-// Earlier effects or abrupt completions still execute through normal lowering.
-fn store_arm(write: NodeId, semantic: &Semantic<'_>) -> Option<(NodeId, NodeId, NodeId)> {
-    let assign = lexical_store(write, semantic)?;
-    let nodes = semantic.nodes();
-    let statement = nodes.parent_id(assign.node_id());
-    if !matches!(nodes.kind(statement), AstKind::ExpressionStatement(_)) {
-        return None;
-    }
-    let arm = match nodes.parent_kind(statement) {
-        AstKind::BlockStatement(block) if block.body.last()?.node_id() == statement => {
-            block.node_id()
-        }
-        _ => statement,
-    };
-    let AstKind::IfStatement(choice) = nodes.parent_kind(arm) else {
-        return None;
-    };
-    Some((choice.node_id(), arm, assign.right.node_id()))
-}
-
+// Follow the last statement of each arm. Every normally completing path
+// must reach one of the original writes; grouping and suspension are retained
+// by ordinary statement lowering.
 fn exhaustive_store_region(
-    first: NodeId,
-    second: NodeId,
+    writes: &[NodeId],
     semantic: &Semantic<'_>,
 ) -> Option<InitializedRegion> {
-    let (site, left_arm, left_value) = store_arm(first, semantic)?;
-    let (other, right_arm, right_value) = store_arm(second, semantic)?;
-    if site != other || left_arm == right_arm {
-        return None;
+    let nodes = semantic.nodes();
+    let mut leaves = BTreeMap::new();
+    let first = *writes.first()?;
+    let mut start = u32::MAX;
+    let mut end = 0;
+    for &write in writes {
+        let assign = lexical_store(write, semantic)?;
+        let statement = nodes.parent_id(assign.node_id());
+        if !matches!(nodes.kind(statement), AstKind::ExpressionStatement(_)) {
+            return None;
+        }
+        leaves.insert(statement, assign.right.node_id());
+        start = start.min(assign.span.start);
+        end = end.max(assign.span.end);
     }
-    Some(InitializedRegion {
-        site,
-        after: semantic.nodes().kind(site).span().end,
-        block: Some(enclosing_statement_block(site, semantic)?),
-        sources: vec![left_value, right_value],
+    // Find the innermost choice enclosing every assignment.
+    let root = nodes.ancestor_kinds(first).find_map(|kind| match kind {
+        AstKind::IfStatement(choice) if choice.span.start <= start && end <= choice.span.end => {
+            Some(choice)
+        }
+        _ => None,
+    })?;
+    let block = enclosing_statement_block(root.node_id(), semantic)?;
+    let mut pending = vec![&root.consequent, root.alternate.as_ref()?];
+    let mut sources = Vec::with_capacity(writes.len());
+    while let Some(statement) = pending.pop() {
+        match statement {
+            Statement::BlockStatement(block) => pending.push(block.body.last()?),
+            Statement::IfStatement(choice) => {
+                pending.push(&choice.consequent);
+                pending.push(choice.alternate.as_ref()?);
+            }
+            Statement::ExpressionStatement(_) => sources.push(leaves.remove(&statement.node_id())?),
+            _ => return None,
+        }
+    }
+    leaves.is_empty().then_some(InitializedRegion {
+        site: root.node_id(),
+        after: root.span.end,
+        block: Some(block),
+        sources,
     })
 }
 
@@ -476,10 +488,9 @@ pub(super) fn lexical_assignment_reads(
         let regions = match writes.as_slice() {
             [] => continue,
             [write] => single_store_region(*write, semantic).map(|r| vec![r]),
-            [first, second] => exhaustive_store_region(*first, *second, semantic)
+            _ => exhaustive_store_region(&writes, semantic)
                 .map(|r| vec![r])
                 .or_else(|| sequential_store_regions(&writes, semantic)),
-            _ => sequential_store_regions(&writes, semantic),
         };
         let Some(regions) = regions else {
             continue;
