@@ -120,19 +120,28 @@ impl Uint32Keys {
         };
         let left = closures::unwrapped(&test.left, 1)?;
         let scope = semantic.scoping();
-        let limit = closures::unwrapped(&test.right, 1)?;
-        let bound = static_keys::number(limit);
+        let right = closures::unwrapped(&test.right, 1)?;
         let step = if let Some(step) = &source.update {
-            let Expression::Identifier(left) = left else {
+            let is_counter = |operand: &Expression<'_>| {
+                matches!(operand, Expression::Identifier(id) if id.reference_id.get()
+                    .and_then(|r| scope.get_reference(r).symbol_id()) == Some(symbol))
+            };
+            let (relation, limit) = if is_counter(left) {
+                (test.operator, right)
+            } else if is_counter(right) {
+                (test.operator.compare_inverse_operator()?, left)
+            } else {
                 return None;
             };
-            if scope.get_reference(left.reference_id.get()?).symbol_id() != Some(symbol) {
-                return None;
-            }
+            let bound = static_keys::number(limit);
             let (step, direction) = Self::unit_step(step, semantic, symbol)?;
-            match (direction, test.operator) {
-                (UpdateOperator::Increment, BinaryOperator::LessThan)
-                    if self.unsigned_value(init) && self.unsigned_value(limit) => {}
+            match (direction, relation) {
+                // An inclusive last iteration can visit u32::MAX. The next
+                // increment is still a JS Number, and its next test must fail.
+                (
+                    UpdateOperator::Increment,
+                    BinaryOperator::LessThan | BinaryOperator::LessEqualThan,
+                ) if self.unsigned_value(init) && self.unsigned_value(limit) => {}
                 (UpdateOperator::Decrement, BinaryOperator::GreaterEqualThan)
                     if bound == Some(0.0) && self.reverse_start(init) => {}
                 (UpdateOperator::Decrement, BinaryOperator::GreaterThan)
@@ -148,7 +157,7 @@ impl Uint32Keys {
             if update.prefix
                 || update.operator != UpdateOperator::Decrement
                 || test.operator != BinaryOperator::GreaterThan
-                || bound != Some(0.0)
+                || static_keys::number(right) != Some(0.0)
                 || !self.unsigned_value(init)
             {
                 return None;
@@ -348,7 +357,14 @@ mod tests {
             ("let i=a-1;i>=0;i--", "", false),
             ("let i=xs.length-0.5;i>=0;--i", "", false),
             ("let i=xs.length;i-- > 0;", "i=-2;", false),
-            ("let i=0;i<=xs.length;i++", "", false),
+            ("let i=0;i<=xs.length;i++", "", true),
+            ("let i=0;xs.length>=i;i++", "", true),
+            ("let i=0;xs.length>i;i++", "", true),
+            ("let i=xs.length-1;0<=i;i--", "", true),
+            ("let i=xs.length;-1<i;i--", "", true),
+            ("let i=0;i<=4294967296;i++", "", false),
+            ("let i=0;a>=i;i++", "", false),
+            ("let i=0;xs.length>=i;i++", "i=-1;", false),
             ("let i=0;i<a;i++", "", false),
             ("let i=-1;i<xs.length;i++", "", false),
             ("let i=0;i<xs.length;i--", "", false),
