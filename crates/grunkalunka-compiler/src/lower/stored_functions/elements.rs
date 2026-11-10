@@ -20,6 +20,10 @@ pub(super) struct Elements {
 }
 
 impl Elements {
+    pub(super) fn sparse_array(&mut self, array: NodeId) {
+        self.maybe_holes.insert(array);
+    }
+
     pub(super) fn add_rest(&mut self, array: NodeId, receiver: NodeId, start: u32) {
         self.rest_sources.insert(array, (receiver, start));
     }

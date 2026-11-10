@@ -409,6 +409,11 @@ fn kinds(
                     }
                     Expression::ObjectExpression(_) => values.push([Kind::Object].into()),
                     Expression::ArrayExpression(_) => values.push([Kind::Array].into()),
+                    _ if object_intrinsics::array_constructor_args(node, semantic, depth)
+                        .is_some() =>
+                    {
+                        values.push([Kind::Array].into())
+                    }
                     Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => {
                         values.push([Kind::String].into())
                     }

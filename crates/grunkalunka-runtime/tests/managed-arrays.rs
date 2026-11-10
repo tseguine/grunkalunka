@@ -2,6 +2,23 @@
 mod common;
 
 #[test]
+fn sparse_array_constructors_keep_holes_length_and_identity() {
+    for body in [
+        "return Array().length+new Array().length;",
+        "const xs=new Array(3);xs[1]=a;return xs.length===3&&!Object.hasOwn(xs,0)&&Object.hasOwn(xs,1)?1:0;",
+        "const n=a>>>0;return Array(n).length;",
+        "const xs=new Array(4294967295);return xs.length===4294967295&&!Object.hasOwn(xs,4294967294)?1:0;",
+        "let count=0;const xs=Array((count++,a&3));return count*10+xs.length;",
+        "const xs=new Array(3);for(let i=0;i<xs.length;i++)xs[i]=i;return +xs[2];",
+        "const f=()=>Array(0);return f()!==f()&&f() instanceof Array?1:0;",
+        "const Array=x=>x+1;return Array(a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
+
+#[test]
 fn unit_assignment_steps_keep_index_order_and_per_iteration_captures() {
     for step in ["i+=1", "i=i+1"] {
         let source = format!(

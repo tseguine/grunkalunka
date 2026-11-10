@@ -21,6 +21,14 @@ fn nonnegative_i32_mask(expression: &Expression<'_>, depth: usize) -> bool {
 impl Uint32Keys {
     pub(super) fn collect(semantic: &Semantic<'_>) -> Self {
         let mut keys = Self::default();
+        keys.array_or_string_reads.extend(
+            semantic
+                .nodes()
+                .iter()
+                .filter(|node| object_intrinsics::array_constructor_site(node.kind(), semantic))
+                .map(|node| node.id()),
+        );
+
         // Earlier declarations publish facts to their resolved reads. A chain
         // of aliases therefore needs one forward pass and no initializer replay.
         for node in semantic.nodes().iter() {
@@ -84,7 +92,7 @@ impl Uint32Keys {
         keys
     }
 
-    fn unsigned_value(&self, expression: &Expression<'_>) -> bool {
+    pub(super) fn unsigned_value(&self, expression: &Expression<'_>) -> bool {
         closures::unwrapped(expression, 0)
             .and_then(static_keys::number)
             .is_some_and(|n| (0.0..=f64::from(u32::MAX)).contains(&n) && n.fract() == 0.0)
@@ -231,6 +239,12 @@ impl Uint32Keys {
             | Expression::StringLiteral(_)
             | Expression::TemplateLiteral(_) => true,
             Expression::Identifier(id) => self.array_or_string_reads.contains(&id.node_id()),
+            Expression::CallExpression(call) => {
+                self.array_or_string_reads.contains(&call.node_id.get())
+            }
+            Expression::NewExpression(call) => {
+                self.array_or_string_reads.contains(&call.node_id.get())
+            }
             _ => false,
         })
     }

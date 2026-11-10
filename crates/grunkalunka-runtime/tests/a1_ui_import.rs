@@ -560,6 +560,18 @@ fn imported_handler_invokes_proven_arrow_empty_apply() {
 }
 
 #[test]
+fn imported_handler_constructs_sparse_action_slots() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             const actions = new Array(b >>> 0);
+             actions[1] = a;
+             return choose(Object.hasOwn(actions, 0) ? 0 : +actions[1], actions.length);
+           }"#,
+    );
+}
+
+#[test]
 fn imported_handler_distinguishes_record_prototypes() {
     compare_composed_source(
         r#"import { selectVisible as choose } from "grunkalunka:a1/ui";

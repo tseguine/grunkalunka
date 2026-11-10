@@ -565,6 +565,10 @@ pub(crate) enum ManagedKey {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    ManagedArrayNewDynamic {
+        result: ValueId,
+        length: ValueId,
+    },
     ManagedArrayNew {
         result: ValueId,
         length: u32,
@@ -1489,6 +1493,10 @@ impl Verifier<'_> {
     ) -> Result<(), String> {
         let span = operation.span;
         match &operation.kind {
+            Op::ManagedArrayNewDynamic { result, length } => {
+                self.value(*length, Type::Number, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
+            }
             Op::ManagedArrayNew { result, .. } => {
                 self.define(*result, Type::ManagedArray, visible, span)?;
             }
