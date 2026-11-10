@@ -547,9 +547,8 @@ impl Lowering<'_, '_> {
                                         .map(|_| Type::ManagedValue)
                                 }),
                         ),
-                        Expression::ChainExpression(chain)
-                            if optional_member::parts(chain, depth, &self.stored.uint32_keys)
-                                .is_some() =>
+                        Expression::ChainExpression(_)
+                            if self.optional_read_parts(node, depth).is_some() =>
                         {
                             values.push(Some(Type::ManagedValue));
                         }
