@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn optional_string_names_save_utf16_receivers_across_await() {
+    compare_promises(
+        &[
+            "const s='ab';let k='5';const {[k]:v=(await b,k='0',a),...r}=s;return v===a&&Object.hasOwn(r,0)?1:0;",
+            "let s='abc';const k=a?'length':'0';const v=s[(await b,s='z',k)];return v===3||v==='a'?1:0;",
+            "const s=a?'abc':null,k=b?'length':'0';let n=0;const v=s?.[(await b,n++,k)];return n===0?7:v===3?3:1;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn number_calls_preserve_snapshots_and_abrupt_extra_arguments() {
     compare_promises(
         &[

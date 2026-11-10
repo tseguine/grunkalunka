@@ -39,6 +39,7 @@ pub(in crate::lower) fn parts<'e, 'a>(
 #[derive(Clone, Copy)]
 pub(super) enum Computed {
     StringIndex,
+    StringKey,
     Own(dictionary::RuntimeKey),
 }
 
@@ -86,6 +87,9 @@ impl Lowering<'_, '_> {
             Key::Uint32(_) => Some(Computed::Own(dictionary::RuntimeKey::Uint32)),
             Key::Runtime(expr) if string && self.stored.number(expr.node_id()) => {
                 Some(Computed::StringIndex)
+            }
+            Key::Runtime(expr) if string && self.string_own_key(expr, depth + 2) => {
+                Some(Computed::StringKey)
             }
             Key::Runtime(expr) if !string => {
                 let kind = match receiver {
@@ -190,6 +194,11 @@ impl Lowering<'_, '_> {
                                 input: object,
                                 index: key,
                             },
+                            Computed::StringKey => Op::ManagedStringGetKey {
+                                result,
+                                input: object,
+                                key,
+                            },
                             Computed::Own(kind) => Op::ManagedGetOwnDynamic {
                                 result,
                                 object,
@@ -261,6 +270,7 @@ impl Lowering<'_, '_> {
                     skipped,
                 })));
                 match computed {
+                    Computed::StringKey => work.push(Work::Eval(key, depth + 2, Mode::Managed)),
                     Computed::StringIndex => work.push(Work::Eval(key, depth + 2, Mode::Number)),
                     Computed::Own(kind) => self.schedule_runtime_key(key, depth + 2, kind, work)?,
                 }
@@ -501,7 +511,7 @@ mod tests {
         for (body, ok) in [
             ("const s=a?'ab':null;return s?.[b]===undefined?1:0;", true),
             ("const s='ab';return s?.[a/2]===undefined?1:0;", true),
-            ("const s='ab';const k='0';return s?.[k]==='a'?1:0;", false),
+            ("const s='ab';const k='0';return s?.[k]==='a'?1:0;", true),
             (
                 "const s='ab';const k={};return s?.[k]===undefined?1:0;",
                 false,
@@ -517,7 +527,7 @@ mod tests {
         }
         assert!(
             crate::compile(
-                "export function run(a,b){const s='ab';const k='0';return s?.[(k as number)]==='a'?1:0;}",
+                "export function run(a,b){const s='ab';const k='trim';return s?.[(k as number)]==='a'?1:0;}",
                 true
             )
             .is_err()

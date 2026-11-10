@@ -20,6 +20,11 @@ pub(super) enum Domain {
 }
 
 impl Domain {
+    pub(super) fn string_own_names(&self) -> bool {
+        matches!(self, Self::Fields(names) if names.iter().all(|name|
+            name.iter().copied().eq("length".encode_utf16()) || binding_patterns::string_index(name).is_some()))
+    }
+
     pub(super) fn array_own_names(&self) -> bool {
         matches!(self, Self::Fields(names) if names.iter().all(|name|
             !crate::prototype_keys::contains(crate::prototype_keys::ARRAY, name)))

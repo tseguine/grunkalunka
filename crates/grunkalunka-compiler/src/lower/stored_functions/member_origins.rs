@@ -76,6 +76,7 @@ impl Members<'_, '_> {
                     || (!matches!(domain, record_names::Domain::Unknown)
                         && matches!(origin, Origin::Object(_)))
                     || (matches!(origin, Origin::Array(_)) && domain.array_own_names())
+                    || (*origin == Origin::String && domain.string_own_names())
             })
         {
             return BTreeSet::from([Origin::Other]);
@@ -152,6 +153,7 @@ impl Members<'_, '_> {
                 ) || (!matches!(domain, record_names::Domain::Unknown)
                     && matches!(origin, Origin::Object(_)))
                     || (matches!(origin, Origin::Array(_)) && domain.array_own_names())
+                    || (*origin == Origin::String && domain.string_own_names())
             })
         {
             if let record_names::Domain::Fields(fields) = domain {

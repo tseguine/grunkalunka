@@ -14,6 +14,18 @@ pub(super) fn string_index(key: &[u16]) -> Option<u32> {
     (index.to_string() == text).then_some(index)
 }
 
+pub(super) fn string_field_read(result: ValueId, input: ValueId, key: ir::ManagedKey) -> Op {
+    match key {
+        ir::ManagedKey::Uint32(index) => Op::ManagedStringGetIndex {
+            result,
+            input,
+            index,
+        },
+        ir::ManagedKey::String(key) => Op::ManagedStringGetKey { result, input, key },
+        _ => unreachable!("planned computed String property"),
+    }
+}
+
 /// Original-source pattern leaves for representation planning. Plain identifier
 /// declarations have their own planners. This walk does not admit a pattern.
 pub(super) fn leaves<'n, 'a>(
@@ -325,6 +337,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     depth,
                                     KeyAccess::Read,
                                 )
+                            } else if receiver == Type::ManagedValue
+                                && self.string_own_key(key, depth)
+                            {
+                                Some(evaluate::RuntimeKey::String)
                             } else {
                                 self.stored
                                     .uint32_keys
@@ -406,7 +422,7 @@ mod string_rest_binding_tests {
             ("const {[b>>>0]:x=(b=7),...rest}=a;return b;", true),
             ("const {valueOf:x}=a;return a;", false),
             ("const {[b]:x}=a;return a;", false),
-            ("const k='0';const {[k]:x,...rest}='abc';return a;", false),
+            ("const k='0';const {[k]:x,...rest}='abc';return a;", true),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for ts in [false, true] {

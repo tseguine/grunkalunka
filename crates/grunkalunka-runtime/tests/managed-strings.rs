@@ -2,6 +2,32 @@
 mod common;
 
 #[test]
+fn finite_string_keys_read_utf16_units_or_intrinsic_length() {
+    for body in [
+        "const s='😀x',k=a?'length':'1';return s[k]===3||s[k]==='\\ude00'?1:0;",
+        "const s='😀',k=a?'0':'4294967295';return s[k]==='\\ud83d'||s[k]===undefined?1:0;",
+        "const s=a?'😀':null,k=b?'0':'length';return s?.[k]===2?1:0;",
+        "let s='ab';const k=a?'0':'1';return s[(s='zz',k)]==='z'?0:1;",
+        "const s='😀x',k='length';return +s[k];",
+        "const s='💚x',k=a?'0':'length';const {[k]:v,...r}=s;return Object.hasOwn(r,0)?v===3?3:0:v==='\\ud83d'?1:0;",
+        "const s='abc',k=a?'5':'length';let v=0,r={};({[k]:v=b,...r}=s);return Object.hasOwn(r,0)&&(v===b||v===3)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    for body in [
+        "const k=a?'length':'trim';return +('ab'[k]);",
+        "const k=a?'0':'constructor';return 'ab'?.[k]===undefined?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn string_compound_updates_save_dynamic_references_and_coerce_old_values() {
     for body in [
         "const xs=[];const value=xs[a]+='!';return value==='undefined!'&&xs[a]===value?1:0;",
