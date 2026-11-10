@@ -3,8 +3,8 @@
 use super::*;
 
 pub(super) enum Membership {
-    Own(Option<Vec<u16>>),
-    Uint32,
+    OwnLiteral(Vec<u16>),
+    OwnRuntime(dictionary::RuntimeKey),
     Inherited,
     Prototype,
 }
@@ -17,7 +17,7 @@ pub(super) struct Task<'e, 'a> {
     index: usize,
     input: Option<ValueId>,
     key: Option<ir::ManagedKey>,
-    uint32_key: bool,
+    runtime_key: Option<dictionary::RuntimeKey>,
 }
 
 impl Lowering<'_, '_> {
@@ -31,52 +31,44 @@ impl Lowering<'_, '_> {
     ) -> Result<(), String> {
         boolean_consumer(node, mode, "property presence produces a Boolean", work)?;
         let literal = literal_property_name(&binary.left, self.semantic, depth + 1);
-        let uint32 = self.stored.uint32_keys.contains(&binary.left, depth + 1);
-        let key_mode = if literal.is_some() {
-            Mode::Discard
-        } else if uint32 {
-            Mode::Number
-        } else if self.stored.string(binary.left.node_id()) {
-            Mode::Managed
-        } else {
+        let receiver = binary.right.node_id();
+        let Some(ty @ (Type::ManagedObject | Type::ManagedArray)) =
+            self.receiver_type(&binary.right, depth + 1)
+        else {
             return Err(unsupported(
-                &binary.left,
-                "in requires a proven String or supported primitive key",
+                &binary.right,
+                "in requires a proven object or array",
             ));
         };
-        let receiver = binary.right.node_id();
-        let ty = self.receiver_type(&binary.right, depth + 1);
-        let (mode, membership) = if self.stored.dictionary(receiver) {
-            (
-                Mode::Object,
-                if uint32 {
-                    Membership::Uint32
-                } else {
-                    Membership::Own(literal)
-                },
-            )
-        } else if let Some(ty @ (Type::ManagedObject | Type::ManagedArray)) = ty {
-            let known_prototype = ty == Type::ManagedArray || self.stored.ordinary_object(receiver);
-            let membership = if uint32 {
-                // Decimal uint32 names are absent from the pristine intrinsic
-                // prototypes, just like supported literal numeric keys.
-                Membership::Uint32
-            } else if let Some(key) = literal {
-                let inherited =
-                    crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key)
-                        || (ty == Type::ManagedArray
-                            && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key));
-                if inherited && !known_prototype {
-                    return Err(unsupported(
-                        &binary.right,
-                        "in cannot assume an inherited key on a mixed-prototype receiver",
-                    ));
-                }
-                if inherited {
-                    Membership::Inherited
-                } else {
-                    Membership::Own(Some(key))
-                }
+        let dictionary = self.stored.dictionary(receiver);
+        let known_prototype = ty == Type::ManagedArray || self.stored.ordinary_object(receiver);
+        let (membership, dynamic) = if let Some(key) = literal {
+            let inherited = !dictionary
+                && (crate::prototype_keys::contains(crate::prototype_keys::OBJECT, &key)
+                    || (ty == Type::ManagedArray
+                        && crate::prototype_keys::contains(crate::prototype_keys::ARRAY, &key)));
+            if inherited && !known_prototype {
+                return Err(unsupported(
+                    &binary.right,
+                    "in cannot assume an inherited key on a mixed-prototype receiver",
+                ));
+            }
+            let membership = if inherited {
+                Membership::Inherited
+            } else {
+                Membership::OwnLiteral(key)
+            };
+            (membership, None)
+        } else {
+            let kind = self.runtime_key(&binary.left, depth + 1).ok_or_else(|| {
+                unsupported(
+                    &binary.left,
+                    "in requires a proven String or supported primitive key",
+                )
+            })?;
+            // Non-String primitive names never match pristine prototype properties.
+            let membership = if dictionary || !matches!(kind, dictionary::RuntimeKey::String) {
+                Membership::OwnRuntime(kind)
             } else if known_prototype {
                 Membership::Prototype
             } else {
@@ -85,17 +77,15 @@ impl Lowering<'_, '_> {
                     "a dynamic in key requires a known receiver prototype",
                 ));
             };
-            (Mode::managed(ty), membership)
-        } else {
-            return Err(unsupported(
-                &binary.right,
-                "in requires a proven object or array",
-            ));
+            (membership, Some(kind))
         };
-        // Stack the RHS first so the cursor saves the LHS key before RHS effects.
         work.push(Work::In { node, membership });
-        work.push(Work::Eval(&binary.right, depth + 1, mode));
-        work.push(Work::Eval(&binary.left, depth + 1, key_mode));
+        work.push(Work::Eval(&binary.right, depth + 1, Mode::managed(ty)));
+        if let Some(kind) = dynamic {
+            self.schedule_runtime_key(&binary.left, depth + 1, kind, work)?;
+        } else {
+            work.push(Work::Eval(&binary.left, depth + 1, Mode::Discard));
+        }
         Ok(())
     }
 
@@ -136,7 +126,7 @@ impl Lowering<'_, '_> {
             index: 0,
             input: None,
             key: None,
-            uint32_key: false,
+            runtime_key: None,
         }));
         Ok(())
     }
@@ -153,11 +143,7 @@ impl Lowering<'_, '_> {
             task.input = Some(values.pop().expect("has-own receiver").id());
         } else if task.index == offset + 2 && task.key.is_none() {
             let key = values.pop().expect("has-own key").id();
-            task.key = Some(if task.uint32_key {
-                ir::ManagedKey::Uint32(key)
-            } else {
-                ir::ManagedKey::String(key)
-            });
+            task.key = Some(task.runtime_key.expect("dynamic has-own key").finish(key));
         }
         let Some(actual) = task.arguments.get(task.index) else {
             let input = task.input.ok_or_else(|| {
@@ -198,11 +184,11 @@ impl Lowering<'_, '_> {
                 task.key = Some(ir::ManagedKey::Literal(units));
                 // In particular, void's operand still runs at the key's position.
                 Mode::Discard
-            } else if self.stored.uint32_keys.contains(arg, depth) {
-                task.uint32_key = true;
-                Mode::Number
-            } else if self.stored.string(arg.node_id()) {
-                Mode::Managed
+            } else if let Some(kind) = self.runtime_key(arg, depth) {
+                task.runtime_key = Some(kind);
+                task.index += 1;
+                work.push(Work::HasOwn(task));
+                return self.schedule_runtime_key(arg, depth, kind, work);
             } else {
                 return Err(unsupported(
                     arg,
@@ -245,10 +231,10 @@ mod uint32_membership_tests {
                 true,
             ),
             ("const xs=[a];let key=0;return (key=a>>>0) in xs?1:0;", true),
-            ("const xs=[a];return a in xs?1:0;", false),
-            ("const xs=[a];return (a>>0) in xs?1:0;", false),
+            ("const xs=[a];return a in xs?1:0;", true),
+            ("const xs=[a];return (a>>0) in xs?1:0;", true),
             ("return (a>>>0) in a?1:0;", false),
-            ("const xs=[a];return (a?(0>>>0):b) in xs?1:0;", false),
+            ("const xs=[a];return (a?(0>>>0):b) in xs?1:0;", true),
             (
                 "const xs=[a];return (Math.random(),a>>>0) in xs?1:0;",
                 false,
@@ -266,7 +252,7 @@ mod uint32_membership_tests {
             crate::compile(js, false).unwrap().wasm,
             crate::compile(ts, true).unwrap().wasm
         );
-        assert!(crate::compile("export function run(a:number,b:number){const xs=[a];return (a as number) in xs?1:0;}",true).is_err());
+        assert!(crate::compile("export function run(a:number,b:number){const xs=[a];return ({} as number) in xs?1:0;}",true).is_err());
     }
 }
 
@@ -284,11 +270,11 @@ mod uint32_has_own_tests {
             ("return Object.hasOwn('abc',a>>>0)?1:0;", true),
             ("return Object.hasOwn(a,b>>>0)?1:0;", true),
             ("const xs=[a];return Object['hasOwn'](xs,a>>>0)?1:0;", true),
-            ("const xs=[a];return Object.hasOwn(xs,a)?1:0;", false),
-            ("const xs=[a];return Object.hasOwn(xs,a>>0)?1:0;", false),
+            ("const xs=[a];return Object.hasOwn(xs,a)?1:0;", true),
+            ("const xs=[a];return Object.hasOwn(xs,a>>0)?1:0;", true),
             (
                 "const xs=[a];return Object.hasOwn(xs,a?(0>>>0):b)?1:0;",
-                false,
+                true,
             ),
             ("return Object.hasOwn(null,a>>>0)?1:0;", false),
         ] {
@@ -352,11 +338,8 @@ mod fixed_has_own_spread_tests {
                 true,
             ),
             ("const xs=[a];return Object.hasOwn(...xs)?1:0;", false),
-            ("const xs=[a];return Object.hasOwn(...[xs,a])?1:0;", false),
-            (
-                "const xs=[a];return Object.hasOwn(...[xs,a>>0])?1:0;",
-                false,
-            ),
+            ("const xs=[a];return Object.hasOwn(...[xs,a])?1:0;", true),
+            ("const xs=[a];return Object.hasOwn(...[xs,a>>0])?1:0;", true),
             (
                 "const xs=[a];return Object.hasOwn(...[xs,,0>>>0])?1:0;",
                 false,

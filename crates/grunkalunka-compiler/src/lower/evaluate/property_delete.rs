@@ -229,7 +229,11 @@ mod tests {
             let source = format!(
                 "export function run(a,b){{const xs=[a];return Object.hasOwn(xs,{key})?1:0;}}"
             );
-            assert_eq!(crate::compile(&source, true).is_ok(), admitted, "{source}");
+            assert_eq!(
+                crate::lower::uint32_keys::has_unsigned_presence(&source, true),
+                admitted,
+                "{source}"
+            );
         }
     }
 
