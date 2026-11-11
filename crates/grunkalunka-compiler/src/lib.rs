@@ -355,20 +355,18 @@ fn lower_source_profile_with_identities(
             module_value: None,
         });
     }
+    // A synchronous callee initializes its own defaults before its body even
+    // when the module entry can await. Async callees keep their existing guard.
     for (index, function) in declarations.iter().enumerate() {
         lower::helper_defaults::validate(
             function,
             &built.semantic,
-            index != 0 && !async_entry && !function.r#async,
+            index != 0 && !function.r#async,
         )?;
     }
     for node in built.semantic.nodes().iter() {
         if let oxc_ast::AstKind::ArrowFunctionExpression(arrow) = node.kind() {
-            lower::helper_defaults::validate_arrow(
-                arrow,
-                &built.semantic,
-                !async_entry && !arrow.r#async,
-            )?;
+            lower::helper_defaults::validate_arrow(arrow, &built.semantic, !arrow.r#async)?;
         }
     }
     lower::var_bindings::validate(&built.semantic)?;
