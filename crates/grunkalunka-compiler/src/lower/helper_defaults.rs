@@ -183,6 +183,7 @@ enum NumericDefaultTerm<'n, 'a> {
     Constant(f64),
     Earlier(&'n IdentifierReference<'a>),
     Unary(Unary),
+    Power(literal_power::LiteralPower),
     Binary(Binary),
 }
 
@@ -193,6 +194,7 @@ fn earlier_numeric<'n, 'a>(
     enum Task<'n, 'a> {
         Visit(&'n Expression<'a>, usize),
         Unary(Unary),
+        Power(literal_power::LiteralPower),
         Binary(Binary),
     }
     let mut pending = vec![Task::Visit(initializer, 0)];
@@ -211,6 +213,15 @@ fn earlier_numeric<'n, 'a>(
                     continue;
                 }
                 match node {
+                    Expression::BinaryExpression(binary)
+                        if binary.operator == BinaryOperator::Exponential =>
+                    {
+                        let power =
+                            literal_power::LiteralPower::from_source(&binary.right, depth + 1)?;
+                        has_operator = true;
+                        pending.push(Task::Power(power));
+                        pending.push(Task::Visit(&binary.left, depth + 1));
+                    }
                     Expression::BinaryExpression(binary) => {
                         let operator = match binary.operator {
                             BinaryOperator::Addition => Binary::Add,
@@ -258,6 +269,7 @@ fn earlier_numeric<'n, 'a>(
                     }
                 }
             }
+            Task::Power(power) => program.push(NumericDefaultTerm::Power(power)),
             Task::Unary(operator) => program.push(NumericDefaultTerm::Unary(operator)),
             Task::Binary(operator) => program.push(NumericDefaultTerm::Binary(operator)),
         }
@@ -542,6 +554,7 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
         Visit(&'n Expression<'a>, usize),
         Unary(UnaryOperator),
         Binary(BinaryOperator),
+        Power(literal_power::LiteralPower),
         Logical(LogicalOperator),
         Conditional,
     }
@@ -566,6 +579,15 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                     {
                         work.push(Task::Unary(unary.operator));
                         work.push(Task::Visit(&unary.argument, depth + 1));
+                        continue;
+                    }
+                    Expression::BinaryExpression(binary)
+                        if binary.operator == BinaryOperator::Exponential =>
+                    {
+                        let power =
+                            literal_power::LiteralPower::from_source(&binary.right, depth + 1)?;
+                        work.push(Task::Power(power));
+                        work.push(Task::Visit(&binary.left, depth + 1));
                         continue;
                     }
                     Expression::BinaryExpression(binary)
@@ -628,6 +650,12 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                     _ => return None,
                 };
                 values.push(value);
+            }
+            Task::Power(power) => {
+                let Constant::Number(base) = values.pop()? else {
+                    return None;
+                };
+                values.push(Constant::Number(power.apply(base)));
             }
             Task::Binary(op) => {
                 let right = values.pop()?;
@@ -1202,6 +1230,15 @@ impl Lowering<'_, '_> {
                             },
                         );
                         numbers.push(result);
+                    }
+                    NumericDefaultTerm::Power(power) => {
+                        let base = numbers.pop().expect("validated base");
+                        numbers.push(self.emit_literal_power(
+                            initializer,
+                            &mut consequent,
+                            base,
+                            power,
+                        ));
                     }
                     NumericDefaultTerm::Unary(operator) => {
                         let input = numbers.pop().expect("validated numeric operand");

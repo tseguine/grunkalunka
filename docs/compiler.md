@@ -717,6 +717,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Binary `**` accepts the literal exponents -1, 0, 1 and 2 for represented
   numeric operands. It evaluates and converts the base once, including when
   the exponent is zero. Other exponents retain an explicit diagnostic.
+  Pure numeric parameter defaults use the same powers on numeric constants
+  and on earlier parameters with represented primitive inputs. Only an
+  omitted or Undefined argument selects the default.
   `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
   expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the

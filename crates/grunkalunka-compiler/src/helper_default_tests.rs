@@ -251,7 +251,7 @@ fn arithmetic_parameter_defaults_preserve_number_semantics_and_source_limits() {
         "missing+1",
         "g()+1",
         "void (missing+1)",
-        "1**2",
+        "1**3",
     ] {
         let source =
             format!("function f(x={value}){{return x;}}export function run(a,b){{return f();}}");
@@ -628,7 +628,7 @@ fn numeric_defaults_retain_effect_scope_and_coercion_guards() {
         "function f(x,y=y+1){return y;}export function run(a,b){return f(a);}",
         "function f(x,y=x+later,later=3){return y;}export function run(a,b){return f(a);}",
         "function f(x,y=x++ + 1){return y;}export function run(a,b){return f(a);}",
-        "function f(x,y=x**2){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=x**x){return y;}export function run(a,b){return f(a);}",
         "function f(x,y=x+1){return y;}export function run(a,b){return f('2');}",
         "function f(x,y=x+1){return y;}export function run(a,b){return f({valueOf:()=>3});}",
         "export function run(a,b){const f=(x,y=a+x)=>y;return f(a);}",
@@ -929,7 +929,7 @@ fn bitwise_parameter_defaults_reject_effects_unknown_kinds_and_scope() {
         "function f(x,z=x&g()){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=x++|1){return z;}export function run(a,b){return f(a);}",
         "function f(x,z=~g()){return z;}export function run(a,b){return f(a);}",
-        "function f(x,z=x**2){return z;}export function run(a,b){return f(a);}",
+        "function f(x,z=x**3){return z;}export function run(a,b){return f(a);}",
         "export function run(a,b){const f=(x,z=~a)=>z;return f(a);}",
     ] {
         assert!(crate::compile_value(body, false).is_err(), "{body}");
