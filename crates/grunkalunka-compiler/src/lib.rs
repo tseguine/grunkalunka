@@ -26,6 +26,7 @@ mod missing_arrow_argument_tests;
 mod missing_helper_argument_tests;
 #[cfg(test)]
 mod missing_runtime_argument_tests;
+mod module_entries;
 #[cfg(test)]
 mod optional_parameter_tests;
 #[cfg(test)]
@@ -240,61 +241,14 @@ fn lower_source_profile_with_identities(
         .iter()
         .filter(|statement| !skipped_item(statement))
         .collect();
-    if runtime.is_empty() {
-        return Err(unsupported(
-            program,
-            "exactly one exported function is admitted",
-        ));
-    }
-    // Keep the original single-runtime-item diagnostics, including a bare run.
-    if runtime.len() == 1 && !matches!(runtime[0], Statement::ExportDeclaration(_)) {
-        return Err(unsupported(program, "expected 'export function run(a, b)'"));
-    }
-    let mut entry = None;
-    let mut helpers = Vec::new();
-    for statement in &runtime {
-        match statement {
-            Statement::ExportDeclaration(export) => {
-                let Declaration::FunctionDeclaration(function) = &export.declaration else {
-                    return Err(if runtime.len() == 1 {
-                        unsupported(export.as_ref(), "only a function declaration is admitted")
-                    } else {
-                        unsupported(program, "exactly one exported function is admitted")
-                    });
-                };
-                if entry.replace(function.as_ref()).is_some() {
-                    return Err(unsupported(
-                        program,
-                        "exactly one exported function is admitted",
-                    ));
-                }
-            }
-            Statement::FunctionDeclaration(function)
-                if !function.declare && function.body.is_some() =>
-            {
-                helpers.push(function.as_ref());
-            }
-            _ => {
-                return Err(unsupported(
-                    program,
-                    "exactly one exported function is admitted",
-                ));
-            }
-        }
-    }
-    let entry =
-        entry.ok_or_else(|| unsupported(program, "exactly one exported function is admitted"))?;
-    let declarations: Vec<_> = std::iter::once(entry).chain(helpers).collect();
+    let module_functions = module_entries::select(program, &built.semantic, &runtime)?;
+    let declarations = module_functions.declarations;
     let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
     let mut signatures = Vec::new();
     for (index, function) in declarations.iter().enumerate() {
         if function.r#type != FunctionType::FunctionDeclaration
             || function.id.is_none()
-            || (index == 0
-                && function
-                    .id
-                    .as_ref()
-                    .is_none_or(|id| id.name.as_str() != "run"))
+            || (index == 0 && !module_functions.exports_run)
             || (index == 0 && function.r#async != async_entry)
             || (index != 0 && function.r#async && !async_entry)
             || function.generator
@@ -583,11 +537,9 @@ fn lower_source_profile_with_identities(
             for directive in &program.directives {
                 lowering.charge_statement(directive)?;
             }
-            for statement in program
-                .body
-                .iter()
-                .filter(|statement| skipped_item(statement))
-            {
+            for statement in program.body.iter().filter(|statement| {
+                skipped_item(statement) || matches!(statement, Statement::ExportNamedDeclaration(_))
+            }) {
                 lowering.charge_statement(statement)?;
             }
         } else {
@@ -1542,6 +1494,44 @@ mod type_only_module_tests {
         let actual = compile(source, true).unwrap();
         assert_eq!(actual.wat, expected.wat);
         assert_eq!(actual.wasm, expected.wasm);
+    }
+
+    #[test]
+    fn local_run_exports_resolve_only_the_public_function() {
+        let direct = "export function run(a,b){return a;}";
+        let named = "export {entry as run};function entry(a,b){return a;}";
+        for ts in [false, true] {
+            for compiler in [compile, super::compile_value] {
+                assert_eq!(
+                    compiler(named, ts).unwrap().wasm,
+                    compiler(direct, ts).unwrap().wasm
+                );
+                for invalid in [
+                    "function f(a,b){return a;} export {f as other};",
+                    "function f(a,b){return a;} export {f as run, f as extra};",
+                    "function f(a,b){return a;} export {f as run} from 'external';",
+                    "const entry=(a,b)=>a; export {entry as run};",
+                    "function f(a,b){f=b;return a;} export {f as run};",
+                ] {
+                    assert!(compiler(invalid, ts).is_err(), "{invalid}");
+                }
+            }
+            let async_named = "export {entry as run};async function entry(a,b){return await a;}";
+            let async_direct = "export async function run(a,b){return await a;}";
+            assert_eq!(
+                super::compile_async(async_named, ts).unwrap().wasm,
+                super::compile_async(async_direct, ts).unwrap().wasm
+            );
+            let boundary = format!("{}{named}", ";".repeat(254));
+            assert!(compile(&boundary, ts).is_ok());
+            assert!(
+                compile(&format!(";{boundary}"), ts)
+                    .err()
+                    .unwrap()
+                    .contains("at most 256 statements")
+            );
+        }
+        assert!(compile("function f(a,b){return a;} export {type f as run};", true).is_err());
     }
 
     #[test]

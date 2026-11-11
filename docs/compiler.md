@@ -711,7 +711,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   exported entry and any plain unexported helpers;
   declaration-level `import type`/`export type` items also erase and charge one
   statement each. Runtime imports, inline type specifiers, runtime export/re-export
-  lists, ambient values, enums, namespaces and module/global augmentations remain
+  lists beyond the local entry export, ambient values, enums, namespaces and module/global augmentations remain
   unsupported. Type names do not create numeric bindings. See
   [type-only module items](#type-only-module-items).
   `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
@@ -778,6 +778,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Parser and semantic diagnostics remain authoritative. Parenthesized, wrapped,
   nested-block and later string statements remain outside numeric admission.
   The admission follows [Directive Prologues and strict module code](https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-directive-prologues-and-the-use-strict-directive).
+- The public `run` entry can also be a locally declared function exported
+  with `export {run}` or `export {localName as run}`. The declaration may
+  precede or follow the export. Calls inside the module use the local binding.
+  The separate export statement counts once in the source statement budget.
 - Module-level empty statements and local empty exports (`export {};`) may
   surround the entry and helpers. Each counts once in the shared statement
   budget. An empty re-export with a module source still requests that module.

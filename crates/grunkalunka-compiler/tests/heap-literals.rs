@@ -5,6 +5,8 @@ fn empty_module_items_preserve_the_heap_entry() {
     let entry = "export function run(a,b){return 'value';}";
     for ts in [false, true] {
         let expected = compile_heap_value(entry, ts).unwrap().wasm;
+        let named = "export { entry as run };function entry(a,b){return 'value';}";
+        assert_eq!(compile_heap_value(named, ts).unwrap().wasm, expected);
         assert_eq!(
             compile_heap_value(&format!(";export {{}};{entry};"), ts)
                 .unwrap()

@@ -3486,13 +3486,6 @@
       "group": "entry-shape"
     },
     {
-      "id": "named-export",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4b4ac5aac46be1e1830693aad45e812a1aebdd2a4f398f32caffdc1011a4b540",
-      "group": "entry-shape"
-    },
-    {
       "id": "wrong-name",
       "extension": "js",
       "sourceMode": "module-strict",
