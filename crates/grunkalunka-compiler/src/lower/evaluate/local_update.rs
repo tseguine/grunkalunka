@@ -5,7 +5,7 @@ pub(super) struct Task<'e, 'a> {
     node: &'e Expression<'a>,
     slot: SlotId,
     old: ValueId,
-    operator: Binary,
+    operator: NumericCompound,
     postfix: bool,
 }
 
@@ -33,16 +33,16 @@ impl Lowering<'_, '_> {
                 (
                     identifier,
                     if update.operator == UpdateOperator::Increment {
-                        Binary::Add
+                        NumericCompound::Binary(Binary::Add)
                     } else {
-                        Binary::Subtract
+                        NumericCompound::Binary(Binary::Subtract)
                     },
                     None,
                     !update.prefix,
                 )
             }
             Expression::AssignmentExpression(assignment) => {
-                let Some(operator) = property_update::compound(assignment.operator) else {
+                let Some(operator) = NumericCompound::from_source(assignment, depth) else {
                     return Ok(false);
                 };
                 let Some(identifier) = assignment
@@ -67,7 +67,7 @@ impl Lowering<'_, '_> {
 
         if self.slots[slot.0].ty != Type::ManagedValue
             || !self.stored.number_update(identifier.node_id())
-            || (matches!(operator, Binary::Add) && !self.stored.number(node.node_id()))
+            || (operator.is_addition() && !self.stored.number(node.node_id()))
         {
             return Ok(false);
         }
@@ -134,7 +134,7 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(
                 right,
                 depth + 1,
-                if matches!(operator, Binary::Add) {
+                if operator.is_addition() {
                     Mode::Arithmetic
                 } else {
                     Mode::Numeric
@@ -162,17 +162,8 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
     ) {
         let right = values.pop().expect("boxed local update right").number();
-        let result = self.value(Type::Number);
-        Self::push(
-            regions.current(),
-            task.node,
-            Op::Binary {
-                result,
-                operator: task.operator,
-                left: task.old,
-                right,
-            },
-        );
+        let result =
+            self.emit_compound(task.node, regions.current(), task.operator, task.old, right);
         let primitive = self.value(Type::General);
         Self::push(
             regions.current(),

@@ -1,23 +1,6 @@
 //! Numeric own-data-property writes use saved references and Number snapshots.
 use super::*;
 
-pub(in crate::lower) fn compound(operator: AssignmentOperator) -> Option<Binary> {
-    Some(match operator {
-        AssignmentOperator::Addition => Binary::Add,
-        AssignmentOperator::Subtraction => Binary::Subtract,
-        AssignmentOperator::Multiplication => Binary::Multiply,
-        AssignmentOperator::Division => Binary::Divide,
-        AssignmentOperator::Remainder => Binary::Remainder,
-        AssignmentOperator::BitwiseAnd => Binary::BitAnd,
-        AssignmentOperator::BitwiseOR => Binary::BitOr,
-        AssignmentOperator::BitwiseXOR => Binary::BitXor,
-        AssignmentOperator::ShiftLeft => Binary::ShiftLeft,
-        AssignmentOperator::ShiftRight => Binary::ShiftRight,
-        AssignmentOperator::ShiftRightZeroFill => Binary::ShiftRightUnsigned,
-        _ => return None,
-    })
-}
-
 pub(super) enum Key<'e, 'a> {
     Literal(Vec<u16>),
     Runtime(&'e Expression<'a>, dictionary::RuntimeKey),
@@ -27,7 +10,7 @@ pub(super) enum Task<'e, 'a> {
     Receiver {
         node: &'e Expression<'a>,
         key: Key<'e, 'a>,
-        operator: Binary,
+        operator: NumericCompound,
         right: Option<&'e Expression<'a>>,
         postfix: bool,
         depth: usize,
@@ -36,7 +19,7 @@ pub(super) enum Task<'e, 'a> {
         kind: dictionary::RuntimeKey,
         node: &'e Expression<'a>,
         object: ValueId,
-        operator: Binary,
+        operator: NumericCompound,
         right: Option<&'e Expression<'a>>,
         postfix: bool,
         depth: usize,
@@ -45,7 +28,7 @@ pub(super) enum Task<'e, 'a> {
         node: &'e Expression<'a>,
         object: ValueId,
         key: ir::ManagedKey,
-        operator: Binary,
+        operator: NumericCompound,
         right: Option<&'e Expression<'a>>,
         postfix: bool,
         depth: usize,
@@ -55,7 +38,7 @@ pub(super) enum Task<'e, 'a> {
         object: ValueId,
         key: ir::ManagedKey,
         old: ValueId,
-        operator: Binary,
+        operator: NumericCompound,
         postfix: bool,
     },
 }
@@ -78,15 +61,15 @@ impl Lowering<'_, '_> {
             Expression::UpdateExpression(update) => (
                 &update.argument,
                 if update.operator == UpdateOperator::Increment {
-                    Binary::Add
+                    NumericCompound::Binary(Binary::Add)
                 } else {
-                    Binary::Subtract
+                    NumericCompound::Binary(Binary::Subtract)
                 },
                 None,
                 !update.prefix,
             ),
             Expression::AssignmentExpression(assignment) => {
-                let Some(operator) = compound(assignment.operator) else {
+                let Some(operator) = NumericCompound::from_source(assignment, depth) else {
                     return Ok(false);
                 };
                 let Some(target) = assignment.left.as_simple_assignment_target() else {
@@ -284,7 +267,7 @@ impl Lowering<'_, '_> {
                     work.push(Work::Eval(
                         right,
                         depth,
-                        if matches!(operator, Binary::Add) {
+                        if operator.is_addition() {
                             Mode::Arithmetic
                         } else {
                             Mode::Numeric
@@ -312,17 +295,7 @@ impl Lowering<'_, '_> {
                 postfix,
             } => {
                 let right = values.pop().expect("numeric write right").number();
-                let result = self.value(Type::Number);
-                Self::push(
-                    regions.current(),
-                    node,
-                    Op::Binary {
-                        result,
-                        operator,
-                        left: old,
-                        right,
-                    },
-                );
+                let result = self.emit_compound(node, regions.current(), operator, old, right);
                 let primitive = self.value(Type::General);
                 Self::push(
                     regions.current(),

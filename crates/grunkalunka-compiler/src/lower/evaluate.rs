@@ -2889,18 +2889,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         } else {
                             left
                         };
-                        let result = self.value(Type::Number);
-                        Self::push(
-                            regions.current(),
-                            node,
-                            Op::Binary {
-                                result,
-                                operator,
-                                left,
-                                right: value,
-                            },
-                        );
-                        value = result;
+                        value = self.emit_compound(node, regions.current(), operator, left, value);
                     }
                     let stored = if self.slots[slot.0].ty == Type::General {
                         let result = self.value(Type::General);
@@ -4478,27 +4467,12 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 )?;
                                 continue;
                             }
-                            let operator = match assignment.operator {
-                                AssignmentOperator::Assign => None,
-                                AssignmentOperator::Addition => Some(Binary::Add),
-                                AssignmentOperator::Subtraction => Some(Binary::Subtract),
-                                AssignmentOperator::Multiplication => Some(Binary::Multiply),
-                                AssignmentOperator::Division => Some(Binary::Divide),
-                                AssignmentOperator::Remainder => Some(Binary::Remainder),
-                                AssignmentOperator::BitwiseAnd => Some(Binary::BitAnd),
-                                AssignmentOperator::BitwiseOR => Some(Binary::BitOr),
-                                AssignmentOperator::BitwiseXOR => Some(Binary::BitXor),
-                                AssignmentOperator::ShiftLeft => Some(Binary::ShiftLeft),
-                                AssignmentOperator::ShiftRight => Some(Binary::ShiftRight),
-                                AssignmentOperator::ShiftRightZeroFill => {
-                                    Some(Binary::ShiftRightUnsigned)
-                                }
-                                _ => {
-                                    return Err(unsupported(
-                                        node,
-                                        "only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=, &&=, ||= and ??= assignments are admitted",
-                                    ));
-                                }
+                            let operator = if assignment.operator == AssignmentOperator::Assign {
+                                None
+                            } else {
+                                Some(NumericCompound::from_source(assignment, depth).ok_or_else(|| {
+                                    unsupported(node, "exponentiation assignment requires a literal exponent of -1, 0, 1 or 2")
+                                })?)
                             };
                             let Some(identifier) = assignment
                                 .left
@@ -4568,7 +4542,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 &assignment.right,
                                 depth + 1,
                                 match operator {
-                                    Some(Binary::Add) => Mode::Arithmetic,
+                                    Some(op) if op.is_addition() => Mode::Arithmetic,
                                     Some(_) => Mode::Numeric,
                                     None => Mode::Number,
                                 },

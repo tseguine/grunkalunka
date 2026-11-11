@@ -715,7 +715,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   unsupported. Type names do not create numeric bindings. See
   [type-only module items](#type-only-module-items).
   Binary `**` accepts the literal exponents -1, 0, 1 and 2 for represented
-  numeric operands. It evaluates and converts the base once, including when
+  numeric operands. The corresponding `**=` form supports writable locals
+  and admitted own data properties, evaluating the target reference once.
+  Exponentiation evaluates and converts the base once, including when
   the exponent is zero. Other exponents retain an explicit diagnostic.
   Pure numeric parameter defaults use the same powers on numeric constants
   and on earlier parameters with represented primitive inputs. Only an

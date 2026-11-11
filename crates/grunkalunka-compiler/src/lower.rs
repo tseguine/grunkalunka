@@ -40,6 +40,8 @@ mod if_statements;
 mod invocation;
 mod iteration;
 mod literal_power;
+mod numeric_compound;
+use numeric_compound::NumericCompound;
 #[cfg(test)]
 mod loop_statements;
 mod managed_calls;

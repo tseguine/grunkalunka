@@ -185,7 +185,7 @@ import { localExportEntries } from './module-entries.mjs';
 
 import { literalPowers } from './numeric-powers.mjs';
 
-export const corpusVersion = 211;
+export const corpusVersion = 212;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -556,7 +556,7 @@ export const rejected = [
   ['global-write', 'export function run(a,b) { return clock=a; }'],
   ...[['unsupported-compound-1','**=']].map(([id,operator]) =>
     [id, `export function run(a,b) { return a ${operator} b; }`, 'js',
-      'only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=, &&=, ||= and ??= assignments are admitted']),
+      'exponentiation assignment requires a literal exponent of -1, 0, 1 or 2']),
   ['compound-const', 'export function run(a,b) { const x=a; return x+=b; }'],
   ['compound-property', 'export function run(a,b) { return a.x+=b; }'],
   ['compound-forward', 'export function run(a,b) { const x=(y+=a); let y=b; return x+y; }'],
