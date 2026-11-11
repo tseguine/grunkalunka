@@ -532,6 +532,19 @@ fn earlier_conditional<'n, 'a>(
 }
 
 impl Constant {
+    fn into_string_units(self) -> Vec<u16> {
+        use oxc_syntax::number::ToJsString;
+        match self {
+            Self::String(units) => units,
+            Self::Number(0.0) => vec![u16::from(b'0')],
+            Self::Number(value) => value.to_js_string().encode_utf16().collect(),
+            Self::Boolean(true) => "true".encode_utf16().collect(),
+            Self::Boolean(false) => "false".encode_utf16().collect(),
+            Self::Null => "null".encode_utf16().collect(),
+            Self::Undefined => "undefined".encode_utf16().collect(),
+        }
+    }
+
     fn to_number(&self) -> f64 {
         match self {
             Self::Number(value) => *value,
@@ -672,21 +685,18 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                 let right = values.pop()?;
                 let left = values.pop()?;
                 let value = match (op, left, right) {
-                    (
-                        BinaryOperator::Addition,
-                        Constant::String(mut left),
-                        Constant::String(right),
-                    ) => {
-                        left.extend(right);
-                        Constant::String(left)
+                    (BinaryOperator::Addition, left, right)
+                        if matches!(left, Constant::String(_))
+                            || matches!(right, Constant::String(_)) =>
+                    {
+                        let mut units = left.into_string_units();
+                        units.extend(right.into_string_units());
+                        Constant::String(units)
                     }
-                    (BinaryOperator::Addition, Constant::Number(left), Constant::Number(right)) => {
-                        Constant::Number(left + right)
-                    }
-                    (BinaryOperator::Addition, _, _) => return None,
                     (op, left, right) => {
                         let (left, right) = (left.to_number(), right.to_number());
                         Constant::Number(match op {
+                            BinaryOperator::Addition => left + right,
                             BinaryOperator::Subtraction => left - right,
                             BinaryOperator::Multiplication => left * right,
                             BinaryOperator::Division => left / right,
