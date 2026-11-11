@@ -2,6 +2,7 @@ import { managedStringFuel } from './managed-strings.mjs';
 import { moduleDeclarationPrimitiveSources } from './module-declaration-values.mjs';
 import { storedFunctionPrimitiveBodies } from './stored-function-calls.mjs';
 import { nestedContainerPrimitiveBodies } from './nested-container-receivers.mjs';
+import { varValuePromotion } from './var-bindings.mjs';
 // Finite source evidence for the explicit primitive-return profile.
 // No fixture here changes the numeric corpus or claims full language coverage.
 const spec = 'https://tc39.es/ecma262/multipage/';
@@ -237,6 +238,13 @@ valuePrograms.push(...moduleDeclarationPrimitiveSources.map((source, index) => (
   sourceTS: source,
   standards: [returns, types],
 })));
+valuePrograms.push({
+  id: varValuePromotion[0],
+  numericOrigin: null,
+  sourceJS: varValuePromotion[1],
+  sourceTS: varValuePromotion[1],
+  standards: [returns, types, spec + 'ecmascript-language-statements-and-declarations.html#sec-variable-statement-runtime-semantics-evaluation'],
+});
 
 export const valueRejected = [
   ['string', 'return "x";', expression],

@@ -19,6 +19,6 @@ export function resolveNumericOrigin(fixture, rejected, programs) {
 // Reviewed finite profile totals; a fast catalog test detects stale counts before
 // the process-heavy differential checker is started.
 export const primitiveProfileCounts = Object.freeze({
-  pairedPrograms: 200, rejectedPairs: 1, numericOriginCases: 16,
-  numericSupportedOriginCases: 2, rejections: 2, comparisons: 11256,
+  pairedPrograms: 201, rejectedPairs: 1, numericOriginCases: 16,
+  numericSupportedOriginCases: 2, rejections: 2, comparisons: 11312,
 });

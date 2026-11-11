@@ -96,7 +96,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if let Statement::VariableDeclaration(source) = statement {
             if !matches!(
                 source.kind,
-                VariableDeclarationKind::Const | VariableDeclarationKind::Let
+                VariableDeclarationKind::Const
+                    | VariableDeclarationKind::Let
+                    | VariableDeclarationKind::Var
             ) {
                 return Ok(false);
             }
@@ -105,14 +107,23 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     return Ok(false);
                 };
                 self.charge_declaration_bindings(local, 1)?;
-                let Some(initializer) = local.init.as_ref() else {
-                    return Ok(false);
-                };
-                if !self.dead_number_value_with_bindings(initializer, 0, dead_bindings) {
-                    return Ok(false);
+                match local.init.as_ref() {
+                    Some(initializer) => {
+                        if !self.dead_number_value_with_bindings(initializer, 0, dead_bindings) {
+                            return Ok(false);
+                        }
+                    }
+                    None if source.kind != VariableDeclarationKind::Var => return Ok(false),
+                    None => {}
                 }
                 let symbol = identifier.symbol_id.get().ok_or("missing dead binding")?;
-                dead_bindings.insert(symbol, source.kind == VariableDeclarationKind::Let);
+                dead_bindings.insert(
+                    symbol,
+                    matches!(
+                        source.kind,
+                        VariableDeclarationKind::Let | VariableDeclarationKind::Var
+                    ),
+                );
             }
             return Ok(true);
         }
