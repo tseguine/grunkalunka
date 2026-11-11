@@ -46,6 +46,36 @@ fn reduced_heap_entry_arities_keep_the_two_number_abi() {
 }
 
 #[test]
+fn inert_source_statements_preserve_the_heap_entry() {
+    let plain = "export function run(a,b){return 'value';}";
+    let expected = compile_heap_value(plain, false).unwrap().wasm;
+    for (source, typescript) in [
+        (
+            "export function run(a,b){;debugger;return 'value';debugger;;}",
+            false,
+        ),
+        (
+            "export function run<T>(a:T,b:T){type S=string;debugger;return ('value' as S);interface After{x:T}}",
+            true,
+        ),
+    ] {
+        assert_eq!(
+            compile_heap_value(source, typescript).unwrap().wasm,
+            expected,
+            "{source}"
+        );
+    }
+    for body in [
+        "true;return 'value';",
+        "let x=0;return 'value';",
+        "return 'value';return 'other';",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile_heap_value(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn heap_json_call_type_arguments_are_erased_metadata() {
     let plain = "export function run(a,b){return JSON.stringify(\"x\");}";
     let typed = "export function run(a:number,b:number){return JSON.stringify<number>(\"x\");}";
