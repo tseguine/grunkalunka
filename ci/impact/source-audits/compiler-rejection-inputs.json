@@ -1,0 +1,7 @@
+{
+  "source": "tests/compatibility/compiler-rejection-inputs.mjs",
+  "requiredChecks": [
+    "cargo-test:grunkalunka-compiler",
+    "check:workspace-tests"
+  ]
+}
