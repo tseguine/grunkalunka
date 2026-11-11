@@ -783,8 +783,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   semantics; no framework or implementation-specific directive meaning is defined.
   Each module/function directive counts once in the shared statement budget,
   including before the numeric body, without consuming locals or nesting depth.
-  Parser and semantic diagnostics remain authoritative. Parenthesized, wrapped,
-  nested-block and later string statements remain outside numeric admission.
+  Parser and semantic diagnostics remain authoritative. Parenthesized
+  and later module strings also work as independent discarded literals.
   The admission follows [Directive Prologues and strict module code](https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-directive-prologues-and-the-use-strict-directive).
 - The public `run` entry can also be a locally declared function exported
   with `export {run}` or `export {localName as run}`. The declaration may
@@ -793,6 +793,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Empty statements, `debugger;` and erased type declarations may follow an
   unconditional return, throw, break or continue. They still count toward
   source limits. A following executable statement receives its own diagnostic.
+- Standalone module literals (including untagged templates without
+  substitutions) and `void` of such literals may surround the entry. Each
+  expression statement counts against the statement budget. Parentheses,
+  erased type wrappers and `void` count toward the expression depth limit.
 - Module-level empty statements and local empty exports (`export {};`) may
   surround the entry and helpers. Each counts once in the shared statement
   budget. An empty re-export with a module source still requests that module.

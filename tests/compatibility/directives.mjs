@@ -1,4 +1,4 @@
-// Only Oxc-recognized prologues erase. Complete module text stays complete.
+// Directive prologues and discarded module literals use complete source text.
 export const directivePrograms = [];
 function add(id, modulePrefix, functionPrefix, body = 'return a+b;') {
   const sourceJS = `${modulePrefix}export function run(a,b) { ${functionPrefix}${body} }`;
@@ -36,7 +36,6 @@ export const directiveRejected = [
   ['directive-mixed-budget-limit', '"hint";'.repeat(128) + source('"hint";'.repeat(128) + 'return a;'), 'js', 'at most 256 statements'],
   ['directive-body-statement-budget', '"hint";' + source(';'.repeat(255) + 'return a;'), 'js', 'at most 256 statements'],
   ['directive-asi-call', source('"hint"\n(a); return a;'), 'js', expression],
-  ['directive-post-export', source('return a;') + '"hint";', 'js', top],
   ['directive-extra-export', '"hint";' + source('return a;') + 'export const x=1;', 'js', top],
   ['directive-call-remains', source('"hint"; Math.random(); return a;'), 'js', expression],
   ['directive-missing-return', source('"hint";'), 'js', 'every structural path must return'],
@@ -47,3 +46,14 @@ export const directiveRejected = [
   ['directive-unselected-call', source('"hint"; if(false) Math.random(); return a;'), 'js', expression],
   ['directive-depth-limit', source(`"hint"; return ${'('.repeat(129)}a${')'.repeat(129)};`), 'js', 'expression nesting exceeds'],
 ];
+
+const postExport = source('return a;') + '"hint";';
+directivePrograms.push(['directive-post-export', '', '', undefined, undefined, {
+  sourceJS: postExport, sourceTS: postExport,
+}]);
+add('module-literal-prefix', '(false);void 0;42;null;1n;', '');
+add('module-literal-template', '`plain`;void (void (0));', '');
+directivePrograms.push(['module-literal-typed', '', '', undefined, undefined, {
+  sourceJS: '(3);export function run(a,b){return a+b;}',
+  sourceTS: '((3 as number)!);export function run(a:number,b:number){return a+b;}',
+}]);

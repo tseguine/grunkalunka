@@ -30,7 +30,7 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
         .program
         .body
         .iter()
-        .filter(|item| !crate::is_empty_module_item(item))
+        .filter(|item| !crate::is_inert_module_item(item))
         .collect();
     let selected = crate::module_entries::select(&parsed.program, &built.semantic, &items)
         .map_err(|_| "heap spike expects one exported function")?;

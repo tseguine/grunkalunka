@@ -2317,13 +2317,6 @@
       "group": "function-calls"
     },
     {
-      "id": "directive-post-export",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "72db873fee6105da1d2aadd4762ce10f936e9ccb5f2150f0f9b76174f848e56b",
-      "group": "modules"
-    },
-    {
       "id": "directive-extra-export",
       "extension": "js",
       "sourceMode": "module-strict",
