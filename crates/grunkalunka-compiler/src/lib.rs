@@ -1316,6 +1316,7 @@ mod tests {
             "export function run(a,b){return a;var x;return x;}",
             "export function run(a,b){return a;let x;return x;}",
             "export function run(a,b){return a;return;}",
+            "export function run(a,b){return a;throw b;}",
         ] {
             for ts in [false, true] {
                 compile(source, ts).unwrap();
@@ -1327,6 +1328,8 @@ mod tests {
             "a++;",
             "a<b;",
             "return sideEffect();",
+            "throw sideEffect();",
+            "throw missing;",
         ] {
             let source = format!("export function run(a,b){{return a;{tail}}}");
             for ts in [false, true] {

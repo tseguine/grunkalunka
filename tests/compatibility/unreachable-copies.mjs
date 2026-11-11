@@ -2,6 +2,7 @@
 const cases = [
   ["gap-unreachable-after-return", "export function run(a,b) { return a; a=b; }"],
   ["unreachable-bare-return", "export function run(a,b){return a;return;}"],
+  ["unreachable-numeric-throw", "export function run(a,b){return a;throw b;}"],
   ["do-after-guaranteed-branches", "export function run(a,b) { do { if(a<b) return a; else return b; } while(0); a=b; }"],
   ["break-after-direct", "export function run(a,b) { while(1) { break; a=b; } return a; }"],
   ["break-after-mixed", "export function run(a,b) { while(1) { if(a) break; else return b; a=b; } return a; }"],
@@ -33,6 +34,11 @@ export const unreachableBareReturnPromotion = {
   id: 'unreachable-bare-return',
   source: 'export function run(a,b){return a;return;}',
   sha256: 'ac78e528be69edad7a95abd2f1202cc000cbf34e4ad6d739d8d12338e61d573a',
+};
+export const unreachableNumericThrowPromotion = {
+  id: 'unreachable-numeric-throw',
+  source: 'export function run(a,b){return a;throw b;}',
+  sha256: 'd3ccd98bf85e89418efd456281784383444401d4b1147897e4fbf8537997fe39',
 };
 export const unreachableCopyPrograms = cases.map(([id, sourceJS, sourceTS = sourceJS]) => [
   id, '', '', undefined, undefined, { sourceJS, sourceTS },

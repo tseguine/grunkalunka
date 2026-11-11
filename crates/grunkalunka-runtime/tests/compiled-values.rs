@@ -595,6 +595,7 @@ fn bare_returns_preserve_undefined_through_control_and_finalizers() {
     compare_primitive_sources([
         "return;",
         "return a;return;",
+        "return a;throw b;",
         "if(a)return;return b;",
         "const undefined=b;return;",
         "try{return;}finally{a=b;}",
