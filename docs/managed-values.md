@@ -1751,7 +1751,8 @@ only when the saved value selects the assignment.
 
 The unshadowed `Number` function converts String literals and untagged template
 literals without substitutions. Loose equality with a source-proven Number
-uses the same conversion in either operand order. ECMAScript whitespace, signed
+uses the same conversion in either operand order. Relational comparisons with
+a Number also use numeric order, while two Strings use UTF-16 lexicographic order. ECMAScript whitespace, signed
 zero, decimal exponents and unsigned radix prefixes use their numeric values.
 Malformed spellings produce NaN. Surplus call arguments still run in order.
 

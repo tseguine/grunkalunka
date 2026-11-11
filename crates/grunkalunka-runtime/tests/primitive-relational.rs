@@ -279,12 +279,12 @@ fn exact_previous_relational_guards_execute_original_sources() {
 #[test]
 fn relational_conversions_keep_unrepresented_kind_and_binding_guards() {
     for body in [
-        "return a<\"4\"?1:0;",
+        "const s=b?\"3\":\"4\";return a<s?1:0;",
         "return 1n<=a?1:0;",
         "return ({})>a?1:0;",
         "return Symbol()>=a?1:0;",
         "const s=b?\"4\":\"5\";return a==s?1:0;",
-        "return (\"4\" as number)<a?1:0;",
+        "const s=b?\"3\":\"4\";return (s as number)<a?1:0;",
         "return value<null?1:0;let value=null;",
         "const value=null;return (value=a)<a?1:0;",
         "if(false)return Math.random()<null?1:0;return a;",

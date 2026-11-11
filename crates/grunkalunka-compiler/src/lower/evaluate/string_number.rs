@@ -16,6 +16,20 @@ pub(super) fn literal(source: &Expression<'_>, depth: usize) -> Option<f64> {
     Some(text.map_or(f64::NAN, parse))
 }
 
+// Compare receives the literal as its left operand. The second operator
+// restores source order when the literal originally appeared on the right.
+pub(super) fn comparisons(operator: BinaryOperator) -> Option<(Compare, Compare)> {
+    Some(match operator {
+        BinaryOperator::Equality => (Compare::Equal, Compare::Equal),
+        BinaryOperator::Inequality => (Compare::NotEqual, Compare::NotEqual),
+        BinaryOperator::LessThan => (Compare::Less, Compare::Greater),
+        BinaryOperator::LessEqualThan => (Compare::LessEqual, Compare::GreaterEqual),
+        BinaryOperator::GreaterThan => (Compare::Greater, Compare::Less),
+        BinaryOperator::GreaterEqualThan => (Compare::GreaterEqual, Compare::LessEqual),
+        _ => return None,
+    })
+}
+
 fn parse(text: &str) -> f64 {
     let text = text.trim_matches(|c| is_white_space(c) || is_line_terminator(c));
     match text {

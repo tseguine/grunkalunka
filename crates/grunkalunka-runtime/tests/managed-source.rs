@@ -470,6 +470,22 @@ fn string_literal_numeric_conversion_matches_native_number_and_loose_equality() 
 }
 
 #[test]
+fn relational_literal_strings_use_numeric_order_with_number_operands() {
+    for operator in ["<", "<=", ">", ">="] {
+        for (left, right) in [("a", "'4'"), ("'0x10'", "a"), ("a", "'b'"), ("'-0'", "b")] {
+            compare(&format!("return {left}{operator}{right}?1:0;"));
+        }
+        let js = format!("export function run(a,b){{return a{operator}'b'?1:0;}}");
+        let ts = format!(
+            "export function run(a,b){{return (a as unknown as string){operator}'b'?1:0;}}"
+        );
+        common::compare_sources(&js, &ts);
+    }
+    compare("let n=0;const v='10'<(n++,a);return n*10+(v?1:0);");
+    compare("return '20'<'3'?1:0;");
+}
+
+#[test]
 fn number_calls_convert_scalar_values_and_evaluate_all_arguments() {
     for body in [
         "return Number(a?'3':'4');",
