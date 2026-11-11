@@ -1,5 +1,14 @@
 // Annotation syntax remains on Oxc's AST as unvalidated metadata, not runtime proof.
 export const annotationPrograms = [];
+export const annotationArityPromotion = {
+  id: 'annotation-arity',
+  sourceTS: 'export function run(a:unknown):unknown { return a; }',
+  sha256: '76085b7ef916d0b506bd7f164832c1cf1e67a9d9d2e409a67f13e5acfd059fef',
+};
+annotationPrograms.push(['annotation-arity', '', '', undefined, undefined, {
+  sourceJS: 'export function run(a) { return a; }',
+  sourceTS: annotationArityPromotion.sourceTS,
+}]);
 function add(id, bodyJS, bodyTS = bodyJS, parameters = 'a:unknown,b:unknown', result = 'unknown') {
   const sourceJS = `export function run(a,b) { ${bodyJS} }`;
   const sourceTS = `export function run(${parameters})${result ? `:${result}` : ''} { ${bodyTS} }`;
@@ -60,8 +69,7 @@ export const annotationRejected = [
   ['annotation-default-parameter', 'export function run(a:unknown=1,b:unknown=2):unknown { return a; }', 'ts',
     'parameter modifiers, defaults and decorators are not admitted'],
   ['annotation-rest-parameter', 'export function run(a:unknown,...b:unknown[]):unknown { return a; }', 'ts',
-    'exactly two ordinary numeric parameters'],
-  ['annotation-arity', 'export function run(a:unknown):unknown { return a; }', 'ts', 'exactly two ordinary numeric parameters'],
+    'at most two ordinary numeric parameters'],
   ['annotation-malformed-type', 'export function run(a:number|,b:unknown):unknown { return a; }', 'ts', 'parse diagnostics'],
   ['annotation-duplicate-parameter', 'export function run(a:unknown,a:unknown):unknown { return a; }', 'ts'],
   ['annotation-unselected-call', source('if(false) { const x:number=Math.random(); } return a;'), 'ts', expression],

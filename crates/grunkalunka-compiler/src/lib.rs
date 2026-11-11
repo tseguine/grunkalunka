@@ -269,14 +269,24 @@ fn lower_source_profile_with_identities(
                 },
             ));
         }
+        let entry_arity_is_valid = index != 0
+            || if async_entry {
+                function.params.items.len() == 2
+            } else {
+                function.params.items.len() <= 2
+            };
         if function.params.kind != FormalParameterKind::FormalParameter
-            || (index == 0 && function.params.items.len() != 2)
+            || !entry_arity_is_valid
             || function.params.rest.is_some()
         {
             return Err(unsupported(
                 function.params.as_ref(),
                 if index == 0 {
-                    "exactly two ordinary numeric parameters are admitted"
+                    if async_entry {
+                        "exactly two ordinary numeric parameters are admitted"
+                    } else {
+                        "at most two ordinary numeric parameters are admitted"
+                    }
                 } else {
                     "ordinary numeric helper parameters are required"
                 },
@@ -304,10 +314,15 @@ fn lower_source_profile_with_identities(
                 "writes to a function binding are not admitted",
             ));
         }
+        let parameter_count = if index == 0 && !async_entry {
+            2
+        } else {
+            function.params.items.len()
+        };
         signatures.push(NumericFunction {
             symbol,
             id: ir::FunctionId(index),
-            parameter_count: function.params.items.len(),
+            parameter_count,
             parameter_types: Vec::new(),
             return_type: if index == 0 || function.r#async {
                 entry_type
@@ -494,6 +509,15 @@ fn lower_source_profile_with_identities(
                 span: parameter.span(),
             });
         }
+        while slots.len() < signatures[index].parameter_count {
+            slots.push(ir::Slot {
+                ty: ir::Type::Number,
+                owner: ir::RegionId(0),
+                mutable: true,
+                parameter: true,
+                span: function.params.span(),
+            });
+        }
         let body = function.body.as_ref().ok_or("function must have a body")?;
         let mut lowering = Lowering {
             return_type: signatures[index].return_type,
@@ -592,7 +616,7 @@ fn lower_source_profile_with_identities(
         local_count = lowering.local_count;
         statement_count = lowering.statement_count;
         lifted.append(&mut lowering.lifted);
-        functions.push(lowering.finish(region, function.params.items.len()));
+        functions.push(lowering.finish(region, signatures[index].parameter_count));
     }
     functions.extend(adapters);
     functions.extend(lifted.into_iter().map(|function| {
@@ -653,6 +677,24 @@ pub fn compile_async(source: &str, typescript: bool) -> Result<Artifact, String>
 #[cfg(test)]
 mod tests {
     use super::compile;
+
+    #[test]
+    fn reduced_sync_entry_arities_keep_the_two_number_abi() {
+        for source in [
+            "export function run(){return 4;}",
+            "export function run(a){return a;}",
+            "export function run<T>(a:T):T{return a;}",
+        ] {
+            compile(source, source.contains("<T>")).unwrap();
+        }
+        for source in [
+            "export function run(a,b,c){return a;}",
+            "export function run(a,...rest){return a;}",
+        ] {
+            let error = compile(source, false).err().unwrap();
+            assert!(error.contains("at most two ordinary"), "{error}");
+        }
+    }
 
     #[test]
     fn strict_boolean_equality_admits_same_kind_operands() {
@@ -2067,6 +2109,10 @@ mod generic_declaration_tests {
     }
     #[test]
     fn generic_declarations_keep_adjacent_shape_guards() {
+        erased(
+            "export function run<T>(a:T):T { return a; }",
+            "export function run(a) { return a; }",
+        );
         for (source, expected) in [
             (
                 "export async function run<T>(a:T,b:T):T { return a; }",
@@ -2083,10 +2129,6 @@ mod generic_declaration_tests {
             (
                 "export function run<T>(this:T,a:T,b:T):T { return a; }",
                 "plain, synchronous function",
-            ),
-            (
-                "export function run<T>(a:T):T { return a; }",
-                "exactly two ordinary",
             ),
             (
                 "export function run<T>(a:T,b:T=1):T { return a; }",

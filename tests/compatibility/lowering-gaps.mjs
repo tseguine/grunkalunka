@@ -7,10 +7,34 @@ const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 const topLevel = 'exactly one exported function is admitted';
 const declaration = 'const or let local declarations are required';
-const ordinaryParameters = 'exactly two ordinary numeric parameters are admitted';
+const ordinaryParameters = 'at most two ordinary numeric parameters are admitted';
 const plainFunction = 'expected a plain, synchronous function named run';
 
 export const loweringGaps = [];
+export const reducedEntryArityPromotion = {
+  id: 'gap-one-parameter',
+  source: 'export function run(a) { return a; }',
+  sha256: 'd9c36f6ec2aa0c77801c770382cbc06d3246cc6a18110bab6d0fba2c7ab9afac',
+};
+export const numericArityPromotion = {
+  id: 'arity',
+  source: reducedEntryArityPromotion.source,
+  sha256: reducedEntryArityPromotion.sha256,
+};
+export const reducedEntryArityPrograms = [
+  ['gap-one-parameter', '', '', undefined, undefined, {
+    sourceJS: reducedEntryArityPromotion.source,
+    sourceTS: reducedEntryArityPromotion.source,
+  }],
+  ['arity', '', '', undefined, undefined, {
+    sourceJS: numericArityPromotion.source,
+    sourceTS: numericArityPromotion.source,
+  }],
+  ['entry-zero-parameters', '', '', undefined, undefined, {
+    sourceJS: 'export function run(){return 4;}',
+    sourceTS: 'export function run():number{return 4;}',
+  }],
+];
 function add(id, category, body, expected, diagnostic, options = {}) {
   const source = options.source ?? `export function run(a,b) { ${body} }`;
   loweringGaps.push([`gap-${id}`, source, options.extension ?? 'js', diagnostic, {
@@ -51,7 +75,5 @@ add('async-await', 'generators-async', '', 6, plainFunction, { milestone: 'L5',
 
 add('export-name', 'input-shapes', '', 6, plainFunction,
   { source: 'export function sum(a,b) { return a+b; }', entry: 'sum', milestone: 'L3' });
-add('one-parameter', 'input-shapes', '', 4, ordinaryParameters,
-  { source: 'export function run(a) { return a; }', milestone: 'L3' });
 add('extra-export', 'input-shapes', '', 6, topLevel,
   { source: 'export const n=2; export function run(a,b) { return a+n; }', milestone: 'L3' });
