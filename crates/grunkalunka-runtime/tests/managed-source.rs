@@ -472,6 +472,13 @@ fn string_literal_numeric_conversion_matches_native_number_and_loose_equality() 
 #[test]
 fn number_calls_convert_scalar_values_and_evaluate_all_arguments() {
     for body in [
+        "return Number(a?'3':'4');",
+        "let n=0;const x=Number((n++,a)?(n+=3,'-0'):(n+=7,'0x10'),n++);return (x|0)+n;",
+        "let n=0;const x=+(a?(n++,'2'):(n+=2,b));return x+n;",
+        "return ~(a?'0x10':'-0');",
+        "return Math.abs(a?(b,'-4'):b);",
+        "return (a?'0x11':'-3')*2;",
+        "return +(a+'1'==='41');",
         "return 1/Number();",
         "return Number(undefined);",
         "return 1/Number(a);",
@@ -487,7 +494,7 @@ fn number_calls_convert_scalar_values_and_evaluate_all_arguments() {
     }
     for body in [
         "return Number({});",
-        "return Number(a?'3':'4');",
+        "const s=a?'3':'4';return Number(s);",
         "return +new Number(a);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

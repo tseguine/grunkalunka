@@ -5,6 +5,7 @@ use wasmtime::Trap;
 #[test]
 fn math_clz32_counts_leading_zero_bits_after_numeric_conversion() {
     compare_helper_sources(&[
+        "export function run(a,b){return Math.clz32('2');}",
         "export function run(a,b){return Math.clz32(a);}",
         "export function run(a,b){return Math.clz32();}",
         "export function run(a,b){return Math.clz32(0);}",
@@ -39,7 +40,7 @@ fn math_clz32_rejects_dynamic_and_spread_invocations() {
         "return Math['clz32'](a);",
         "return Math.clz32(...[a]);",
         "return Math.clz32?.(a);",
-        "return Math.clz32('2');",
+        "const s=a?'1':'2';return Math.clz32(s);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typed in [false, true] {
@@ -51,6 +52,7 @@ fn math_clz32_rejects_dynamic_and_spread_invocations() {
 #[test]
 fn math_fround_preserves_float32_rounding_signed_zero_and_source_order() {
     compare_helper_sources(&[
+        "export function run(a,b){return Math.fround('3');}",
         "export function run(a,b){return Math.fround(a);}",
         "export function run(a,b){return Math.fround();}",
         "export function run(a,b){return Math.fround(-0);}",
@@ -86,7 +88,7 @@ fn math_fround_retains_unrepresented_call_guards() {
         "return Math['fround'](a);",
         "return Math.fround(...[a]);",
         "return Math.fround?.(a);",
-        "return Math.fround('3');",
+        "const s=a?'1':'2';return Math.fround(s);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for typescript in [false, true] {
@@ -98,6 +100,7 @@ fn math_fround_retains_unrepresented_call_guards() {
 #[test]
 fn math_imul_matches_32bit_wraparound_with_primitive_number_inputs() {
     compare_helper_sources(&[
+        "export function run(a,b){return Math.imul('2',a);}",
         "export function run(a,b){return Math.imul(a,b);}",
         "export function run(a,b){return Math.imul();}",
         "export function run(a,b){return Math.imul(a);}",
@@ -126,7 +129,7 @@ fn math_imul_rejects_dynamic_and_spread_invocations() {
         "return Math.imul(...[a,b]);",
         "return Math.imul(a,...[b]);",
         "return Math.imul?.(a,b);",
-        "return Math.imul('2',a);",
+        "const s=a?'1':'2';return Math.imul(s,a);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {
@@ -138,6 +141,7 @@ fn math_imul_rejects_dynamic_and_spread_invocations() {
 #[test]
 fn math_min_and_max_preserve_js_number_order_and_signed_zero() {
     compare_helper_sources(&[
+        "export function run(a,b){return Math.min('2',a);}",
         "export function run(a,b){return Math.min(a,b);}",
         "export function run(a,b){return Math.max(a,b);}",
         "export function run(a,b){return Math.min();}",
@@ -169,7 +173,7 @@ fn math_minmax_reject_unrepresented_dynamic_and_spread_calls() {
         "return Math.max(...[a,b]);",
         "return Math.min(a,...[b]);",
         "return Math.max?.(a,b);",
-        "return Math.min('2',a);",
+        "const s=a?'1':'2';return Math.min(s,a);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {
@@ -605,6 +609,12 @@ fn bitwise_compounds_convert_primitive_operands() {
         "export function run(a,b) { return a|=(a<b); }".to_string(),
     ];
     for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        sources.push(format!(
+            "export function run(a,b){{return a{operator}=(\"3\");}}"
+        ));
+        sources.push(format!(
+            "export function run(a,b){{let x=null;return x{operator}=(\"3\");}}"
+        ));
         for primitive in ["undefined", "null", "true", "false", "a<b"] {
             for body in [
                 format!("return a{operator}=({primitive});"),
@@ -633,7 +643,7 @@ fn bitwise_compounds_convert_primitive_operands() {
 #[test]
 fn bitwise_compounds_keep_target_and_unsupported_operand_guards() {
     for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
-        for rhs in ["\"3\"", "{}", "1n", "()=>a", "missing", "a**b"] {
+        for rhs in ["{}", "1n", "()=>a", "missing", "a**b"] {
             for body in [
                 format!("return a{operator}=({rhs});"),
                 format!("let x=null;return x{operator}=({rhs});"),
@@ -664,6 +674,7 @@ fn bitwise_compounds_keep_target_and_unsupported_operand_guards() {
 fn bitwise_not_converts_primitive_operands() {
     let mut sources = vec!["export function run(a,b) { return ~null; }".to_string()];
     for body in [
+        "return ~\"3\";",
         "return ~undefined;",
         "return ~true;",
         "return ~false;",
@@ -692,7 +703,7 @@ fn bitwise_not_converts_primitive_operands() {
 #[test]
 fn bitwise_not_keeps_unsupported_operand_and_binding_guards() {
     for body in [
-        "return ~\"3\";",
+        "const s=b?\"2\":\"3\";return ~s;",
         "return ~({});",
         "return ~1n;",
         "return ~(()=>a);",
@@ -719,7 +730,7 @@ fn binary_bitwise_converts_primitive_operands() {
         "export function run(a,b) { const flag=true; return flag<<a; }".to_string(),
     ];
     for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
-        for primitive in ["undefined", "null", "true", "false", "a<b"] {
+        for primitive in ["undefined", "null", "true", "false", "a<b", "\"3\""] {
             for body in [
                 format!("return ({primitive}){operator}a;"),
                 format!("return a{operator}({primitive});"),
@@ -746,7 +757,7 @@ fn binary_bitwise_converts_primitive_operands() {
 #[test]
 fn binary_bitwise_primitive_inputs_keep_unsupported_operand_guards() {
     for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
-        for operand in ["\"3\"", "{}", "1n", "()=>a"] {
+        for operand in ["{}", "1n", "()=>a"] {
             for body in [
                 format!("return ({operand}){operator}a;"),
                 format!("return a{operator}({operand});"),
@@ -867,10 +878,11 @@ fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
             compile_value(&plain, false).unwrap().wasm,
             "{typed}"
         );
-        compare_helper_sources(&[&plain]);
+        let literal = format!("export function run(a,b){{return Math.{method}(\"3\",a);}}");
+        compare_helper_sources(&[&plain, &literal]);
         for body in [
             format!("return Math.{method}(a,{extras},b);"),
-            format!("return Math.{method}(\"3\",a);"),
+            format!("const s=a?'2':'3';return Math.{method}(s,a);"),
             format!("return Math.{method}({{}},a);"),
             format!("return Math.{method}(1n,a);"),
             format!("return Math.{method}(()=>a,b);"),

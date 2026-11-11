@@ -15,6 +15,7 @@ pub(in crate::lower) enum Mode {
     // Use the common depth/aggregate guards before splitting a discarded logical.
     DiscardLogical,
     Arithmetic,
+    NumberCall,
     Numeric,
     General,
     Managed,

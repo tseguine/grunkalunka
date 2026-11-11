@@ -179,6 +179,10 @@ fn numeric_coercion_keeps_erasure_budgets_and_non_numeric_boundaries() {
         "const p=Promise.resolve(a);{}return +p;",
         "await b;".repeat(33)
     ));
+    compare_promises(
+        &["return +(a?Promise.resolve(b):'1');"],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
     for ts in [false, true] {
         assert!(
             compile_async(&over, ts)
@@ -192,7 +196,7 @@ fn numeric_coercion_keeps_erasure_budgets_and_non_numeric_boundaries() {
             "let x=a?Promise.resolve(a):b;x-=b;return x;",
             "let x=a?Promise.resolve(a):b;x++;return x;",
             "const p=Promise.resolve(a);p.valueOf=()=>b;return +p;",
-            "return +(a?Promise.resolve(b):'1');",
+            "const s=b?'1':'2';return +(a?Promise.resolve(b):s);",
             "const p=Promise.resolve(a);return p**b;",
         ] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");

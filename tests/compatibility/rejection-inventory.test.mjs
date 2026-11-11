@@ -71,6 +71,7 @@ import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullis
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
 import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
 import { primitiveCompound, primitiveCompoundPromotions } from './primitive-compound.mjs';
+import { literalNumericOrigins } from './literal-numeric-operands.mjs';
 import { implicitLet, implicitLetPromotions } from './implicit-let.mjs';
 import { primitiveLooseEquality, primitiveLooseEqualityPromotions } from './primitive-loose-equality.mjs';
 import { generalDiscard, generalDiscardPromotions } from './general-discard.mjs';
@@ -368,7 +369,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 782);
+  assert.equal(inventory.records.size, 768);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -685,6 +686,16 @@ test('definite assignment assertions execute both original TS sources against th
   ]) {
     const source = programSources(programs.find(row => row[0] === id));
     assert.equal(createHash('sha256').update(source.sourceTS).digest('hex'), hash);
+    assert.equal(source.oracleSource, source.sourceJS);
+    assert.ok(!rejected.some(row => row[0] === id));
+  }
+});
+
+test('numeric operators execute fourteen original literal String inputs', () => {
+  assert.equal(literalNumericOrigins.length, 14);
+  for (const [id, , hash] of literalNumericOrigins) {
+    const source = programSources(programs.find(row => row[0] === id));
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), hash);
     assert.equal(source.oracleSource, source.sourceJS);
     assert.ok(!rejected.some(row => row[0] === id));
   }

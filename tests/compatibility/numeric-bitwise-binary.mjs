@@ -43,14 +43,11 @@ numericBitwiseBinary.push(
 const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ['bitwise-string-left', 'return "5" & a;', expression],
-  ['bitwise-string-right', 'return a | "3";', expression],
   ['bitwise-object', 'return a ^ ({});', expression],
   ['bitwise-bigint', 'return 1n & 3n;', expression],
   ['bitwise-global', 'return clock & a;', reference],
   ['bitwise-call', 'return a | Math.random();', expression],
   ['bitwise-unselected-call', 'return 0 ? (a & Math.random()) : a;', expression],
-  ['bitwise-unselected-string', 'return 1 || (a ^ "4");', expression],
   ['bitwise-const-write', 'const x=a; return x & (x=b);', 'assignment to a const binding is not admitted'],
   ['bitwise-const-update', 'const x=a; return x++ | b;', 'update to a const binding is not admitted'],
   ['bitwise-self-tdz', 'let x=x ^ a; return x;', reference],

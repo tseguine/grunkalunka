@@ -317,7 +317,7 @@ fn primitive_coercion_does_not_widen_other_source_contracts() {
     for body in [
         "return null;",
         "return true;",
-        "return +\"1\";",
+        "const s=a?\"1\":\"2\";return +s;",
         "return {}+a;",
         "return +value; let value=null;",
         "const value=null; value=1; return +value;",

@@ -1755,6 +1755,12 @@ uses the same conversion in either operand order. ECMAScript whitespace, signed
 zero, decimal exponents and unsigned radix prefixes use their numeric values.
 Malformed spellings produce NaN. Surplus call arguments still run in order.
 
+Unary numeric operators, non-additive numeric binary and compound operators,
+and the supported unary Math calls also convert literal String operands.
+Conditional and comma expressions can select literals at runtime. Only
+the chosen branch evaluates, and a comma prefix runs before conversion.
+The ordinary `+` and `+=` operations retain String concatenation semantics.
+
 Calling the unshadowed `String` function applies the same primitive conversion.
 No arguments produce the empty String. Subsequent arguments still run in order
 and may suspend or throw. Fixed array-literal spreads follow ordinary call

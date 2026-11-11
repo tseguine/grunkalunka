@@ -179,7 +179,9 @@ import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
 import { selectedInstancePrograms, selectedInstanceRejected } from './selected-instanceof.mjs';
 
-export const corpusVersion = 203;
+import { literalNumericPrograms } from './literal-numeric-operands.mjs';
+
+export const corpusVersion = 204;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -300,6 +302,7 @@ programs.push(['array-brand-literal-spread', spreadBrandBody, spreadBrandBody, 1
   sourceTS: `export function run(a:number,b:number):number{${spreadBrandBody}}`,
 }]);
 programs.push(...selectedInstancePrograms);
+programs.push(...literalNumericPrograms);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
 programs.push(...directivePrograms);

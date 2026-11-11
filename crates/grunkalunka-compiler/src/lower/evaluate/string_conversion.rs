@@ -105,7 +105,7 @@ impl Lowering<'_, '_> {
             .as_expression()
             .ok_or_else(|| unsupported(node, "primitive conversion requires fixed arguments"))?;
         let (mode, conversion) = match kind {
-            object_intrinsics::ConversionCall::Number => (Mode::Arithmetic, None),
+            object_intrinsics::ConversionCall::Number => (Mode::NumberCall, None),
             object_intrinsics::ConversionCall::String => self.string_operand(first, first_depth)?,
             object_intrinsics::ConversionCall::Boolean => (Mode::Predicate, None),
         };
@@ -119,15 +119,7 @@ impl Lowering<'_, '_> {
             })?;
             work.push(Work::Eval(arg, depth + actual.depth + 1, Mode::Discard));
         }
-        if kind == object_intrinsics::ConversionCall::Number
-            && let Some(value) = string_number::literal(first, first_depth)
-        {
-            let result = self.value(Type::Number);
-            Self::push(regions.current(), first, Op::Constant { result, value });
-            values.push(Value::Number(result));
-        } else {
-            work.push(Work::Eval(first, first_depth, mode));
-        }
+        work.push(Work::Eval(first, first_depth, mode));
         Ok(())
     }
 

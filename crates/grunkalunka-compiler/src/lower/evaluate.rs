@@ -3287,9 +3287,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     work.push(Work::Forget);
                     work.push(Work::Eval(node, depth, mode));
                 }
-                Work::Eval(node, depth, Mode::Numeric) => {
-                    numeric(self, work, node, depth);
-                }
                 Work::Eval(node, depth, Mode::Arithmetic) => {
                     if self.operand_boolean_shape(node, depth) {
                         predicate_number(work, node, depth);
@@ -3348,6 +3345,25 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if matches!(mode, Mode::Numeric | Mode::NumberCall) {
+                        if let Some(value) = string_number::literal(node, depth) {
+                            let result = self.value(Type::Number);
+                            Self::push(regions.current(), node, Op::Constant { result, value });
+                            values.push(Value::Number(result));
+                        } else if matches!(
+                            node,
+                            Expression::ConditionalExpression(_)
+                                | Expression::SequenceExpression(_)
+                        ) && self.stored.may_be_string(node.node_id())
+                        {
+                            schedule_selection(work, node, depth, mode)?;
+                        } else if matches!(mode, Mode::Numeric) {
+                            numeric(self, work, node, depth);
+                        } else {
+                            work.push(Work::Eval(node, depth, Mode::Arithmetic));
+                        }
                         continue;
                     }
                     if let Mode::InstanceOf(input) = mode {
