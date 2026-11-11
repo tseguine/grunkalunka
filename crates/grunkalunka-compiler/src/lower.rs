@@ -182,8 +182,12 @@ fn math_integer_product(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> b
     math_name(call, semantic) == Some("imul")
 }
 
-// A module-level literal statement has no binding or observable effect.
-pub(super) fn discarded_module_literal(mut expression: &Expression<'_>) -> bool {
+// Recognize only expressions that can be discarded without executing user code.
+pub(super) fn discarded_literal_statement(statement: &Statement<'_>) -> bool {
+    let Statement::ExpressionStatement(source) = statement else {
+        return false;
+    };
+    let mut expression = &source.expression;
     let mut depth = 0;
     while let Some((node, inner_depth)) = closures::unwrapped_at(expression, depth) {
         match node {
@@ -211,6 +215,10 @@ fn emits_no_statement(statement: &Statement<'_>) -> bool {
             statement,
             Statement::EmptyStatement(_) | Statement::DebuggerStatement(_)
         )
+}
+
+fn inert_tail(statement: &Statement<'_>) -> bool {
+    emits_no_statement(statement) || discarded_literal_statement(statement)
 }
 
 // One wrapper at a time keeps each erased source node in the nesting budget.

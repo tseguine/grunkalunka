@@ -369,9 +369,16 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 758);
+  assert.equal(inventory.records.size, 757);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('the original discarded Boolean after return executes unchanged', () => {
+  const source = programSources(programs.find(row => row[0] === 'discarded-after-return'));
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),
+    '9153dbe012348331b14ea97ce29fa5b0258a957b46130111445539f80437547f');
+  assert.equal(source.oracleSource, source.sourceJS);
 });
 
 test('the original post-export string is its own executing oracle', () => {

@@ -5054,13 +5054,6 @@
       "group": "statement-count"
     },
     {
-      "id": "discarded-after-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9153dbe012348331b14ea97ce29fa5b0258a957b46130111445539f80437547f",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "discarded-for-update-dead",
       "extension": "js",
       "sourceMode": "module-strict",

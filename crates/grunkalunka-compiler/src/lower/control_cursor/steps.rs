@@ -841,18 +841,22 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             } => {
                 let completion = prefix.then(completion);
                 let next_index = index + 1;
-                if let Some(statement) = statements.get(next_index) {
-                    // Keep visiting inert statements for the source budgets.
-                    if !completion.normal && !emits_no_statement(statement) {
-                        return Err(unsupported(
-                            statement,
-                            if completion == Completion::RETURN {
-                                "statements after a guaranteed return are not admitted"
-                            } else {
-                                "statements after a guaranteed abrupt completion are not admitted"
-                            },
-                        ));
+                if !completion.normal {
+                    for statement in &statements[next_index..] {
+                        if !inert_tail(statement) {
+                            return Err(unsupported(
+                                statement,
+                                if completion == Completion::RETURN {
+                                    "statements after a guaranteed return are not admitted"
+                                } else {
+                                    "statements after a guaranteed abrupt completion are not admitted"
+                                },
+                            ));
+                        }
+                        self.admit_source_statement(statement, depth)?;
                     }
+                    cursor.completed = Some(Outcome::Statement(finished_region, completion));
+                } else if let Some(statement) = statements.get(next_index) {
                     cursor.pending.push(Frame::Sequence {
                         statements,
                         index: next_index,
