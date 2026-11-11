@@ -58,8 +58,11 @@ Native macOS PR fallbacks use a **65-minute job envelope** to tolerate runner-po
 queuing: a previous 15-minute job limit canceled a fallback before any runner was
 assigned. Once scheduled, the fallback workspace build has a 10-minute step limit
 and the fast PR check has a separate 15-minute step limit. Full Linux/Windows
-jobs retain 60 minutes, and full native macOS jobs retain 65 minutes. These are
-watchdogs, not performance targets.
+jobs have a 90-minute envelope, and full native macOS jobs retain 65 minutes.
+The full Linux/Windows envelope includes setup, compilation and the serial
+canonical suite. It leaves room for the complete integration tail when slower
+hosted execution pushes the aggregate beyond an hour. These are watchdogs, not
+performance targets; the fast PR command and job budgets are separate.
 Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
 Switching runner architecture does not establish support until its actual checks pass.
 
