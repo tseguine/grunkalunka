@@ -67,6 +67,7 @@ fn hoisted_var_cells_preserve_values_scope_and_shared_captures() {
         "return x;var x=3;",
         "return a;var x=b;return x;",
         "return a;var x;return x;",
+        "return a;let x;return x;",
         "x=a;var x;return x;",
         "var x=a,copy=x,y=b;return copy;",
         "var x=a;const before=x;x=b;var x;return before;",

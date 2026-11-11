@@ -113,7 +113,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             return Ok(false);
                         }
                     }
-                    None if source.kind != VariableDeclarationKind::Var => return Ok(false),
+                    None if source.kind == VariableDeclarationKind::Const => return Ok(false),
                     None => {}
                 }
                 let symbol = identifier.symbol_id.get().ok_or("missing dead binding")?;
