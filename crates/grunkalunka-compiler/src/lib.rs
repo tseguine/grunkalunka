@@ -1315,6 +1315,7 @@ mod tests {
             "export function run(a,b){return a;var x=b;return x;}",
             "export function run(a,b){return a;var x;return x;}",
             "export function run(a,b){return a;let x;return x;}",
+            "export function run(a,b){return a;return;}",
         ] {
             for ts in [false, true] {
                 compile(source, ts).unwrap();
