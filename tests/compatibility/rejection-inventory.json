@@ -1134,13 +1134,6 @@
       "group": "modules"
     },
     {
-      "id": "gap-while-guaranteed-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5dbc7444053d63cef1a3c3939c25bd88bade309a5f744d52acbb696e93460717",
-      "group": "return-policy"
-    },
-    {
       "id": "gap-unreachable-after-return",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3351,13 +3344,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "844e005d93feff88035d54e0fa27fe157c81871743a6b65c8ccf7dab50f6fabb",
       "group": "function-calls"
-    },
-    {
-      "id": "while-only-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7cc963114529d8a21abaa51026704a64cb02e614bc182ce3c638383a8274dc4c",
-      "group": "return-policy"
     },
     {
       "id": "while-unselected-call",

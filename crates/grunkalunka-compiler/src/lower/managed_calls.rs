@@ -855,7 +855,9 @@ pub(crate) fn infer(
             if functions[index].async_signature.is_some() {
                 continue;
             }
-            if statements.is_empty() || block_results::normal_completion(declarations[index]) {
+            if statements.is_empty()
+                || block_results::normal_completion(semantic, declarations[index])
+            {
                 changed |= returns[index].insert(Kind::GeneralPrimitive);
             }
             for statement in statements {
