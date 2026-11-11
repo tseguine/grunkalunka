@@ -1310,6 +1310,8 @@ mod tests {
             "export function run(a,b) { while(0) { if(a) continue; else continue; return a; } return b; }",
             "export function run(a,b) { if(a<b) return a; else return b; return 0; }",
             "export function run(a,b) { return a; const x=b; return x; }",
+            "export function run(a,b) { return a; const x=b,y=x+1; return y; }",
+            "export function run(a,b) { return a; let x=b; x=x+1; return x; }",
         ] {
             for ts in [false, true] {
                 compile(source, ts).unwrap();
@@ -1331,7 +1333,9 @@ mod tests {
             "const x=sideEffect();return x;",
             "const x=missing;return x;",
             "const [x]=[b];return x;",
-            "const x=b,y=a;return x;",
+            "let x;return x;",
+            "var x=b;return x;",
+            "const x=b;x=a;return x;",
         ] {
             let source = format!("export function run(a,b){{return a;{tail}}}");
             for ts in [false, true] {

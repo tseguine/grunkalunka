@@ -18,7 +18,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &self,
         expression: &Expression<'_>,
         depth: usize,
-        dead_bindings: &std::collections::BTreeSet<SymbolId>,
+        dead_bindings: &std::collections::BTreeMap<SymbolId, bool>,
     ) -> bool {
         let mut pending = vec![(expression, depth)];
         while let Some((expression, depth)) = pending.pop() {
@@ -38,7 +38,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     let symbol = id.reference_id.get().and_then(|reference| {
                         self.semantic.scoping().get_reference(reference).symbol_id()
                     });
-                    if !symbol.is_some_and(|symbol| dead_bindings.contains(&symbol))
+                    if !symbol.is_some_and(|symbol| dead_bindings.contains_key(&symbol))
                         && !numeric_binding(id, self.semantic, &self.bindings)
                             .is_ok_and(|binding| self.slots[binding.slot.0].ty == Type::Number)
                     {
@@ -86,7 +86,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     fn dead_number_statement(
         &mut self,
         statement: &Statement<'_>,
-        dead_bindings: &mut std::collections::BTreeSet<SymbolId>,
+        dead_bindings: &mut std::collections::BTreeMap<SymbolId, bool>,
     ) -> Result<bool, String> {
         if let Statement::ReturnStatement(source) = statement {
             return Ok(source.argument.as_ref().is_some_and(|value| {
@@ -94,22 +94,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             }));
         }
         if let Statement::VariableDeclaration(source) = statement {
-            if source.kind != VariableDeclarationKind::Const || source.declarations.len() != 1 {
+            if !matches!(
+                source.kind,
+                VariableDeclarationKind::Const | VariableDeclarationKind::Let
+            ) {
                 return Ok(false);
             }
-            let local = &source.declarations[0];
-            let BindingPattern::BindingIdentifier(identifier) = &local.id else {
-                return Ok(false);
-            };
-            self.charge_declaration_bindings(local, 1)?;
-            let Some(initializer) = local.init.as_ref() else {
-                return Ok(false);
-            };
-            if !self.dead_number_value_with_bindings(initializer, 0, dead_bindings) {
-                return Ok(false);
+            for local in &source.declarations {
+                let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+                    return Ok(false);
+                };
+                self.charge_declaration_bindings(local, 1)?;
+                let Some(initializer) = local.init.as_ref() else {
+                    return Ok(false);
+                };
+                if !self.dead_number_value_with_bindings(initializer, 0, dead_bindings) {
+                    return Ok(false);
+                }
+                let symbol = identifier.symbol_id.get().ok_or("missing dead binding")?;
+                dead_bindings.insert(symbol, source.kind == VariableDeclarationKind::Let);
             }
-            let symbol = identifier.symbol_id.get().ok_or("missing dead binding")?;
-            dead_bindings.insert(symbol);
             return Ok(true);
         }
         let Statement::ExpressionStatement(source) = statement else {
@@ -130,10 +134,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let Ok(Some(id)) = target_identifier(target, depth) else {
             return Ok(false);
         };
-        let Ok(binding) = numeric_binding(id, self.semantic, &self.bindings) else {
-            return Ok(false);
-        };
-        if !binding.mutable || self.slots[binding.slot.0].ty != Type::Number {
+        let dead_target = id
+            .reference_id
+            .get()
+            .and_then(|reference| self.semantic.scoping().get_reference(reference).symbol_id())
+            .and_then(|symbol| dead_bindings.get(&symbol))
+            .copied();
+        let live_target = numeric_binding(id, self.semantic, &self.bindings)
+            .is_ok_and(|binding| binding.mutable && self.slots[binding.slot.0].ty == Type::Number);
+        if dead_target != Some(true) && !live_target {
             return Ok(false);
         }
         Ok(self.dead_number_value_with_bindings(&assignment.right, depth + 1, dead_bindings))
@@ -970,7 +979,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let completion = prefix.then(completion);
                 let next_index = index + 1;
                 if !completion.normal {
-                    let mut dead_bindings = std::collections::BTreeSet::new();
+                    let mut dead_bindings = std::collections::BTreeMap::new();
                     for statement in &statements[next_index..] {
                         if !inert_tail(statement)
                             && !self.dead_number_statement(statement, &mut dead_bindings)?
