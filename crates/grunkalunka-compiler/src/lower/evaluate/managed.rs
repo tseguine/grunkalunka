@@ -1060,6 +1060,37 @@ impl Lowering<'_, '_> {
         }
         if matches!(mode, Mode::Predicate)
             && let Expression::BinaryExpression(binary) = node
+            && matches!(
+                binary.operator,
+                BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
+            )
+        {
+            for (literal, other) in [(&binary.left, &binary.right), (&binary.right, &binary.left)] {
+                if bigint_compare::literal(literal, depth + 1).is_none() {
+                    continue;
+                }
+                let other_mode = if self.managed_source_type(other, depth + 1).is_some() {
+                    Mode::Managed
+                } else if self.numeric_result_shape(other, depth + 1) {
+                    Mode::Number
+                } else if self.stored.primitive(other.node_id()) {
+                    Mode::General
+                } else {
+                    continue;
+                };
+                // The represented operand cannot be a BigInt. Its evaluation
+                // can still have effects or throw, even with a known result.
+                let result = self.value(Type::Predicate);
+                let value = binary.operator == BinaryOperator::StrictInequality;
+                Self::push(regions.current(), node, Op::Boolean { result, value });
+                values.push(Value::Predicate(result));
+                work.push(Work::Forget);
+                work.push(Work::Eval(other, depth + 1, other_mode));
+                return Ok(true);
+            }
+        }
+        if matches!(mode, Mode::Predicate)
+            && let Expression::BinaryExpression(binary) = node
             && let Some((left_test, right_test)) = string_number::comparisons(binary.operator)
         {
             for (literal, number, operator) in [
