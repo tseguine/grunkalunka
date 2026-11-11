@@ -397,7 +397,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 733);
+  assert.equal(inventory.records.size, 732);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -480,6 +480,16 @@ test('reduced public entry arities execute their exact former rejection sources'
     assert.ok(!rejected.some(row => row[0] === promotion.id));
     assert.ok(!catalog.records.some(row => row.id === promotion.id));
   }
+});
+
+test('the BigInt comparison gap executes its original source and golden vector', () => {
+  const pair = programSources(programs.find(row => row[0] === 'gap-bigint'));
+  assert.equal(pair.sourceJS, pair.sourceTS);
+  assert.equal(pair.sourceJS, pair.oracleSource);
+  assert.equal(createHash('sha256').update(pair.sourceJS).digest('hex'),
+    '31c6f32864488366c8b7b5bb2b6061ad647e2c5930bfe6d34e558edb7239959a');
+  assert.equal(Function(pair.sourceJS.replace('export function', 'function') + ';return run(4,2)')(), 4);
+  assert.ok(!rejected.some(row => row[0] === 'gap-bigint'));
 });
 
 test('the original discarded Boolean after return executes unchanged', () => {

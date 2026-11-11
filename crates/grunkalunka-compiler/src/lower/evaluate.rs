@@ -4120,16 +4120,13 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             work.push(Work::Eval(node, depth, Mode::General));
                             continue;
                         }
-                        if let Expression::BooleanLiteral(literal) = node {
+                        let constant = match node {
+                            Expression::BooleanLiteral(literal) => Some(literal.value),
+                            _ => bigint_compare::comparison(node, depth),
+                        };
+                        if let Some(value) = constant {
                             let result = self.value(Type::Predicate);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Boolean {
-                                    result,
-                                    value: literal.value,
-                                },
-                            );
+                            Self::push(regions.current(), node, Op::Boolean { result, value });
                             values.push(Value::Predicate(result));
                             continue;
                         }

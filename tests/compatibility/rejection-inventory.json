@@ -347,7 +347,7 @@
     {
       "id": "bigint-values",
       "kind": "open-requirement",
-      "assessment": "BigInt operations and mixed Number/BigInt expressions are valid source and may throw at runtime.",
+      "assessment": "Equality and relational comparisons of two source-known BigInt literals, including unary negation, execute. Runtime BigInt values, arithmetic and mixed Number/BigInt operations remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-bitwise-operators-runtime-semantics-evaluation",
@@ -1048,13 +1048,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "1342b665cd8bbe482b7bcb18e388d6b448c9f315bd6d0e526f6b99e6b3ec3ca3",
       "group": "instanceof"
-    },
-    {
-      "id": "gap-bigint",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "31c6f32864488366c8b7b5bb2b6061ad647e2c5930bfe6d34e558edb7239959a",
-      "group": "bigint-values"
     },
     {
       "id": "gap-nested-function",
