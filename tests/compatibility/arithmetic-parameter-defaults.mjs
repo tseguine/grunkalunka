@@ -5,6 +5,11 @@ export const arithmeticDefaultOriginals=[
 export const arithmeticDefaultPrograms=arithmeticDefaultOriginals.map(([id,source])=>['arithmetic-default-original-'+id,'','',undefined,undefined,{sourceJS:source,sourceTS:source}]);
 for(const[id,source]of[
  ['minus','function f(x=7-9){return x;}export function run(a,b){return f();}'],
+ ['boolean-sum-original','function f(x=true+2){return x;}export function run(a,b){return f();}'],
+ ['mixed-text','function f(x="v"+(-0)+true+null+undefined){return +(x==="v0truenullundefined");}export function run(a,b){return f();}'],
+ ['number-first','function f(x=1+true+"e"){return +(x==="2e");}export function run(a,b){return f();}'],
+ ['nonfinite','function f(x=NaN+":"+Infinity+":"+(-Infinity)){return +(x==="NaN:Infinity:-Infinity");}export function run(a,b){return f();}'],
+ ['exponent','function f(x=""+1e21){return +(x==="1e+21");}export function run(a,b){return f();}'],
  ['null-product-original','function f(x=null*3){return x;}export function run(a,b){return f();}'],
  ['negative-null','function f(x=-null){return x;}export function run(a,b){return f();}'],
  ['string-power','export function run(a,b){const f=(x="0x10"**2)=>x;return f();}'],

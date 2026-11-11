@@ -232,6 +232,7 @@ fn arithmetic_parameter_defaults_preserve_number_semantics_and_source_limits() {
         "NaN+1",
         "Infinity-Infinity",
         "null*3",
+        "true+2",
         "-null",
         "+'0x20'",
         "'2'**2",
@@ -249,7 +250,6 @@ fn arithmetic_parameter_defaults_preserve_number_semantics_and_source_limits() {
     }
     for value in [
         "'1'+2",
-        "true+2",
         "{}*3",
         "a+1",
         "missing+1",
@@ -385,7 +385,6 @@ fn pure_expression_defaults_select_string_boolean_and_numeric_values() {
 fn pure_expression_defaults_reject_unproven_coercion_and_hidden_effects() {
     for value in [
         "'a'+1",
-        "true+2",
         "3*{valueOf(){return 1;}}",
         "true?g():3",
         "false&&missing",

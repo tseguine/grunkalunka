@@ -1474,7 +1474,10 @@ test('String object assignment corpus covers UTF-16 and original RHS snapshots',
 
 test('arithmetic defaults preserve exact former helper and arrow rejection sources',()=>{
  const hashes=["533a39521a41e2646e82fb67f4ec9201859d5de0f8db5d3e80319f045d0da840", "f2ac1f9bf40bc5ba2c0e88e03e41b5891dd2185d64931beb70b8dad87fbb134e"];
- assert.equal(arithmeticDefaultPrograms.length,20);
+ assert.equal(arithmeticDefaultPrograms.length,25);
+ const booleanSum = programSources(arithmeticDefaultPrograms.find(row => row[0] === 'arithmetic-default-boolean-sum-original'));
+ for (const source of [booleanSum.sourceJS, booleanSum.sourceTS, booleanSum.oracleSource])
+   assert.equal(source, 'function f(x=true+2){return x;}export function run(a,b){return f();}');
  const nullProduct = programSources(arithmeticDefaultPrograms.find(row => row[0] === 'arithmetic-default-null-product-original'));
  for (const source of [nullProduct.sourceJS, nullProduct.sourceTS, nullProduct.oracleSource])
    assert.equal(source, 'function f(x=null*3){return x;}export function run(a,b){return f();}');
