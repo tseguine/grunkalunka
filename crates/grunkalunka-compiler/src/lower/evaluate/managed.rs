@@ -850,7 +850,8 @@ impl Lowering<'_, '_> {
             )
         {
             boolean_consumer(node, mode, "Array.isArray produces a Boolean", work)?;
-            if call.arguments.len() > 1000 {
+            let arguments = invocation::all_arguments(call);
+            if call.arguments.len() > 1000 || arguments.len() > 1000 {
                 return Err(unsupported(
                     node,
                     "at most 1000 Array.isArray arguments are admitted",
@@ -860,11 +861,11 @@ impl Lowering<'_, '_> {
             work.push(Work::ManagedTest {
                 test: ir::ManagedTest::Array,
                 node,
-                has_input: first < call.arguments.len(),
+                has_input: first < arguments.len(),
             });
             // Only the tested argument leaves a value on the stack. Evaluate
             // the ignored thisArg and surplus arguments for their source effects.
-            for (index, argument) in call.arguments.iter().enumerate().rev() {
+            for (index, argument) in arguments.iter().enumerate().rev() {
                 let expr = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(node, "spread call arguments are not admitted"))?;
@@ -873,7 +874,7 @@ impl Lowering<'_, '_> {
                 } else {
                     Mode::Discard
                 };
-                work.push(Work::Eval(expr, depth + 1, mode));
+                work.push(Work::Eval(expr, depth + 1 + argument.depth, mode));
             }
             return Ok(true);
         }

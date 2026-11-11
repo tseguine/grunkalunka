@@ -179,7 +179,7 @@ import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
 import { selectedInstancePrograms, selectedInstanceRejected } from './selected-instanceof.mjs';
 
-export const corpusVersion = 201;
+export const corpusVersion = 202;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -293,6 +293,11 @@ const arrayInstanceBody = 'return [] instanceof Array ? 1 : 0;';
 programs.push(['instanceof-array', arrayInstanceBody, arrayInstanceBody, 1, undefined, {
   sourceJS: `export function run(a,b) { ${arrayInstanceBody} }`,
   sourceTS: `export function run(a:number,b:number):number { ${arrayInstanceBody} }`,
+}]);
+const spreadBrandBody = 'return Array.isArray(...[[a]])?1:0;';
+programs.push(['array-brand-literal-spread', spreadBrandBody, spreadBrandBody, 1, undefined, {
+  sourceJS: `export function run(a,b){${spreadBrandBody}}`,
+  sourceTS: `export function run(a:number,b:number):number{${spreadBrandBody}}`,
 }]);
 programs.push(...selectedInstancePrograms);
 programs.push(...numericBreak);
