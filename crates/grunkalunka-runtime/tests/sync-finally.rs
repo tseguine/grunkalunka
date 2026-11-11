@@ -20,6 +20,7 @@ fn normal_finalizers_preserve_returns_throws_and_ordered_effects() {
     for body in [
         "let n=0;try{n=1;}finally{n=n*10+2;}return n;",
         "try{return a;}finally{b;}",
+        "try{return a;}finally{b;}return b;",
         "let x=a;try{return x;}finally{x=b;}",
         "let n=0;const f=()=>{try{return(n++,a);}finally{n=n*10+2;}};const value=f();return value+n;",
         "let n=0;try{try{n=1;throw a;}finally{n=n*10+2;}}catch(e){return n+(+e);}",
@@ -59,6 +60,7 @@ fn finalizer_completions_preserve_or_override_each_pending_completion() {
     }
     for body in [
         "try{return a;}finally{if(b)return b;}",
+        "try{return a;}finally{return b;a;}",
         "try{try{throw a;}finally{if(b)throw b;}}catch(e){return +e;}",
         "let n=0;for(let i=0;i<3;i++){try{n++;continue;}finally{if(i===1)break;n+=10;}}return n;",
         "let n=0;const f=()=>{for(let i=0;i<2;i++){try{return a;}finally{n++;if(i===0)continue;}}return b;};const value=f();return value+n;",
@@ -311,8 +313,6 @@ fn finalizers_do_not_authorize_escaping_throws_or_unsupported_reason_values() {
         "const fail=()=>{try{if(a)throw b;return 0;}finally{a;}};try{return fail();}catch(e){return +e;}",
         "try{throw a;}catch({value}){return 0;}finally{b;}",
         "outer:for(let i=0;i<2;i++){while(b){try{break outer;}finally{b;}}}return a;",
-        "try{return a;}finally{b;}return b;",
-        "try{return a;}finally{return b;a;}",
         "try{throw a;}catch(e){return +e;}finally{return +e;}",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
