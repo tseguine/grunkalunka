@@ -1,6 +1,5 @@
 // Valid reference programs outside the current numeric admission.
 // Their rejection checks must never count as executed lowering support.
-const expression = 'expression is outside the numeric experiment';
 const exponent = 'exponentiation requires a literal exponent of -1, 0, 1 or 2';
 const unary = 'only unary +, - and ~ are admitted';
 const statement = 'statement is outside the numeric experiment';
@@ -49,9 +48,13 @@ for (const [id, body, expected, diagnostic] of [
   ['power', 'return a ** b;', 16, exponent],
 ]) add(id, 'operators', body, expected, diagnostic);
 
-for (const [id, body, expected, diagnostic] of [
-  ['bigint', 'return 1n === 1n ? a : b;', 4, expression],
-]) add(id, 'values', body, expected, diagnostic);
+export const bigintComparisonPrograms = [
+  ['gap-bigint', 'export function run(a,b) { return 1n === 1n ? a : b; }'],
+  ['bigint-large-neighbors', 'export function run(a,b){return 9007199254740993n > 9007199254740992n ? a : b;}'],
+  ['bigint-radices', 'export function run(a,b){return 0xFF_FFn == 0b1111_1111_1111_1111n ? a : b;}'],
+  ['bigint-negative', 'export function run(a,b){return -0o11n < -8n && -0n >= 0n ? a : b;}'],
+  ['bigint-unequal', 'export function run(a,b){return 1n != 2n && 3n !== 4n && 5n <= 5n ? a : b;}'],
+].map(([id, source]) => [id, '', '', undefined, undefined, {sourceJS: source, sourceTS: source}]);
 
 
 add('nested-function', 'functions', 'function inc(x) { return x+1; } return inc(a)+b;', 7, statement, { milestone: 'L3', prerequisites: ['function calls'] });

@@ -22,6 +22,7 @@ mod array_mutations;
 mod assignment_patterns;
 mod async_values;
 mod awaited;
+mod bigint_compare;
 mod binding_patterns;
 mod block_results;
 mod callbacks;
