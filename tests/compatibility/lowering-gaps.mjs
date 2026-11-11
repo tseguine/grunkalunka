@@ -54,6 +54,10 @@ export const bigintComparisonPrograms = [
   ['bigint-radices', 'export function run(a,b){return 0xFF_FFn == 0b1111_1111_1111_1111n ? a : b;}'],
   ['bigint-negative', 'export function run(a,b){return -0o11n < -8n && -0n >= 0n ? a : b;}'],
   ['bigint-unequal', 'export function run(a,b){return 1n != 2n && 3n !== 4n && 5n <= 5n ? a : b;}'],
+  ['bigint-typeof-original', "export function run(a,b){return typeof 1n==='bigint'?a:b;}"],
+  ['bigint-typeof-negative', 'export function run(a,b){const kind=typeof (-0x20000000000001n);return kind.length+a;}'],
+  ['bigint-truthy', 'export function run(a,b){if(-0n)return b;if(0x10000000000000000n)return a;return b;}'],
+  ['bigint-not', 'export function run(a,b){return !0b0n && !(-0n) && !!(-42n) ? a : b;}'],
 ].map(([id, source]) => [id, '', '', undefined, undefined, {sourceJS: source, sourceTS: source}]);
 
 

@@ -1477,6 +1477,10 @@ impl Lowering<'_, '_> {
             if let Expression::UnaryExpression(u) = node
                 && u.operator == UnaryOperator::Typeof
             {
+                if bigint_compare::literal(&u.argument, depth + 1).is_some() {
+                    work.push(Work::Managed(ManagedWork::ConstantTypeof(node, "bigint")));
+                    return Ok(true);
+                }
                 if typeof_name::unresolvable(&u.argument, self.semantic, depth + 1) {
                     // Only a reference to an absent name skips GetValue. A
                     // sequence, member access or resolved TDZ binding does not.

@@ -2,7 +2,7 @@
 use super::*;
 use num_bigint::BigInt;
 
-fn literal(mut node: &Expression<'_>, mut depth: usize) -> Option<BigInt> {
+pub(super) fn literal(mut node: &Expression<'_>, mut depth: usize) -> Option<BigInt> {
     let mut negative = false;
     loop {
         let (inner, next) = closures::unwrapped_at(node, depth)?;

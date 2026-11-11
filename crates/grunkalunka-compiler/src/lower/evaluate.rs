@@ -4122,7 +4122,11 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         }
                         let constant = match node {
                             Expression::BooleanLiteral(literal) => Some(literal.value),
-                            _ => bigint_compare::comparison(node, depth),
+                            Expression::BinaryExpression(_) => {
+                                bigint_compare::comparison(node, depth)
+                            }
+                            _ => bigint_compare::literal(node, depth)
+                                .map(|value| value.sign() != num_bigint::Sign::NoSign),
                         };
                         if let Some(value) = constant {
                             let result = self.value(Type::Predicate);

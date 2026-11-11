@@ -30,6 +30,7 @@ fn typeof_property_values_returns_language_kind_strings() {
 #[test]
 fn typeof_values_and_mutations_preserve_operand_order_and_snapshots() {
     for source in [
+        "export function run(a,b){return typeof 1n==='bigint'?a:b;}",
         "export function run(a,b){const x={};return typeof x.missing==='undefined'?a:b;}",
         "export function run(a,b){const x=[,a];return typeof x[0]==='undefined'&&typeof x[1]==='number'&&typeof x.length==='number'?a:b;}",
         "export function run(a,b){const x={v:a};const before=typeof x.v;x.v='s';const after=typeof x.v;return before==='number'&&after==='string'?a:b;}",
@@ -75,7 +76,7 @@ fn typeof_keeps_global_tdz_and_unrepresented_operand_boundaries() {
         "export function run(a,b){const kind=typeof x;const x=a;return kind==='undefined'?a:b;}",
         "function f(x){return x;}export function run(a,b){const kind=typeof f;const f=()=>a;return kind==='function'?a:b;}",
         "export function run(a,b){return typeof null.x==='undefined'?a:b;}",
-        "export function run(a,b){return typeof 1n==='bigint'?a:b;}",
+        "export function run(a,b){return typeof (+1n)==='bigint'?a:b;}",
         "export function run(a,b){return typeof Symbol()==='symbol'?a:b;}",
         "export function run(a,b){let n=0;const kind=typeof Function((n++,'x'),(n++,'return x;'));return n===2&&kind==='function'?a:b;}",
         "export function run(a,b){return typeof new TypeError()==='object'?a:b;}",
