@@ -30,6 +30,29 @@ fn loop_tests_guard_receivers_in_the_body_and_for_update() {
 }
 
 #[test]
+fn switch_cases_narrow_receivers_only_when_the_label_decides_entry() {
+    for body in [
+        "const v=a?'abc':{n:b};switch(typeof v){case 'string':return v.length;default:return +v.n;}",
+        "const v=a?{n:b}:(b?null:undefined);switch(v){default:return +v.n;case null:return 2;case undefined:return 3;}",
+        "const v=a?'xy':b;let n=0;switch(typeof v){case 'number':n=v+1;break;case 'string':n=v.length;break;}return n;",
+    ] {
+        compare(body);
+    }
+    for body in [
+        "const v=a?'x':b;switch(typeof v){case 'number':case 'string':return v.length;}return 0;",
+        "const v=a?{n:b}:null;switch(v){case null:default:return +v.n;}",
+        "const v=a?{n:b}:null;switch(typeof v){case 'object':return +v.n;default:return 7;}",
+        "let v=a?'x':b;switch(typeof v){case 'string':v=b;return v.length;default:return 0;}",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_object_fields_can_act_as_receivers() {
     let source = "export function run(a,b){const o={child:{x:a}};return o.child.x===a?1:0;}";
     common::compare_sources(source, source);
