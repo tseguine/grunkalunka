@@ -397,7 +397,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 732);
+  assert.equal(inventory.records.size, 731);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -483,6 +483,11 @@ test('reduced public entry arities execute their exact former rejection sources'
 });
 
 test('the BigInt comparison gap executes its original source and golden vector', () => {
+  const mixed = programSources(programs.find(row => row[0] === 'inequality-bigint'));
+  for (const source of [mixed.sourceJS, mixed.sourceTS, mixed.oracleSource]) {
+    assert.equal(createHash('sha256').update(source).digest('hex'),
+      '7447051cbf9634a87e8828b705f9323889e022c31eeebef903b6983c4c82c2d2');
+  }
   const pair = programSources(programs.find(row => row[0] === 'gap-bigint'));
   assert.equal(pair.sourceJS, pair.sourceTS);
   assert.equal(pair.sourceJS, pair.oracleSource);

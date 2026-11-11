@@ -27,6 +27,7 @@ numericEqualityPrograms.push(['equality-typescript-wrappers',
 
 // Exact former catalog and Rust rejection sources, including their original formatting.
 const literalNumericEqualities = [
+  ['inequality-bigint', 'return a!=1n?1:0;'],
   ['gap-loose-equality-coercion', 'return a == "4" ? 1 : 0;'],
   ['equality-string-left', 'return "4"==a?1:0;'],
   ['inequality-string-right', 'return a!="4"?1:0;'],
@@ -63,7 +64,6 @@ const expression = 'expression is outside the numeric experiment';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const negatives = [
   ['equality-object', 'return a==({})?1:0;', expression],
-  ['inequality-bigint', 'return a!=1n?1:0;', expression],
   ['equality-numeric-return', 'return a==b;', binary],
   ['equality-unselected-call', 'return 0?(a==Math.random()?1:0):b;', expression],
   ['equality-predicate-depth-limit', `return ${'('.repeat(127)}a==b${')'.repeat(127)}?a:b;`, 'expression nesting exceeds'],
