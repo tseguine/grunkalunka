@@ -1893,3 +1893,5 @@ Ternary arms and the right operands of `&&` and `||` also use the guard
 established by the branch that selects them.
 A truthy conjunction or a falsy disjunction can establish facts about both
 operands, as in `if (!row || !items) return` before using both receivers.
+A successful `while` or `for` test also narrows an unchanged binding inside
+the loop body and the `for` update expression, including after a `continue`.
