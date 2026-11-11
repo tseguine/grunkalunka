@@ -258,6 +258,7 @@ fn exact_former_loose_equality_guards_execute_fixed_results() {
         ("export function run(a,b) { return ~(true==a); }", -1.0),
         ("export function run(a,b) { return true==a?1:0; }", 0.0),
         ("export function run(a,b) { return true==false?1:2; }", 2.0),
+        ("export function run(a,b) {return 1n==a?1:0;}", 0.0),
         (
             "export function run(a,b) {const value=null; return value==0?1:0;}",
             0.0,
@@ -300,7 +301,7 @@ const assert=require('node:assert/strict'),cases=[{}];for(const c of cases){{con
 "#,
         records.join(",")
     );
-    node(&script, "PASS 24 exact loose equality guard modules");
+    node(&script, "PASS 28 exact loose equality guard modules");
 }
 
 #[test]
@@ -326,7 +327,7 @@ fn loose_inequality_negates_the_primitive_result() {
 fn loose_equality_retains_unrepresented_kind_scope_and_depth_guards() {
     for body in [
         "const s=b?\"3\":\"4\";return a==s?1:0;",
-        "return 1n==a?1:0;",
+        "return +1n==a?1:0;",
         "return {}==a?1:0;",
         "return Symbol()==a?1:0;",
         "return true==a;",

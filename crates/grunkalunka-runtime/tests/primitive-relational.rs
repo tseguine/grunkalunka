@@ -233,6 +233,7 @@ fn exact_previous_relational_guards_execute_original_sources() {
             1.0,
         ),
         ("export function run(a,b) {return true<a?1:0;}", 1.0),
+        ("export function run(a,b) {return 1n<=a?1:0;}", 1.0),
     ];
     let mut records = Vec::new();
     for (source, expected) in cases {
@@ -272,7 +273,7 @@ fn exact_previous_relational_guards_execute_original_sources() {
             r#"const assert=require('node:assert/strict'); const cases=[{}];for(const c of cases){{const original=Function('"use strict";'+c.source.replace('export function','function')+';return run;')();assert.equal(original(4,2),c.expected);let n=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from(c.bytes))).exports.run(4,2);if(c.value){{assert.equal(n[0],3);n=n[1];}}assert.equal(n,c.expected);}}console.log('PASS '+cases.length+' exact relational guard modules');"#,
             records.join(",")
         ),
-        "PASS 20 exact relational guard modules",
+        "PASS 24 exact relational guard modules",
     );
 }
 
@@ -280,7 +281,7 @@ fn exact_previous_relational_guards_execute_original_sources() {
 fn relational_conversions_keep_unrepresented_kind_and_binding_guards() {
     for body in [
         "const s=b?\"3\":\"4\";return a<s?1:0;",
-        "return 1n<=a?1:0;",
+        "return +1n<=a?1:0;",
         "return ({})>a?1:0;",
         "return Symbol()>=a?1:0;",
         "const s=b?\"4\":\"5\";return a==s?1:0;",
