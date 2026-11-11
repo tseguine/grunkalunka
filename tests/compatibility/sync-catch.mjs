@@ -15,3 +15,12 @@ export const syncCatchPrograms=[
     ['loop','let n=0;for(let i=0;i<4;i++){try{throw i;}catch(e){if(e===1)continue;if(e===3)break;n=n*10+(+e);}}return n;'],
   ].map(([id,body])=>[`sync-catch-${id}`,body,body]),
 ];
+export const syncCatchTailPromotion = {
+  id: 'sync-catch-unreachable-store',
+  source: 'export function run(a,b){let n=0;try{n=1;throw(n=n*10+2,a?null:b);n=99;}catch(e){n=n*10+3;return n+(e===null?1000:2000);}}',
+  sourceSha256: '84ecc243892feb67d76aa0a1718d3206ec36c8991b817a4c127efd3f5f74e5dd',
+};
+syncCatchPrograms.push([syncCatchTailPromotion.id, '', '', undefined, undefined, {
+  sourceJS: syncCatchTailPromotion.source,
+  sourceTS: syncCatchTailPromotion.source,
+}]);

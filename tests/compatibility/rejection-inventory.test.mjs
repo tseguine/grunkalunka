@@ -65,7 +65,8 @@ import { numericCalls, unusedNoReturnPromotion, helperDefaultPromotion } from '.
 import { numericForPrograms } from './numeric-for.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
-import { syncCatchPrograms, promotedCatchGap } from './sync-catch.mjs';
+import { syncCatchPrograms, promotedCatchGap, syncCatchTailPromotion } from './sync-catch.mjs';
+import { discardedValues, discardedTailPromotion } from './discarded-values.mjs';
 import { syncFinallyPrograms, syncFinallyPromotions } from './sync-finally.mjs';
 import { nullishAssignment, promotedNullishAssignment } from './nullish-assignment.mjs';
 import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullish.mjs';
@@ -199,6 +200,19 @@ test('synchronous catch promotes its exact original source and unchanged Number 
   assert.ok(!catalog.records.some(row=>row.id==='gap-catch'));
   const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
   assert.equal(run(...promotedCatchGap.args),promotedCatchGap.expected);
+});
+
+test('abrupt-tail Rust rejections execute their exact original sources', () => {
+  for (const [promotion, collection] of [
+    [discardedTailPromotion, discardedValues],
+    [syncCatchTailPromotion, syncCatchPrograms],
+  ]) {
+    const source = programSources(collection.find(row => row[0] === promotion.id));
+    assert.equal(source.sourceJS, promotion.source);
+    assert.equal(source.sourceTS, promotion.source);
+    assert.equal(source.oracleSource, promotion.source);
+    assert.equal(createHash('sha256').update(promotion.source).digest('hex'), promotion.sourceSha256);
+  }
 });
 
 test('synchronous finally preserves both original rejection sources and the return-override golden',()=>{

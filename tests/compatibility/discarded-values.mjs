@@ -36,6 +36,15 @@ const cases = [
   ['wrapped-mixed', 'let x=0; a?(x++<1):false; return x;', 'let x=0; ((a?((x++<1) as number):false) satisfies number)!; return x;'],
 ];
 export const discardedValues = cases.map(([id, js, ts=js]) => [`discarded-${id}`, js, ts]);
+export const discardedTailPromotion = {
+  id: 'discarded-after-return-null',
+  source: 'export function run(a,b) {return a; null;}',
+  sourceSha256: '1ffb671a3886b93d113a5fc9ed14c4710c50fc4c341c98b08363b58571e3d3c0',
+};
+discardedValues.push([discardedTailPromotion.id, '', '', undefined, undefined, {
+  sourceJS: discardedTailPromotion.source,
+  sourceTS: discardedTailPromotion.source,
+}]);
 discardedValues.push(['discarded-helper-effects','','',undefined,undefined,{
   sourceJS:'function bump(x) { return x+1; } export function run(a,b) { let x=0; bump(x++)<2; true&&bump(x++); return x; }',
   sourceTS:'function bump(x:number):number { return x+1; } export function run(a:number,b:number):number { let x=0; bump(x++)<2; true&&bump(x++); return x; }',

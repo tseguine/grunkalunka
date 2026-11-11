@@ -202,13 +202,16 @@ fn discarded_general_values_keep_scope_source_and_budget_guards() {
         "a?null:Math.random(); return a;",
         "a??Math.random(); return a;",
         "const value=null; value++; return a;",
-        "return a; null;",
     ] {
         let source = format!("export function run(a,b) {{{body}}}");
         let error = compile(&source, false).err().unwrap();
         assert!(error.contains("unsupported"), "{source}: {error}");
         assert!(!error.contains("internal IR"));
     }
+    check_cases(
+        vec!["export function run(a,b) {return a; null;}".to_owned()],
+        "discarded abrupt tail",
+    );
     for depth in [128, 129] {
         let source = format!(
             "export function run(a,b) {{{}null{}; return a;}}",
