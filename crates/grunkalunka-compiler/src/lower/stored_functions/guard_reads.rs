@@ -139,13 +139,37 @@ fn atomic_guard(
     Some((binding, Guard { test, positive }))
 }
 
-fn visit_guards(
-    expr: &Expression<'_>,
+fn const_initializer<'a>(
+    binding: SymbolId,
+    owner: NodeId,
+    semantic: &Semantic<'a>,
+) -> Option<&'a Expression<'a>> {
+    let declaration = semantic.symbol_declaration(binding);
+    let AstKind::VariableDeclarator(local) = declaration.kind() else {
+        return None;
+    };
+    let AstKind::VariableDeclaration(parent) = semantic.nodes().parent_kind(declaration.id())
+    else {
+        return None;
+    };
+    if parent.kind != VariableDeclarationKind::Const
+        || !matches!(local.id, BindingPattern::BindingIdentifier(_))
+        || var_bindings::owner(declaration.id(), semantic) != Some(owner)
+    {
+        return None;
+    }
+    local.init.as_ref()
+}
+
+fn visit_guards<'a>(
+    expr: &Expression<'a>,
     outcome: bool,
-    semantic: &Semantic<'_>,
+    owner: NodeId,
+    semantic: &Semantic<'a>,
     mut emit: impl FnMut(SymbolId, Guard),
 ) {
     let mut pending = Vec::new();
+    let mut expanded = BTreeSet::new();
     let mut next = Some((expr, outcome, 0));
     while let Some((expr, outcome, depth)) = next.take().or_else(|| pending.pop()) {
         let Some((expr, depth)) = closures::unwrapped_at(expr, depth) else {
@@ -164,8 +188,17 @@ fn visit_guards(
                 next = Some((&l.left, outcome, depth + 1));
             }
             _ => {
-                if let Some((binding, guard)) = atomic_guard(expr, depth, outcome, semantic) {
-                    emit(binding, guard);
+                let Some((binding, guard)) = atomic_guard(expr, depth, outcome, semantic) else {
+                    continue;
+                };
+                emit(binding, guard);
+                // A const stores its initializer's truthiness. Follow each
+                // alias once per polarity, even when compound guards share it.
+                if guard.test == Test::Truthy
+                    && expanded.insert((binding, outcome))
+                    && let Some(init) = const_initializer(binding, owner, semantic)
+                {
+                    next = Some((init, outcome, depth + 1));
                 }
             }
         }
@@ -318,7 +351,7 @@ pub(super) fn collect(
             (false, falsy_arm, falsy_suffix),
         ] {
             if arm.is_some() || suffix.is_some() {
-                visit_guards(test, outcome, semantic, |binding, guard| {
+                visit_guards(test, outcome, owner, semantic, |binding, guard| {
                     for span in arm.into_iter().chain(suffix) {
                         record(owner, binding, guard, span);
                     }

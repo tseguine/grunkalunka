@@ -1897,3 +1897,7 @@ A successful `while` or `for` test also narrows an unchanged binding inside
 the loop body and the `for` update expression, including after a `continue`.
 A guard clause ending in `break` or `continue` narrows later reads in the
 same block. Within a switch case, the proof extends only to that case's end.
+A simple local `const` can save a guard for a later branch. For example,
+`const ready = row != null` lets `if (ready)` use the unchanged receiver.
+Negation, aliases of aliases and mandatory operands of a compound guard
+preserve the corresponding facts.
