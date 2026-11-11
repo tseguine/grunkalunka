@@ -1529,7 +1529,7 @@ test('debugger statement corpus executes unchanged complete source programs',()=
 });
 
 test('inert module block corpus executes unchanged complete source programs',()=>{
- assert.equal(inertModuleBlockPrograms.length,3);
+ assert.equal(inertModuleBlockPrograms.length,4);
  for(const row of inertModuleBlockPrograms) {
   const pair=programSources(row);
   assert.equal(pair.sourceJS,pair.sourceTS);
