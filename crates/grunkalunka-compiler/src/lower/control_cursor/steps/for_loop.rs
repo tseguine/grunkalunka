@@ -239,18 +239,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             next_step.operations.extend(updates);
             step = Some(next_step);
         }
-        Self::push(
-            &mut header,
-            source,
-            Op::While {
-                condition,
-                body: finished_region,
-                step,
-            },
-        );
+        let (op, completion) =
+            self.finish_pretest_loop(source, condition, finished_region, step, completion);
+        Self::push(&mut header, source, op);
         self.bindings.truncate(outer);
         Self::push(&mut output, source, Op::Block(header));
-        cursor.completed = Some(Outcome::Statement(output, completion.pretest_loop()));
+        cursor.completed = Some(Outcome::Statement(output, completion));
         Ok(())
     }
 }

@@ -1393,13 +1393,6 @@
       "group": "return-policy"
     },
     {
-      "id": "for-omitted-test-return-policy",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "fc138156a8ad063ebebf5755c5652f41309bd03201111b679847af75fc2f0b6b",
-      "group": "return-policy"
-    },
-    {
       "id": "for-header-statement-limit",
       "extension": "js",
       "sourceMode": "module-strict",

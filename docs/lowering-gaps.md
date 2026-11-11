@@ -69,9 +69,10 @@ their specific declaration diagnostic.
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export` |
 | Conservative return analysis | `gap-unreachable-after-return` |
 
-A terminal `while` with a true Boolean or nonzero Number literal can now supply
-the required return when every path through its first iteration returns or
-throws. The corpus executes both original `while(1)` return fixtures.
+A terminal `while` or `for` with a true Boolean or nonzero Number literal, or a
+`for` with no test, can supply the required return when every path through its
+first iteration returns or throws. The corpus executes the original `while(1)`
+and `for(;;)` return fixtures.
 
 This separates missing operators/value semantics from functions/modules and later
 closure, exception and async work. Export naming/arity and
