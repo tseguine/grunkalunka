@@ -544,7 +544,7 @@ impl Fields {
         let record_names = RecordNames::collect(semantic);
         let mut initialized_reads = var_bindings::reads(semantic);
         var_bindings::lexical_assignment_reads(semantic, &mut initialized_reads);
-        if initialized_reads.is_empty() && !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
+        if initialized_reads.is_empty() && !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::source_length_needed(semantic,entry) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             object_intrinsics::array_constructor_site(node.kind(),semantic) || matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_) | AstKind::ChainExpression(_)

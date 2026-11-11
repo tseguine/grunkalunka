@@ -8,8 +8,8 @@ fn this_parameter_metadata_preserves_numeric_and_value_artifacts() {
             "export function run(this:void,a:number,b:number):number { return a; }",
         ),
         (
-            "export function run(){return 4;}",
-            "export function run(this:Missing){return 4;}",
+            "export function run(){return 4+run.length;}",
+            "export function run(this:Missing){return 4+run.length;}",
         ),
         (
             "export function run(a){return a+run.length;}",
@@ -37,6 +37,28 @@ fn this_parameter_metadata_preserves_numeric_and_value_artifacts() {
             crate::compile_value(js, false).unwrap().wasm,
             crate::compile_value(ts, true).unwrap().wasm,
             "{ts}"
+        );
+    }
+}
+
+#[test]
+fn entry_function_lengths_require_one_proven_source_parameter_count() {
+    for (source, typescript) in [
+        (
+            "function helper(x,y){return x+y;}export function run(a){const f=a?run:helper;return f.length;}",
+            false,
+        ),
+        (
+            "function helper(this:Missing,x,y){return x+y;}export function run(this:void,a){const f=a?run:helper;return f.length;}",
+            true,
+        ),
+    ] {
+        let error = crate::compile(source, typescript)
+            .err()
+            .expect("one- and two-parameter source lengths cannot share a constant");
+        assert!(
+            error.contains("one proven source-parameter length"),
+            "{error}"
         );
     }
 }

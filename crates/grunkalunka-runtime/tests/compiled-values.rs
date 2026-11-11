@@ -40,6 +40,57 @@ fn reduced_entry_arities_preserve_the_two_number_host_abi() {
 }
 
 #[test]
+fn entry_source_lengths_preserve_the_two_number_host_abi() {
+    let pairs = [
+        (
+            "export function run(){return 4+run.length;}",
+            "export function run(this:Missing){return 4+run.length;}",
+            4.0,
+        ),
+        (
+            "export function run(a){return a+run.length;}",
+            "export function run(this:never,a?:unknown){return a+run.length;}",
+            -2.0,
+        ),
+        (
+            "export function run(a,b){return a+b+run.length;}",
+            "export function run(this:void,a:number,b:number){return a+b+run.length;}",
+            98.0,
+        ),
+        (
+            "export function run(){const f=run;return 4+f.length;}",
+            "export function run(this:Missing){const f=run;return 4+f.length;}",
+            4.0,
+        ),
+        (
+            "export function run(a){const length=fn=>fn.length;return a+length(run);}",
+            "export function run(this:Missing,a){const length=fn=>fn.length;return a+length(run);}",
+            -2.0,
+        ),
+        (
+            "export function run(a){let n=0;return(n++,run).length*10+n+a;}",
+            "export function run(this:Missing,a){let n=0;return(n++,run).length*10+n+a;}",
+            8.0,
+        ),
+    ];
+    for (js, ts, expected) in pairs {
+        let plain = compile(js, false).unwrap().wasm;
+        let typed = compile(ts, true).unwrap().wasm;
+        assert_eq!(plain, typed, "{ts}");
+        for wasm in [&plain, &typed] {
+            let mut instance = NumericInstance::new(wasm).unwrap();
+            assert_eq!(instance.run(-3.0, 99.0).unwrap(), expected, "{js}");
+        }
+    }
+    compare_primitive_sources(
+        pairs
+            .into_iter()
+            .map(|(js, ts, _)| (js.into(), ts.into()))
+            .collect(),
+    );
+}
+
+#[test]
 fn computed_pattern_selections_preserve_selected_primitive_tags_and_bits() {
     compare_primitive_sources(
         [

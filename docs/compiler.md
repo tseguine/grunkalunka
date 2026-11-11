@@ -2464,6 +2464,11 @@ to function `.length`, and does not alter defaults or `.call` argument evaluatio
 Its type is unvalidated metadata, including unresolved names and type queries,
 as described by the [TypeScript function handbook](https://www.typescriptlang.org/docs/handbook/2/functions.html#declaring-this-in-a-function).
 
+Entry `.length` reflects its zero, one or two declared ordinary parameters while
+the host ABI retains two Number inputs. Aliases and callback inputs use the same
+source-origin proof; alternatives with different source lengths remain rejected
+until dynamic function-length reflection is supported.
+
 Actual `this` expressions remain unsupported. Ordinary parameter limits,
 rest/destructuring/default admission and original source-byte budgets are
 unchanged. Three exact former TS rejection sources now execute as paired
