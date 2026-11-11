@@ -1517,7 +1517,7 @@ test('mixed literal Array spreads keep original hole, ordering and position obse
 
 
 test('debugger statement corpus executes unchanged complete source programs',()=>{
- assert.equal(debuggerStatementPrograms.length,8);
+ assert.equal(debuggerStatementPrograms.length,9);
  for(const row of debuggerStatementPrograms) {
   const pair=programSources(row);
   assert.ok(pair.sourceJS.includes('debugger;'));
