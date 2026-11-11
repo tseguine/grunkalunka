@@ -1741,6 +1741,7 @@ fn primitive_throw_rejects_without_an_extra_reaction_job() {
     compare_promises(
         &[
             "throw a;",
+            "throw a;return b;",
             "throw undefined;",
             "throw null;",
             "throw true;",
@@ -1804,7 +1805,6 @@ fn throw_keeps_profile_protocol_and_host_failure_boundaries() {
         "throw {};",
         "throw (()=>a);",
         "const f=()=>{throw a;};return f();",
-        "throw a;return b;",
     ] {
         assert!(compile_async(&source_for(body), false).is_err(), "{body}");
     }
