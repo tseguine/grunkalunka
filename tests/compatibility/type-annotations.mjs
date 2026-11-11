@@ -9,6 +9,10 @@ add('annotation-promoted-string-parameter', 'return a;', 'return a;', 'a:string,
 add('annotation-promoted-return', 'return a;', 'return a;', 'a:number,b:number', 'string');
 add('annotation-promoted-local', 'const x=a; return x;', 'const x:string=a; return x;', 'a:number,b:number', 'number');
 add('annotation-promoted-later-declarator', 'let x=a,y=b; return x;', 'let x:number=a,y:string=b; return x;', 'a,b', '');
+add('annotation-definite', 'let x; return a;', 'let x!:unknown; return a;');
+add('annotation-definite-unassigned', 'let x; return x===undefined?a:b;', 'let x!:number; return x===undefined?a:b;');
+add('annotation-definite-var', 'const before=x; var x; x=a; return before===undefined?+x:b;',
+  'const before=x; var x!:string; x=a; return before===undefined?+x:b;');
 add('annotation-unknown', 'return a+b;');
 add('annotation-any-never', 'return a-b;', 'return a-b;', 'a:any,b:never', 'never');
 add('annotation-unresolved-names', 'const x=a+b; return x;', 'const x:MissingResult=a+b; return x;',
@@ -53,7 +57,6 @@ export const annotationRejected = [
   ['annotation-self-reference', source('const x:typeof a=x; return x;'), 'ts', reference],
   ['annotation-forward-reference', source('const x:typeof y=y; const y:number=a; return x;'), 'ts', reference],
   ['annotation-const-write', source('const x:unknown=a; x=b; return x;'), 'ts', 'assignment to a const binding'],
-  ['annotation-definite', source('let x!:unknown; return a;'), 'ts', 'definite-assignment assertions are not admitted'],
   ['annotation-default-parameter', 'export function run(a:unknown=1,b:unknown=2):unknown { return a; }', 'ts',
     'parameter modifiers, defaults and decorators are not admitted'],
   ['annotation-rest-parameter', 'export function run(a:unknown,...b:unknown[]):unknown { return a; }', 'ts',

@@ -1701,8 +1701,7 @@ execute in source order, and declarations inside loops initialize on each execut
 Existing explicit-initializer Number/Predicate/General routes retain their operations.
 
 Pre-declaration reads, initializer self-reference, shadowed TDZ references, missing
-const initializers and TS definite-assignment assertions remain outside this
-implicit-let slice. Later managed binding and function-scoped var sections describe
+const initializers remain outside this implicit-let slice. Later managed binding and function-scoped var sections describe
 their separate admission. Scope and local/statement limits are preserved. No IR, ABI,
 capability, dependency or storage-planning change is introduced.
 
@@ -1719,6 +1718,11 @@ Corpus 199 executes the original `let x; x=a; return x;` in both profiles.
 The numeric path reads a General slot when source analysis proves the value
 at that read is a Number. A possible skipped assignment, undefined value,
 or nonnumeric alternative keeps the numeric result guarded.
+
+Corpus 200 erases TypeScript definite-assignment assertions on ordinary local
+`let` and `var` declarations. An asserted local still reads as undefined until
+assignment, and a lexical declaration retains its temporal dead zone. The
+annotation supplies no runtime Number proof.
 
 ## Primitive arithmetic compound assignments
 

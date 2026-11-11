@@ -302,12 +302,39 @@ fn implicit_let_keeps_tdz_const_and_source_contracts() {
         "export function run(a,b) {const x; return a;}",
         "export function run(a,b) {var f=()=>a; return a;}",
         "export function run(a,b) {let {x}; return a;}",
-        "export function run(a,b) {let x!:number; return a;}",
+        "export function run(a,b) {let x!; return a;}",
+        "export function run(a,b) {let x!:number=a; return a;}",
+        "export function run(a,b) {x; let x!:number; return a;}",
     ] {
         let error = compile_value(source, true)
             .err()
             .unwrap_or_else(|| panic!("previously rejected source now compiles: {source}"));
         assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
+fn type_assertions_on_locals_erase_without_initializing_the_binding() {
+    let original = "export function run(a,b) {let x!:number; return a;}";
+    let artifact = compile_value(original, true).unwrap();
+    assert!(matches!(
+        ValueInstance::new(&artifact.wasm).unwrap().run(4.0, 2.0).unwrap(),
+        Value::Number(n) if n == 4.0
+    ));
+    for body in [
+        "let x!:number; return x;",
+        "const before=x; var x!:number; return before;",
+    ] {
+        let source = format!("export function run(a,b) {{{body}}}");
+        let artifact = compile_value(&source, true).unwrap();
+        assert!(matches!(
+            ValueInstance::new(&artifact.wasm)
+                .unwrap()
+                .run(4.0, 2.0)
+                .unwrap(),
+            Value::Undefined
+        ));
+        assert!(compile(&source, true).is_err(), "{source}");
     }
 }
 
