@@ -30,7 +30,7 @@ pub(super) fn comparisons(operator: BinaryOperator) -> Option<(Compare, Compare)
     })
 }
 
-fn parse(text: &str) -> f64 {
+pub(in crate::lower) fn parse(text: &str) -> f64 {
     let text = text.trim_matches(|c| is_white_space(c) || is_line_terminator(c));
     match text {
         "" => return 0.0,

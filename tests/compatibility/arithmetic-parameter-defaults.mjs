@@ -5,6 +5,12 @@ export const arithmeticDefaultOriginals=[
 export const arithmeticDefaultPrograms=arithmeticDefaultOriginals.map(([id,source])=>['arithmetic-default-original-'+id,'','',undefined,undefined,{sourceJS:source,sourceTS:source}]);
 for(const[id,source]of[
  ['minus','function f(x=7-9){return x;}export function run(a,b){return f();}'],
+ ['null-product-original','function f(x=null*3){return x;}export function run(a,b){return f();}'],
+ ['negative-null','function f(x=-null){return x;}export function run(a,b){return f();}'],
+ ['string-power','export function run(a,b){const f=(x="0x10"**2)=>x;return f();}'],
+ ['boolean-remainder','function f(x=true%"3"){return x;}export function run(a,b){return f();}'],
+ ['nan-default','function f(x=+"bad"){return x;}export function run(a,b){return f();}'],
+ ['supplied-coercion','function f(x=+"42"){return x;}export function run(a,b){return f(a);}'],
  ['multiply','function f(x=2*(3+4)){return x;}export function run(a,b){return f();}'],
  ['divide','function f(x=9/2){return x;}export function run(a,b){return f();}'],
  ['remainder','function f(x=9%4){return x;}export function run(a,b){return f();}'],
