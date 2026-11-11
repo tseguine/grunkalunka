@@ -18,6 +18,34 @@ fn empty_module_items_preserve_the_heap_entry() {
 }
 
 #[test]
+fn reduced_heap_entry_arities_keep_the_two_number_abi() {
+    let full = compile_heap_value("export function run(a,b){return 'value';}", false).unwrap();
+    assert!(full.wat.contains("(param f64 f64)"));
+    for (source, typescript) in [
+        ("export function run(){return 'value';}", false),
+        ("export function run(a){return 'value';}", false),
+        ("export function run():string{return 'value';}", true),
+        (
+            "export function run(a?:unknown):string{return 'value';}",
+            true,
+        ),
+    ] {
+        assert_eq!(
+            compile_heap_value(source, typescript).unwrap().wasm,
+            full.wasm,
+            "{source}"
+        );
+    }
+    for source in [
+        "export function run(a,b,c){return 'value';}",
+        "export function run(a,...rest){return 'value';}",
+    ] {
+        let error = compile_heap_value(source, false).err().unwrap();
+        assert!(error.contains("at most two ordinary"), "{error}");
+    }
+}
+
+#[test]
 fn heap_json_call_type_arguments_are_erased_metadata() {
     let plain = "export function run(a,b){return JSON.stringify(\"x\");}";
     let typed = "export function run(a:number,b:number){return JSON.stringify<number>(\"x\");}";
