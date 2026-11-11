@@ -3,6 +3,10 @@
 fn optional_markers_preserve_entry_helper_and_arrow_artifacts() {
     for (js, ts) in [
         (
+            "export function run(a){return a;}",
+            "export function run(a?:number){return a;}",
+        ),
+        (
             "export function run(a,b){return a;}",
             "export function run(a?:unknown,b?:unknown):unknown{return a;}",
         ),
@@ -54,7 +58,6 @@ fn optional_markers_preserve_entry_helper_and_arrow_artifacts() {
 #[test]
 fn optional_markers_keep_other_parameter_and_numeric_return_guards() {
     for source in [
-        "export function run(a?:number){return a;}",
         "export function run(a?:number,b=1){return a;}",
         "export function run(a?:number,...b:number[]){return a;}",
         "export function run(a?:number,b?:number){const f=(x?:number)=>x;return f();}",

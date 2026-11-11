@@ -17,6 +17,12 @@ export const genericDeclarationPromotions = [
     "export function run(a,b) { return a; }",
     "export function run<T>(a:number,b:number):number { return a; }",
     "f6843951571f95863861cc61504b8885dee49fd0b48a02507551e76fa8a4e758"
+  ],
+  [
+    "generic-declaration-reject-arity",
+    "export function run(a) { return a; }",
+    "export function run<T>(a:T):T { return a; }",
+    "41dc0433ca3bd56c84b2855218af751b659451b099d3a7d87c7ea82909310b8d"
   ]
 ];
 export const genericDeclarations = genericDeclarationPromotions.map(([id,sourceJS,sourceTS]) => [id,'','',undefined,undefined,{sourceJS,sourceTS}]);
@@ -48,9 +54,8 @@ for(const [id,source,diagnostic,group] of [
  ['generator','export function* run<T>(a:T,b:T):T { return a; }','plain, synchronous function','generators'],
  ['declare','export declare function run<T>(a:T,b:T):T;','plain, synchronous function','typescript-runtime-forms'],
  ['this','export function run<T>(this:T,a:T,b:T):T { return a; }','plain, synchronous function','parameters'],
- ['arity','export function run<T>(a:T):T { return a; }','exactly two ordinary','parameters'],
  ['default','export function run<T>(a:T,b:T=1):T { return a; }','default','parameters'],
- ['rest','export function run<T>(a:T,...b:T[]):T { return a; }','exactly two ordinary','parameters'],
+ ['rest','export function run<T>(a:T,...b:T[]):T { return a; }','at most two ordinary','parameters'],
  ['type-value','export function run<T>(a:T,b:T):T { return T; }','reference is not an initialized','binding-errors'],
  ['type-tdz','export function run<T>(a:T,b:T):T { const T=T;return T; }','reference is not an initialized','binding-errors'],
  ['const-write','export function run<T>(a:T,b:T):T { const x=a;x=b;return x; }','assignment to a const binding is not admitted','const-errors'],

@@ -77,7 +77,7 @@ import { typescriptPrograms, typescriptRejected, typescriptSource } from './type
 import { test262Programs, test262Source } from './test262.mjs';
 import { benchmarkPrograms, benchmarkSource } from './benchmarks-game.mjs';
 import { loweringRegressions } from './lowering-regressions.mjs';
-import { loweringGaps } from './lowering-gaps.mjs';
+import { loweringGaps, reducedEntryArityPrograms } from './lowering-gaps.mjs';
 import { numericUpdates } from './numeric-updates.mjs';
 import { typescriptErasurePrograms, typescriptErasureRejected } from './typescript-erasure.mjs';
 import { commaSequences } from './comma-sequences.mjs';
@@ -189,7 +189,7 @@ import { unreachableCopyPrograms } from './unreachable-copies.mjs';
 import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
 import { unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 
-export const corpusVersion = 224;
+export const corpusVersion = 225;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -311,6 +311,7 @@ programs.push(['array-brand-literal-spread', spreadBrandBody, spreadBrandBody, 1
 }]);
 programs.push(...selectedInstancePrograms);
 programs.push(...literalNumericPrograms);
+programs.push(...reducedEntryArityPrograms);
 programs.push(...localExportEntries);
 programs.push(...unreachableCopyPrograms);
 programs.push(...unreachableNumberPrograms);
@@ -500,7 +501,6 @@ export const rejected = [
   ['default-param', 'export function run(a=sideEffect(),b) { return a; }'],
   ['rest-param', 'export function run(a,...b) { return a; }'],
   ['destructure', 'export function run({a},b) { return a; }'],
-  ['arity', 'export function run(a) { return a; }'],
   ['global', 'export function run(a,b) { return clock; }'],
   ['function-reference', 'export function run(a,b) { return run; }'],
   ['arguments', 'export function run(a,b) { return arguments[0]; }'],

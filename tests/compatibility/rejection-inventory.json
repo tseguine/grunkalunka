@@ -1120,13 +1120,6 @@
       "group": "entry-shape"
     },
     {
-      "id": "gap-one-parameter",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d9c36f6ec2aa0c77801c770382cbc06d3246cc6a18110bab6d0fba2c7ab9afac",
-      "group": "parameters"
-    },
-    {
       "id": "gap-extra-export",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2912,13 +2905,6 @@
       "group": "parameters"
     },
     {
-      "id": "annotation-arity",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "76085b7ef916d0b506bd7f164832c1cf1e67a9d9d2e409a67f13e5acfd059fef",
-      "group": "parameters"
-    },
-    {
       "id": "annotation-malformed-type",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -3372,13 +3358,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d9874a8b48e74b7f86291c9d21114e775d6dbb666e79fda7c6ba114766799b53",
       "group": "destructuring"
-    },
-    {
-      "id": "arity",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d9c36f6ec2aa0c77801c770382cbc06d3246cc6a18110bab6d0fba2c7ab9afac",
-      "group": "parameters"
     },
     {
       "id": "global",
@@ -6094,13 +6073,6 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "99f332ee3c5179238953c007de6e249319cd593a489216e6891f6be61556ef68",
-      "group": "parameters"
-    },
-    {
-      "id": "generic-declaration-reject-arity",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "41dc0433ca3bd56c84b2855218af751b659451b099d3a7d87c7ea82909310b8d",
       "group": "parameters"
     },
     {

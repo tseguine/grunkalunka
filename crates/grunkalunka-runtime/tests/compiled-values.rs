@@ -1,8 +1,35 @@
-use grunkalunka_compiler::compile_value;
-use grunkalunka_runtime::{Value, ValueInstance};
+use grunkalunka_compiler::{compile, compile_value};
+use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 
 #[path = "compiled-values/module_helpers.rs"]
 mod module_helpers;
+
+#[test]
+fn reduced_entry_arities_preserve_the_two_number_host_abi() {
+    for source in [
+        "export function run(){return 4;}",
+        "export function run(a) { return a; }",
+    ] {
+        let wasm = compile(source, false).unwrap().wasm;
+        let mut instance = NumericInstance::new(&wasm).unwrap();
+        let expected = if source.contains("run()") { 4.0 } else { -3.0 };
+        assert_eq!(instance.run(-3.0, 99.0).unwrap(), expected);
+    }
+    compare_primitive_sources(vec![
+        (
+            "export function run(a) { return a; }".to_owned(),
+            "export function run(a:unknown):unknown { return a; }".to_owned(),
+        ),
+        (
+            "export function run(a) { return a; }".to_owned(),
+            "export function run<T>(a:T):T { return a; }".to_owned(),
+        ),
+        (
+            "export function run(){return 4;}".to_owned(),
+            "export function run():number{return 4;}".to_owned(),
+        ),
+    ]);
+}
 
 #[test]
 fn computed_pattern_selections_preserve_selected_primitive_tags_and_bits() {

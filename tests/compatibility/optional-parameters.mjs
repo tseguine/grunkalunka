@@ -1,6 +1,12 @@
 // Optional markers erase; declared arity and calling profiles remain intact.
 export const optionalParameterPromotions = [
   {
+    "id": "optional-single-parameter",
+    "sourceTS": "export function run(a?:number){return a;}",
+    "sourceJS": "export function run(a){return a;}",
+    "sourceSha256": "f7909809c2761b6f30ba0044f3d05789d9b190fa6f59c6d2e20a4afb4cce92d7"
+  },
+  {
     "id": "optional-param",
     "sourceTS": "export function run(a?:number,b?:number):number { return a; }",
     "sourceJS": "export function run(a,b) { return a; }",

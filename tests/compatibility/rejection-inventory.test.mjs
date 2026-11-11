@@ -1,4 +1,10 @@
 import { primitiveObjectAssignmentPrograms } from './primitive-object-assignments.mjs';
+import {
+  numericArityPromotion,
+  reducedEntryArityPrograms,
+  reducedEntryArityPromotion,
+} from './lowering-gaps.mjs';
+import { annotationArityPromotion, annotationPrograms } from './type-annotations.mjs';
 import { unreachableNumberPrograms, unreachableNumberPromotions } from './unreachable-number-values.mjs';
 import { unreachableBareLetPromotion, unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 import {
@@ -390,7 +396,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 737);
+  assert.equal(inventory.records.size, 733);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -459,6 +465,20 @@ test('unreachable numeric throw executes its exact previously rejected source', 
   assert.equal(createHash('sha256').update(promotion.source).digest('hex'), promotion.sha256);
   assert.ok(!rejected.some(row => row[0] === promotion.id));
   assert.ok(!catalog.records.some(row => row.id === promotion.id));
+});
+
+test('reduced public entry arities execute their exact former rejection sources', () => {
+  for (const [promotion, programs, language] of [
+    [reducedEntryArityPromotion, reducedEntryArityPrograms, 'sourceJS'],
+    [numericArityPromotion, reducedEntryArityPrograms, 'sourceJS'],
+    [annotationArityPromotion, annotationPrograms, 'sourceTS'],
+  ]) {
+    const source = programSources(programs.find(row => row[0] === promotion.id));
+    assert.equal(source[language], promotion.source ?? promotion.sourceTS);
+    assert.equal(createHash('sha256').update(source[language]).digest('hex'), promotion.sha256);
+    assert.ok(!rejected.some(row => row[0] === promotion.id));
+    assert.ok(!catalog.records.some(row => row.id === promotion.id));
+  }
 });
 
 test('the original discarded Boolean after return executes unchanged', () => {
@@ -664,7 +684,7 @@ test('feature dependency cycles are descriptive and legal', () => {
 test('valid throwing/unselected programs and temporary entry/return policies remain open', () => {
   const inventory = validate(catalog);
   for (const id of ['while-const-write','dead-branch-const-write','self-reference','global',
-    'type-declaration-type-not-value','gap-one-parameter','gap-export-name']) {
+    'type-declaration-type-not-value','gap-export-name']) {
     assert.equal(rejectionClassification(inventory, id).kind, 'open-requirement', id);
   }
   assert.equal(rejectionClassification(inventory, 'compound-destructuring-target').kind, 'invalid-source');
@@ -710,11 +730,12 @@ test('report-only catalog changes cannot alter the validated comparison snapshot
   assert.throws(() => validateRejectionReport(report, inventory), /report inventory/);
 });
 
-test('generic declarations preserve three original sources and explicit complete JS oracles', () => {
+test('generic declarations preserve four original sources and explicit complete JS oracles', () => {
   assert.deepEqual(genericDeclarationPromotions.map(([id,,,hash])=>[id,hash]), [
     ['annotation-generic-function','165496aea0ed234ff49210bd53f782c61b9ffa92ef98c1490e27c651d44f0a9b'],
     ['direct-call-helper-generic','6553c86bb3829759bf1bae932e2cdfe1d446c40e85128ae89d79997222931035'],
     ['type-param','f6843951571f95863861cc61504b8885dee49fd0b48a02507551e76fa8a4e758'],
+    ['generic-declaration-reject-arity','41dc0433ca3bd56c84b2855218af751b659451b099d3a7d87c7ea82909310b8d'],
   ]);
   for(const [id,js,ts,hash] of genericDeclarationPromotions){
     const source=programSources(genericDeclarations.find(p=>p[0]===id));
