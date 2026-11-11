@@ -581,6 +581,7 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
         Power(literal_power::LiteralPower),
         Logical(LogicalOperator),
         Conditional,
+        Template(&'n oxc_ast::ast::TemplateLiteral<'a>),
     }
     let mut work = vec![Task::Visit(expression, 0)];
     let mut values = Vec::new();
@@ -640,6 +641,17 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                         work.push(Task::Visit(&conditional.alternate, depth + 1));
                         work.push(Task::Visit(&conditional.consequent, depth + 1));
                         work.push(Task::Visit(&conditional.test, depth + 1));
+                        continue;
+                    }
+                    Expression::TemplateLiteral(template) => {
+                        work.push(Task::Template(template));
+                        work.extend(
+                            template
+                                .expressions
+                                .iter()
+                                .rev()
+                                .map(|expr| Task::Visit(expr, depth + 1)),
+                        );
                         continue;
                     }
                     Expression::NumericLiteral(n) => Constant::Number(n.value),
@@ -716,6 +728,19 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                     LogicalOperator::Coalesce => left.nullish(),
                 };
                 values.push(if take_right { right } else { left });
+            }
+            Task::Template(template) => {
+                let start = values.len().checked_sub(template.expressions.len())?;
+                let mut substitutions = values.drain(start..);
+                let mut units = Vec::new();
+                for quasi in &template.quasis {
+                    units.extend(quasi.value.cooked.as_ref()?.encode_utf16());
+                    if let Some(value) = substitutions.next() {
+                        units.extend(value.into_string_units());
+                    }
+                }
+                drop(substitutions);
+                values.push(Constant::String(units));
             }
             Task::Conditional => {
                 let alternate = values.pop()?;
