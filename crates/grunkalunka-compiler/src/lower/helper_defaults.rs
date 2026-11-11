@@ -532,6 +532,17 @@ fn earlier_conditional<'n, 'a>(
 }
 
 impl Constant {
+    fn to_number(&self) -> f64 {
+        match self {
+            Self::Number(value) => *value,
+            Self::Boolean(value) => f64::from(*value),
+            Self::Null => 0.0,
+            Self::Undefined => f64::NAN,
+            Self::String(units) => String::from_utf16(units)
+                .map_or(f64::NAN, |text| evaluate::string_number::parse(&text)),
+        }
+    }
+
     fn truthy(&self) -> bool {
         match self {
             Self::Number(value) => *value != 0.0 && !value.is_nan(),
@@ -645,16 +656,16 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                 let value = match (op, operand) {
                     (UnaryOperator::Void, _) => Constant::Undefined,
                     (UnaryOperator::LogicalNot, operand) => Constant::Boolean(!operand.truthy()),
-                    (UnaryOperator::UnaryPlus, Constant::Number(n)) => Constant::Number(n),
-                    (UnaryOperator::UnaryNegation, Constant::Number(n)) => Constant::Number(-n),
+                    (UnaryOperator::UnaryPlus, operand) => Constant::Number(operand.to_number()),
+                    (UnaryOperator::UnaryNegation, operand) => {
+                        Constant::Number(-operand.to_number())
+                    }
                     _ => return None,
                 };
                 values.push(value);
             }
             Task::Power(power) => {
-                let Constant::Number(base) = values.pop()? else {
-                    return None;
-                };
+                let base = values.pop()?.to_number();
                 values.push(Constant::Number(power.apply(base)));
             }
             Task::Binary(op) => {
@@ -669,9 +680,13 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                         left.extend(right);
                         Constant::String(left)
                     }
-                    (op, Constant::Number(left), Constant::Number(right)) => {
+                    (BinaryOperator::Addition, Constant::Number(left), Constant::Number(right)) => {
+                        Constant::Number(left + right)
+                    }
+                    (BinaryOperator::Addition, _, _) => return None,
+                    (op, left, right) => {
+                        let (left, right) = (left.to_number(), right.to_number());
                         Constant::Number(match op {
-                            BinaryOperator::Addition => left + right,
                             BinaryOperator::Subtraction => left - right,
                             BinaryOperator::Multiplication => left * right,
                             BinaryOperator::Division => left / right,
@@ -679,7 +694,6 @@ fn constant(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Option<Cons
                             _ => unreachable!("planned constant arithmetic"),
                         })
                     }
-                    _ => return None,
                 };
                 values.push(value);
             }

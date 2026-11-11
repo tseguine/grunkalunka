@@ -33,7 +33,7 @@ mod string_addition;
 mod string_await;
 mod string_conversion;
 mod string_methods;
-mod string_number;
+pub(super) mod string_number;
 mod string_template;
 mod tasks;
 mod typeof_name;
