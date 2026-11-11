@@ -113,7 +113,7 @@ pub(super) fn present(semantic: &Semantic<'_>) -> bool {
     !locals(semantic).is_empty()
 }
 
-pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(), String> {
+pub(crate) fn validate(semantic: &Semantic<'_>) -> Result<(), String> {
     let mut count = 0;
     for node in semantic.nodes().iter() {
         let AstKind::VariableDeclaration(d) = node.kind() else {
@@ -134,10 +134,13 @@ pub(crate) fn validate(semantic: &Semantic<'_>, async_entry: bool) -> Result<(),
                 _ => None,
             })
             .unwrap_or(false);
-        if async_entry || asynchronous {
+        // Hoisted cells belong to the nearest function, not its caller or the
+        // module entry. A synchronous helper still initializes and executes its
+        // cells normally when an async function invokes it.
+        if asynchronous {
             return Err(unsupported(
                 d,
-                "var bindings in async modules or functions are not yet admitted",
+                "var bindings in async functions are not yet admitted",
             ));
         }
         for local in &d.declarations {

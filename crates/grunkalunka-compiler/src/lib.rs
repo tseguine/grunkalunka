@@ -371,7 +371,7 @@ fn lower_source_profile_with_identities(
             )?;
         }
     }
-    lower::var_bindings::validate(&built.semantic, async_entry)?;
+    lower::var_bindings::validate(&built.semantic)?;
     let stored = lower::stored_functions::Fields::collect(&built.semantic, signatures[0].symbol);
     lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures, &stored);
     let promise_parameters =
