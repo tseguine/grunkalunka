@@ -9,6 +9,7 @@ enum Test {
     Null,
     Undefined,
     Array,
+    InheritsObject,
     Typeof(&'static str),
 }
 
@@ -33,6 +34,10 @@ impl Guard {
             Test::Null => *origin == Origin::Null,
             Test::Undefined => *origin == Origin::Undefined,
             Test::Array => matches!(origin, Origin::Array(_)),
+            Test::InheritsObject => matches!(
+                origin,
+                Origin::Object(_) | Origin::Array(_) | Origin::Arrow(_) | Origin::Named(_)
+            ),
             Test::Typeof(name) => {
                 name == match origin {
                     Origin::Arrow(_) | Origin::Named(_) => "function",
@@ -133,6 +138,21 @@ fn atomic_guard(
                 return None;
             };
             (symbol(id, semantic)?, Test::Array)
+        }
+        Expression::BinaryExpression(b) if b.operator == BinaryOperator::Instanceof => {
+            let Expression::Identifier(binding) = closures::unwrapped(&b.left, depth + 1)? else {
+                return None;
+            };
+            let Expression::Identifier(constructor) = closures::unwrapped(&b.right, depth + 1)?
+            else {
+                return None;
+            };
+            let test = match object_intrinsics::instance_test(constructor, semantic)? {
+                ir::ManagedTest::Array => Test::Array,
+                ir::ManagedTest::Function => Test::Typeof("function"),
+                ir::ManagedTest::InheritsObject => Test::InheritsObject,
+            };
+            (symbol(binding, semantic)?, test)
         }
         Expression::BinaryExpression(b) => {
             let (equal, strict) = match b.operator {
