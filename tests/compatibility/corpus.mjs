@@ -32,6 +32,7 @@ import { uint32ObjectKeyPrograms } from './uint32-object-keys.mjs';
 import { uint32InKeyPrograms } from './uint32-in-keys.mjs';
 import { uint32DeleteKeyPrograms } from './uint32-delete-keys.mjs';
 import { debuggerStatementPrograms } from './debugger-statements.mjs';
+import { inertModuleBlockPrograms } from './inert-module-blocks.mjs';
 import { mixedLiteralArraySpreadPrograms } from './mixed-literal-array-spreads.mjs';
 import { literalCallSpreadPrograms } from './literal-call-spreads.mjs';
 import { unaryDefaultPrograms } from './unary-parameter-defaults.mjs';
@@ -189,7 +190,7 @@ import { unreachableCopyPrograms } from './unreachable-copies.mjs';
 import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
 import { unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 
-export const corpusVersion = 226;
+export const corpusVersion = 227;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -215,7 +216,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(...primitiveObjectAssignmentPrograms, ...primitiveObjectBindingPrograms, ...unsignedHasOwnPrograms, ...unsignedBindingPrograms, ...stringRestBindingPrograms, ...stringObjectRestPrograms, ...stringComputedSelectionPrograms, ...computedRestPrograms, ...computedSelectionPrograms, ...memberRestPrograms, ...computedPatternPrograms, ...memberPatternPrograms, ...scalarPatternPrograms, ...nullableForInPrograms, ...scalarIterationPrograms, ...memberIterationPrograms, ...optionalDeletePrograms, ...optionalDictionaryReadPrograms, ...functionForInPrograms, ...optionalNumberStringPrograms, ...optionalStringReadPrograms, ...optionalUint32ReadPrograms, ...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
+programs.push(...primitiveObjectAssignmentPrograms, ...primitiveObjectBindingPrograms, ...unsignedHasOwnPrograms, ...unsignedBindingPrograms, ...stringRestBindingPrograms, ...stringObjectRestPrograms, ...stringComputedSelectionPrograms, ...computedRestPrograms, ...computedSelectionPrograms, ...memberRestPrograms, ...computedPatternPrograms, ...memberPatternPrograms, ...scalarPatternPrograms, ...nullableForInPrograms, ...scalarIterationPrograms, ...memberIterationPrograms, ...optionalDeletePrograms, ...optionalDictionaryReadPrograms, ...functionForInPrograms, ...optionalNumberStringPrograms, ...optionalStringReadPrograms, ...optionalUint32ReadPrograms, ...optionalStaticReadPrograms, ...primitiveForInPrograms, ...primitivePropertyUpdatePrograms, ...dictionaryNumericUpdatePrograms, ...uint32NumericUpdatePrograms, ...uint32LogicalWritePrograms, ...uint32PropertyReadPrograms, ...uint32PropertyWritePrograms, ...uint32ObjectKeyPrograms, ...uint32InKeyPrograms, ...uint32DeleteKeyPrograms, ...debuggerStatementPrograms, ...inertModuleBlockPrograms, ...mixedLiteralArraySpreadPrograms, ...literalCallSpreadPrograms, ...unaryDefaultPrograms, ...arithmeticDefaultPrograms, ...stringObjectAssignmentPrograms, ...stringAssignmentPrograms, ...earlierParameterPrograms, ...stringIteratorPrograms, ...forInObjectPrograms, ...stringObjectPrograms);
 programs.push(...varPatternPrograms, ...varLoopPatternPrograms);
 programs.push(...varPrograms, ...varForOfPrograms, ...varForInPrograms);
 programs.push(...localArrows);

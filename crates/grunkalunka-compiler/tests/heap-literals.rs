@@ -24,6 +24,28 @@ fn empty_module_items_preserve_the_heap_entry() {
 }
 
 #[test]
+fn inert_module_blocks_preserve_the_heap_entry() {
+    let entry = "export function run(a,b){return 'value';}";
+    let expected = compile_heap_value(entry, false).unwrap().wasm;
+    for source in [
+        "{}export function run(a,b){return 'value';}",
+        "{;debugger;0;false;null;'text';`template`;void 0;{1n;}}export function run(a,b){return 'value';}",
+    ] {
+        assert_eq!(
+            compile_heap_value(source, false).unwrap().wasm,
+            expected,
+            "{source}"
+        );
+    }
+    for source in [
+        "{missing;}export function run(a,b){return 'value';}",
+        "{function hidden(){}}export function run(a,b){return 'value';}",
+    ] {
+        assert!(compile_heap_value(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn reduced_heap_entry_arities_keep_the_two_number_abi() {
     let full = compile_heap_value("export function run(a,b){return 'value';}", false).unwrap();
     assert!(full.wat.contains("(param f64 f64)"));
