@@ -209,7 +209,7 @@ pub(super) fn discarded_literal_statement(statement: &Statement<'_>) -> bool {
 
 // These source statements consume their normal budgets and emit no operations.
 // The debugger statement has no attached debugger in the execution profiles.
-fn emits_no_statement(statement: &Statement<'_>) -> bool {
+pub(super) fn emits_no_statement(statement: &Statement<'_>) -> bool {
     is_type_declaration(statement)
         || matches!(
             statement,

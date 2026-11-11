@@ -62,7 +62,12 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
         }
     }
     let body = function.body.as_ref().ok_or("heap spike expects a body")?;
-    let [Statement::ReturnStatement(returned)] = body.statements.as_slice() else {
+    let runtime: Vec<_> = body
+        .statements
+        .iter()
+        .filter(|statement| !lower::emits_no_statement(statement))
+        .collect();
+    let [Statement::ReturnStatement(returned)] = runtime.as_slice() else {
         return Err("heap profile expects one direct expression return".into());
     };
     let mut expression = returned
