@@ -821,6 +821,18 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if let Expression::BinaryExpression(binary) = node
+            && binary.operator == BinaryOperator::Instanceof
+            && matches!(
+                closures::unwrapped(&binary.right, depth + 1),
+                Some(Expression::ConditionalExpression(_) | Expression::SequenceExpression(_))
+            )
+        {
+            boolean_consumer(node, mode, "instanceof produces a Boolean", work)?;
+            work.push(Work::InstanceOfConstructor(&binary.right, depth + 1));
+            work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+            return Ok(true);
+        }
+        if let Expression::BinaryExpression(binary) = node
             && binary.operator == BinaryOperator::In
             && matches!(
                 mode,

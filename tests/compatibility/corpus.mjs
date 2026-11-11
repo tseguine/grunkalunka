@@ -177,7 +177,9 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 200;
+import { selectedInstancePrograms, selectedInstanceRejected } from './selected-instanceof.mjs';
+
+export const corpusVersion = 201;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -292,6 +294,7 @@ programs.push(['instanceof-array', arrayInstanceBody, arrayInstanceBody, 1, unde
   sourceJS: `export function run(a,b) { ${arrayInstanceBody} }`,
   sourceTS: `export function run(a:number,b:number):number { ${arrayInstanceBody} }`,
 }]);
+programs.push(...selectedInstancePrograms);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
 programs.push(...directivePrograms);
@@ -413,6 +416,7 @@ programs.push(
 
 
 export const rejected = [
+  ...selectedInstanceRejected,
   ...varRejected,
   ...loweringGaps,
   ...typescriptErasureRejected,

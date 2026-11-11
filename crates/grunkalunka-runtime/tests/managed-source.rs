@@ -570,6 +570,25 @@ fn intrinsic_instance_tests_preserve_null_prototypes_and_callable_identity() {
 }
 
 #[test]
+fn selected_instanceof_evaluates_the_left_once_before_constructor_effects() {
+    for body in [
+        "return [] instanceof (a?Array:Object)?1:0;",
+        "return [] instanceof (a=b,Array)?1:0;",
+        "let n=0;const x=(n++,a?[]:{});const yes=x instanceof (n++,b?(n+=2,Array):(n+=4,Object));return n*10+(yes?1:0);",
+        "let x=a?[]:{};const yes=x instanceof (x={},Array);return yes?1:0;",
+        "const f=x=>x;return f instanceof (a?(b?Array:Function):(a=b,Object))?1:0;",
+        "const d=Object.create(null);return d instanceof (a?Object:Array)?1:0;",
+        "let n=0;({}) instanceof (a?(n++,Object):(n+=3,Function));return n;",
+    ] {
+        compare(body);
+    }
+    compare_typed(
+        "return {} instanceof (a?Array:Object)?1:0;",
+        "return {} instanceof (a?(Array as never):Object!)?1:0;",
+    );
+}
+
+#[test]
 fn instanceof_array_uses_the_actual_saved_array_brand() {
     for body in [
         "return [] instanceof Array?1:0;",

@@ -164,8 +164,8 @@ mod tests {
             "export function run(a,b){const Object=x=>x;return {} instanceof Object?1:0;}",
             "export function run(a,b){const Function=x=>x;return (x=>x) instanceof Function?1:0;}",
             "export function run(a,b){const Array=x=>x;return [] instanceof Array?1:0;}",
-            "export function run(a,b){return [] instanceof (a?Array:Object)?1:0;}",
-            "export function run(a,b){return [] instanceof (a=b,Array)?1:0;}",
+            "export function run(a,b){const Array=x=>x;return [] instanceof (a?Array:Object)?1:0;}",
+            "export function run(a,b){return [] instanceof (a=b,Object.prototype)?1:0;}",
             "export function run(a,b){return [] instanceof Array.prototype?1:0;}",
             "export function run(a,b){Array.prototype={};return [] instanceof Array?1:0;}",
         ] {

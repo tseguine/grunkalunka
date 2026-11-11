@@ -9,6 +9,8 @@ use super::*;
 pub(in crate::lower) enum Mode {
     Number,
     Predicate,
+    // Resolve a selected intrinsic constructor against the already evaluated left operand.
+    InstanceOf(ValueId),
     Discard,
     // Use the common depth/aggregate guards before splitting a discarded logical.
     DiscardLogical,
