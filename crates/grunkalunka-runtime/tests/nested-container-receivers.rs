@@ -76,6 +76,31 @@ fn const_guard_aliases_preserve_runtime_facts_about_unchanged_receivers() {
 }
 
 #[test]
+fn strict_literal_matches_establish_only_the_matched_kind() {
+    for body in [
+        "const v=a?'ok':{n:b};if(v==='ok')return v.charCodeAt(0);return 3;",
+        "const v=a?'x':{n:b};return 'x'!==v?7:v.length;",
+        "const v=a?b:{n:b};if(-7===v)return v+1;return 0;",
+        "const v=a?true:{n:b};if(v===true)return +v;return 0;",
+        "const v=a?'ok':{n:b};switch(v){case 'ok':return v.length;default:return b;}",
+    ] {
+        compare(body);
+    }
+    for body in [
+        "const v=a?'x':null;if(v!=='y')return v.length;return 0;",
+        "const v=a?'x':null;if(v=='x')return v.length;return 0;",
+        "const v=a?'12':{n:b};switch(v){case 'ok':return 0;default:return v.length;}",
+        "const v=a?2:{n:b};if(v!==1)return v+1;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_object_fields_can_act_as_receivers() {
     let source = "export function run(a,b){const o={child:{x:a}};return o.child.x===a?1:0;}";
     common::compare_sources(source, source);

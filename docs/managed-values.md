@@ -1905,3 +1905,6 @@ A simple local `const` can save a guard for a later branch. For example,
 `const ready = row != null` lets `if (ready)` use the unchanged receiver.
 Negation, aliases of aliases and mandatory operands of a compound guard
 preserve the corresponding facts.
+Strict equality with a String, Number or Boolean literal establishes its kind
+on a match, including in a directly selected switch case. A missed literal
+still permits other values of that kind.
