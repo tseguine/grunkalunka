@@ -5,7 +5,8 @@ module function declarations produce the Number count of ordinary source
 parameters. This follows [Function instance length](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-function-instances-length).
 Hidden capture/environment inputs and physical call-frame pointers do not count.
 Full callable signature IDs are looked up rather than treated as parameter counts.
-Erased TypeScript annotations and type parameters do not change the result.
+Erased TypeScript annotations, type parameters and declaration `this` parameters
+do not change the result. A `this` parameter is absent from the ordinary argument list.
 
 The receiver executes once before the read. Aliases, same-signature selections,
 assignments, comma effects, returned factories and represented async functions

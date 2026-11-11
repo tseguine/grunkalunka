@@ -37,12 +37,7 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
     let [function] = selected.declarations.as_slice() else {
         return Err("heap spike expects one exported function".into());
     };
-    if function.r#async
-        || function.generator
-        || function.declare
-        || function.this_param.is_some()
-        || !selected.exports_run
-    {
+    if function.r#async || function.generator || function.declare || !selected.exports_run {
         return Err("heap profile expects a plain synchronous function named run".into());
     }
     if function.params.items.len() > 2 || function.params.rest.is_some() {

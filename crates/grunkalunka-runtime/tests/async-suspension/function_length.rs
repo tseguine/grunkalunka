@@ -1,6 +1,45 @@
 use super::*;
 
 #[test]
+fn this_parameter_metadata_preserves_async_calls_and_function_length() {
+    let plain = "async function f(x){return await x;}export async function run(a,b){let n=0;const p=f.call(n++,a);return await p+f.length+n;}";
+    let typed = "async function f(this:Missing,x){return await x;}export async function run(this:void,a,b){let n=0;const p=f.call(n++,a);return await p+f.length+n;}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    compare_async_sources(
+        &[plain.into()],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn this_parameter_metadata_preserves_async_entry_source_lengths() {
+    let mut sources = Vec::new();
+    for (parameters, value) in [("", "4"), ("a", "a"), ("a,b", "a+b")] {
+        let typed_parameters = if parameters.is_empty() {
+            "this:Missing".into()
+        } else {
+            format!("this:Missing,{parameters}")
+        };
+        let body = format!("await 0;return({value})+run.length;");
+        let plain = format!("export async function run({parameters}){{{body}}}");
+        let typed = format!("export async function run({typed_parameters}){{{body}}}");
+        assert_eq!(
+            compile_async(&plain, false).unwrap().wasm,
+            compile_async(&typed, true).unwrap().wasm,
+            "{typed}"
+        );
+        sources.push(plain);
+    }
+    compare_async_sources(
+        &sources,
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn function_length_preserves_named_primitive_signature_inputs() {
     compare_async_sources(
         &[

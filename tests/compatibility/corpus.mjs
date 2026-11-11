@@ -104,6 +104,7 @@ import { dictionaryLogical } from './dictionary-logical.mjs';
 import { dictionaryPrimitives } from './dictionary-primitives.mjs';
 import { returningSwitch } from './returning-switch.mjs';
 import { optionalParameterPrograms } from './optional-parameters.mjs';
+import { thisParameterPrograms } from './this-parameters.mjs';
 import { managedFactoryResults } from './managed-factory-results.mjs';
 import { missingRuntimeArguments } from './missing-runtime-arguments.mjs';
 import { missingArrowArguments } from './missing-arrow-arguments.mjs';
@@ -190,7 +191,7 @@ import { unreachableCopyPrograms } from './unreachable-copies.mjs';
 import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
 import { unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 
-export const corpusVersion = 234;
+export const corpusVersion = 235;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -263,6 +264,7 @@ programs.push(...dictionaryLogical);
 programs.push(...dictionaryPrimitives);
 programs.push(...returningSwitch);
 programs.push(...optionalParameterPrograms);
+programs.push(...thisParameterPrograms);
 programs.push(...missingHelperArguments);
 programs.push(...missingArrowArguments);
 programs.push(...missingRuntimeArguments);
@@ -548,7 +550,6 @@ export const rejected = [
   ['this', 'export function run(a,b) { return this; }'],
   ['unary-not', 'export function run(a,b) { return !a; }'],
   ['empty-return', 'export function run(a,b) { return; }'],
-  ['this-param', 'export function run(this:void,a:number,b:number):number { return a; }', 'ts'],
   ['declare', 'export declare function run(a:number,b:number):number;', 'ts'],
   ['over-limit', 'export function run(a,b) { return a; }' + ' '.repeat(16384)],
   ['depth-limit', `export function run(a,b) { return ${'('.repeat(140)}a${')'.repeat(140)}; }`],

@@ -831,6 +831,14 @@ pub(super) fn present(semantic: &Semantic<'_>) -> bool {
     })
 }
 
+// The entry keeps two Number ABI slots even when its source declares fewer
+// parameters. Reflection needs source origins for that distinction just as it
+// does for defaults, including aliases and callback inputs.
+pub(super) fn source_length_needed(semantic: &Semantic<'_>, entry: SymbolId) -> bool {
+    present(semantic)
+        || matches!(semantic.symbol_declaration(entry).kind(), AstKind::Function(function) if function.params.items.len() < 2)
+}
+
 impl Lowering<'_, '_> {
     pub(crate) fn initialize_helper_defaults(
         &mut self,
@@ -1691,14 +1699,14 @@ impl Lowering<'_, '_> {
         }
     }
 
-    // Reflection counts parameters before the first default, independently of
-    // the full callable ABI. Mixed lengths need a future dynamic reflection path.
+    // Reflection counts source parameters before the first default, independently
+    // of the full callable ABI. Mixed lengths need a future dynamic reflection path.
     pub(super) fn default_function_length(
         &self,
         object: &Expression<'_>,
         fallback: usize,
     ) -> Result<usize, String> {
-        if !present(self.semantic) {
+        if !source_length_needed(self.semantic, self.functions[0].symbol) {
             return Ok(fallback);
         }
         let (names, arrows) = self.stored.origins(object.node_id());
@@ -1736,7 +1744,7 @@ impl Lowering<'_, '_> {
         } else {
             Err(unsupported(
                 object,
-                "function length requires one proven default-parameter length",
+                "function length requires one proven source-parameter length",
             ))
         }
     }

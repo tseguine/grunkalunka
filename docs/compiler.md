@@ -820,7 +820,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
 - The original numeric-only admission excludes extra runtime statements/exports/imports,
   parameter defaults/rest/destructuring, async/generator/declare functions,
-  `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
+  runtime `this` values, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
   `for-in` and labels. [Returning switch dispatch](returning-switch.md) now admits
   grouped labels, fallthrough, break and proven represented operands with an optional default;
@@ -1339,8 +1339,9 @@ Known local arrow and runtime closure calls erase this metadata under
 factory-result calls follow [their contract](runtime-closures.md#runtime-factory-call-site-type-arguments).
 Pristine [unary Math calls](#math-intrinsic-type-arguments) and async
 Promise.resolve/reject erase call-site types; see also
-[the async contract](async.md#promise-intrinsic-type-arguments). Async/generator/ambient functions,
-`this` parameters and other parameter-shape restrictions retain their existing guards.
+[the async contract](async.md#promise-intrinsic-type-arguments). Function-kind and
+ordinary-parameter restrictions retain their profile guards; TypeScript
+[`this` parameters](#typescript-this-parameters) erase separately.
 
 Original source bytes, statement/depth budgets, SymbolIds, ordered argument snapshots,
 helper signatures, const-write checks and numeric IR/Wasm remain unchanged. Corpus 50
@@ -2447,11 +2448,32 @@ annotations provide no runtime source-kind proof. The same erasure applies to
 numeric, primitive-result, async and experimental heap-return compilation.
 
 Optional markers alone do not add missing-argument calls. Entry
-exports still require their existing two-formal shape. Defaults, rest,
-destructuring, decorators, parameter properties and `this` parameters retain
-separate guards. The original annotated sources are retained in the positive
+exports admit at most two ordinary parameters with the existing two-Number ABI.
+Defaults, rest, destructuring, decorators and parameter properties retain
+their profile contracts. The original annotated sources are retained in the positive
 corpus and paired with independent JavaScript references; typed and plain
 artifacts are compared byte-for-byte.
+
+## TypeScript this parameters
+
+A leading TypeScript `this: Type` parameter erases on otherwise admitted module
+function declarations, including numeric/primitive entries and helpers, async
+entries and helpers, and the experimental heap entry. Oxc stores it separately
+from ordinary parameters. It consumes no runtime argument, does not contribute
+to function `.length`, and does not alter defaults or `.call` argument evaluation.
+Its type is unvalidated metadata, including unresolved names and type queries,
+as described by the [TypeScript function handbook](https://www.typescriptlang.org/docs/handbook/2/functions.html#declaring-this-in-a-function).
+
+Entry `.length` reflects its zero, one or two declared ordinary parameters while
+the host ABI retains two Number inputs. Aliases and callback inputs use the same
+source-origin proof; alternatives with different source lengths remain rejected
+until dynamic function-length reflection is supported.
+
+Actual `this` expressions remain unsupported. Ordinary parameter limits,
+rest/destructuring/default admission and original source-byte budgets are
+unchanged. Three exact former TS rejection sources now execute as paired
+JavaScript/TypeScript programs with pinned source hashes in
+[`this-parameters.mjs`](../tests/compatibility/this-parameters.mjs).
 
 ## Omitted arguments to synchronous helpers and closures
 

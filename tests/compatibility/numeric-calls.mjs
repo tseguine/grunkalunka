@@ -117,7 +117,6 @@ export const helperDefaultPromotion = {
 full('helper-default', helperDefaultPromotion.source);
 bad('helper-rest', 'function helper(...x) { return 1; }', 'return helper(a);', 'ordinary numeric helper parameters');
 bad('helper-destructure', 'function helper({x}) { return 1; }', 'return helper(a);', 'destructured parameters');
-bad('helper-this', 'function helper(this:number,x:number) { return x; }', 'return helper(a);', 'plain, synchronous', 'ts');
 bad('helper-async', 'async function helper(x) { return x; }', 'return helper(a);', 'plain, synchronous');
 bad('helper-generator', 'function* helper(x) { return x; }', 'return helper(a);', 'plain, synchronous');
 bad('helper-arguments', 'function helper(x) { return arguments[0]; }', 'return helper(a);', expression);
