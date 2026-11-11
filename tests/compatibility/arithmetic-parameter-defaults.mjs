@@ -5,6 +5,9 @@ export const arithmeticDefaultOriginals=[
 export const arithmeticDefaultPrograms=arithmeticDefaultOriginals.map(([id,source])=>['arithmetic-default-original-'+id,'','',undefined,undefined,{sourceJS:source,sourceTS:source}]);
 for(const[id,source]of[
  ['minus','function f(x=7-9){return x;}export function run(a,b){return f();}'],
+ ['template-static','function f(x=`🍏`){return x.length;}export function run(a,b){return f();}'],
+ ['template-nested','function f(x=`x${`(${-0})`}:${null}/${true}`){return +(x==="x(0):null/true");}export function run(a,b){return f();}'],
+ ['template-supplied','export function run(a,b){const f=(x=`${2*3}`)=>x.length;return f("given")+f();}'],
  ['boolean-sum-original','function f(x=true+2){return x;}export function run(a,b){return f();}'],
  ['mixed-text','function f(x="v"+(-0)+true+null+undefined){return +(x==="v0truenullundefined");}export function run(a,b){return f();}'],
  ['number-first','function f(x=1+true+"e"){return +(x==="2e");}export function run(a,b){return f();}'],

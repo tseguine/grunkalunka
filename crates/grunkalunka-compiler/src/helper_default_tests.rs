@@ -390,6 +390,8 @@ fn pure_expression_defaults_reject_unproven_coercion_and_hidden_effects() {
         "false&&missing",
         "void (1||g())",
         "false?2:(a=3)",
+        "`text${false && missing}`",
+        "`text${{toString(){return 'boom'}}}`",
         "x??'fallback'",
         "1?2:Math.random()",
     ] {
