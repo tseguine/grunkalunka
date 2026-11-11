@@ -34,13 +34,6 @@ fn helper_default_scope_and_source_guards_remain_explicit() {
     ] {
         assert!(crate::compile_value(source, false).is_err(), "{source}");
     }
-    assert!(
-        crate::compile_async(
-            "function f(x=3){return x;}export async function run(a,b){return f();}",
-            false
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -94,10 +87,80 @@ fn arrow_defaults_keep_effect_scope_async_and_callback_arity_guards() {
         assert!(crate::compile_value(source, false).is_err(), "{source}");
     }
     for source in [
-        "export async function run(a,b){const f=(x=3)=>x;return f();}",
+        "async function f(x=3){return x;}export async function run(a,b){return await f();}",
         "export async function run(a,b){const f=async(x=3)=>x;return await f();}",
     ] {
         assert!(crate::compile_async(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn synchronous_defaults_compose_with_async_callers() {
+    for source in [
+        // Retain the exact previously rejected named-helper and local-arrow inputs.
+        "function f(x=3){return x;}export async function run(a,b){return f();}",
+        "export async function run(a,b){const f=(x=3)=>x;return f();}",
+        "export async function run(a,b){const f=(x,y=x||5)=>y;return f(a);}",
+        "function f(x=3){return x;}export async function run(a,b){await b;return f(undefined);}",
+        "function f(x=3){return x;}export async function run(a,b){const saved=f(a);await b;return saved;}",
+        "function f(x,y=x+2){return y;}export async function run(a,b){return f(await a);}",
+        "function f(x,y=x??3){return y;}export async function run(a,b){await b;return f(null);}",
+        "function f(x,y=x){return x===y?1:0;}export async function run(a,b){const source={v:a};await b;return f(source);}",
+        "function f(row,label=row.label??'missing'){return label.length;}export async function run(a,b){await b;return f({label:'ready'});}",
+        "function f(prefix,label=prefix+':ok'){return label.length;}export async function run(a,b){return f('go')+await b;}",
+        "export async function run(a,b){let f=(x=3)=>x;await b;return f();}",
+        "export async function run(a,b){const o={f:(x=3)=>x};await b;return o.f();}",
+        "export async function run(a,b){const make=(x=3)=>()=>x;const f=make();await b;return f();}",
+        "export async function run(a,b){const f=(x,y=x+2)=>y;return f(await a);}",
+        "export async function run(a,b){const f=(x=3)=>x;const invoke=g=>g(undefined);await b;return invoke(f);}",
+    ] {
+        for typescript in [false, true] {
+            let result = crate::compile_async(source, typescript);
+            assert!(result.is_ok(), "{source}: {:?}", result.err());
+        }
+    }
+}
+
+#[test]
+fn async_module_defaults_keep_async_entry_scope_and_effect_guards() {
+    for source in [
+        "export async function run(a=3,b){return a;}",
+        "async function f(x=3){return x;}export async function run(a,b){return await f();}",
+        "export async function run(a,b){const f=async(x=3)=>x;return await f();}",
+        "function f(x=x){return x;}export async function run(a,b){return f();}",
+        "function f(x=y,y=3){return x;}export async function run(a,b){return f();}",
+        "function f(x=a){return x;}export async function run(a,b){return f();}",
+        "function f(x=Math.random()){return x;}export async function run(a,b){return f();}",
+        "export async function run(a,b){const f=(x=a)=>x;return f();}",
+        "export async function run(a,b){const f=(x=(a=3))=>x;return f();}",
+        "export async function run(a,b){const f=(x=y,y=3)=>x;return f();}",
+    ] {
+        for typescript in [false, true] {
+            assert!(
+                crate::compile_async(source, typescript).is_err(),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn synchronous_defaults_in_async_modules_erase_types_without_changing_artifacts() {
+    for (js, ts) in [
+        (
+            "function f(x,y=x+2){return y;}export async function run(a,b){return f(await a);}",
+            "function f<T>(x:never,y:unknown=(x as number)+2):Missing{return y as never;}export async function run(a:string,b:unknown):Wrong{return f<Missing>(await(a as never));}",
+        ),
+        (
+            "export async function run(a,b){const f=(x=3)=>x;await b;return f();}",
+            "export async function run(a:never,b:unknown):Missing{const f=<T>(x:unknown=3):Wrong=>x as never;await(b as any);return f<Wrong>();}",
+        ),
+    ] {
+        assert_eq!(
+            crate::compile_async(js, false).unwrap().wasm,
+            crate::compile_async(ts, true).unwrap().wasm,
+            "{ts}",
+        );
     }
 }
 
@@ -450,13 +513,6 @@ fn earlier_parameter_logical_defaults_keep_scope_purity_and_arity_guards() {
     ] {
         assert!(crate::compile_value(source, false).is_err(), "{source}");
     }
-    assert!(
-        crate::compile_async(
-            "export async function run(a,b){const f=(x,y=x||5)=>y;return f(a);}",
-            false
-        )
-        .is_err()
-    );
 }
 
 #[test]

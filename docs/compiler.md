@@ -2565,8 +2565,8 @@ positive Number proof or explicit conversion after a helper result.
 
 The callable ABI keeps all declared parameters; `function.length` counts only
 parameters preceding the first default. Reflected runtime selections must prove
-one uniform source length. Public entry defaults, async defaults (including
-helpers in async-entry modules), expressions/references with
+one uniform source length. Public entry defaults, defaults on asynchronous
+functions, expressions/references with
 effects, rest and destructured parameters retain explicit guards. This first
 subset does not evaluate parameter expressions or expose body bindings to
 initializers. The exact former `direct-call-helper-default` rejection is now an
@@ -2581,7 +2581,16 @@ creator parameter. Reflected arrow lengths use the first default's position,
 while calls keep the complete declared signature. TS optional markers and
 annotations still erase around the initializer.
 
-Async arrows and arrows in async-entry modules retain their default guards, as do
+Supported defaults on synchronous helpers and arrows also work in async-entry
+modules. Their existing lazy initialization runs within the synchronous call,
+after all supplied arguments have executed. Callers may await before, between or
+after calls without changing omitted/Undefined selection, initialized earlier
+parameters, captured cells, reference identity or `function.length`. Pure
+numeric, String, selection and own-property defaults retain the same source
+proofs. `async-suspension/sync_defaults.rs` compares the returned values and
+reaction order with native JavaScript and the Node-Wasm and Wasmtime hosts.
+
+Async arrows retain their default guards, as do
 other expression/effectful defaults, destructured/rest parameters, mixed reflected
 lengths and the existing missing-input guard on typed callback calls. A checked
 callback can pass explicit Undefined to select a default. Existing runtime factory

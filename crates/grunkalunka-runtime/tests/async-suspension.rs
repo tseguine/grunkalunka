@@ -124,6 +124,9 @@ mod discarded_logical;
 #[path = "async-suspension/module_primitive_results.rs"]
 mod module_primitive_results;
 
+#[path = "async-suspension/sync_defaults.rs"]
+mod sync_defaults;
+
 #[path = "async-suspension/catch_rethrow_context.rs"]
 mod catch_rethrow_context;
 
