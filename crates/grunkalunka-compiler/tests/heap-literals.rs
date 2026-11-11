@@ -65,10 +65,37 @@ fn inert_source_statements_preserve_the_heap_entry() {
             "{source}"
         );
     }
+    for body in ["let x=0;return 'value';", "return 'value';return 'other';"] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile_heap_value(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn discarded_primitive_literals_preserve_the_heap_entry() {
+    let plain = "export function run(a,b){return 'value';}";
+    let expected = compile_heap_value(plain, false).unwrap().wasm;
+    for (source, typescript) in [
+        (
+            "export function run(a,b){0;false;null;'before';`text`;void 0;return 'value';1n;'after';}",
+            false,
+        ),
+        (
+            "export function run(a:number,b:number){(0 as unknown);return 'value';(`after` satisfies string);}",
+            true,
+        ),
+    ] {
+        assert_eq!(
+            compile_heap_value(source, typescript).unwrap().wasm,
+            expected,
+            "{source}"
+        );
+    }
     for body in [
-        "true;return 'value';",
-        "let x=0;return 'value';",
-        "return 'value';return 'other';",
+        "missing;return 'value';",
+        "sideEffect();return 'value';",
+        "a++;return 'value';",
+        "void sideEffect();return 'value';",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         assert!(compile_heap_value(&source, false).is_err(), "{source}");

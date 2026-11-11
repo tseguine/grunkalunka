@@ -65,7 +65,9 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
     let runtime: Vec<_> = body
         .statements
         .iter()
-        .filter(|statement| !lower::emits_no_statement(statement))
+        .filter(|statement| {
+            !lower::emits_no_statement(statement) && !lower::discarded_literal_statement(statement)
+        })
         .collect();
     let [Statement::ReturnStatement(returned)] = runtime.as_slice() else {
         return Err("heap profile expects one direct expression return".into());
