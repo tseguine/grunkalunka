@@ -44,6 +44,31 @@ const FUNCTION_CALL_SOURCES: &[&str] = &[
     "export async function run(a,b){const f=a?async x=>{await a;return x;}:async x=>{await b;return x;};f.call(Promise.reject(b),a);return a;}",
 ];
 
+#[test]
+fn reduced_async_entry_arities_preserve_the_two_number_host_abi() {
+    for (source, expected) in [
+        ("export async function run(){return 4;}", 4.0),
+        ("export async function run(a){return a;}", 7.0),
+    ] {
+        for typescript in [false, true] {
+            let artifact = compile_async(source, typescript).unwrap();
+            let mut run = AsyncInstance::new(&artifact.wasm, 7.0, 11.0).unwrap();
+            while run.run_one_job().unwrap() {}
+            let AsyncState::Fulfilled(Value::Number(actual)) = run.state().unwrap() else {
+                panic!("reduced-arity async entry did not fulfill with a Number");
+            };
+            assert_eq!(actual, expected);
+        }
+    }
+    for source in [
+        "export async function run(a,b,c){return a;}",
+        "export async function run(a,...rest){return a;}",
+    ] {
+        let error = compile_async(source, false).err().unwrap();
+        assert!(error.contains("at most two ordinary"), "{error}");
+    }
+}
+
 fn promoted_identity_case(source: &str, typescript: bool) -> String {
     fn bits(value: Value) -> String {
         match value {
