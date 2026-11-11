@@ -21,6 +21,9 @@ fn fixed_spreads_in_array_reads_preserve_argument_order_and_receiver() {
 #[test]
 fn array_lengths_accept_unsigned_choices_and_preserve_evaluation() {
     for body in [
+        "const xs=[a,b],out=[];for(let i=0;i<=xs.length;i++){out.length=i;}return out.length;",
+        "const xs=[a,b];let sum=0;for(let i=xs.length-1;0<=i;i--){sum+=new Array(i).length;}return sum;",
+        "const xs=[];let n=0;for(let i=4294967294;4294967295>=i;i++){xs[i]=a;n++;}return n===2&&xs.length===4294967295&&Object.hasOwn(xs,4294967295)?1:0;",
         "const xs=[a,b];xs.length=a?1:0;return xs.length;",
         "let n=a;const xs=Array(n>>>=1);return xs.length===n?1:0;",
         "let n=b;const xs=[a,b];xs.length=n&=3;return xs.length===n?1:0;",

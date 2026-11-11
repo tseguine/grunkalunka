@@ -1779,6 +1779,10 @@ Calling the pristine `Boolean` function applies the language truthiness rules
 to the saved first argument. Omission produces false, and surplus arguments
 still execute in source order, including their effects and rejections.
 
+A unit-step `for` counter can supply an unsigned key or array length inside
+a loop with an inclusive unsigned upper bound. Comparisons may place the
+counter on either side, including `0 <= i` for reverse traversals.
+
 Array length assignments accept runtime values proven to be uint32, including
 another array's length, a checked loop counter or an unsigned shift. A conditional
 or logical expression can also select among validated unsigned literals and
