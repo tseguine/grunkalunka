@@ -1,5 +1,6 @@
 import { primitiveObjectAssignmentPrograms } from './primitive-object-assignments.mjs';
 import { unreachableNumberPrograms, unreachableNumberPromotions } from './unreachable-number-values.mjs';
+import { unreachableBareLetPromotion, unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 import { primitiveObjectBindingPrograms } from './primitive-object-bindings.mjs';
 import { unsignedHasOwnPrograms } from './unsigned-has-own.mjs';
 import { unsignedBindingPrograms } from './unsigned-binding-keys.mjs';
@@ -420,6 +421,17 @@ test('unreachable numeric values execute exact former catalog and Rust rejection
     assert.ok(!rejected.some(row => row[0] === id));
     assert.ok(!catalog.records.some(row => row.id === id));
   }
+});
+
+test('unreachable bare let executes its exact former Rust rejection source', () => {
+  const promotion = unreachableBareLetPromotion;
+  const source = programSources(unreachableDeclarationPrograms.find(row => row[0] === promotion.id));
+  assert.equal(source.sourceJS, promotion.source);
+  assert.equal(source.sourceTS, promotion.source);
+  assert.equal(source.oracleSource, promotion.source);
+  assert.equal(createHash('sha256').update(promotion.source).digest('hex'), promotion.sha256);
+  assert.ok(!rejected.some(row => row[0] === promotion.id));
+  assert.ok(!catalog.records.some(row => row.id === promotion.id));
 });
 
 test('the original discarded Boolean after return executes unchanged', () => {
