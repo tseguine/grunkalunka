@@ -1062,18 +1062,26 @@ impl Lowering<'_, '_> {
             && let Expression::BinaryExpression(binary) = node
             && let Some((left_test, right_test)) = string_number::comparisons(binary.operator)
         {
-            for (text, number, operator) in [
+            for (literal, number, operator) in [
                 (&binary.left, &binary.right, left_test),
                 (&binary.right, &binary.left, right_test),
             ] {
-                if self.stored.number(number.node_id())
-                    && let Some(value) = string_number::literal(text, depth + 1)
-                {
+                let threshold = if let Some(integer) = bigint_compare::literal(literal, depth + 1) {
+                    if !self.numeric_result_shape(number, depth + 1) {
+                        continue;
+                    }
+                    bigint_compare::number_threshold(integer, operator)
+                } else if self.stored.number(number.node_id()) {
+                    string_number::literal(literal, depth + 1).map(|value| (value, operator))
+                } else {
+                    None
+                };
+                if let Some((value, operator)) = threshold {
                     // Constant conversion is pure. Evaluate the other operand exactly once.
                     let constant = self.value(Type::Number);
                     Self::push(
                         regions.current(),
-                        text,
+                        literal,
                         Op::Constant {
                             result: constant,
                             value,

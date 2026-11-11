@@ -58,6 +58,13 @@ export const bigintComparisonPrograms = [
   ['bigint-typeof-negative', 'export function run(a,b){const kind=typeof (-0x20000000000001n);return kind.length+a;}'],
   ['bigint-truthy', 'export function run(a,b){if(-0n)return b;if(0x10000000000000000n)return a;return b;}'],
   ['bigint-not', 'export function run(a,b){return !0b0n && !(-0n) && !!(-42n) ? a : b;}'],
+  ['bigint-signed-comparisons', 'export function run(a,b){return -2n === -2n && 1n !== -2n && -0n >= 0n && 2n != -2n ? a : b;}'],
+  ['bigint-number-exact', 'export function run(a,b){return -2n == a ? a : b;}'],
+  ['bigint-number-inexact', 'export function run(a,b){return (a == 9007199254740993n ? 1 : 0) + (9007199254740993n != a ? 2 : 0);}'],
+  ['bigint-round-down','export function run(a,b){return (a < 9007199254740993n ? 1 : 0) + (9007199254740993n <= a ? 2 : 0);}'],
+  ['bigint-round-up','export function run(a,b){return (a >= -9007199254740993n ? 1 : 0) + (-9007199254740993n > a ? 2 : 0);}'],
+  ['bigint-overflow', `export function run(a,b){return (a<0x1${'0'.repeat(256)}n?1:0)+(a>-0x1${'0'.repeat(256)}n?2:0);}`],
+  ['bigint-number-effects','export function run(a,b){let n=0;return ((n++,a)==9007199254740993n?1:0)+n;}'],
 ].map(([id, source]) => [id, '', '', undefined, undefined, {sourceJS: source, sourceTS: source}]);
 
 

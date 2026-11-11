@@ -347,7 +347,7 @@
     {
       "id": "bigint-values",
       "kind": "open-requirement",
-      "assessment": "Equality and relational comparisons of two source-known BigInt literals, including unary negation, execute. Runtime BigInt values, arithmetic and mixed Number/BigInt operations remain open.",
+      "assessment": "Equality and relational comparisons of two source-known BigInt literals, including unary negation, execute. Loose equality and ordering also execute between a BigInt literal and a proven Number. Runtime BigInt values and arithmetic remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-bitwise-operators-runtime-semantics-evaluation",
@@ -366,7 +366,7 @@
     {
       "id": "coercive-equality",
       "kind": "open-requirement",
-      "assessment": "Loose equality handles the four represented non-String primitive kinds, String pairs and a source-proven Number compared to a String literal. Object coercion and BigInt comparisons still need runtime support.",
+      "assessment": "Loose equality handles the four represented non-String primitive kinds, String pairs and a source-proven Number compared to a String literal. A proven Number also compares exactly with a BigInt literal. Object coercion and dynamic BigInt comparisons remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-equality-operators",
@@ -1502,13 +1502,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "9e9c02440f6892295d30f2130f72bab9ed8384a843d5239ddb86dc29379df1ec",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "inequality-bigint",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7447051cbf9634a87e8828b705f9323889e022c31eeebef903b6983c4c82c2d2",
       "group": "coercive-equality"
     },
     {
