@@ -182,6 +182,16 @@ fn math_integer_product(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> b
     math_name(call, semantic) == Some("imul")
 }
 
+// These source statements consume their normal budgets and emit no operations.
+// The debugger statement has no attached debugger in the execution profiles.
+fn emits_no_statement(statement: &Statement<'_>) -> bool {
+    is_type_declaration(statement)
+        || matches!(
+            statement,
+            Statement::EmptyStatement(_) | Statement::DebuggerStatement(_)
+        )
+}
+
 // One wrapper at a time keeps each erased source node in the nesting budget.
 // These type-only forms do not convert or validate their runtime operand.
 pub(super) fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression<'a>> {
@@ -830,7 +840,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         depth: usize,
     ) -> Result<Completion, String> {
         self.admit_source_statement(statement, depth)?;
-        if is_type_declaration(statement) {
+        if emits_no_statement(statement) {
             return Ok(Completion::NORMAL);
         }
         match statement {
@@ -879,10 +889,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 }
                 region.exit = Exit::Break;
                 Ok(Completion::BREAK)
-            }
-            // No debugger facility is attached to generated execution.
-            Statement::EmptyStatement(_) | Statement::DebuggerStatement(_) => {
-                Ok(Completion::NORMAL)
             }
             Statement::ReturnStatement(statement) if statement.argument.is_none() => {
                 if matches!(

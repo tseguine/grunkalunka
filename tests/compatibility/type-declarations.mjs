@@ -89,7 +89,6 @@ export const typeDeclarationRejected = [
     ['break', 'do { break; interface I {} a=b; } while(0); return a;'],
     ['continue', 'for(let i=0;i<1;i++) { continue; type T=number; a=b; } return a;'],
     ['mixed', 'do { if(a) return a; else break; type T=number; a=b; } while(0); return b;'],
-    ['empty', 'return a; type T=number; ;'],
   ].map(([id,body]) => [`type-declaration-runtime-after-${id}`, source(body), 'ts', abrupt]),
   ['type-declaration-mixed-break-fallback', source('do { if(a) return a; else break; type T=number; } while(0);'), 'ts', 'every structural path'],
   ['type-declaration-mixed-continue-fallback', source('do { if(a) return a; else continue; interface I {} } while(0);'), 'ts', 'every structural path'],

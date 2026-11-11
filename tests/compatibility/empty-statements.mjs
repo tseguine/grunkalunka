@@ -21,7 +21,6 @@ const negatives = [
   ['empty-statement-limit', `${';'.repeat(256)} return a;`, 'at most 256 statements'],
   ['empty-depth-limit', `${'if(false)'.repeat(65)}; return a;`, 'statement nesting exceeds 64'],
   ['empty-only-missing-return', '; ;', returns],
-  ['empty-after-return', 'return a; ;', 'statements after a guaranteed return are not admitted'],
   ['empty-return-without-value', 'return;', 'return must have a numeric expression'],
   ['empty-loop-missing-return', 'for(;;);', returns],
   ['empty-if-missing-return', 'if(a<b);', returns],
@@ -35,4 +34,20 @@ for (const [id, source] of [
   ['module-empty-between-helpers', ';;function f(x){return x+1;};export {};export function run(a,b){return f(a)+b;};'],
 ]) {
   emptyStatementPrograms.push([id, '', '', undefined, undefined, { sourceJS: source, sourceTS: source }]);
+}
+
+const emptyTail = 'export function run(a,b) { return a; ; }';
+for (const [id, sourceTS] of [
+  ['empty-after-return', emptyTail],
+  ['type-declaration-runtime-after-empty', 'export function run(a,b) { return a; type T=number; ; }'],
+]) {
+  emptyStatementPrograms.push([id, '', '', undefined, undefined, { sourceJS: emptyTail, sourceTS }]);
+}
+for (const [id, body] of [
+  ['inert-tail-first-iteration', 'while(true){return a; debugger;}; debugger;'],
+  ['inert-tail-break', 'let x=0;do {x+=b;break;debugger;;}while(true);return x;'],
+  ['inert-tail-continue', 'let x=a;for(let i=0;i<2;i++){x+=b;continue;;debugger;}return x;'],
+  ['inert-tail-finally', 'try{return a;debugger;}finally{if(b)return b;;}'],
+]) {
+  emptyStatementPrograms.push([id, body, body]);
 }

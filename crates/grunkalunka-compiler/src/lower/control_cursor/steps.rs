@@ -842,10 +842,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let completion = prefix.then(completion);
                 let next_index = index + 1;
                 if let Some(statement) = statements.get(next_index) {
-                    // Mirror the original source sequence's first
-                    // diagnostic, while allowing erased TS declarations
-                    // to follow an otherwise terminal completion.
-                    if !completion.normal && !is_type_declaration(statement) {
+                    // Keep visiting inert statements for the source budgets.
+                    if !completion.normal && !emits_no_statement(statement) {
                         return Err(unsupported(
                             statement,
                             if completion == Completion::RETURN {

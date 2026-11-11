@@ -1659,13 +1659,6 @@
       "group": "return-policy"
     },
     {
-      "id": "empty-after-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6cc90a71986f94f5ab8699479f15772ea5de4c6f35caa0098ad04a1f5931bbe0",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "empty-return-without-value",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3210,13 +3203,6 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "d32e342d78527d6c34e8d73291d618bf03cd42eb9d652b31b27e20b45c17996c",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "type-declaration-runtime-after-empty",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d50ddb3f8ec32bf97120d49444203f6133a982ed8dfeba9e2f3e3202e9190a9e",
       "group": "abrupt-tail-policy"
     },
     {
