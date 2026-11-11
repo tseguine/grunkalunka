@@ -3389,6 +3389,16 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         }
                         continue;
                     }
+                    // A negated BigInt literal also has the syntax of a numeric
+                    // expression. Resolve same-domain comparisons before mixed ones.
+                    if matches!(mode, Mode::Predicate)
+                        && let Some(value) = bigint_compare::comparison(node, depth)
+                    {
+                        let result = self.value(Type::Predicate);
+                        Self::push(regions.current(), node, Op::Boolean { result, value });
+                        values.push(Value::Predicate(result));
+                        continue;
+                    }
                     if self.schedule_managed(node, depth, mode, regions, values, work)? {
                         continue;
                     }
@@ -4122,9 +4132,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         }
                         let constant = match node {
                             Expression::BooleanLiteral(literal) => Some(literal.value),
-                            Expression::BinaryExpression(_) => {
-                                bigint_compare::comparison(node, depth)
-                            }
                             _ => bigint_compare::literal(node, depth)
                                 .map(|value| value.sign() != num_bigint::Sign::NoSign),
                         };
