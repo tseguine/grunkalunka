@@ -44,6 +44,70 @@ fn var_helpers_and_default_parameter_body_environments_are_distinct() {
 }
 
 #[test]
+fn synchronous_var_owners_compose_with_async_callers() {
+    let mut failures = Vec::new();
+    for source in [
+        "function helper(x){const missing=local===undefined;var local=x;return missing?local:0;}export async function run(a,b){const first=helper(a);await b;return first+helper(b);}",
+        "function helper(x){var x;var local=x;var local;return local;}export async function run(a,b){await b;return helper(a);}",
+        "function helper(x){return local;var local=x;}export async function run(a,b){await b;return helper(a);}",
+        "export async function run(a,b){const helper=x=>{var total=x;for(var i=0;i<3;i++){total+=i;}return total;};const first=helper(a);await b;return first+helper(b);}",
+        "export async function run(a,b){const make=x=>{var total=x;return y=>{total+=y;return total;};};const fn=make(a);const first=fn(b);await a;return first+fn(b);}",
+        "export async function run(a,b){const make=x=>{var total=x;return async y=>{const before=total;await y;total+=y;return before+total;};};const f=make(a);const g=make(b);const first=await f(b);return first+await g(a);}",
+        "export async function run(a,b){const helper=async x=>{const nested=y=>{var local=y;return local;};await b;return nested(x);};return await helper(a);}",
+        "function helper(x,y){var total=0;for(var [item] of [[x],[y]]){total+=+item;}return total;}export async function run(a,b){await b;return helper(a,b);}",
+        "export async function run(a,b){let total=a;const helper=()=>{var local=total;total=b;return local;};await b;const saved=helper();return saved+total;}",
+    ] {
+        for typescript in [false, true] {
+            if let Err(error) = crate::compile_async(source, typescript) {
+                failures.push(format!("{source}: {error}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn synchronous_var_in_async_modules_keeps_owner_and_binding_guards() {
+    for source in [
+        "export async function run(a,b){var x=a;return x;}",
+        "async function helper(x){var local=x;return local;}export async function run(a,b){return await helper(a);}",
+        "export async function run(a,b){const helper=async x=>{var local=x;return local;};return await helper(a);}",
+        "function helper(x){var local=x;const nested=async()=>{var inner=x;return inner;};return local;}export async function run(a,b){return helper(a);}",
+    ] {
+        let error = crate::compile_async(source, false).err().unwrap();
+        assert!(
+            error.contains("var bindings in async functions"),
+            "{source}: {error}"
+        );
+    }
+    for source in [
+        "function helper(x){var f=y=>y;return f(x);}export async function run(a,b){return helper(a);}",
+        "function helper(x){try{throw x;}catch(e){var e=3;}return x;}export async function run(a,b){return helper(a);}",
+        "function helper(x){var local=x;let local=0;return local;}export async function run(a,b){return helper(a);}",
+    ] {
+        assert!(crate::compile_async(source, false).is_err(), "{source}");
+    }
+    // The primitive projection does not admit reference-valued Promise results.
+    let source = "function helper(x){var local={value:x};return local;}export async function run(a,b){await b;return helper(a);}";
+    assert!(
+        crate::compile_async(source, false)
+            .err()
+            .unwrap()
+            .contains("managed value requires an identity or managed storage position")
+    );
+}
+
+#[test]
+fn synchronous_var_in_async_modules_keeps_types_erased() {
+    let plain = "function helper(x){var x;var local=x;return local;}export async function run(a,b){const first=helper(a);await b;return first+helper(b);}";
+    let typed = "function helper<T>(x:unknown):Missing{var x;var local:never=x;return local as Missing;}export async function run(a:string,b:boolean):Wrong{const first:never=helper(a);await (b as unknown);return first+helper(b);}";
+    assert_eq!(
+        crate::compile_async(plain, false).unwrap().wasm,
+        crate::compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn var_number_proofs_follow_initialization_and_account_for_all_writes() {
     for body in [
         "var x=a;return x;",

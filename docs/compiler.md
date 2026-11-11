@@ -2609,12 +2609,22 @@ may remove the initial Undefined alternative, while all represented writes,
 including captures, contribute to the result. Unknown write forms disable that
 refinement.
 
-Async modules/functions, pattern declarations, function-valued var initializers,
+Async functions, pattern declarations, function-valued var initializers,
 catch-parameter name collisions retain
 explicit guards. Lexical TDZ/collision checks, unreachable-tail rejection and
 source/local/stack budgets remain in force. This does not add general callable
 storage or dynamic property access. Corpus 144 preserves the four exact former
 var rejection sources as positives, with 799 source-bound rejections remaining.
+
+Synchronous helpers and arrows also retain their function-owned `var` cells when
+the module entry or an enclosing caller is async. Calls before and after awaits
+preserve hoisted Undefined, parameter aliases, redeclarations, iteration bindings
+and captured state. The nearest function owns the cell; `var` inside an actual
+async function or arrow remains guarded. Proven primitive helper results preserve
+their tags through the existing primitive Promise-result carrier; String and
+reference-valued Promise results retain their guards. Compiler guards and
+`async-suspension/module_primitive_results.rs` cover this composition, including
+native JS, Node-Wasm and Wasmtime values and settlement timing.
 
 
 Synchronous identifier `for (var item of source)` heads assign their function's
