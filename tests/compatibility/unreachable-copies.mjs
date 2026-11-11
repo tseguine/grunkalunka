@@ -1,6 +1,7 @@
 // The JavaScript oracle for a TypeScript source erases only its local type declarations.
 const cases = [
   ["gap-unreachable-after-return", "export function run(a,b) { return a; a=b; }"],
+  ["unreachable-bare-return", "export function run(a,b){return a;return;}"],
   ["do-after-guaranteed-branches", "export function run(a,b) { do { if(a<b) return a; else return b; } while(0); a=b; }"],
   ["break-after-direct", "export function run(a,b) { while(1) { break; a=b; } return a; }"],
   ["break-after-mixed", "export function run(a,b) { while(1) { if(a) break; else return b; a=b; } return a; }"],
@@ -28,6 +29,11 @@ const cases = [
   ["dead-store-finally-observes-original", "export function run(a,b){try{return a;a=b;}finally{return a;}}"],
   ["dead-store-break-observes-original", "export function run(a,b){let x=a;while(true){break;x=b;}return x;}"],
 ];
+export const unreachableBareReturnPromotion = {
+  id: 'unreachable-bare-return',
+  source: 'export function run(a,b){return a;return;}',
+  sha256: 'ac78e528be69edad7a95abd2f1202cc000cbf34e4ad6d739d8d12338e61d573a',
+};
 export const unreachableCopyPrograms = cases.map(([id, sourceJS, sourceTS = sourceJS]) => [
   id, '', '', undefined, undefined, { sourceJS, sourceTS },
 ]);

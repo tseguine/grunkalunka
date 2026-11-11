@@ -89,7 +89,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         dead_bindings: &mut std::collections::BTreeMap<SymbolId, bool>,
     ) -> Result<bool, String> {
         if let Statement::ReturnStatement(source) = statement {
-            return Ok(source.argument.as_ref().is_some_and(|value| {
+            return Ok(source.argument.as_ref().is_none_or(|value| {
                 self.dead_number_value_with_bindings(value, 0, dead_bindings)
             }));
         }

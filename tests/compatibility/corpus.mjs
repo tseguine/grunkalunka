@@ -189,7 +189,7 @@ import { unreachableCopyPrograms } from './unreachable-copies.mjs';
 import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
 import { unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 
-export const corpusVersion = 222;
+export const corpusVersion = 223;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
