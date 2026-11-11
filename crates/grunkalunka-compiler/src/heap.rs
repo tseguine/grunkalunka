@@ -45,8 +45,8 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
     {
         return Err("heap profile expects a plain synchronous function named run".into());
     }
-    if function.params.items.len() != 2 || function.params.rest.is_some() {
-        return Err("heap profile expects two ordinary numeric parameters".into());
+    if function.params.items.len() > 2 || function.params.rest.is_some() {
+        return Err("heap profile expects at most two ordinary numeric parameters".into());
     }
     for parameter in &function.params.items {
         if !matches!(parameter.pattern, BindingPattern::BindingIdentifier(_))
