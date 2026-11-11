@@ -434,6 +434,42 @@ fn logical_property_names_preserve_fallback_values_and_effects() {
 }
 
 #[test]
+fn string_literal_numeric_conversion_matches_native_number_and_loose_equality() {
+    for literal in [
+        "''",
+        "'\\t\\uFEFF\\u2029'",
+        "'-0'",
+        "'+.5e1'",
+        "'5e-324'",
+        "'Infinity'",
+        "'+Infinity'",
+        "'-Infinity'",
+        "'inf'",
+        "'infinity'",
+        "'0x100000000000008000001'",
+        "'0O20'",
+        "'0b101'",
+        "'0x+f'",
+        "'-0x1'",
+        "'0b2'",
+        "'0x'",
+        "'1_000'",
+        "'\\u0085'",
+        "'\\uD800'",
+        "`42`",
+    ] {
+        compare(&format!("return Number({literal});"));
+        compare(&format!("return {literal}==a?1:0;"));
+    }
+    compare("let n=0;return Number(...['4',n++])+n;");
+    compare("let n=0;const equal=(n++,a)=='4';return n*10+(equal?1:0);");
+    compare_typed(
+        "return '4'==a?1:0;",
+        "return ('4' as unknown as never)==(a as string)?1:0;",
+    );
+}
+
+#[test]
 fn number_calls_convert_scalar_values_and_evaluate_all_arguments() {
     for body in [
         "return 1/Number();",

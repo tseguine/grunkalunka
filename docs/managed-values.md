@@ -1749,6 +1749,12 @@ compound assignments, and `&&=`, `||=`, and `??=`. A property reference keeps
 its receiver and key across RHS effects and awaits. Logical RHS expressions run
 only when the saved value selects the assignment.
 
+The unshadowed `Number` function converts String literals and untagged template
+literals without substitutions. Loose equality with a source-proven Number
+uses the same conversion in either operand order. ECMAScript whitespace, signed
+zero, decimal exponents and unsigned radix prefixes use their numeric values.
+Malformed spellings produce NaN. Surplus call arguments still run in order.
+
 Calling the unshadowed `String` function applies the same primitive conversion.
 No arguments produce the empty String. Subsequent arguments still run in order
 and may suspend or throw. Fixed array-literal spreads follow ordinary call

@@ -226,6 +226,7 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
 fn exact_previous_relational_guards_execute_original_sources() {
     let cases = [
         ("export function run(a,b) {return a===\"4\"?1:0;}", 0.0),
+        ("export function run(a,b) {return a==\"4\"?1:0;}", 1.0),
         ("export function run(a,b) { return true<false?1:0; }", 0.0),
         (
             "export function run(a,b) {const value=null; return value<1?1:0;}",
@@ -268,10 +269,10 @@ fn exact_previous_relational_guards_execute_original_sources() {
     }
     node(
         &format!(
-            r#"const assert=require('node:assert/strict'); for(const c of [{}]){{const original=Function('"use strict";'+c.source.replace('export function','function')+';return run;')();assert.equal(original(4,2),c.expected);let n=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from(c.bytes))).exports.run(4,2);if(c.value){{assert.equal(n[0],3);n=n[1];}}assert.equal(n,c.expected);}}console.log('PASS 16 exact relational guard modules');"#,
+            r#"const assert=require('node:assert/strict'); const cases=[{}];for(const c of cases){{const original=Function('"use strict";'+c.source.replace('export function','function')+';return run;')();assert.equal(original(4,2),c.expected);let n=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from(c.bytes))).exports.run(4,2);if(c.value){{assert.equal(n[0],3);n=n[1];}}assert.equal(n,c.expected);}}console.log('PASS '+cases.length+' exact relational guard modules');"#,
             records.join(",")
         ),
-        "PASS 16 exact relational guard modules",
+        "PASS 20 exact relational guard modules",
     );
 }
 
@@ -282,7 +283,7 @@ fn relational_conversions_keep_unrepresented_kind_and_binding_guards() {
         "return 1n<=a?1:0;",
         "return ({})>a?1:0;",
         "return Symbol()>=a?1:0;",
-        "return a==\"4\"?1:0;",
+        "const s=b?\"4\":\"5\";return a==s?1:0;",
         "return (\"4\" as number)<a?1:0;",
         "return value<null?1:0;let value=null;",
         "const value=null;return (value=a)<a?1:0;",

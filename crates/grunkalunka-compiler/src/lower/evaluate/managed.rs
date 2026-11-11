@@ -1060,6 +1060,42 @@ impl Lowering<'_, '_> {
         }
         if matches!(mode, Mode::Predicate)
             && let Expression::BinaryExpression(binary) = node
+            && matches!(
+                binary.operator,
+                BinaryOperator::Equality | BinaryOperator::Inequality
+            )
+        {
+            for (text, number) in [(&binary.left, &binary.right), (&binary.right, &binary.left)] {
+                if self.stored.number(number.node_id())
+                    && let Some(value) = string_number::literal(text, depth + 1)
+                {
+                    // Constant conversion is pure. Evaluate the other operand exactly once.
+                    let constant = self.value(Type::Number);
+                    Self::push(
+                        regions.current(),
+                        text,
+                        Op::Constant {
+                            result: constant,
+                            value,
+                        },
+                    );
+                    let operator = if binary.operator == BinaryOperator::Equality {
+                        Compare::Equal
+                    } else {
+                        Compare::NotEqual
+                    };
+                    work.push(Work::Compare {
+                        node,
+                        left: constant,
+                        operator,
+                    });
+                    work.push(Work::Eval(number, depth + 1, Mode::Number));
+                    return Ok(true);
+                }
+            }
+        }
+        if matches!(mode, Mode::Predicate)
+            && let Expression::BinaryExpression(binary) = node
             && self.stored.string(binary.left.node_id())
             && self.stored.string(binary.right.node_id())
             && let Some(operator) = match binary.operator {
