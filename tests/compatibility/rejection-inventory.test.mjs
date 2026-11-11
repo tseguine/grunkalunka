@@ -368,7 +368,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 789);
+  assert.equal(inventory.records.size, 788);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -674,8 +674,15 @@ test('primitive loose equality retains nineteen exact original numeric promotion
 test('implicit let retains four original JS or TS promotion sources',()=>{
  assert.equal(implicitLetPromotions.length,4);
  for(const [id,extension,original,hash,sourceJS,sourceTS] of implicitLetPromotions){const sources=programSources(implicitLet.find(p=>p[0]===id));assert.deepEqual(sources,{sourceJS,sourceTS,oracleSource:sourceJS});assert.equal(sources[extension==='ts'?'sourceTS':'sourceJS'],original);assert.equal(createHash('sha256').update(original).digest('hex'),hash);assert.ok(!rejected.some(p=>p[0]===id));}
- const retained=rejected.find(p=>p[0]==='gap-uninitialized-let');assert.equal(retained[1],'export function run(a,b) { let x; x=a; return x; }');assert.equal(retained[3],'General bindings require a primitive value position');
- const value=valuePrograms.find(p=>p.id==='implicit-let-origin');assert.equal(value.numericOrigin,retained[0]);assert.equal(value.sourceJS,retained[1]);
+ const id = 'gap-uninitialized-let';
+ const promoted = programSources(programs.find(p => p[0] === id));
+ assert.equal(createHash('sha256').update(promoted.sourceJS).digest('hex'),
+   'd3d6244a1b7c62f6aca211c70f4e40c895b6756835b8bf156d7da8566dd19833');
+ assert.equal(promoted.oracleSource, promoted.sourceJS);
+ const value = valuePrograms.find(p => p.id === 'implicit-let-origin');
+ assert.equal(value.numericOrigin, id);
+ assert.equal(value.sourceJS, promoted.sourceJS);
+ assert.ok(!rejected.some(p => p[0] === id));
 });
 
 
@@ -1061,7 +1068,7 @@ test('conditional helper fallthrough keeps its exact numeric boundary source',()
 test('primitive numeric origins survive promotion without losing their exact source',()=>{
   const resolved=valuePrograms.map(fixture=>resolveNumericOrigin(fixture,rejected,programs)).filter(Boolean);
   const promoted=resolved.filter(origin=>origin.status==='supported');
-  assert.deepEqual(promoted.map(origin=>origin.id),['gap-nullish']);
+  assert.deepEqual(promoted.map(origin=>origin.id),['gap-nullish', 'gap-uninitialized-let']);
   assert.equal(promoted[0].sourceJS,'export function run(a,b) { return (a === 4 ? null : a) ?? b; }');
   assert.ok(resolved.some(origin=>origin.status==='rejected'));
 });

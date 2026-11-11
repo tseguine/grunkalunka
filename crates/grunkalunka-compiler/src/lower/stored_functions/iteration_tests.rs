@@ -185,6 +185,17 @@ fn iteration_keeps_replacements_and_ignores_nonindex_properties() {
 }
 
 #[test]
+fn calling_an_async_helper_does_not_expose_its_fulfillment_origin() {
+    for body in [
+        "const read=async()=> 'result'; const observed=read(); return a;",
+        "async function read(){return 'result';} const observed=read(); return a;",
+    ] {
+        assert_eq!(observe(body), UNKNOWN, "{body}");
+        assert_eq!(observe(&body.replace("async", "")), STRING, "{body}");
+    }
+}
+
+#[test]
 fn iteration_values_flow_through_helper_inputs_results_and_captures() {
     for source in [
         "function identity(value){return value;}export function run(a,b){for(const item of ['text']){const observed=identity(item);}return a;}",

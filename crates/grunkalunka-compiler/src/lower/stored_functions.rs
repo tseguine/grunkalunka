@@ -74,6 +74,7 @@ enum Definition {
     ForIn(SymbolId),
 }
 struct FunctionFlow {
+    is_async: bool,
     parameters: Vec<SymbolId>,
     defaults: Vec<Option<NodeId>>,
     returns: Vec<NodeId>,
@@ -535,7 +536,9 @@ impl Fields {
     pub(crate) fn collect(semantic: &Semantic<'_>, entry: SymbolId) -> Self {
         let uint32_keys = Uint32Keys::collect(semantic);
         let record_names = RecordNames::collect(semantic);
-        if !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
+        let mut initialized_reads = var_bindings::reads(semantic);
+        var_bindings::lexical_assignment_reads(semantic, &mut initialized_reads);
+        if initialized_reads.is_empty() && !has_omitted_arguments(semantic,entry) && !managed_calls::has_called_undefined_returns(semantic,entry) && !helper_defaults::present(semantic) && !var_bindings::present(semantic) && !semantic.nodes().iter().any(|node| {
             object_intrinsics::array_constructor_site(node.kind(),semantic) || matches!(
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) | AstKind::ForInStatement(_) | AstKind::ChainExpression(_)
@@ -559,8 +562,6 @@ impl Fields {
         let chain_tails = required_chain_receivers(semantic);
         let chain_receivers: BTreeSet<_> = chain_tails.values().copied().collect();
         let mut reached_containers = BTreeSet::new();
-        let mut initialized_reads = var_bindings::reads(semantic);
-        var_bindings::lexical_assignment_reads(semantic, &mut initialized_reads);
         for symbol in &var_symbols {
             if !var_parameters.contains(symbol) && !var_aliases.contains_key(symbol) {
                 bindings
@@ -1128,6 +1129,7 @@ impl Fields {
                     functions.insert(
                         Origin::Arrow(id),
                         FunctionFlow {
+                            is_async: arrow.r#async,
                             parameters: parameters(&arrow.params),
                             defaults: arrow
                                 .params
@@ -1170,6 +1172,7 @@ impl Fields {
                         functions.insert(
                             Origin::Named(name),
                             FunctionFlow {
+                                is_async: function.r#async,
                                 parameters: parameters(&function.params),
                                 defaults: function
                                     .params
@@ -1919,6 +1922,11 @@ impl Fields {
                                         incoming.extend(get(default));
                                     }
                                     symbol_additions.push((*symbol, incoming));
+                                }
+                                // An async call returns a Promise even when its body returns a Number.
+                                if function.is_async {
+                                    found.insert(Origin::Other);
+                                    continue;
                                 }
                                 for expression in &function.returns {
                                     found.extend(get(expression));

@@ -39,7 +39,6 @@ add('module-import', 'modules', '', 7, topLevel, { milestone: 'L3',
   source: 'import {inc} from "data:text/javascript,export function inc(x){return x+1}"; export function run(a,b) { return inc(a)+b; }',
   prerequisites: ['multiple top-level statements', 'function calls'] });
 
-add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'General bindings require a primitive value position');
 add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators are not admitted',
   { source: 'export function run(a=4,b=2) { return a+b; }', args: [] });
 add('rest', 'bindings', '', 6, ordinaryParameters,

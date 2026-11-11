@@ -1708,14 +1708,17 @@ capability, dependency or storage-planning change is introduced.
 
 Corpus 61 promotes four exact original sources (three JS, one TS) and adds sixteen
 pairs: 1700 pairs, 928 numeric rejections, 36 curated references. The 56 inventory
-groups classify 753 open, 144 resource and 31 invalid observations. The exact
-`gap-uninitialized-let` source remains rejected in the numeric profile: its diagnostic
-advances to the separate General-cell return restriction. Its original source now
-executes in the Value profile as a thirteenth numeric origin; it is not counted as
-numeric support. Value reporting reaches 59 pairs and 3304 result comparisons,
+groups classify 753 open, 144 resource and 31 invalid observations. In that revision,
+the curated bare-let assignment ran only in the Value profile. Value reporting
+reaches 59 pairs and 3304 result comparisons,
 with four selected rejected pairs, six control groups and two termination-only
 observations unchanged. Coverage includes 56 fixed-golden modules, 64 effect/order
 modules, shadowed `undefined`, loop reinitialization and a default-kind mutation.
+
+Corpus 199 executes the original `let x; x=a; return x;` in both profiles.
+The numeric path reads a General slot when source analysis proves the value
+at that read is a Number. A possible skipped assignment, undefined value,
+or nonnumeric alternative keeps the numeric result guarded.
 
 ## Primitive arithmetic compound assignments
 

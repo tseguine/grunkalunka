@@ -309,12 +309,32 @@ fn implicit_let_keeps_tdz_const_and_source_contracts() {
             .unwrap_or_else(|| panic!("previously rejected source now compiles: {source}"));
         assert!(!error.contains("internal IR"), "{source}: {error}");
     }
-    assert!(
-        compile("export function run(a,b) {let x; x=a; return x;}", false)
-            .err()
-            .unwrap()
-            .contains("General bindings require a primitive value position")
-    );
+}
+
+#[test]
+fn definitely_numeric_reads_preserve_the_original_general_cell_payload() {
+    for source in [
+        "export function run(a,b) {let x; x=a; return x;}",
+        "export function run(a,b) { let x; x=a; return x; }",
+        "export function run(a,b){let x;if(b)x=a;else x=-0;return x;}",
+        "export function run(a,b){let x;x=null;x=a;return x;}",
+    ] {
+        let artifact = compile(source, false).unwrap_or_else(|e| panic!("{source}: {e}"));
+        let mut instance = NumericInstance::new(&artifact.wasm).unwrap();
+        for input in [0.0, -0.0, -7.0, f64::INFINITY, f64::NAN] {
+            let actual = instance.run(input, 1.0).unwrap();
+            assert_eq!(number_bits(actual), number_bits(input), "{source}");
+        }
+    }
+    for body in [
+        "let x;if(b)x=a;return x;",
+        "let x;if(b)x=null;else x=a;return x;",
+        "let x;x=a;const clear=()=>x=null;clear();return x;",
+        "let x;x=null;return x;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(compile(&source, false).is_err(), "{source}");
+    }
 }
 
 #[test]

@@ -4302,17 +4302,31 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 let slot =
                                     numeric_binding(identifier, self.semantic, &self.bindings)?
                                         .slot;
-                                if self.slots[slot.0].ty != Type::Number {
-                                    return Err(unsupported(
-                                        node,
-                                        if self.slots[slot.0].ty == Type::General {
-                                            "General bindings require a primitive value position"
-                                        } else {
-                                            "Boolean bindings are not admitted in numeric value positions"
-                                        },
-                                    ));
+                                match self.slots[slot.0].ty {
+                                    Type::Number => Op::Load { result, slot },
+                                    Type::General if self.stored.number(node.node_id()) => {
+                                        let input = self.value(Type::General);
+                                        Self::push(
+                                            regions.current(),
+                                            node,
+                                            Op::Load {
+                                                result: input,
+                                                slot,
+                                            },
+                                        );
+                                        Op::NumberFromGeneral { result, input }
+                                    }
+                                    ty => {
+                                        return Err(unsupported(
+                                            node,
+                                            if ty == Type::General {
+                                                "General bindings require a primitive value position"
+                                            } else {
+                                                "Boolean bindings are not admitted in numeric value positions"
+                                            },
+                                        ));
+                                    }
                                 }
-                                Op::Load { result, slot }
                             };
                             Self::push(regions.current(), node, kind);
                             values.push(Value::Number(result));
