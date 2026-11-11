@@ -798,8 +798,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   unary/binary numeric operations. Plain assignments of such a value to a mutable
   Number binding are also checked and discarded. Calls, updates, predicates,
   unresolved reads and other executable tails retain their own diagnostic. A
-  single unreachable `const` Number binding may feed later validated Number
-  expressions in the same suffix; it still consumes the source-local budget.
+  unreachable `const` or initialized `let` Number declaration list may feed
+  later validated Number expressions in the same suffix. Sequential declarators
+  see earlier bindings, and writes require `let`; every binding still consumes
+  the source-local budget.
 - Standalone module literals (including untagged templates without
   substitutions) and `void` of such literals may surround the entry. Each
   expression statement counts against the statement budget. Parentheses,

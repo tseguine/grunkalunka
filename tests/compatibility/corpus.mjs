@@ -187,8 +187,9 @@ import { literalPowers } from './numeric-powers.mjs';
 
 import { unreachableCopyPrograms } from './unreachable-copies.mjs';
 import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
+import { unreachableDeclarationPrograms } from './unreachable-declaration-lists.mjs';
 
-export const corpusVersion = 218;
+export const corpusVersion = 219;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -313,6 +314,7 @@ programs.push(...literalNumericPrograms);
 programs.push(...localExportEntries);
 programs.push(...unreachableCopyPrograms);
 programs.push(...unreachableNumberPrograms);
+programs.push(...unreachableDeclarationPrograms);
 programs.push(...literalPowers);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
