@@ -63,6 +63,7 @@ import { varForOfPromotion, varForOfPrograms } from './var-for-of.mjs';
 import { varPrograms, varPromotions } from './var-bindings.mjs';
 import { resolveNumericOrigin, primitiveProfileCounts } from './numeric-origins.mjs';
 import { optionalParameterPrograms, optionalParameterPromotions } from './optional-parameters.mjs';
+import { thisParameterPrograms, thisParameterPromotions } from './this-parameters.mjs';
 import { managedTypeof, promotedTypeof, promotedUnresolvableTypeof } from './managed-typeof.mjs';
 import { deletePrograms, promotedDeleteGap } from './delete.mjs';
 import { returningSwitch, promotedSwitchGap, promotedSwitchBreak } from './returning-switch.mjs';
@@ -397,7 +398,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 731);
+  assert.equal(inventory.records.size, 728);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -1243,6 +1244,19 @@ test('optional parameters preserve all exact original typed sources and hashes',
     assert.equal(sources.oracleSource,promotion.sourceJS);
     assert.ok(!rejected.some(row=>row[0]===promotion.id));
     assert.ok(!catalog.records.some(row=>row.id===promotion.id));
+  }
+});
+
+test('this parameters preserve all three exact original typed sources and hashes', () => {
+  for (const promotion of thisParameterPromotions) {
+    const sources = programSources(thisParameterPrograms.find(row => row[0] === promotion.id));
+    assert.equal(sources.sourceTS, promotion.sourceTS);
+    assert.equal(createHash('sha256').update(sources.sourceTS).digest('hex'), promotion.sourceSha256);
+    assert.equal(sources.sourceJS, promotion.sourceJS);
+    assert.equal(sources.oracleSource, promotion.sourceJS);
+    assert.ok(programs.some(row => row[0] === promotion.id));
+    assert.ok(!rejected.some(row => row[0] === promotion.id));
+    assert.ok(!catalog.records.some(row => row.id === promotion.id));
   }
 });
 

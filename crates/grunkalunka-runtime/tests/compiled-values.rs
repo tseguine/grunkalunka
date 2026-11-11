@@ -5,6 +5,14 @@ use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 mod module_helpers;
 
 #[test]
+fn this_parameter_metadata_preserves_primitive_helper_results() {
+    compare_primitive_sources(vec![(
+        "function f(x){return x?null:undefined;}export function run(a,b){return f(a);}".into(),
+        "function f(this:Missing,x){return x?null:undefined;}export function run(this:void,a,b){return f(a);}".into(),
+    )]);
+}
+
+#[test]
 fn reduced_entry_arities_preserve_the_two_number_host_abi() {
     for source in [
         "export function run(){return 4;}",

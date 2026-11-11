@@ -644,7 +644,7 @@
     {
       "id": "parameters",
       "kind": "open-requirement",
-      "assessment": "TypeScript optional parameter markers erase for supported entry functions, helpers and arrows without changing formal count, function length or argument evaluation. Missing-argument calls retain their profile guards. Defaults, rest, destructuring and this parameters remain separate requirements.",
+      "assessment": "TypeScript optional parameter markers erase for supported entry functions, helpers and arrows. TypeScript this parameters on admitted declarations erase without consuming an ordinary argument or changing function length. Missing-argument calls and defaults retain their profile contracts; rest, destructuring and runtime this values remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
@@ -3724,13 +3724,6 @@
       "group": "return-policy"
     },
     {
-      "id": "this-param",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "19e40023e81d66de28b6066c46a0bb78ee91c241543adb2f540075dca0b529cc",
-      "group": "parameters"
-    },
-    {
       "id": "declare",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -4176,13 +4169,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "dddd6e406234cae3647829550500ad30f0d4167426437db37446e2caaf59b20d",
-      "group": "parameters"
-    },
-    {
-      "id": "direct-call-helper-this",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ec44d4f02357682c491b61972ed3715b7928271a0b04af267a8f3d3bb063c5a4",
       "group": "parameters"
     },
     {
@@ -6053,13 +6039,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "9b9ec95ba938e9859aa90c305e64c691d2c5cdacb5d5086c16a7c7f6a69c5e1c",
       "group": "typescript-runtime-forms"
-    },
-    {
-      "id": "generic-declaration-reject-this",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "99f332ee3c5179238953c007de6e249319cd593a489216e6891f6be61556ef68",
-      "group": "parameters"
     },
     {
       "id": "generic-declaration-reject-default",

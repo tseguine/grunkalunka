@@ -53,7 +53,6 @@ for(const [id,source,diagnostic,group] of [
  ['async','export async function run<T>(a:T,b:T):T { return a; }','plain, synchronous function','async-functions'],
  ['generator','export function* run<T>(a:T,b:T):T { return a; }','plain, synchronous function','generators'],
  ['declare','export declare function run<T>(a:T,b:T):T;','plain, synchronous function','typescript-runtime-forms'],
- ['this','export function run<T>(this:T,a:T,b:T):T { return a; }','plain, synchronous function','parameters'],
  ['default','export function run<T>(a:T,b:T=1):T { return a; }','default','parameters'],
  ['rest','export function run<T>(a:T,...b:T[]):T { return a; }','at most two ordinary','parameters'],
  ['type-value','export function run<T>(a:T,b:T):T { return T; }','reference is not an initialized','binding-errors'],

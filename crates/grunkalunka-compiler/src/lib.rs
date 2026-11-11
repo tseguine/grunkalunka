@@ -35,6 +35,8 @@ mod prototype_keys;
 #[cfg(test)]
 mod source_cursor_tests;
 #[cfg(test)]
+mod this_parameter_tests;
+#[cfg(test)]
 mod var_binding_tests;
 #[cfg(test)]
 mod void_helper_tests;
@@ -276,7 +278,6 @@ fn lower_source_profile_with_identities(
             || (index != 0 && function.r#async && !async_entry)
             || function.generator
             || function.declare
-            || function.this_param.is_some()
         {
             return Err(unsupported(
                 *function,
@@ -291,6 +292,8 @@ fn lower_source_profile_with_identities(
                 },
             ));
         }
+        // Oxc stores TypeScript's erased this parameter separately; only
+        // ordinary parameters contribute to the runtime signature and arity.
         let entry_arity_is_valid = index != 0 || function.params.items.len() <= 2;
         if function.params.kind != FormalParameterKind::FormalParameter
             || !entry_arity_is_valid
@@ -2188,6 +2191,10 @@ mod generic_declaration_tests {
             "export function run<T>(a:T):T { return a; }",
             "export function run(a) { return a; }",
         );
+        erased(
+            "export function run<T>(this:T,a:T,b:T):T { return a; }",
+            "export function run(a,b) { return a; }",
+        );
         for (source, expected) in [
             (
                 "export async function run<T>(a:T,b:T):T { return a; }",
@@ -2199,10 +2206,6 @@ mod generic_declaration_tests {
             ),
             (
                 "export declare function run<T>(a:T,b:T):T;",
-                "plain, synchronous function",
-            ),
-            (
-                "export function run<T>(this:T,a:T,b:T):T { return a; }",
                 "plain, synchronous function",
             ),
             (

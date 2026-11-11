@@ -6,7 +6,10 @@ function takes two Numbers and returns tag 4 plus an instance-local root ID.
 Its caller copies raw UTF16 units and releases that root.
 
 This is a provisional spike profile. It parses one exported synchronous,
-non-generator function named `run` with two ordinary parameters and one return.
+non-generator function named `run` with at most two ordinary parameters and one return.
+TypeScript `this` parameter metadata erases without consuming an ordinary
+parameter or changing the two-Number host ABI. Actual `this` expressions and
+ordinary parameter defaults, rest and destructuring remain unsupported.
 An expression starts with a String literal and may apply single-argument
 `JSON.parse` and `JSON.stringify` calls, including nested calls. Only an unresolved
 global `JSON` with direct `.parse`/`.stringify` access is admitted; parameter
