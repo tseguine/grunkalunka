@@ -30,7 +30,6 @@ numericDoPrograms.push(['do-typescript-test',
 const expression = 'expression is outside the numeric experiment';
 const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
-const afterReturn = 'statements after a guaranteed return are not admitted';
 const negatives = [
   ['do-unsupported-test-after-return', 'do { return a; } while(Math.random());', expression],
   ['do-unsupported-body', 'do { a=Math.random(); } while(0); return a;', expression],
@@ -39,7 +38,6 @@ const negatives = [
   ['do-self-initializer', 'do { const x=x; } while(0); return a;', reference],
   ['do-const-body-write', 'const x=a; do { x=b; } while(0); return a;', 'assignment to a const binding is not admitted'],
   ['do-const-test-write', 'const x=a; do {} while(x=b); return a;', 'assignment to a const binding is not admitted'],
-  ['do-after-guaranteed-return', 'do { return a; } while(0); return b;', afterReturn],
   ['do-missing-return', 'do { a=b; } while(0);', 'every structural path must return a numeric value'],
   ['do-statement-limit', `do { ${'a=b;'.repeat(254)} } while(0); return a;`, 'at most 256 statements'],
   ['do-local-limit', `do { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} } while(0); return a;`, 'at most 128 source locals'],

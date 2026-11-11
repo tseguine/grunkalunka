@@ -793,9 +793,11 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Discarded literal expressions, empty statements, `debugger;` and erased
   type declarations may follow an
   unconditional return, throw, break or continue. They still count toward
-  source limits. An unreachable plain assignment between initialized Number
-  bindings, or from a numeric literal to a mutable Number binding, is checked
-  and discarded. Other executable tails retain their own diagnostic.
+  source limits. Unreachable pure Number expressions and returns are validated
+  without emission; this includes numeric literals, initialized Number reads and
+  unary/binary numeric operations. Plain assignments of such a value to a mutable
+  Number binding are also checked and discarded. Calls, updates, predicates,
+  unresolved reads and other executable tails retain their own diagnostic.
 - Standalone module literals (including untagged templates without
   substitutions) and `void` of such literals may surround the entry. Each
   expression statement counts against the statement budget. Parentheses,
