@@ -94,10 +94,11 @@ fn inert_module_statements<'n, 'a>(statement: &'n Statement<'a>) -> Option<Vec<&
         {
             continue;
         }
-        let Statement::BlockStatement(block) = statement else {
-            return None;
-        };
-        pending.extend(block.body.iter().rev());
+        match statement {
+            Statement::BlockStatement(block) => pending.extend(block.body.iter().rev()),
+            Statement::LabeledStatement(label) => pending.push(&label.body),
+            _ => return None,
+        }
     }
     Some(statements)
 }
@@ -1793,6 +1794,10 @@ mod type_only_module_tests {
         for (source, plain) in [
             ("{}export function run(a,b) { return a; }", entry),
             (
+                "outer:{inner:debugger;}export function run(a,b) { return a; }",
+                entry,
+            ),
+            (
                 "{;debugger;0;false;null;'text';`template`;void 0;{1n;}}export function run(a,b) { return a; }",
                 entry,
             ),
@@ -1811,6 +1816,9 @@ mod type_only_module_tests {
         }
         for source in [
             "{missing;}export function run(a,b){return a;}",
+            "outer:{break outer;}export function run(a,b){return a;}",
+            "outer:{inner:missing;}export function run(a,b){return a;}",
+            "outer:outer:;export function run(a,b){return a;}",
             "{void missing;}export function run(a,b){return a;}",
             "{function hidden(){return 1;}}export function run(a,b){return a;}",
             "{let hidden=1;}export function run(a,b){return a;}",
@@ -1819,6 +1827,14 @@ mod type_only_module_tests {
         }
         let boundary = format!("{{{}}}{entry}", ";".repeat(254));
         compile(&boundary, false).unwrap();
+        let labeled = format!("label:{{{}}}{entry}", ";".repeat(253));
+        compile(&labeled, false).unwrap();
+        assert!(
+            compile(&labeled.replacen("}", ";}", 1), false)
+                .err()
+                .unwrap()
+                .contains("at most 256 statements")
+        );
         let over = boundary.replacen("}", ";}", 1);
         assert!(
             compile(&over, false)
