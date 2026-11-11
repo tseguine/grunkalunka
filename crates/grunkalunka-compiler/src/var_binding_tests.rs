@@ -15,6 +15,7 @@ fn var_identifiers_are_hoisted_and_redeclarations_write_existing_cells() {
         "var x='abc';return x.length;",
         "var x={a:a};return x.a;",
         "var x=[a,b];return x[0];",
+        "return x;var x=3;",
         "const f=()=>x;var x=3;return f();",
         "const f=()=>{var x=3;return x;};return f();",
         "const f=()=>{const saved=x;var x=3;return saved;};return f();",
@@ -69,9 +70,8 @@ fn var_number_proofs_follow_initialization_and_account_for_all_writes() {
 }
 
 #[test]
-fn var_keeps_unreachable_iteration_async_callable_and_lexical_guards() {
+fn var_keeps_iteration_async_callable_and_lexical_guards() {
     for body in [
-        "return x;var x=3;",
         "var f=x=>x;return f(a);",
         "try{throw a;}catch(e){var e=3;}return 0;",
         "var x=1;let x=2;return x;",

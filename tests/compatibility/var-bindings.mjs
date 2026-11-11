@@ -4,8 +4,11 @@ export const varPromotions = [
   ['gap-var-hoisting', 'export function run(a,b) { const before = x === undefined ? 1 : 0; var x=a; return before; }', 'ac1fe3ad1d6d4dd5c28604560eafd117cadd8dd3c17430ca0f1c9172cb23abae'],
   ['for-var', 'export function run(a,b) { for(var i=0;0;i++) {} return a; }', 'a6620ba9393f1dca83875cf50d0b77505c345a480fe4e010dd3b39cb0580918f'],
   ['var-local', 'export function run(a,b) { var x=a; return x; }', 'be922e9aeb7a9bad2063d8daef59581ace5be470049563dc3a74db5cd3efffa3'],
+  ['var-unreachable-hoisting', 'export function run(a,b){return x;var x=3;}', '32dfb7a4d7a9c9994371a96efc09eeb9eb8c85ffbd50c5bf5f0acbfa9726c0ee'],
+  ['var-unreachable-initializer', 'export function run(a,b){return a;var x=b;return x;}', '823990be04ccf6f5e8891aa47d40357c0e18d0b5e008cf7c9d8cabd097aca5a7'],
 ];
-export const varPrograms = varPromotions.map(([id,source])=>[id,'','',undefined,undefined,{sourceJS:source,sourceTS:source}]);
+export const varValuePromotion = varPromotions.find(([id])=>id==='var-unreachable-hoisting');
+export const varPrograms = varPromotions.filter(row=>row!==varValuePromotion).map(([id,source])=>[id,'','',undefined,undefined,{sourceJS:source,sourceTS:source}]);
 for (const [id,body] of [
   ['undefined','var x;return +x;'],
   ['before-read','const before=x===undefined?1:0;var x=a;return before;'],
