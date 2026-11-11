@@ -1,6 +1,21 @@
 use grunkalunka_compiler::compile_heap_value;
 
 #[test]
+fn empty_module_items_preserve_the_heap_entry() {
+    let entry = "export function run(a,b){return 'value';}";
+    for ts in [false, true] {
+        let expected = compile_heap_value(entry, ts).unwrap().wasm;
+        assert_eq!(
+            compile_heap_value(&format!(";export {{}};{entry};"), ts)
+                .unwrap()
+                .wasm,
+            expected
+        );
+        assert!(compile_heap_value(&format!("export {{}} from 'other';{entry}"), ts).is_err());
+    }
+}
+
+#[test]
 fn heap_json_call_type_arguments_are_erased_metadata() {
     let plain = "export function run(a,b){return JSON.stringify(\"x\");}";
     let typed = "export function run(a:number,b:number){return JSON.stringify<number>(\"x\");}";

@@ -28,5 +28,11 @@ const negatives = [
 ];
 export const emptyStatementRejected = negatives.map(([id, body, diagnostic]) => [id,
   `export function run(a,b) { ${body} }`, 'js', diagnostic]);
-emptyStatementRejected.push(['empty-module-prefix', '; export function run(a,b) { return a; }', 'js',
-  'exactly one exported function is admitted']);
+
+for (const [id, source] of [
+  ['empty-module-prefix', '; export function run(a,b) { return a; }'],
+  ['type-only-module-reject-export-empty', 'export {};export function run(a,b) { return a; }'],
+  ['module-empty-between-helpers', ';;function f(x){return x+1;};export {};export function run(a,b){return f(a)+b;};'],
+]) {
+  emptyStatementPrograms.push([id, '', '', undefined, undefined, { sourceJS: source, sourceTS: source }]);
+}

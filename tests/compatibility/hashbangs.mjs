@@ -5,6 +5,7 @@ function add(id, prefix, body = 'return a+b;', modulePrefix = '', functionPrefix
   const sourceTS = `${prefix}${modulePrefix}export function run(a:number,b:number):number { ${functionPrefix}${body} }`;
   hashbangPrograms.push([id, body, body, undefined, undefined, { sourceJS, sourceTS }]);
 }
+add('hashbang-module-empty-prefix', '#!node\n', 'return a;', ';');
 add('hashbang-promoted-reference', '#!/usr/bin/env node\n');
 add('hashbang-promoted-ordinary', '#!/usr/bin/env node\n', 'return a;');
 add('hashbang-promoted-directive', '#!/usr/bin/env node\n', 'return a;', '"hint";');
@@ -48,7 +49,6 @@ export const hashbangRejected = [
   ['hashbang-comment-only', '#!node', 'js', top],
   ['hashbang-swallowed-export', `#!${source}`, 'js', top],
   ['hashbang-extra-export', `#!node\n${source}export const x=1;`, 'js', top],
-  ['hashbang-module-empty-prefix', `#!node\n;${source}`, 'js', top],
   ['hashbang-wrong-entry', '#!node\nexport function other(a,b) { return a; }', 'js', 'expected a plain'],
   ['hashbang-unsupported-body', '#!node\nexport function run(a,b) { if(false) Math.random(); return a; }', 'js',
     'expression is outside the numeric experiment'],

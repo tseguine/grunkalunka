@@ -26,7 +26,12 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
     if !built.diagnostics.is_empty() {
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
-    let [Statement::ExportDeclaration(export)] = parsed.program.body.as_slice() else {
+    let mut items = parsed
+        .program
+        .body
+        .iter()
+        .filter(|item| !crate::is_empty_module_item(item));
+    let (Some(Statement::ExportDeclaration(export)), None) = (items.next(), items.next()) else {
         return Err("heap spike expects one exported function".into());
     };
     let Declaration::FunctionDeclaration(function) = &export.declaration else {

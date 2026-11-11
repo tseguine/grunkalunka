@@ -70,7 +70,7 @@ for (const [id, prefix] of [
   ['import-namespace', 'import * as Types from "missing";'], ['import-side-effect', 'import "missing";'],
   ['import-empty', 'import {} from "missing";'], ['import-inline', 'import { type T } from "missing";'],
   ['import-mixed', 'import { type T, value } from "missing";'],
-  ['export-empty', 'export {};'], ['export-inline', 'type T=number;export { type T };'],
+  ['export-inline', 'type T=number;export { type T };'],
   ['export-from', 'export { T } from "missing";'], ['export-from-inline', 'export { type T } from "missing";'],
   ['export-all', 'export * from "missing";'], ['export-namespace', 'export * as Types from "missing";'],
   ['import-equals', 'import T = require("missing");'], ['import-type-equals', 'import type T = require("missing");'],

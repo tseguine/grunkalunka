@@ -778,6 +778,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Parser and semantic diagnostics remain authoritative. Parenthesized, wrapped,
   nested-block and later string statements remain outside numeric admission.
   The admission follows [Directive Prologues and strict module code](https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-directive-prologues-and-the-use-strict-directive).
+- Module-level empty statements and local empty exports (`export {};`) may
+  surround the entry and helpers. Each counts once in the shared statement
+  budget. An empty re-export with a module source still requests that module.
 - An initial Oxc-recognized hashbang is an ordinary discarded comment. The
   original source is parsed once: no BOM stripping, trimming or hashbang removal
   occurs. A BOM, whitespace or another comment before `#!` remains a syntax error;

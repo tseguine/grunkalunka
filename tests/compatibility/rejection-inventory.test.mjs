@@ -369,9 +369,22 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 765);
+  assert.equal(inventory.records.size, 762);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('empty module items execute all three original sources', () => {
+  for (const [id, hash] of [
+    ['empty-module-prefix', 'b871d731219e85876d3bda66c7577f2ea52b8d6c994c8863d259efad3cb86b1e'],
+    ['hashbang-module-empty-prefix', '405b2e2891c45070ae9ae2982ac33e213f771d3e0c513c54b43a5b02dc443bfd'],
+    ['type-only-module-reject-export-empty', '660fd86cdf972688c11e035dce05d4cee6790fbad268b77662284546615c5ab6'],
+  ]) {
+    const source = programSources(programs.find(row => row[0] === id));
+    const original = id === 'type-only-module-reject-export-empty' ? source.sourceTS : source.sourceJS;
+    assert.equal(createHash('sha256').update(original).digest('hex'), hash);
+    assert.equal(source.oracleSource, original);
+  }
 });
 
 test('terminal loops execute their original rejected source', () => {
