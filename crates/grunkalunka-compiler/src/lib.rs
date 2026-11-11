@@ -3,6 +3,8 @@
 #[cfg(test)]
 mod bare_return_tests;
 #[cfg(test)]
+mod boxed_async_result_tests;
+#[cfg(test)]
 mod conditional_helper_tests;
 #[cfg(test)]
 mod control_helper_tests;

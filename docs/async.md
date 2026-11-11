@@ -35,6 +35,17 @@ activation, so owned children can continue after root settlement. See
 settlements, managed await operands, public reference exports or a shared heap
 across separately instantiated host invocations.
 
+Async returns can project a boxed value whose complete source-origin set contains
+only Undefined, Null, Boolean and Number. This includes proven scalar object/array
+fields and synchronous helper or factory-closure results. The projection preserves
+the primitive tag, signed zero and NaN; it adds no conversion, Promise adoption or
+reaction job. Saved primitive snapshots retain their values across later mutations
+and suspension. Mixed completion positions apply the existing primitive lift, so
+finally cleanup still precedes return resolution and can replace a saved return.
+String, object, array and uncertain mixed origins retain the managed-settlement
+guard, including when selected beside a Promise. TypeScript annotations cannot
+establish the primitive proof.
+
 The root async function fulfills intrinsic `undefined` for a bare `return;` or
 normal completion, including after awaits, loop exits and catches. Partial
 return/throw paths keep their original values and rejection reasons. Falling off
