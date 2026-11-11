@@ -79,12 +79,31 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
 }
 
 // Oxc represents re-exports from another module with a distinct AST kind.
+// Walk blocks explicitly so deeply nested inert source does not consume the
+// compiler's native stack. The returned nodes retain the normal source budget.
+fn inert_module_statements<'n, 'a>(statement: &'n Statement<'a>) -> Option<Vec<&'n Statement<'a>>> {
+    let mut pending = vec![statement];
+    let mut statements = Vec::new();
+    while let Some(statement) = pending.pop() {
+        statements.push(statement);
+        if matches!(
+            statement,
+            Statement::EmptyStatement(_) | Statement::DebuggerStatement(_)
+        ) || lower::discarded_literal_statement(statement)
+            || matches!(statement, Statement::ExportNamedDeclaration(export) if export.specifiers.is_empty())
+        {
+            continue;
+        }
+        let Statement::BlockStatement(block) = statement else {
+            return None;
+        };
+        pending.extend(block.body.iter().rev());
+    }
+    Some(statements)
+}
+
 fn is_inert_module_item(statement: &Statement<'_>) -> bool {
-    matches!(
-        statement,
-        Statement::EmptyStatement(_) | Statement::DebuggerStatement(_)
-    ) || lower::discarded_literal_statement(statement)
-        || matches!(statement, Statement::ExportNamedDeclaration(export) if export.specifiers.is_empty())
+    inert_module_statements(statement).is_some()
 }
 
 fn is_type_module_item(statement: &Statement<'_>) -> bool {
@@ -558,7 +577,13 @@ fn lower_source_profile_with_identities(
             for statement in program.body.iter().filter(|statement| {
                 skipped_item(statement) || matches!(statement, Statement::ExportNamedDeclaration(_))
             }) {
-                lowering.charge_statement(statement)?;
+                if let Some(statements) = inert_module_statements(statement) {
+                    for statement in statements {
+                        lowering.charge_statement(statement)?;
+                    }
+                } else {
+                    lowering.charge_statement(statement)?;
+                }
             }
         } else {
             lowering.charge_statement(*function)?;
@@ -1760,6 +1785,47 @@ mod type_only_module_tests {
                 assert!(compile(item, ts).is_err());
             }
         }
+    }
+
+    #[test]
+    fn inert_module_blocks_preserve_artifacts_and_statement_budgets() {
+        let entry = "export function run(a,b) { return a; }";
+        for (source, plain) in [
+            ("{}export function run(a,b) { return a; }", entry),
+            (
+                "{;debugger;0;false;null;'text';`template`;void 0;{1n;}}export function run(a,b) { return a; }",
+                entry,
+            ),
+            (
+                "{;}function helper(x){return x+1;}{debugger;}export function run(a,b){return helper(a)+b;}{void 0;}",
+                "function helper(x){return x+1;}export function run(a,b){return helper(a)+b;}",
+            ),
+        ] {
+            for ts in [false, true] {
+                assert_eq!(
+                    compile(source, ts).unwrap().wasm,
+                    compile(plain, ts).unwrap().wasm,
+                    "{source}"
+                );
+            }
+        }
+        for source in [
+            "{missing;}export function run(a,b){return a;}",
+            "{void missing;}export function run(a,b){return a;}",
+            "{function hidden(){return 1;}}export function run(a,b){return a;}",
+            "{let hidden=1;}export function run(a,b){return a;}",
+        ] {
+            assert!(compile(source, false).is_err(), "{source}");
+        }
+        let boundary = format!("{{{}}}{entry}", ";".repeat(254));
+        compile(&boundary, false).unwrap();
+        let over = boundary.replacen("}", ";}", 1);
+        assert!(
+            compile(&over, false)
+                .err()
+                .unwrap()
+                .contains("at most 256 statements")
+        );
     }
 
     #[test]

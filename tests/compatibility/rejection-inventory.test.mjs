@@ -45,6 +45,7 @@ import { uint32ObjectKeyPrograms } from './uint32-object-keys.mjs';
 import { uint32InKeyPrograms } from './uint32-in-keys.mjs';
 import { uint32DeleteKeyPrograms } from './uint32-delete-keys.mjs';
 import { debuggerStatementPrograms } from './debugger-statements.mjs';
+import { inertModuleBlockPrograms } from './inert-module-blocks.mjs';
 import { mixedLiteralArraySpreadOriginal, mixedLiteralArraySpreadPrograms } from './mixed-literal-array-spreads.mjs';
 import { literalCallSpreadOriginals, literalCallSpreadPrograms } from './literal-call-spreads.mjs';
 import { unaryDefaultOriginal, unaryDefaultPrograms } from './unary-parameter-defaults.mjs';
@@ -1521,6 +1522,16 @@ test('debugger statement corpus executes unchanged complete source programs',()=
  for(const row of debuggerStatementPrograms) {
   const pair=programSources(row);
   assert.ok(pair.sourceJS.includes('debugger;'));
+  assert.equal(pair.sourceJS,pair.sourceTS);
+  assert.equal(pair.sourceJS,pair.oracleSource);
+  assert.ok(programs.some(program=>program[0]===row[0]));
+ }
+});
+
+test('inert module block corpus executes unchanged complete source programs',()=>{
+ assert.equal(inertModuleBlockPrograms.length,3);
+ for(const row of inertModuleBlockPrograms) {
+  const pair=programSources(row);
   assert.equal(pair.sourceJS,pair.sourceTS);
   assert.equal(pair.sourceJS,pair.oracleSource);
   assert.ok(programs.some(program=>program[0]===row[0]));
