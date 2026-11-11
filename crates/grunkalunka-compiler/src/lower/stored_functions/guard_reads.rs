@@ -172,7 +172,7 @@ fn visit_guards(
     }
 }
 
-fn exits(mut statement: &Statement<'_>) -> bool {
+fn skips_following_statements(mut statement: &Statement<'_>) -> bool {
     while let Statement::BlockStatement(block) = statement {
         let Some(last) = block.body.last() else {
             return false;
@@ -181,7 +181,10 @@ fn exits(mut statement: &Statement<'_>) -> bool {
     }
     matches!(
         statement,
-        Statement::ReturnStatement(_) | Statement::ThrowStatement(_)
+        Statement::ReturnStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::BreakStatement(_)
+            | Statement::ContinueStatement(_)
     )
 }
 
@@ -241,6 +244,8 @@ pub(super) fn collect(
             let end = match nodes.parent_kind(node.id()) {
                 AstKind::BlockStatement(b) => Some(b.span.end),
                 AstKind::FunctionBody(b) => Some(b.span.end),
+                // A later case can be entered directly, bypassing this test.
+                AstKind::SwitchCase(c) => Some(c.span.end),
                 _ => None,
             };
             if let Some(end) = end {
@@ -248,9 +253,9 @@ pub(super) fn collect(
                 truthy_suffix = choice
                     .alternate
                     .as_ref()
-                    .is_some_and(exits)
+                    .is_some_and(skips_following_statements)
                     .then_some(suffix);
-                falsy_suffix = exits(&choice.consequent).then_some(suffix);
+                falsy_suffix = skips_following_statements(&choice.consequent).then_some(suffix);
             }
         }
         for (outcome, arm, suffix) in [
