@@ -61,6 +61,7 @@ fn synchronous_catches_return_unchanged_reasons_through_the_primitive_profile() 
 fn synchronous_throw_evaluates_its_operand_once_and_preserves_effect_order() {
     for body in [
         "let n=0;try{n=1;if(b)throw(n=n*10+2,a?null:b);n=99;}catch(e){n=n*10+3;return n+(e===null?1000:2000);}return n;",
+        "let n=0;try{n=1;throw(n=n*10+2,a?null:b);n=99;}catch(e){n=n*10+3;return n+(e===null?1000:2000);}",
         "let calls=0;const choose=()=>{calls++;return a;};try{throw choose();}catch(e){return calls*10+(e===a?1:e!==e&&a!==a?2:3);}",
         "let n=0;try{throw(n=1,n=n*10+2,b=n*10+3,a);}catch{n=n*10+4;}return n*1000+b;",
         "let n=0;try{n=1;}catch(e){n=99;}return n;",
@@ -172,7 +173,6 @@ fn synchronous_catches_keep_uncaught_cross_function_and_reason_boundaries() {
         "const fail=()=>{if(a)throw b;return 0;};try{return fail();}catch(e){return +e;}",
         "try{const fail=()=>{if(a)throw b;return 0;};return fail();}catch(e){return +e;}",
         "try{const fail=()=>{try{throw a;}catch(e){if(a)throw e;return 0;}};return fail();}catch(e){return +e;}",
-        "let n=0;try{n=1;throw(n=n*10+2,a?null:b);n=99;}catch(e){n=n*10+3;return n+(e===null?1000:2000);}",
         "try{throw null;}catch({value}){return 0;}",
         "try{throw a;}catch([value]){return 0;}",
         "outer:try{throw a;}catch(e){break outer;}return b;",
