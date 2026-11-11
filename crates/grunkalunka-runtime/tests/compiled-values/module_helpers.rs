@@ -173,6 +173,7 @@ fn uint32_delete_keys_return_boolean_completions() {
 #[test]
 fn debugger_statements_preserve_primitive_and_helper_completions() {
     compare_helpers(&[
+        "debugger;export function run(a,b){return a;}",
         "export function run(a,b){debugger;return a;}",
         "export function run(a,b){if(a){debugger;}else{debugger;}return null;}",
         "function f(){debugger;}export function run(a,b){return f();}",

@@ -80,8 +80,10 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
 
 // Oxc represents re-exports from another module with a distinct AST kind.
 fn is_inert_module_item(statement: &Statement<'_>) -> bool {
-    matches!(statement, Statement::EmptyStatement(_))
-        || lower::discarded_literal_statement(statement)
+    matches!(
+        statement,
+        Statement::EmptyStatement(_) | Statement::DebuggerStatement(_)
+    ) || lower::discarded_literal_statement(statement)
         || matches!(statement, Statement::ExportNamedDeclaration(export) if export.specifiers.is_empty())
 }
 
@@ -1741,7 +1743,7 @@ mod type_only_module_tests {
     #[test]
     fn empty_module_items_share_the_statement_budget() {
         let entry = "export function run(a,b) { return a; }";
-        for item in [";", "export {};"] {
+        for item in [";", "debugger;", "export {};"] {
             let source = format!("{}{entry}", item.repeat(255));
             for ts in [false, true] {
                 assert_eq!(

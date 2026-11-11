@@ -5,6 +5,12 @@ fn empty_module_items_preserve_the_heap_entry() {
     let entry = "export function run(a,b){return 'value';}";
     for ts in [false, true] {
         let expected = compile_heap_value(entry, ts).unwrap().wasm;
+        assert_eq!(
+            compile_heap_value(&format!("debugger;{entry}"), ts)
+                .unwrap()
+                .wasm,
+            expected
+        );
         let named = "void 0;export { entry as run };function entry(a,b){return 'value';}";
         assert_eq!(compile_heap_value(named, ts).unwrap().wasm, expected);
         assert_eq!(

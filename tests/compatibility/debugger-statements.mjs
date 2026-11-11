@@ -1,5 +1,6 @@
 export const debuggerStatementPrograms=[];
 for(const[id,source]of [
+ ["module","debugger;export function run(a,b){return a+b;}"],
  ["direct","export function run(a,b){debugger;return a+b;}"],
  ["branches","export function run(a,b){if(a<0){debugger;}else{debugger;}return b;}"],
  ["loop","export function run(a,b){let n=0;for(let i=0;i<3;i++){debugger;n+=i;}return n;}"],
