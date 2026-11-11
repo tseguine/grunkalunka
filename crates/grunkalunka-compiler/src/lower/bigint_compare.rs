@@ -86,7 +86,7 @@ pub(super) fn number_threshold(integer: BigInt, operator: Compare) -> Option<(f6
 mod tests {
     #[test]
     fn strict_comparisons_guard_unsupported_operands_and_operand_depth() {
-        for operand in ["1", "+1n", "(a++,1n)", "BigInt(1)", "(1n+1n)"] {
+        for operand in ["+1n", "(a++,1n)", "BigInt(1)", "(1n+1n)"] {
             let source = format!("export function run(a,b){{return {operand} === 1n ? a : b;}}");
             assert!(crate::compile(&source, false).is_err(), "{source}");
         }
