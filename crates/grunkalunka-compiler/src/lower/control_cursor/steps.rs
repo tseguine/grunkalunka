@@ -14,7 +14,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     // Validate only scalar expressions whose evaluation cannot invoke user code.
     // The path is already complete, so these expressions are checked but never
     // emitted. Keep the scan iterative and bounded like ordinary evaluation.
-    fn dead_number_value(&self, expression: &Expression<'_>, depth: usize) -> bool {
+    fn dead_number_value_with_bindings(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+        dead_bindings: &std::collections::BTreeSet<SymbolId>,
+    ) -> bool {
         let mut pending = vec![(expression, depth)];
         while let Some((expression, depth)) = pending.pop() {
             if depth > 128 {
@@ -30,10 +35,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 }
                 Expression::NumericLiteral(_) => {}
                 Expression::Identifier(id) => {
-                    let Ok(binding) = numeric_binding(id, self.semantic, &self.bindings) else {
-                        return false;
-                    };
-                    if self.slots[binding.slot.0].ty != Type::Number {
+                    let symbol = id.reference_id.get().and_then(|reference| {
+                        self.semantic.scoping().get_reference(reference).symbol_id()
+                    });
+                    if !symbol.is_some_and(|symbol| dead_bindings.contains(&symbol))
+                        && !numeric_binding(id, self.semantic, &self.bindings)
+                            .is_ok_and(|binding| self.slots[binding.slot.0].ty == Type::Number)
+                    {
                         return false;
                     }
                 }
@@ -75,38 +83,60 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
     // A plain write to an initialized Number cell has no observable effects
     // on an already completed path. Keep target, binding and depth checks.
-    fn dead_number_statement(&self, statement: &Statement<'_>) -> bool {
+    fn dead_number_statement(
+        &mut self,
+        statement: &Statement<'_>,
+        dead_bindings: &mut std::collections::BTreeSet<SymbolId>,
+    ) -> Result<bool, String> {
         if let Statement::ReturnStatement(source) = statement {
-            return source
-                .argument
-                .as_ref()
-                .is_some_and(|value| self.dead_number_value(value, 0));
+            return Ok(source.argument.as_ref().is_some_and(|value| {
+                self.dead_number_value_with_bindings(value, 0, dead_bindings)
+            }));
+        }
+        if let Statement::VariableDeclaration(source) = statement {
+            if source.kind != VariableDeclarationKind::Const || source.declarations.len() != 1 {
+                return Ok(false);
+            }
+            let local = &source.declarations[0];
+            let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+                return Ok(false);
+            };
+            self.charge_declaration_bindings(local, 1)?;
+            let Some(initializer) = local.init.as_ref() else {
+                return Ok(false);
+            };
+            if !self.dead_number_value_with_bindings(initializer, 0, dead_bindings) {
+                return Ok(false);
+            }
+            let symbol = identifier.symbol_id.get().ok_or("missing dead binding")?;
+            dead_bindings.insert(symbol);
+            return Ok(true);
         }
         let Statement::ExpressionStatement(source) = statement else {
-            return false;
+            return Ok(false);
         };
         let Some((expression, depth)) = closures::unwrapped_at(&source.expression, 0) else {
-            return false;
+            return Ok(false);
         };
         let Expression::AssignmentExpression(assignment) = expression else {
-            return self.dead_number_value(expression, depth);
+            return Ok(self.dead_number_value_with_bindings(expression, depth, dead_bindings));
         };
         if assignment.operator != AssignmentOperator::Assign {
-            return false;
+            return Ok(false);
         }
         let Some(target) = assignment.left.as_simple_assignment_target() else {
-            return false;
+            return Ok(false);
         };
         let Ok(Some(id)) = target_identifier(target, depth) else {
-            return false;
+            return Ok(false);
         };
         let Ok(binding) = numeric_binding(id, self.semantic, &self.bindings) else {
-            return false;
+            return Ok(false);
         };
         if !binding.mutable || self.slots[binding.slot.0].ty != Type::Number {
-            return false;
+            return Ok(false);
         }
-        self.dead_number_value(&assignment.right, depth + 1)
+        Ok(self.dead_number_value_with_bindings(&assignment.right, depth + 1, dead_bindings))
     }
 
     fn finish_pretest_loop(
@@ -940,8 +970,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let completion = prefix.then(completion);
                 let next_index = index + 1;
                 if !completion.normal {
+                    let mut dead_bindings = std::collections::BTreeSet::new();
                     for statement in &statements[next_index..] {
-                        if !inert_tail(statement) && !self.dead_number_statement(statement) {
+                        if !inert_tail(statement)
+                            && !self.dead_number_statement(statement, &mut dead_bindings)?
+                        {
                             return Err(unsupported(
                                 statement,
                                 if completion == Completion::RETURN {

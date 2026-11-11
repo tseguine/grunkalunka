@@ -8,6 +8,7 @@ export const unreachableNumberPromotions = [
   ['continue-after-both-arms', 'export function run(a,b) { while(0) { if(a) continue; else continue; return a; } return b; }', '4fb2db2805c1446ae6b02c79480b3cb7674996ad05a1bd7fdb3e8d9e60a838cc'],
   ['if-following-total-return', 'export function run(a,b) { if(a<b) return a; else return b; return 0; }', '4e9b112a8f5c2bd31cc1e0068d2502e49775fb13b0d48b7188588c0a7b8b714b'],
   ['switch-following-total-return', 'export function run(a,b){switch(a){default:a=b;case 0:return a;}return b;}', '6a9114ef7ed457d154c0115a81d258cf0a2268d523724bc6267dec08e1a5859b'],
+  ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }', 'a4242f1898026ac609dc37fc5a2c8a0af65cf62ccba311a0c255baac82428c04'],
 ];
 
 export const unreachableNumberPrograms = unreachableNumberPromotions.map(([id, source]) => [

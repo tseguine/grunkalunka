@@ -1309,6 +1309,7 @@ mod tests {
             "export function run(a,b) { while(0) { { continue; } return a; } return b; }",
             "export function run(a,b) { while(0) { if(a) continue; else continue; return a; } return b; }",
             "export function run(a,b) { if(a<b) return a; else return b; return 0; }",
+            "export function run(a,b) { return a; const x=b; return x; }",
         ] {
             for ts in [false, true] {
                 compile(source, ts).unwrap();
@@ -1326,6 +1327,28 @@ mod tests {
                 assert!(compile(&source, ts).is_err(), "{tail}");
             }
         }
+        for tail in [
+            "const x=sideEffect();return x;",
+            "const x=missing;return x;",
+            "const [x]=[b];return x;",
+            "const x=b,y=a;return x;",
+        ] {
+            let source = format!("export function run(a,b){{return a;{tail}}}");
+            for ts in [false, true] {
+                assert!(compile(&source, ts).is_err(), "{tail}");
+            }
+        }
+        let locals = (0..128)
+            .map(|index| format!("const x{index}=a;"))
+            .collect::<String>();
+        let source =
+            format!("export function run(a,b){{{locals}return a;const extra=b;return extra;}}");
+        assert!(
+            compile(&source, false)
+                .err()
+                .unwrap()
+                .contains("at most 128 source locals")
+        );
     }
 
     #[test]

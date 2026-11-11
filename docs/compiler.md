@@ -797,7 +797,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   without emission; this includes numeric literals, initialized Number reads and
   unary/binary numeric operations. Plain assignments of such a value to a mutable
   Number binding are also checked and discarded. Calls, updates, predicates,
-  unresolved reads and other executable tails retain their own diagnostic.
+  unresolved reads and other executable tails retain their own diagnostic. A
+  single unreachable `const` Number binding may feed later validated Number
+  expressions in the same suffix; it still consumes the source-local budget.
 - Standalone module literals (including untagged templates without
   substitutions) and `void` of such literals may surround the entry. Each
   expression statement counts against the statement budget. Parentheses,

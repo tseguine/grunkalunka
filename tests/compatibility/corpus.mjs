@@ -188,7 +188,7 @@ import { literalPowers } from './numeric-powers.mjs';
 import { unreachableCopyPrograms } from './unreachable-copies.mjs';
 import { unreachableNumberPrograms } from './unreachable-number-values.mjs';
 
-export const corpusVersion = 217;
+export const corpusVersion = 218;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -581,7 +581,6 @@ export const rejected = [
   ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
   ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }', 'js', 'ERROR: unsupported at bytes 47..48: Boolean bindings are not admitted in numeric value positions'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
-  ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
   ['local-limit', `export function run(a,b) { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} return a; }`],
 ];
 
