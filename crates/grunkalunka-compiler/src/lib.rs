@@ -1261,9 +1261,9 @@ mod tests {
                     .unwrap()
                     .contains("at most 256 statements")
             );
-            let source = "export function run(a,b){return a; true; ;debugger; a=b;}";
+            let source = "export function run(a,b){return a; true; ;debugger; a++;}";
             let error = compile(source, ts).err().unwrap();
-            let start = source.find("a=b;").unwrap();
+            let start = source.find("a++;").unwrap();
             assert!(
                 error.starts_with(&format!(
                     "unsupported at bytes {start}..{}: statements after a guaranteed",
@@ -1275,12 +1275,37 @@ mod tests {
     }
 
     #[test]
+    fn unused_number_stores_keep_binding_and_resource_checks() {
+        for body in [
+            "const x=a;return x;x=b;",
+            "return b;x=a;",
+            "return b;a=unknown();",
+            "return b;a=b+1;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                assert!(compile(&source, ts).is_err(), "{body}");
+            }
+        }
+        let source = format!(
+            "export function run(a,b){{return a;{}}}",
+            "a=b;".repeat(256)
+        );
+        assert!(
+            compile(&source, false)
+                .err()
+                .unwrap()
+                .contains("at most 256 statements")
+        );
+    }
+
+    #[test]
     fn type_declarations_do_not_allow_runtime_abrupt_tails() {
         for body in [
-            "return a; type T=number; a=b;",
-            "do { break; interface T {} a=b; } while(0); return a;",
-            "for(let i=0;i<1;i++) { continue; type T=number; a=b; } return a;",
-            "do { if(a) return a; else break; type T=number; a=b; } while(0); return b;",
+            "return a; type T=number; a++;",
+            "do { break; interface T {} a++; } while(0); return a;",
+            "for(let i=0;i<1;i++) { continue; type T=number; a++; } return a;",
+            "do { if(a) return a; else break; type T=number; a++; } while(0); return b;",
         ] {
             let error = compile(&format!("export function run(a,b) {{ {body} }}"), true)
                 .err()
@@ -1890,15 +1915,15 @@ mod type_only_module_tests {
         );
         for (source, diagnostic) in [
             (
-                "export function run(a,b) { return a; type T=number; interface I {} a=b; }",
+                "export function run(a,b) { return a; type T=number; interface I {} a++; }",
                 "unsupported at bytes 67..71: statements after a guaranteed return are not admitted",
             ),
             (
-                "export function run(a,b) { do { break; type T=number; interface I {} a=b; } while(0); return a; }",
+                "export function run(a,b) { do { break; type T=number; interface I {} a++; } while(0); return a; }",
                 "unsupported at bytes 69..73: statements after a guaranteed abrupt completion are not admitted",
             ),
             (
-                "export function run(a,b) { for(let i=0;i<1;i++) { continue; type T=number; interface I {} a=b; } return a; }",
+                "export function run(a,b) { for(let i=0;i<1;i++) { continue; type T=number; interface I {} a++; } return a; }",
                 "unsupported at bytes 90..94: statements after a guaranteed abrupt completion are not admitted",
             ),
         ] {

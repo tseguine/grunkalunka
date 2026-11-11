@@ -55,4 +55,3 @@ add('one-parameter', 'input-shapes', '', 4, ordinaryParameters,
   { source: 'export function run(a) { return a; }', milestone: 'L3' });
 add('extra-export', 'input-shapes', '', 6, topLevel,
   { source: 'export const n=2; export function run(a,b) { return a+n; }', milestone: 'L3' });
-add('unreachable-after-return', 'structural-analysis', 'return a; a=b;', 4, 'statements after a guaranteed return are not admitted', { milestone: 'L2' });

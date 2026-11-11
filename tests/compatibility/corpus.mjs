@@ -185,7 +185,9 @@ import { localExportEntries } from './module-entries.mjs';
 
 import { literalPowers } from './numeric-powers.mjs';
 
-export const corpusVersion = 215;
+import { unreachableCopyPrograms } from './unreachable-copies.mjs';
+
+export const corpusVersion = 216;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -308,6 +310,7 @@ programs.push(['array-brand-literal-spread', spreadBrandBody, spreadBrandBody, 1
 programs.push(...selectedInstancePrograms);
 programs.push(...literalNumericPrograms);
 programs.push(...localExportEntries);
+programs.push(...unreachableCopyPrograms);
 programs.push(...literalPowers);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
@@ -472,7 +475,6 @@ export const rejected = [
   ['block-shadow-initializer', 'export function run(a,b) { const x=a; { const x=x+b; return x; } }'],
   ['block-leak', 'export function run(a,b) { { const x=a; } return x; }'],
   ['block-sibling-leak', 'export function run(a,b) { { const x=a; } { return x; } }'],
-  ['block-unreachable', 'export function run(a,b) { { return a; b=a; } }'],
   ['block-depth', `export function run(a,b) { ${'{'.repeat(65)}return a;${'}'.repeat(65)} }`],
   ['nested-statement-limit', `export function run(a,b) { { ${'a=b;'.repeat(255)} return a; } }`],
   ['block-local-limit', `export function run(a,b) { { ${Array.from({length:65},(_,i)=>`let x${i}=a;`).join(' ')} } { ${Array.from({length:64},(_,i)=>`let y${i}=b;`).join(' ')} } return a; }`],

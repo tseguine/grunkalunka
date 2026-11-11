@@ -67,7 +67,6 @@ their specific declaration diagnostic.
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export` |
-| Conservative return analysis | `gap-unreachable-after-return` |
 
 A terminal `while` or `for` with a true Boolean or nonzero Number literal, or a
 `for` with no test, can supply the required return when every path through its

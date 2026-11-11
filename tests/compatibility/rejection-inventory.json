@@ -1134,13 +1134,6 @@
       "group": "modules"
     },
     {
-      "id": "gap-unreachable-after-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "045d353e3e5f6204c6467e5063e08c08f967271a6d1847aea64262e97ea12cb9",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "ts-erasure-as-depth-limit",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -1488,13 +1481,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "e5bda55b05df6538bc3076376efe7a80116f9cf88954d61aa65c11705b91c14d",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "do-after-guaranteed-branches",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d278f08f2959ae83511d2f718bd9c71d10a44412189423383d3bbd13d7c3b2f3",
       "group": "abrupt-tail-policy"
     },
     {
@@ -2051,24 +2037,10 @@
       "group": "return-policy"
     },
     {
-      "id": "break-after-direct",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "16bfbddd616d79fc3dbbeb278ea76e3668f7ceb74a495dc9f5a12930d48567e9",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "break-after-block",
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "84dbd2dca2f0b7efa9230ccc27e214146b267a9cc807381c1c8d4c96bdcbbb50",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "break-after-mixed",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "912c777a9ed90e91340f335197e9a9488f93579e9762da55312e7e97680c226a",
       "group": "abrupt-tail-policy"
     },
     {
@@ -2170,13 +2142,6 @@
       "group": "return-policy"
     },
     {
-      "id": "continue-after-direct",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "20d626581aa5d94b39dd273f2a2a6f0517001662310d4adeeb8e16d19222d1e9",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "continue-after-block",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2188,20 +2153,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "4fb2db2805c1446ae6b02c79480b3cb7674996ad05a1bd7fdb3e8d9e60a838cc",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "continue-after-mixed-break",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "764046e24644aa1958c7c2ad153cc974941d952329650ce91caf82c89c27b1b3",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "continue-after-mixed-return",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "77c4e882e28e5162d68bbfe22dae7034d7d48f5a9c3a736d77fa11e3d3d83dcc",
       "group": "abrupt-tail-policy"
     },
     {
@@ -3171,34 +3122,6 @@
       "group": "binding-errors"
     },
     {
-      "id": "type-declaration-runtime-after-return",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c756e09d1202abaca4a861b31b205948f95c97579797cdb410e6fe3f4f87dedb",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "type-declaration-runtime-after-break",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d09dcf8831cc33255a9271008395d97649e1ca5c364267ff71ed1f0310f69879",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "type-declaration-runtime-after-continue",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "259f1955ede6355370b4fdeb1e690861f37bf0fbc51918d8b15f3d0f276db456",
-      "group": "abrupt-tail-policy"
-    },
-    {
-      "id": "type-declaration-runtime-after-mixed",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d32e342d78527d6c34e8d73291d618bf03cd42eb9d652b31b27e20b45c17996c",
-      "group": "abrupt-tail-policy"
-    },
-    {
       "id": "type-declaration-mixed-break-fallback",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -3344,13 +3267,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "8ab460f59d84452f02beb1ca61ec73caa667054860abd651e335bca55660477a",
       "group": "binding-errors"
-    },
-    {
-      "id": "block-unreachable",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "155269765afefff2097714328b3def73b06a3838a45e2397c97b63bd787ed719",
-      "group": "abrupt-tail-policy"
     },
     {
       "id": "block-depth",
