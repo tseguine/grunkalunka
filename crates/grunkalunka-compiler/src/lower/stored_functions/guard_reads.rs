@@ -96,7 +96,10 @@ fn comparison(
                 Test::Nullish
             }
         }
-        Expression::Identifier(id) if id.name == "undefined" && symbol(id, semantic).is_none() => {
+        value
+            if value.is_void()
+                || matches!(value, Expression::Identifier(id) if id.name == "undefined" && symbol(id, semantic).is_none()) =>
+        {
             if strict {
                 Test::Undefined
             } else {

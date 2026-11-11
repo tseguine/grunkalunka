@@ -1886,7 +1886,9 @@ not inherit the proof.
 
 Both branches of a `typeof` comparison or unshadowed `Array.isArray` check
 retain the matching source kinds. Strict null and undefined comparisons
-exclude only the tested value, so separate checks can compose.
+exclude only the tested value, so separate checks can compose. A `void`
+expression also supplies undefined: its operand runs before the comparison
+finishes, including in a switch label.
 `typeof null` remains `"object"`.
 
 

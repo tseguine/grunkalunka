@@ -101,6 +101,28 @@ fn strict_literal_matches_establish_only_the_matched_kind() {
 }
 
 #[test]
+fn void_guards_keep_operand_effects_and_strict_null_distinctions() {
+    for body in [
+        "const row=a?{n:b}:void 0;if(row===void 0)return 7;return +row.n;",
+        "const row=a?{n:b}:null;let hits=0;if(row!=void(hits++))return +row.n+hits;return hits;",
+        "const row=a?{n:b}:void 0;let hits=0;if(void(hits++)!==row)return +row.n+hits;return hits;",
+        "const undefined=a;const xs=b?[a,b]:void 0;switch(xs){case void 0:return 3;default:return xs.length;}",
+    ] {
+        compare(body);
+    }
+    for body in [
+        "const row=a?{n:b}:(b?null:void 0);if(row!==void 0)return +row.n;return 0;",
+        "let row=a?{n:b}:void 0;if(row!==void(row=null))return +row.n;return 0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(
+            grunkalunka_compiler::compile(&source, false).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_object_fields_can_act_as_receivers() {
     let source = "export function run(a,b){const o={child:{x:a}};return o.child.x===a?1:0;}";
     common::compare_sources(source, source);
