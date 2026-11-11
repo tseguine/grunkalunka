@@ -739,6 +739,7 @@ fn binary_bitwise_converts_primitive_operands() {
             }
         }
         for body in [
+            format!("return a{operator}(b**2);"),
             format!("let x=a;return x{operator}(x=false,b);"),
             format!("let x=null;return x{operator}(x=a,b);"),
             format!("let x=a?null:undefined;return x{operator}b;"),
@@ -771,7 +772,7 @@ fn binary_bitwise_primitive_inputs_keep_unsupported_operand_guards() {
         }
         for body in [
             format!("return a{operator}missing;"),
-            format!("return a{operator}(b**2);"),
+            format!("return a{operator}(b**a);"),
             format!("return a{operator}(a+\"3\");"),
         ] {
             let source = format!("export function run(a,b){{{body}}}");

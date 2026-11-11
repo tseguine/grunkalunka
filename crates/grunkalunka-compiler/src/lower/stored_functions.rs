@@ -1008,6 +1008,7 @@ impl Fields {
                     if matches!(
                         b.operator,
                         BinaryOperator::Subtraction
+                            | BinaryOperator::Exponential
                             | BinaryOperator::Multiplication
                             | BinaryOperator::Division
                             | BinaryOperator::Remainder

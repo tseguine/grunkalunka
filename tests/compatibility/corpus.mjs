@@ -183,7 +183,9 @@ import { literalNumericPrograms } from './literal-numeric-operands.mjs';
 
 import { localExportEntries } from './module-entries.mjs';
 
-export const corpusVersion = 209;
+import { literalPowers } from './numeric-powers.mjs';
+
+export const corpusVersion = 210;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -306,6 +308,7 @@ programs.push(['array-brand-literal-spread', spreadBrandBody, spreadBrandBody, 1
 programs.push(...selectedInstancePrograms);
 programs.push(...literalNumericPrograms);
 programs.push(...localExportEntries);
+programs.push(...literalPowers);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
 programs.push(...directivePrograms);

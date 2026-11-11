@@ -714,6 +714,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   lists beyond the local entry export, ambient values, enums, namespaces and module/global augmentations remain
   unsupported. Type names do not create numeric bindings. See
   [type-only module items](#type-only-module-items).
+  Binary `**` accepts the literal exponents -1, 0, 1 and 2 for represented
+  numeric operands. It evaluates and converts the base once, including when
+  the exponent is zero. Other exponents retain an explicit diagnostic.
   `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
   expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the

@@ -74,6 +74,7 @@ pub(super) enum Work<'e, 'a> {
     NumberFromAsyncValue(&'e Expression<'a>),
     Not(&'e Expression<'a>),
     Unary(&'e Expression<'a>, Unary),
+    LiteralPower(&'e Expression<'a>, literal_power::LiteralPower),
     BinaryRight {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
