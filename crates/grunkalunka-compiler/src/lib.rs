@@ -269,12 +269,7 @@ fn lower_source_profile_with_identities(
                 },
             ));
         }
-        let entry_arity_is_valid = index != 0
-            || if async_entry {
-                function.params.items.len() == 2
-            } else {
-                function.params.items.len() <= 2
-            };
+        let entry_arity_is_valid = index != 0 || function.params.items.len() <= 2;
         if function.params.kind != FormalParameterKind::FormalParameter
             || !entry_arity_is_valid
             || function.params.rest.is_some()
@@ -282,11 +277,7 @@ fn lower_source_profile_with_identities(
             return Err(unsupported(
                 function.params.as_ref(),
                 if index == 0 {
-                    if async_entry {
-                        "exactly two ordinary numeric parameters are admitted"
-                    } else {
-                        "at most two ordinary numeric parameters are admitted"
-                    }
+                    "at most two ordinary numeric parameters are admitted"
                 } else {
                     "ordinary numeric helper parameters are required"
                 },
@@ -314,7 +305,7 @@ fn lower_source_profile_with_identities(
                 "writes to a function binding are not admitted",
             ));
         }
-        let parameter_count = if index == 0 && !async_entry {
+        let parameter_count = if index == 0 {
             2
         } else {
             function.params.items.len()
