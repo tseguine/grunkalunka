@@ -701,12 +701,19 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(node, depth, Mode::General));
             return Ok(true);
         }
-        if matches!(mode, Mode::General)
+        if matches!(mode, Mode::General | Mode::AsyncReturn | Mode::AsyncValue)
             && self.stored.primitive(node.node_id())
             && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
         {
             // Preserve primitive tags and Number bits. Coercion belongs to
             // the existing scalar consumer, never to this storage bridge.
+            // A proven primitive async return needs no Promise adoption; use
+            // the same General result as the ordinary AsyncReturn fallback.
+            // Mixed completion positions retain their ordinary primitive lift,
+            // so finally cleanup still precedes return resolution.
+            if matches!(mode, Mode::AsyncValue) {
+                work.push(Work::LiftAsyncValue(node));
+            }
             work.push(Work::Managed(ManagedWork::PrimitiveProjection(node)));
             work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);

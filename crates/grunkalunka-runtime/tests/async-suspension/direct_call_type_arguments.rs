@@ -69,9 +69,18 @@ fn direct_call_type_arguments_preserve_nested_and_recursive_helpers() {
 }
 
 #[test]
-fn direct_call_type_arguments_keep_async_helper_number_and_binding_domains() {
+fn direct_call_type_arguments_preserve_omitted_async_helper_results() {
+    let typed = format!(
+        "function id(x){{return x;}}{}",
+        source_for("return id<never>();")
+    );
+    let plain = typed.replace("id<never>", "id");
+    compare_typed(&plain, &typed);
+}
+
+#[test]
+fn direct_call_type_arguments_keep_async_helper_call_and_binding_domains() {
     for body in [
-        "return id<never>();",
         "return id<never>(...a);",
         "return id?.<never>(a);",
         "return id<number>(null);",

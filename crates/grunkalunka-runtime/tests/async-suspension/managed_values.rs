@@ -1,6 +1,35 @@
 use super::*;
 
 #[test]
+fn boxed_primitive_async_returns_preserve_tags_snapshots_and_reactions() {
+    compare_async_sources(
+        &[
+            "export async function run(a,b){const box={value:a};await b;return box.value;}".to_owned(),
+            "export async function run(a,b){const values=[a,b];await a;return values[1];}".to_owned(),
+            "export async function run(a,b){const box={value:a?true:false};await b;return box.value;}".to_owned(),
+            "export async function run(a,b){const box={value:a?null:undefined};await b;return box.value;}".to_owned(),
+            "export async function run(a,b){const box={yes:null,no:b};await b;return a?box.yes:box.no;}".to_owned(),
+            "export async function run(a,b){const box={value:a};const saved=box.value;box.value=b;await b;return saved;}".to_owned(),
+            "export async function run(a,b){const box={value:a};try{return box.value;}finally{box.value=b;}}".to_owned(),
+            "export async function run(a,b){const box={value:a?null:undefined};try{return box.value;}finally{await b;box.value=b;}}".to_owned(),
+            "export async function run(a,b){const box={value:a};try{return box.value;}finally{throw b;}}".to_owned(),
+            "export async function run(a,b){const box={value:a};try{if(b)return Promise.resolve(box.value);return box.value;}finally{box.value=b;}}".to_owned(),
+            "function get(box){return box.value;}export async function run(a,b){const box={value:a};await b;return get(box);}".to_owned(),
+            "function get(box){return box.value;}export async function run(a,b){const box={value:a?null:undefined};await b;return get(box);}".to_owned(),
+            "export async function run(a,b){const make=x=>()=>x;const get=make();await b;return get();}".to_owned(),
+            "export async function run(a,b){const make=x=>()=>x;const get=make(a?false:null);await b;return get();}".to_owned(),
+            "export async function run(a,b){const get=async x=>{const box={value:x};await b;return box.value;};return await get(a);}".to_owned(),
+        ],
+        &[
+            (4.0, 2.0),
+            (-0.0, 0.0),
+            (0.0, -0.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn nullish_guards_on_unchanged_locals_survive_suspension() {
     compare_promises(
         &[
