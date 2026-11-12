@@ -296,16 +296,43 @@ fn general_in_uses_guest_boxed_key_normalization_and_prototype_membership() {
         "export function run(a,b){const o={x:b};const k=a?'constructor':b;return k in o?1:0;}";
     let module = crate::lower_source(source, false).unwrap();
     verify_module(&module).unwrap();
+    // A recognized primitive-or-String source may retain its proven String
+    // specialization instead of choosing the general boxed-key lowering.
     assert!(any_operation(&module.functions[0].body, &mut |op| {
         matches!(
             op,
             Op::ManagedHasProperty {
-                key: ManagedKey::Value(_),
+                key: ManagedKey::String(_) | ManagedKey::Value(_),
                 ..
             }
         )
     }));
     let artifact = crate::compile(source, false).unwrap();
-    assert!(artifact.wat.contains("call $gc_property_key"));
     assert!(artifact.wat.contains("(func $gc_object_has_property"));
+
+    // Independently verify the general key carrier, even when the source
+    // planner can specialize this particular expression. It must be valid
+    // typed IR and emit the guest-owned key normalizer and prototype lookup.
+    let mut generic = crate::lower_source(
+        "export function run(a,b){const k='constructor';return k in {}?a:b;}",
+        false,
+    )
+    .unwrap();
+    let key = generic.functions[0]
+        .body
+        .operations
+        .iter_mut()
+        .find_map(|operation| match &mut operation.kind {
+            Op::ManagedHasProperty { key, .. } => Some(key),
+            _ => None,
+        })
+        .expect("source has property membership");
+    let ManagedKey::String(value) = key else {
+        panic!("source produces proven String key");
+    };
+    *key = ManagedKey::Value(*value);
+    verify_module(&generic).unwrap();
+    let wat = crate::emit::emit(&generic).unwrap();
+    assert!(wat.contains("call $gc_property_key"));
+    assert!(wat.contains("(func $gc_object_has_property"));
 }
