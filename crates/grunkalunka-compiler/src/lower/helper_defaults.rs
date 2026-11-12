@@ -503,9 +503,7 @@ fn earlier_homogeneous_logical_chain<'n, 'a>(
         if depth > 128 {
             return None;
         }
-        if let Expression::LogicalExpression(logical) = node
-            && logical.operator == operator
-        {
+        if let Expression::LogicalExpression(logical) = node && logical.operator == operator {
             pending.push((&logical.right, depth + 1));
             pending.push((&logical.left, depth + 1));
             continue;
@@ -523,10 +521,7 @@ fn earlier_homogeneous_logical_chain<'n, 'a>(
     ) {
         return None;
     }
-    Some((
-        original,
-        operands.map(|operand| (operator, operand)).collect(),
-    ))
+    Some((original, operands.map(|operand| (operator, operand)).collect()))
 }
 
 // Source-order logical default chains model common A1 policy precedence:
