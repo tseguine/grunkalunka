@@ -66,14 +66,7 @@ impl Lowering<'_, '_> {
                     // Coerce the represented primitive/String at runtime.
                     // Ordinary receivers use existing own+prototype membership;
                     // null-prototype dictionaries need only their own fields.
-                    let known_reference = self
-                        .stored
-                        .property_key_requires_to_primitive(binary.left.node_id())
-                        || matches!(
-                            self.managed_source_type(&binary.left, depth + 1),
-                            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                        )
-                        || self.stored.container(binary.left.node_id()).is_some();
+                    let known_reference = self.boxed_key_needs_to_primitive(&binary.left, depth + 1);
                     (!known_reference).then_some(dictionary::RuntimeKey::Value)
                 })
                 .ok_or_else(|| {
@@ -207,14 +200,7 @@ impl Lowering<'_, '_> {
                 // can use the general guest ToPropertyKey operation without
                 // introducing prototype Get/Set semantics.
                 let kind = self.runtime_key(arg, depth).or_else(|| {
-                    let known_reference = self
-                        .stored
-                        .property_key_requires_to_primitive(arg.node_id())
-                        || matches!(
-                            self.managed_source_type(arg, depth),
-                            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                        )
-                        || self.stored.container(arg.node_id()).is_some();
+                    let known_reference = self.boxed_key_needs_to_primitive(arg, depth);
                     (!known_reference).then_some(dictionary::RuntimeKey::Value)
                 });
                 let kind = kind.ok_or_else(|| {
