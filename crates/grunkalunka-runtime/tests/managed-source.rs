@@ -2744,3 +2744,22 @@ fn boxed_runtime_keys_execute_on_null_prototype_dictionaries() {
     let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):b;(d as never)[k as never]=b;return d[k]===b?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_has_own_keys_reuse_general_guest_property_normalization() {
+    for body in [
+        "const o={x:b};const k=a?'x':b;return Object.hasOwn(o,k)===(!!a)?1:0;",
+        "const xs=[a,,b];const k=a?'length':b;return Object.hasOwn(xs,k)===(!!a||b===0||b===2)?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':b;d[k]=b;return Object.hasOwn(d,k)&&Object.keys(d).length===1?1:0;",
+        "const k=a?'length':b;return Object.hasOwn('💠',k)===(!!a||b===0||b===1)?1:0;",
+        "const o={};const k=a?'toString':b;return Object.hasOwn(o,k)?0:1;",
+        "const o={x:b};let count=0;const k=a?'x':b;const has=Object.hasOwn(o,k,count++);return count===1&&has===(!!a)?1:0;",
+        "const o={x:b};const k=a?'x':b;return Object['hasOwn'].call(null,o,k)===(!!a)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={x:b};const k=a?'x':b;return Object.hasOwn(o,k)===(!!a)?1:0;}";
+    let ts = "export function run(a:number,b:number){const o={x:b};const k=a?('x' as never):(b as never);return Object.hasOwn(o,k)===(!!a)?1:0;}";
+    common::compare_sources(js, ts);
+}
