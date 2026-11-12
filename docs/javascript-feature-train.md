@@ -729,3 +729,15 @@ prototype names, optional access, effects, self/later/outer references and
 public/async defaults remain guarded. Compiler admission and rejection tests
 and JS/TS-to-Wasm differential fixtures are included; native Rust execution
 and hosted CI have not been run at creation time.
+
+### Negated truthiness in helper parameter defaults
+
+Private synchronous helper/arrow conditional defaults can now test logical-not
+chains over an initialized earlier parameter or its statically proven own field,
+such as `label=!enabled?'off':'on'` and `state=!!row.active?'on':'off'`.
+Truthiness is read once and the final Boolean inversion uses the existing
+primitive predicate operation; lazy branch selection, supplied overrides,
+reference identity and JS truthiness stay unchanged. The compiler still rejects
+effectful tests, later/self/outer parameter reads, unproven property receivers,
+unsupported coercion and async/public parameter defaults. Native JS/TS-versus-
+Wasm and admission/rejection tests cover the admitted forms.
