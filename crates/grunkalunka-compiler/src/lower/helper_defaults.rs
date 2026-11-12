@@ -464,9 +464,7 @@ fn earlier_truthiness<'n, 'a>(
             return None;
         }
         match inner {
-            Expression::UnaryExpression(unary)
-                if unary.operator == UnaryOperator::LogicalNot =>
-            {
+            Expression::UnaryExpression(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 negate = !negate;
                 node = &unary.argument;
                 depth = next_depth + 1;
