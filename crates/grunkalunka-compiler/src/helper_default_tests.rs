@@ -588,6 +588,49 @@ fn earlier_parameter_conditional_defaults_admit_pure_branch_values() {
 }
 
 #[test]
+fn logical_conditional_default_tests_admit_pure_prior_parameter_chains() {
+    for expression in [
+        "x&&backup?'both':'none'",
+        "x||backup?'any':'none'",
+        "x??backup?'value':'empty'",
+        "(x??backup)||alt?'yes':'no'",
+        "x&&(backup&&alt)?'all':'none'",
+        "x||(backup||alt)?'any':'none'",
+        "x??(backup??alt)?'value':'empty'",
+    ] {
+        for source in [
+            format!(
+                "function f(x,backup,alt,y={expression}){{return y==='none'?0:1;}}export function run(a,b){{return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const f=(x,backup,alt,y={expression})=>y==='none'?0:1;return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,backup,alt,y={expression})=>y==='none'?0:1}};return o.f(a,b,3);}}"
+            ),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn logical_conditional_default_tests_reject_unproven_terms_and_effects() {
+    for source in [
+        "function f(x,y,z=x&&g()?'on':'off'){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x||later?'on':'off',later=1){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x&&(y||x)?'on':'off'){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=(x+1)&&y?'on':'off'){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x??(y??z)?'on':'off'){return z;}export function run(a,b){return f(a,b);}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn earlier_parameter_conditional_defaults_reject_scope_reads_and_branch_effects() {
     for source in [
         "function f(x=x?'a':'b'){return x;}export function run(a,b){return f();}",

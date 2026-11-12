@@ -446,6 +446,10 @@ enum DefaultCondition<'n, 'a> {
         NumericComparisonOperand<'n, 'a>,
     ),
     StrictEquality(bool, DefaultOperand<'n, 'a>, DefaultOperand<'n, 'a>),
+    LogicalChain(
+        DefaultOperand<'n, 'a>,
+        Vec<(LogicalOperator, DefaultOperand<'n, 'a>)>,
+    ),
 }
 
 // Negated truthiness tests read a proven earlier parameter or own field once.
@@ -485,6 +489,7 @@ fn earlier_truthiness<'n, 'a>(
 // source-proven operand contract. Flatten either nesting direction iteratively
 // so a default such as x ?? (backup ?? fallback) remains lazy at every step.
 fn earlier_homogeneous_logical_chain<'n, 'a>(
+    initializer: &'n Expression<'a>,
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
 ) -> Option<(
@@ -510,7 +515,7 @@ fn earlier_homogeneous_logical_chain<'n, 'a>(
             pending.push((&logical.left, depth + 1));
             continue;
         }
-        operands.push(pure_operand(expression, node, semantic)?);
+        operands.push(pure_operand(initializer, node, semantic)?);
         if operands.len() > 128 {
             return None;
         }
@@ -534,13 +539,14 @@ fn earlier_homogeneous_logical_chain<'n, 'a>(
 // operand is a pure constant or a resolved earlier parameter. Only the
 // first left operand may be read before selection; nested evaluation is lazy.
 fn earlier_logical_chain<'n, 'a>(
+    initializer: &'n Expression<'a>,
     expression: &'n Expression<'a>,
     semantic: &Semantic<'a>,
 ) -> Option<(
     DefaultOperand<'n, 'a>,
     Vec<(LogicalOperator, DefaultOperand<'n, 'a>)>,
 )> {
-    if let Some(chain) = earlier_homogeneous_logical_chain(expression, semantic) {
+    if let Some(chain) = earlier_homogeneous_logical_chain(initializer, expression, semantic) {
         return Some(chain);
     }
     let mut node = expression;
@@ -558,7 +564,7 @@ fn earlier_logical_chain<'n, 'a>(
         }
         steps.push((
             logical.operator,
-            pure_operand(expression, &logical.right, semantic)?,
+            pure_operand(initializer, &logical.right, semantic)?,
         ));
         node = &logical.left;
         depth += 1;
@@ -566,7 +572,7 @@ fn earlier_logical_chain<'n, 'a>(
     if steps.is_empty() {
         return None;
     }
-    let original = pure_operand(expression, node, semantic)?;
+    let original = pure_operand(initializer, node, semantic)?;
     if !matches!(
         &original,
         DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
@@ -595,6 +601,10 @@ fn earlier_conditional<'n, 'a>(
         earlier_truthiness(expression, &conditional.test, semantic)
     {
         DefaultCondition::Truthy(operand, negate)
+    } else if let Some((start, steps)) =
+        earlier_logical_chain(expression, &conditional.test, semantic)
+    {
+        DefaultCondition::LogicalChain(start, steps)
     } else if let Some((operator, left, right)) =
         earlier_comparison(expression, &conditional.test, semantic)
     {
@@ -850,7 +860,7 @@ pub(crate) fn validate(
             if constant(initializer, semantic).is_none()
                 && earlier_parameter(initializer, semantic).is_none()
                 && earlier_field(initializer, initializer, semantic).is_none()
-                && earlier_logical_chain(initializer, semantic).is_none()
+                && earlier_logical_chain(initializer, initializer, semantic).is_none()
                 && earlier_conditional(initializer, semantic).is_none()
                 && earlier_numeric(initializer, semantic).is_none()
                 && earlier_string(initializer, semantic).is_none()
@@ -879,7 +889,8 @@ pub(crate) fn validate_arrow(
                     && earlier_parameter(initializer.as_ref(), semantic).is_none()
                     && earlier_field(initializer.as_ref(), initializer.as_ref(), semantic)
                         .is_none()
-                    && earlier_logical_chain(initializer.as_ref(), semantic).is_none()
+                    && earlier_logical_chain(initializer.as_ref(), initializer.as_ref(), semantic)
+                        .is_none()
                     && earlier_conditional(initializer.as_ref(), semantic).is_none()
                     && earlier_numeric(initializer.as_ref(), semantic).is_none()
                     && earlier_string(initializer.as_ref(), semantic).is_none()
@@ -1037,6 +1048,24 @@ impl Lowering<'_, '_> {
                 DefaultCondition::StrictEquality(negated, left, right) => {
                     self.emit_strict_equality(initializer, &mut consequent, negated, left, right)?
                 }
+                DefaultCondition::LogicalChain(start, steps) => {
+                    let value = self.emit_default_logical_chain(
+                        initializer,
+                        &mut consequent,
+                        start,
+                        steps,
+                    )?;
+                    let truthy = self.value(Type::Predicate);
+                    Self::push(
+                        &mut consequent,
+                        initializer,
+                        Op::ManagedTruthy {
+                            result: truthy,
+                            input: value,
+                        },
+                    );
+                    truthy
+                }
             };
             let mut true_region = self.region(initializer);
             let true_value = self.emit_default_operand(initializer, &mut true_region, when_true)?;
@@ -1058,51 +1087,11 @@ impl Lowering<'_, '_> {
             );
             return Ok(self.finish_binding_default(parameter, output, pending, consequent, result));
         }
-        if let Some((start, steps)) = earlier_logical_chain(initializer, self.semantic) {
-            let mut original = self.emit_default_operand(initializer, &mut consequent, start)?;
-            for (operator, fallback) in steps {
-                let condition = self.value(Type::Predicate);
-                Self::push(
-                    &mut consequent,
-                    initializer,
-                    if operator == LogicalOperator::Coalesce {
-                        Op::ManagedIsNullish {
-                            result: condition,
-                            input: original,
-                        }
-                    } else {
-                        Op::ManagedTruthy {
-                            result: condition,
-                            input: original,
-                        }
-                    },
-                );
-                let mut selected = self.region(initializer);
-                let fallback = self.emit_default_operand(initializer, &mut selected, fallback)?;
-                selected.exit = Exit::Yield(fallback);
-                let mut kept = self.region(initializer);
-                kept.exit = Exit::Yield(original);
-                let (if_true, if_false) = if operator == LogicalOperator::Or {
-                    (kept, selected)
-                } else {
-                    (selected, kept)
-                };
-                let result = self.value(Type::ManagedValue);
-                Self::push(
-                    &mut consequent,
-                    initializer,
-                    Op::If {
-                        result: Some(result),
-                        condition,
-                        consequent: if_true,
-                        alternate: if_false,
-                    },
-                );
-                original = result;
-            }
-            return Ok(
-                self.finish_binding_default(parameter, output, pending, consequent, original)
-            );
+        if let Some((start, steps)) = earlier_logical_chain(initializer, initializer, self.semantic)
+        {
+            let value =
+                self.emit_default_logical_chain(initializer, &mut consequent, start, steps)?;
+            return Ok(self.finish_binding_default(parameter, output, pending, consequent, value));
         }
         if let Some((receiver, path)) = earlier_field(initializer, initializer, self.semantic) {
             let value = self.emit_default_field(initializer, &mut consequent, receiver, path)?;
@@ -1685,6 +1674,59 @@ impl Lowering<'_, '_> {
             boxed = value;
         }
         Ok(boxed)
+    }
+
+    // Shared lazy value selection for a default expression or a conditional test.
+    // Every right operand is emitted only inside its selected branch.
+    fn emit_default_logical_chain(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        start: DefaultOperand<'_, '_>,
+        steps: Vec<(LogicalOperator, DefaultOperand<'_, '_>)>,
+    ) -> Result<ValueId, String> {
+        let mut original = self.emit_default_operand(node, region, start)?;
+        for (operator, fallback) in steps {
+            let condition = self.value(Type::Predicate);
+            Self::push(
+                region,
+                node,
+                if operator == LogicalOperator::Coalesce {
+                    Op::ManagedIsNullish {
+                        result: condition,
+                        input: original,
+                    }
+                } else {
+                    Op::ManagedTruthy {
+                        result: condition,
+                        input: original,
+                    }
+                },
+            );
+            let mut selected = self.region(node);
+            let fallback = self.emit_default_operand(node, &mut selected, fallback)?;
+            selected.exit = Exit::Yield(fallback);
+            let mut kept = self.region(node);
+            kept.exit = Exit::Yield(original);
+            let (if_true, if_false) = if operator == LogicalOperator::Or {
+                (kept, selected)
+            } else {
+                (selected, kept)
+            };
+            let result = self.value(Type::ManagedValue);
+            Self::push(
+                region,
+                node,
+                Op::If {
+                    result: Some(result),
+                    condition,
+                    consequent: if_true,
+                    alternate: if_false,
+                },
+            );
+            original = result;
+        }
+        Ok(original)
     }
 
     fn emit_default_operand(
