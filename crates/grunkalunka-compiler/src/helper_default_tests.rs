@@ -516,6 +516,49 @@ fn earlier_parameter_logical_defaults_keep_scope_purity_and_arity_guards() {
 }
 
 #[test]
+fn negated_earlier_parameter_conditions_admit_pure_lazy_branches() {
+    for expression in [
+        "!x?'disabled':'enabled'",
+        "!!x?'enabled':'disabled'",
+        "!!!x?0:1",
+        "!row.enabled?'disabled':'enabled'",
+        "!!row.active?'active':'idle'",
+    ] {
+        for source in [
+            format!(
+                "function f(x,row,y={expression}){{return y===undefined?0:1;}}export function run(a,b){{return f(a,{{enabled:a,active:a}});}}"
+            ),
+            format!(
+                "export function run(a,b){{const f=(x,row,y={expression})=>y===undefined?0:1;return f(a,{{enabled:a,active:a}});}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,row,y={expression})=>y===undefined?0:1}};return o.f(a,{{enabled:a,active:a}});}}"
+            ),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn negated_earlier_conditions_reject_hidden_reads_and_effects() {
+    for source in [
+        "function f(x,y=!y?1:0){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!later?1:0,later=3){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!missing?1:0){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!(x+1)?1:0){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!x?g():0){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!x?1:g()){return y;}export function run(a,b){return f(a);}",
+        "function f(x,y=!(x++)?1:0){return y;}export function run(a,b){return f(a);}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn earlier_parameter_conditional_defaults_admit_pure_branch_values() {
     for expression in [
         "x?'enabled':'disabled'",

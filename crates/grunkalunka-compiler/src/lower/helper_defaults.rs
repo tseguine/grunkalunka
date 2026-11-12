@@ -439,13 +439,46 @@ fn earlier_strict_equality<'n, 'a>(
 }
 
 enum DefaultCondition<'n, 'a> {
-    Truthy(DefaultOperand<'n, 'a>),
+    Truthy(DefaultOperand<'n, 'a>, bool),
     NumericComparison(
         Compare,
         NumericComparisonOperand<'n, 'a>,
         NumericComparisonOperand<'n, 'a>,
     ),
     StrictEquality(bool, DefaultOperand<'n, 'a>, DefaultOperand<'n, 'a>),
+}
+
+// Negated truthiness tests read a proven earlier parameter or own field once.
+// Walk logical-not wrappers iteratively and leave other expressions guarded.
+fn earlier_truthiness<'n, 'a>(
+    initializer: &'n Expression<'a>,
+    test: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<(DefaultOperand<'n, 'a>, bool)> {
+    let mut node = test;
+    let mut depth = 0;
+    let mut negate = false;
+    loop {
+        let (inner, next_depth) = closures::unwrapped_at(node, depth)?;
+        if next_depth > 128 {
+            return None;
+        }
+        match inner {
+            Expression::UnaryExpression(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                negate = !negate;
+                node = &unary.argument;
+                depth = next_depth + 1;
+            }
+            _ => {
+                let operand = pure_operand(initializer, inner, semantic)?;
+                return matches!(
+                    &operand,
+                    DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+                )
+                .then_some((operand, negate));
+            }
+        }
+    }
 }
 
 // Source-order logical default chains model common A1 policy precedence:
@@ -507,14 +540,10 @@ fn earlier_conditional<'n, 'a>(
     let Expression::ConditionalExpression(conditional) = node else {
         return None;
     };
-    let test = if let Some(operand) =
-        pure_operand(expression, &conditional.test, semantic).filter(|operand| {
-            matches!(
-                operand,
-                DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
-            )
-        }) {
-        DefaultCondition::Truthy(operand)
+    let test = if let Some((operand, negate)) =
+        earlier_truthiness(expression, &conditional.test, semantic)
+    {
+        DefaultCondition::Truthy(operand, negate)
     } else if let Some((operator, left, right)) =
         earlier_comparison(expression, &conditional.test, semantic)
     {
@@ -925,7 +954,7 @@ impl Lowering<'_, '_> {
         if let Some((test, when_true, when_false)) = earlier_conditional(initializer, self.semantic)
         {
             let condition = match test {
-                DefaultCondition::Truthy(operand) => {
+                DefaultCondition::Truthy(operand, negate) => {
                     let source =
                         self.emit_default_operand(initializer, &mut consequent, operand)?;
                     let result = self.value(Type::Predicate);
@@ -937,7 +966,20 @@ impl Lowering<'_, '_> {
                             input: source,
                         },
                     );
-                    result
+                    if negate {
+                        let inverted = self.value(Type::Predicate);
+                        Self::push(
+                            &mut consequent,
+                            initializer,
+                            Op::Not {
+                                result: inverted,
+                                input: result,
+                            },
+                        );
+                        inverted
+                    } else {
+                        result
+                    }
                 }
                 DefaultCondition::NumericComparison(operator, left, right) => self
                     .emit_numeric_comparison(initializer, &mut consequent, operator, left, right)?,

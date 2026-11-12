@@ -1040,6 +1040,29 @@ fn earlier_parameter_conditional_defaults_match_native_source_oracles() {
 }
 
 #[test]
+fn negated_earlier_default_conditions_match_native_js_and_ts() {
+    for body in [
+        "function f(x,y=!x?'off':'on'){return y;}return f(a)===(a?'on':'off')?a:b;",
+        "function f(x,y=!!x?'on':'off'){return y;}return f(a)===(a?'on':'off')?a:b;",
+        "function f(x,y=!!!x?1:0){return y;}return f(0)===1?a:b;",
+        "function f(x,y=!x?'off':'on'){return y;}return f(null)==='off'?a:b;",
+        "function f(x,y=!x?'off':'on'){return y;}return f('')==='off'?a:b;",
+        "function f(x,y=!x?'off':'on'){return y;}return f(false)==='off'?a:b;",
+        "function f(x,y=!x?'off':'on'){return y;}return f(a,'supplied')==='supplied'?a:b;",
+        "function f(row,y=!row.enabled?'off':'on'){return y;}return f({enabled:a})===(a?'on':'off')?a:b;",
+        "function f(row,y=!!row.active?'on':'off'){return y;}return f({active:false})==='off'?a:b;",
+        "const f=(x,y=!x?'off':'on')=>y;return f(a)===(a?'on':'off')?a:b;",
+        "const o={f:(x,y=!!x?1:0)=>y};return o.f(a)===(a?1:0)?a:b;",
+    ] {
+        let source = source_with_module_helper(body);
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(x,y=!x?'off':'on'){return y;}export function run(a,b){return f(a)===(a?'on':'off')?a:b;}";
+    let ts = "function f(x:unknown,y:unknown=!(x as never)?'off':'on'){return y;}export function run(a:number,b:number):number{return f(a)===(a?'on':'off')?a:b;}";
+    common::compare_sources(js, ts);
+}
+
+#[test]
 fn earlier_parameter_selection_arms_read_initialized_values_and_preserve_identity() {
     for body in [
         "const f=(x,y,z=x??y)=>z;return f(null,b)===b?a:b;",
