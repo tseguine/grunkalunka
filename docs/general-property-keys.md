@@ -31,3 +31,19 @@ It preserves source order and boxed values without a static key-kind proof.
 Dynamic Array writes are still guarded until the guest has catchable
 length-error semantics. Ordinary-object prototype Get/Set and accessors
 require a separate fallible general operation and are not claimed here.
+
+## Boxed keys for `Object.hasOwn`
+
+The ordinary own-property membership intrinsic uses the same guest
+ToPropertyKey subset when a computed key has no source-proven primitive or
+String category. This path works with source-known ordinary objects,
+null-prototype dictionaries, arrays and supported String/Number/Boolean
+receivers. It distinguishes inherited prototype names from own fields, array
+holes from stored Undefined, and String UTF-16 indices from missing names.
+Receiver evaluation still precedes key conversion and extra argument effects.
+
+Unlike general property Get/Set, `Object.hasOwn` only asks about own data.
+No prototype getter or setter is invoked. Known object/Array/function keys
+remain guarded until a fallible ToPrimitive implementation exists. Hosted
+tests compare original JS with compiled Wasm for changing runtime key kinds,
+extra arguments, TypeScript erasure and inherited-name misses.

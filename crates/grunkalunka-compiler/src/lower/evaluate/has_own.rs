@@ -176,16 +176,28 @@ impl Lowering<'_, '_> {
                 task.key = Some(ir::ManagedKey::Literal(units));
                 // In particular, void's operand still runs at the key's position.
                 Mode::Discard
-            } else if let Some(kind) = self.runtime_key(arg, depth) {
+            } else {
+                // This intrinsic observes only own-property presence. Its
+                // receiver is already checked, so a boxed primitive/String key
+                // can use the general guest ToPropertyKey operation without
+                // introducing prototype Get/Set semantics.
+                let kind = self.runtime_key(arg, depth).or_else(|| {
+                    let known_reference = matches!(
+                        self.managed_source_type(arg, depth),
+                        Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                    ) || self.stored.container(arg.node_id()).is_some();
+                    (!known_reference).then_some(dictionary::RuntimeKey::Value)
+                });
+                let kind = kind.ok_or_else(|| {
+                    unsupported(
+                        arg,
+                        "Object.hasOwn needs represented primitive/String key coercion",
+                    )
+                })?;
                 task.runtime_key = Some(kind);
                 task.index += 1;
                 work.push(Work::HasOwn(task));
                 return self.schedule_runtime_key(arg, depth, kind, work);
-            } else {
-                return Err(unsupported(
-                    arg,
-                    "Object.hasOwn requires a known String or supported primitive key",
-                ));
             }
         } else {
             Mode::Discard
@@ -302,6 +314,37 @@ mod uint32_has_own_tests {
             .unwrap()
             .join()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod boxed_has_own_key_tests {
+    #[test]
+    fn mixed_primitive_and_string_keys_use_the_guest_normalizer() {
+        for body in [
+            "const o={x:b};const key=a?'x':b;return Object.hasOwn(o,key)?1:0;",
+            "const xs=[a,,b];const key=a?'length':b;return Object.hasOwn(xs,key)?1:0;",
+            "const d=Object.create(null);const key=a?'__proto__':b;d[key]=b;return Object.hasOwn(d,key)?1:0;",
+            "const key=a?'length':b;return Object.hasOwn('💠',key)?1:0;",
+            "const o={x:b};let count=0;const key=a?'x':b;return Object.hasOwn(o,key,count++)&&count===1?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_has_own_keys_still_reject_source_known_reference_coercion() {
+        for source in [
+            "export function run(a,b){const key={};return Object.hasOwn({x:a},key)?1:0;}",
+            "export function run(a,b){return Object.hasOwn([a],{} as number)?1:0;}",
+            "export function run(a,b){const key=[0];return Object.hasOwn({0:a},key)?1:0;}",
+        ] {
+            assert!(crate::compile(source, true).is_err(), "{source}");
+        }
     }
 }
 
