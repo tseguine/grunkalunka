@@ -7,12 +7,15 @@ evidence; their former pending/open statuses are historical.
 
 **Status: advisory execution steering.** The maintainer asked for this cross-stream review. It records observed implementation, proposed next proof points and existing ownership boundaries. It is not a new language profile, accepted ABI, automatic agent assignment or permission to interrupt unrelated work. [AGENTS.md](../AGENTS.md) remains authoritative for permissions, PR review and merging.
 
-**Current compiler assignment (2026-11-03):** after the completed source-lowering
-migration, the maintainer assigned an impact-ordered
-[JavaScript feature train](javascript-feature-train.md), with A1 priority and
-stacked PRs. That queue supersedes the older proposed compiler ordering below;
-the dated evidence remains available without reopening completed or retired
-coordination issues.
+**Current compiler direction (2026-11-12):** [accepted ADR 0022](adr/0022-general-js-ts-lowering-first.md)
+prioritizes general, workable lowering of valid JS/TS over new specialized
+source-admission proofs. Lowering coverage, standards compliance and optimization
+are separate measures. The November 3
+[impact-ordered feature train](javascript-feature-train.md) is now historical
+execution guidance, not the default ordering for new compiler units. Preserve
+coherent in-flight work, the existing owned source cursor/IR/runtime, and the
+independent workstream/PR coordination contracts. Dated evidence below remains
+valid for its inspected revisions.
 
 ## What is currently established
 

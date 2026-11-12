@@ -1,10 +1,12 @@
 # Research roadmap
 
-The current maintainer-assigned compiler work is the
-[impact-ordered JavaScript feature train](javascript-feature-train.md)
-(2026-11-03), prioritizing A1 authoring and broader useful language features in
-stacked PRs. The research questions and dated implementation snapshots below
-provide context for that queue.
+**Current maintainer direction (2026-11-12):** [accepted ADR 0022](adr/0022-general-js-ts-lowering-first.md)
+prioritizes near-total valid JS/TS-to-Wasm **lowering coverage and workable execution**
+before exhaustive standards compliance or new optimization. General semantic
+operations should admit ordinary dynamic cases without requiring source-specific
+proofs. The [November 3 impact-ordered feature train](javascript-feature-train.md)
+remains historical implementation evidence, not the default priority for new
+compiler work. Its in-flight, coherent PR units may finish normally.
 
 The maintained JS/TS compiler uses Oxc semantics and a verified structured IR.
 Its independent numeric, primitive, bounded async and managed-value

@@ -1,5 +1,12 @@
 # JavaScript feature train
 
+**Historical implementation ordering:** on 2026-11-12 the maintainer accepted
+[ADR 0022](adr/0022-general-js-ts-lowering-first.md), making general, workable
+JS/TS lowering the primary objective for new compiler work. The ordered feature
+families below document the November 3 plan and completed evidence; they are not
+a requirement to keep expanding specialized source admission before general
+semantic lowering. Coherent already in-flight PR units may complete normally.
+
 ## Direction (2026-11-03)
 
 The maintainer has assigned the compiler/runtime stream to order language

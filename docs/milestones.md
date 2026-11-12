@@ -4,11 +4,12 @@ This is the active execution plan. Each milestone ends in a runnable demonstrati
 measured compatibility evidence, and an updated status. A rejected input is not a
 supported feature; an unattempted test is not a passing test.
 
-**Compiler execution order, updated 2026-11-03:** the maintainer-directed
-[JavaScript feature train](javascript-feature-train.md) prioritizes practical
-features for A1 and broader programs after completion of the source-lowering
-architecture migration. Its ordered slices and stacked-PR workflow are the
-current compiler queue; the dated milestone receipts below retain their scope.
+**Compiler objective, updated 2026-11-12:** [accepted ADR 0022](adr/0022-general-js-ts-lowering-first.md)
+supersedes the November 3 feature ordering for new compiler work: prioritize
+general, workable lowering of essentially all valid JS/TS over proof-dependent
+source admission. Track lowering coverage, semantic compliance and optimization
+separately. The [earlier feature train](javascript-feature-train.md) and dated
+milestone receipts retain their evidence; coherent in-flight work can finish.
 
 ## Current status (2026-11-06)
 
