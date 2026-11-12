@@ -2819,3 +2819,23 @@ fn boxed_runtime_in_uses_guest_prototype_membership_for_objects_and_arrays() {
     let ts = "export function run(a:number,b:number){const o={};const k=a?('constructor' as never):(b as never);return k in o?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_ordinary_object_delete_uses_own_data_keys_without_prototype_effects() {
+    for body in [
+        "const o={x:b};const k=a?'x':b;return delete o[k]&&!Object.hasOwn(o,k)?1:0;",
+        "const o={x:b};const k=a?'x':b;const removed=delete o[k];return removed&&Object.hasOwn(o,'x')===(!a)?1:0;",
+        "const o={x:b};const k=a?'constructor':b;return delete o[k]&&('constructor' in o)?1:0;",
+        "const o={x:b};const k=a?'__proto__':b;return delete o[k]&&(o instanceof Object)?1:0;",
+        "const o={x:b};const k=a?null:'null';o.null=b;delete o[k];return Object.keys(o).length===1?1:0;",
+        "const o={x:b};const k=a?true:'true';o.true=b;delete o[k];return Object.keys(o).length===1?1:0;",
+        "const o={x:b};const k=a?'x':b;let n=0;delete o[(n++,k)];return n===1?1:0;",
+        "const o={x:b};const k=a?'x':b;const alias=o;delete o[k];return Object.hasOwn(alias,'x')===(!a)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={x:b};const k=a?'x':b;delete o[k];return Object.hasOwn(o,'x')===(!a)?1:0;}";
+    let ts = "export function run(a:number,b:number){const o={x:b};const k=a?('x' as never):(b as never);delete o[k];return Object.hasOwn(o,'x')===(!a)?1:0;}";
+    common::compare_sources(js, ts);
+}

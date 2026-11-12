@@ -93,3 +93,17 @@ primitive-or-String choice changes at runtime, without needing an alternative
 control-flow implementation or ambient host-JavaScript lookup. Known
 object/function keys still need fallible ToPrimitive/completions; arbitrary
 prototype mutation, accessors, Symbols and proxies are not claimed.
+
+## Boxed delete on ordinary own-data objects
+
+The existing managed own-property delete operation now also accepts
+runtime-boxed primitive/String keys on source-proven ordinary data objects.
+These objects and null-prototype dictionaries both use configurable own
+entries; deleting an absent or inherited name returns true and does not
+change their prototypes. This is a reusable general key-normalization path,
+not a new source-specific inference rule.
+
+Array deletion still requires a key proof that excludes the non-configurable
+`length` property, while object/Array/function key coercion still needs a
+fallible ToPrimitive operation. Added comparisons exercise missing/inherited
+keys, aliases, evaluation order and TypeScript erasure.
