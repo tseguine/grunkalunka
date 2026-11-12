@@ -330,13 +330,34 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         && let Some(key) = property.key.as_expression()
                         && let Some(kind) =
                             if matches!(receiver, Type::ManagedObject | Type::ManagedArray) {
-                                self.binding_key_kind(
+                                let known = self.binding_key_kind(
                                     receiver,
                                     dictionary,
                                     key,
                                     depth,
                                     KeyAccess::Read,
-                                )
+                                );
+                                known.or_else(|| {
+                                    // An Array's inherited intrinsic methods are
+                                    // not represented by the own-data getter.
+                                    if receiver == Type::ManagedArray
+                                        && !self
+                                            .stored
+                                            .record_names
+                                            .domain(key, depth)
+                                            .array_own_names()
+                                    {
+                                        None
+                                    } else {
+                                        self.boxed_runtime_key_fallback(
+                                            key,
+                                            depth,
+                                            receiver,
+                                            dictionary,
+                                            KeyAccess::Read,
+                                        )
+                                    }
+                                })
                             } else if receiver == Type::ManagedValue
                                 && self.string_own_key(key, depth)
                             {
@@ -398,6 +419,38 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             steps: steps.into_iter(),
             mutable,
         })
+    }
+}
+
+#[cfg(test)]
+mod boxed_computed_binding_key_tests {
+    #[test]
+    fn computed_bindings_read_boxed_runtime_keys_from_data_collections() {
+        for body in [
+            "const d=Object.create(null);d.x=b;const k=a?'x':b;const {[k]:v=7}=d;return v===(a?b:7)?1:0;",
+            "const xs=[a,b];const k=a?'length':'0';const {[k]:v=7}=xs;return v===(a?2:a)?1:0;",
+            "const xs=[a,b];const k=a?'0':'length';const {[k]:v}=xs;return v===(a?a:2)?1:0;",
+            "const d=Object.create(null);d.x=b;d.y=a;const k=a?'x':b;const {[k]:v,...rest}=d;return Object.keys(rest).length;",
+            "const d=Object.create(null);d.x=a;let n=0;const {[(n++,a?'x':b)]:v=9}=d;return n===1&&v===(a?a:9)?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typescript in [false, true] {
+                let result = crate::compile(&source, typescript);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_binding_keys_keep_reference_and_prototype_guards() {
+        for body in [
+            "const d=Object.create(null);const k={};const {[k]:v}=d;return a;",
+            "const xs=[b];const k={};const {[k]:v}=xs;return a;",
+            "const o={x:a};const k=b?'constructor':'x';const {[k]:v}=o;return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
     }
 }
 

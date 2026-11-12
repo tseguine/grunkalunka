@@ -2857,3 +2857,20 @@ fn optional_boxed_keys_preserve_nullish_skip_and_saved_receiver() {
     let ts = "export function run(a:number,b:number){const xs=a?[b]:null;const k=b?('length' as never):(0 as never);return xs?.[k]===(a?(b?1:b):undefined)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_computed_binding_keys_use_guest_own_property_selection() {
+    for body in [
+        "const d=Object.create(null);d.x=b;const k=a?'x':b;const {[k]:v=7}=d;return v===(a?b:7)?1:0;",
+        "const xs=[a,b];const k=a?'length':'0';const {[k]:v=7}=xs;return v===(a?2:a)?1:0;",
+        "const xs=[a,b];const k=a?'0':'length';const {[k]:v}=xs;return v===(a?a:2)?1:0;",
+        "const d=Object.create(null);d.x=b;d.y=a;const k=a?'x':b;const {[k]:v,...rest}=d;return Object.keys(rest).length;",
+        "const d=Object.create(null);d.x=a;let n=0;const {[(n++,a?'x':b)]:v=9}=d;return n===1&&v===(a?a:9)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const xs=[a,b];const k=a?'length':'0';const {[k]:v=7}=xs;return v===(a?2:a)?1:0;}";
+    let ts = "export function run(a:number,b:number){const xs=[a,b];const k=a?('length' as never):('0' as never);const {[k]:v=7}=xs;return v===(a?2:a)?1:0;}";
+    common::compare_sources(js, ts);
+}
