@@ -47,3 +47,19 @@ No prototype getter or setter is invoked. Known object/Array/function keys
 remain guarded until a fallible ToPrimitive implementation exists. Hosted
 tests compare original JS with compiled Wasm for changing runtime key kinds,
 extra arguments, TypeScript erasure and inherited-name misses.
+
+## Boxed-key `in` over null-prototype dictionaries
+
+The general key normalization operation also handles the left operand of
+`key in dictionary` when the right operand is positively known to be a
+null-prototype dictionary. It evaluates the key before the saved receiver,
+then checks actual own-property membership with the same guest table as
+`Object.hasOwn`. A property added using that boxed key can be tested for
+presence without restricting its source expression to one static kind.
+
+This increment does not change `in` for ordinary objects, Arrays or
+prototype-bearing receivers: those still require full prototype membership
+semantics for runtime-dependent keys. Source-known object/function keys
+remain guarded pending ToPrimitive/completion support. JS/TS-vs-Wasm
+tests exercise mixed primitive/String keys, absent names, saved effects
+and identity-independent own-name lookup.
