@@ -2442,6 +2442,8 @@ fn dictionary_in_rejects_unproven_prototypes_and_key_coercions() {
     for body in [
         "return 'x' in null?1:0;",
         "return (a?{}:b) in Object.create(null)?1:0;",
+        "return (a?[]:b) in Object.create(null)?1:0;",
+        "return (a?(b,{}):b) in Object.create(null)?1:0;",
         "return {} in Object.create(null)?1:0;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
