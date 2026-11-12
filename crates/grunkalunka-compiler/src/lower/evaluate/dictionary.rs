@@ -176,10 +176,13 @@ impl Lowering<'_, '_> {
             || (receiver == Type::ManagedArray && access == KeyAccess::Read);
         // Known reference keys need user-visible ToPrimitive completions,
         // not an internal trap or a TypeScript annotation-based coercion.
-        let known_reference = matches!(
-            self.managed_source_type(key, depth),
-            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-        ) || self.stored.container(key.node_id()).is_some();
+        let known_reference =
+            self.stored.property_key_requires_to_primitive(key.node_id())
+                || matches!(
+                    self.managed_source_type(key, depth),
+                    Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                )
+                || self.stored.container(key.node_id()).is_some();
         (supported_receiver && !known_reference).then_some(RuntimeKey::Value)
     }
 
