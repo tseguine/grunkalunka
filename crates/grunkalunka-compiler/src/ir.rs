@@ -559,6 +559,8 @@ impl OwnEnumeration {
 pub(crate) enum ManagedKey {
     Literal(Vec<u16>),
     String(ValueId),
+    // Boxed runtime key; the guest performs primitive/String normalization.
+    Value(ValueId),
     // Decimal property key of ToUint32(input), never the non-configurable length key.
     Uint32(ValueId),
     // A tagged Undefined, Null, Boolean or Number. None can spell Array length.
@@ -1457,7 +1459,9 @@ impl Verifier<'_> {
                 Ok(())
             }
             ManagedKey::Scalar { input, .. } => self.value(*input, Type::General, visible, span),
-            ManagedKey::String(value) => self.value(*value, Type::ManagedValue, visible, span),
+            ManagedKey::String(value) | ManagedKey::Value(value) => {
+                self.value(*value, Type::ManagedValue, visible, span)
+            }
             ManagedKey::Uint32(value) => self.value(*value, Type::Number, visible, span),
         }
     }
@@ -1674,7 +1678,7 @@ impl Verifier<'_> {
                         ManagedKey::Literal(key) => {
                             key.as_slice() != [108, 101, 110, 103, 116, 104]
                         }
-                        ManagedKey::String(_) => false,
+                        ManagedKey::String(_) | ManagedKey::Value(_) => false,
                     }
                 {
                     return Err(invalid(
@@ -1732,7 +1736,7 @@ impl Verifier<'_> {
                 let configurable = match key {
                     ManagedKey::Literal(key) => key.as_slice() != [108, 101, 110, 103, 116, 104],
                     ManagedKey::Uint32(_) | ManagedKey::Scalar { .. } => true,
-                    ManagedKey::String(_) => false,
+                    ManagedKey::String(_) | ManagedKey::Value(_) => false,
                 };
                 if ty == Type::ManagedArray && !configurable {
                     return Err(invalid(

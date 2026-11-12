@@ -2724,3 +2724,23 @@ fn runtime_dictionary_primitive_reads_keep_missing_tags_and_operand_snapshots() 
         grunkalunka_compiler::compile(ts, true).unwrap().wasm
     );
 }
+
+#[test]
+fn boxed_runtime_keys_execute_on_null_prototype_dictionaries() {
+    for body in [
+        "const d=Object.create(null);const key=a?'value':b;d[key]=b;return d[key]===b?1:0;",
+        "const d=Object.create(null);const key=a?true:'true';d[key]=b;return d['true']===b?1:0;",
+        "const d=Object.create(null);const key=a?null:'null';d[key]=b;return d['null']===b?1:0;",
+        "const d=Object.create(null);const key=a?undefined:'undefined';d[key]=b;return d['undefined']===b?1:0;",
+        "const d=Object.create(null);const key=a?-0:'0';d[key]=b;return d['0']===b?1:0;",
+        "const d=Object.create(null);const key=a?'__proto__':b;d[key]=b;return d[key]===b?1:0;",
+        "const d=Object.create(null);const key=a?'constructor':false;d[key]=b;return d[key]===b?1:0;",
+        "const d=Object.create(null);const key=a?'x':b;let n=0;d[key]=(n++,b);return n===1&&d[key]===b?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);const k=a?'x':b;d[k]=b;return d[k]===b?1:0;}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):b;(d as never)[k as never]=b;return d[k]===b?1:0;}";
+    common::compare_sources(js, ts);
+}

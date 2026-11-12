@@ -12,6 +12,7 @@ pub(in crate::lower) enum RuntimeKey {
     Uint32,
     Scalar { numbers: bool },
     String,
+    Value,
 }
 
 impl RuntimeKey {
@@ -20,6 +21,7 @@ impl RuntimeKey {
             Self::Uint32 => ir::ManagedKey::Uint32(input),
             Self::Scalar { numbers } => ir::ManagedKey::Scalar { input, numbers },
             Self::String => ir::ManagedKey::String(input),
+            Self::Value => ir::ManagedKey::Value(input),
         }
     }
 }
@@ -87,6 +89,7 @@ impl Lowering<'_, '_> {
             RuntimeKey::Uint32 => Mode::Number,
             RuntimeKey::Scalar { .. } => Mode::General,
             RuntimeKey::String => return self.schedule_string_operand(key, depth, work),
+            RuntimeKey::Value => Mode::Managed,
         };
         work.push(Work::Eval(key, depth, mode));
         Ok(())
@@ -104,7 +107,7 @@ impl Lowering<'_, '_> {
         let mode = match kind {
             RuntimeKey::Uint32 => Mode::Number,
             RuntimeKey::Scalar { .. } => Mode::General,
-            RuntimeKey::String => Mode::Managed,
+            RuntimeKey::String | RuntimeKey::Value => Mode::Managed,
         };
         Ok((EvaluationCursor::with_work(output, work), mode))
     }
@@ -125,6 +128,38 @@ impl Lowering<'_, '_> {
         let receiver = self.receiver_type(&member.object, depth)?;
         self.owned_key_kind(&member.object, receiver, &member.expression, depth, access)
             .map(|kind| (Mode::managed(receiver), kind))
+    }
+
+    // Only direct computed Get/Set calls can use the current partial key
+    // normalizer. Logical writes, patterns and other callers retain their
+    // separate semantic admission checks.
+    fn runtime_member_receiver_with_fallback(
+        &self,
+        member: &oxc_ast::ast::ComputedMemberExpression<'_>,
+        depth: usize,
+        access: KeyAccess,
+    ) -> Option<(Mode, RuntimeKey)> {
+        if let Some(known) = self.runtime_member_receiver(member, depth, access) {
+            return Some(known);
+        }
+        if member.optional
+            || closures::unwrapped(&member.expression, depth)
+                .and_then(static_keys::literal)
+                .is_some()
+        {
+            return None;
+        }
+        let receiver = self.receiver_type(&member.object, depth)?;
+        let supported_receiver =
+            receiver == Type::ManagedObject && self.stored.dictionary(member.object.node_id());
+        // A source-proven reference key needs fallible ToPrimitive, not
+        // a runtime trap disguised by a TypeScript type assertion.
+        let known_reference = matches!(
+            self.managed_source_type(&member.expression, depth),
+            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+        ) || self.stored.container(member.expression.node_id()).is_some();
+        (supported_receiver && !known_reference)
+            .then_some((Mode::managed(receiver), RuntimeKey::Value))
     }
 
     pub(in crate::lower) fn owned_key_kind(
@@ -189,7 +224,8 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1, KeyAccess::Read)
+        let Some((mode, kind)) =
+            self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Read)
         else {
             return Ok(false);
         };
@@ -217,7 +253,8 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1, KeyAccess::Write)
+        let Some((mode, kind)) =
+            self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Write)
         else {
             return Ok(false);
         };
