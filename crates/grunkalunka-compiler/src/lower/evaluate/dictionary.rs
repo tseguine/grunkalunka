@@ -500,3 +500,30 @@ mod unsigned_read_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod boxed_reference_key_guard_tests {
+    #[test]
+    fn boxed_key_fallback_rejects_reference_alternatives_in_compound_expressions() {
+        for body in [
+            "return (a?{}:b) in Object.create(null)?1:0;",
+            "return (a?b:[]) in {}?1:0;",
+            "return Object.hasOwn({x:a},(a?{}:b))?1:0;",
+            "return Object.hasOwn([a],(a?[0]:b))?1:0;",
+            "const d=Object.create(null);return d[(a?{}:b)]===undefined?1:0;",
+            "const d=Object.create(null);return delete d[(a?[]:b)]?1:0;",
+            "const d=Object.create(null);const {[a?{}:b]:v}=d;return a;",
+            "const d=Object.create(null);return (a?(b,{}):b) in d?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let error = crate::compile(&source, typed)
+                    .err()
+                    .unwrap_or_else(|| panic!("admitted reference-valued key: {source}"));
+                assert!(error.contains("unsupported"), "{source}: {error}");
+            }
+        }
+        let ts = "export function run(a:number,b:number){const d=Object.create(null);return (a?({} as never):b) in d?1:0;}";
+        assert!(crate::compile(ts, true).is_err(), "{ts}");
+    }
+}
