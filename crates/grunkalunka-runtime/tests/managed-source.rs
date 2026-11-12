@@ -2763,3 +2763,22 @@ fn boxed_has_own_keys_reuse_general_guest_property_normalization() {
     let ts = "export function run(a:number,b:number){const o={x:b};const k=a?('x' as never):(b as never);return Object.hasOwn(o,k)===(!!a)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_membership_keys_execute_in_null_prototype_dictionaries() {
+    for body in [
+        "const d=Object.create(null);d.x=b;const key=a?'x':b;return (key in d)===(!!a)?1:0;",
+        "const d=Object.create(null);d['0']=b;const key=a?'0':b;return (key in d)===(!!a||b===0)?1:0;",
+        "const d=Object.create(null);const key=a?'__proto__':b;return key in d?0:1;",
+        "const d=Object.create(null);const key=a?true:'true';d.true=b;return key in d?1:0;",
+        "const d=Object.create(null);const key=a?null:'null';d.null=b;return key in d?1:0;",
+        "const d=Object.create(null);const key=a?'x':b;d[key]=b;return key in d?1:0;",
+        "const d=Object.create(null);let count=0;const key=a?'x':b;d.x=b;const seen=(count++,key) in d;return count===1&&seen===(!!a)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);d.x=b;const k=a?'x':b;return (k in d)===(!!a)?1:0;}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);d.x=b;const k=a?('x' as never):(b as never);return (k in d)===(!!a)?1:0;}";
+    common::compare_sources(js, ts);
+}

@@ -57,12 +57,25 @@ impl Lowering<'_, '_> {
                 (Membership::OwnLiteral(key), None)
             }
         } else {
-            let kind = self.runtime_key(&binary.left, depth + 1).ok_or_else(|| {
-                unsupported(
-                    &binary.left,
-                    "in requires a proven String or supported primitive key",
-                )
-            })?;
+            let kind = self
+                .runtime_key(&binary.left, depth + 1)
+                .or_else(|| {
+                    // A null-prototype receiver has only own data properties.
+                    // Other receivers still need complete inherited-property
+                    // semantics for dynamic, potentially coercive keys.
+                    let known_reference =
+                        matches!(
+                            self.managed_source_type(&binary.left, depth + 1),
+                            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                        ) || self.stored.container(binary.left.node_id()).is_some();
+                    (dictionary && !known_reference).then_some(dictionary::RuntimeKey::Value)
+                })
+                .ok_or_else(|| {
+                    unsupported(
+                        &binary.left,
+                        "in requires a represented primitive/String key",
+                    )
+                })?;
             // Non-String primitive names never match pristine prototype properties.
             let membership = if dictionary || !matches!(kind, dictionary::RuntimeKey::String) {
                 Membership::OwnRuntime(kind)
@@ -257,6 +270,37 @@ mod uint32_membership_tests {
             crate::compile(ts, true).unwrap().wasm
         );
         assert!(crate::compile("export function run(a:number,b:number){const xs=[a];return ({} as number) in xs?1:0;}",true).is_err());
+    }
+}
+
+#[cfg(test)]
+mod boxed_in_key_tests {
+    #[test]
+    fn null_prototype_membership_accepts_boxed_primitive_string_keys() {
+        for body in [
+            "const d=Object.create(null);const key=a?'x':b;d.x=b;return key in d?1:0;",
+            "const d=Object.create(null);const key=a?'__proto__':b;return key in d?1:0;",
+            "const d=Object.create(null);const key=a?true:'true';d.true=b;return key in d?1:0;",
+            "const d=Object.create(null);const key=a?null:'null';d.null=b;return key in d?1:0;",
+            "const d=Object.create(null);const key=a?'x':b;d[key]=b;return key in d?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let result = crate::compile(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_in_does_not_expand_unproved_reference_or_prototype_semantics() {
+        for source in [
+            "export function run(a,b){const d=Object.create(null);const k={};return k in d?1:0;}",
+            "export function run(a,b){const o={x:a};const k={};return k in o?1:0;}",
+            "export function run(a,b){const xs=[a];const k={};return k in xs?1:0;}",
+        ] {
+            assert!(crate::compile(source, false).is_err(), "{source}");
+        }
     }
 }
 
