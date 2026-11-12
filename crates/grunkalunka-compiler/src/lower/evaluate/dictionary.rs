@@ -126,22 +126,41 @@ impl Lowering<'_, '_> {
             return None;
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        let kind = self
-            .owned_key_kind(&member.object, receiver, &member.expression, depth, access)
-            .or_else(|| {
-                // This fallback belongs to computed Get/Set, not the shared
-                // key classifier: patterns, delete, in, hasOwn and literals
-                // have separate completion and coercion contracts.
-                let supported_receiver = receiver == Type::ManagedObject
-                    && self.stored.dictionary(member.object.node_id());
-                let known_reference =
-                    matches!(
-                        self.managed_source_type(&member.expression, depth),
-                        Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                    ) || self.stored.container(member.expression.node_id()).is_some();
-                (supported_receiver && !known_reference).then_some(RuntimeKey::Value)
-            })?;
-        Some((Mode::managed(receiver), kind))
+        self.owned_key_kind(&member.object, receiver, &member.expression, depth, access)
+            .map(|kind| (Mode::managed(receiver), kind))
+    }
+
+    // Only direct computed Get/Set calls can use the current partial key
+    // normalizer. Logical writes, patterns and other callers retain their
+    // separate semantic admission checks.
+    fn runtime_member_receiver_with_fallback(
+        &self,
+        member: &oxc_ast::ast::ComputedMemberExpression<'_>,
+        depth: usize,
+        access: KeyAccess,
+    ) -> Option<(Mode, RuntimeKey)> {
+        if let Some(known) = self.runtime_member_receiver(member, depth, access) {
+            return Some(known);
+        }
+        if member.optional
+            || closures::unwrapped(&member.expression, depth)
+                .and_then(static_keys::literal)
+                .is_some()
+        {
+            return None;
+        }
+        let receiver = self.receiver_type(&member.object, depth)?;
+        let supported_receiver = receiver == Type::ManagedObject
+            && self.stored.dictionary(member.object.node_id());
+        // A source-proven reference key needs fallible ToPrimitive, not
+        // a runtime trap disguised by a TypeScript type assertion.
+        let known_reference =
+            matches!(
+                self.managed_source_type(&member.expression, depth),
+                Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+            ) || self.stored.container(member.expression.node_id()).is_some();
+        (supported_receiver && !known_reference)
+            .then_some((Mode::managed(receiver), RuntimeKey::Value))
     }
 
     pub(in crate::lower) fn owned_key_kind(
@@ -171,8 +190,6 @@ impl Lowering<'_, '_> {
     ) -> Option<RuntimeKey> {
         let kind = self.runtime_key(key, depth)?;
         match (receiver, kind) {
-            // The receiver has no inherited setters or prototype properties.
-            (Type::ManagedObject, RuntimeKey::Value) if dictionary => Some(kind),
             (
                 Type::ManagedObject | Type::ManagedArray,
                 RuntimeKey::Uint32 | RuntimeKey::Scalar { .. },
@@ -208,7 +225,7 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1, KeyAccess::Read)
+        let Some((mode, kind)) = self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Read)
         else {
             return Ok(false);
         };
@@ -236,7 +253,7 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver(member, depth + 1, KeyAccess::Write)
+        let Some((mode, kind)) = self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Write)
         else {
             return Ok(false);
         };
