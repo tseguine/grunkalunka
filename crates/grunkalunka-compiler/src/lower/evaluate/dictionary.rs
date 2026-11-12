@@ -134,10 +134,11 @@ impl Lowering<'_, '_> {
                 // have separate completion and coercion contracts.
                 let supported_receiver = receiver == Type::ManagedObject
                     && self.stored.dictionary(member.object.node_id());
-                let known_reference = matches!(
-                    self.managed_source_type(&member.expression, depth),
-                    Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                ) || self.stored.container(member.expression.node_id()).is_some();
+                let known_reference =
+                    matches!(
+                        self.managed_source_type(&member.expression, depth),
+                        Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                    ) || self.stored.container(member.expression.node_id()).is_some();
                 (supported_receiver && !known_reference).then_some(RuntimeKey::Value)
             })?;
         Some((Mode::managed(receiver), kind))
