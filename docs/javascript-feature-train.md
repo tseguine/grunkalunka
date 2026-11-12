@@ -760,3 +760,17 @@ Mixed-operator right-nesting, effects, unresolved/later parameter reads and
 unproven operands remain guarded; existing left-associated mixed chains
 continue to work. Admission/guard tests and differential JS/TS fixtures
 cover named helpers, arrows, stored calls, identity and explicit overrides.
+
+### Logical selection as a conditional-default test
+
+Private helper and arrow parameter defaults can use a source-proven lazy logical
+chain as the condition of a ternary, for example
+`label=enabled&&allowed?'active':'inactive'` or
+`label=selected??backup?'present':'missing'`. The existing iterative
+logical-chain planner and managed truthiness predicate share one private
+`If`-based emission path, so no value is converted into an eager Boolean,
+and only the selected branch is evaluated. Both homogeneous right-nesting and
+existing mixed left-associated chains compose in this test position. Effects,
+unknown origins, later/self/outer reads, mixed right-nested trees and async/public
+parameter defaults remain guarded. JS/TS-oracle and admission/rejection tests
+cover the supported helper, arrow and stored call shapes.
