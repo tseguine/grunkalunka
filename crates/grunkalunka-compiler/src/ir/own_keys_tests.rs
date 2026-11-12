@@ -292,7 +292,8 @@ fn values_uses_the_same_checked_and_fallible_enumeration_boundary_as_keys() {
 
 #[test]
 fn general_in_uses_guest_boxed_key_normalization_and_prototype_membership() {
-    let source = "export function run(a,b){const o={x:b};const k=a?'constructor':b;return k in o?1:0;}";
+    let source =
+        "export function run(a,b){const o={x:b};const k=a?'constructor':b;return k in o?1:0;}";
     let module = crate::lower_source(source, false).unwrap();
     verify_module(&module).unwrap();
     assert!(any_operation(&module.functions[0].body, &mut |op| {

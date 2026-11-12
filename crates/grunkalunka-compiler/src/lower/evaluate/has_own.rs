@@ -86,8 +86,7 @@ impl Lowering<'_, '_> {
                 || matches!(
                     kind,
                     dictionary::RuntimeKey::Uint32 | dictionary::RuntimeKey::Scalar { .. }
-                )
-            {
+                ) {
                 Membership::OwnRuntime(kind)
             } else {
                 Membership::Prototype(kind)
