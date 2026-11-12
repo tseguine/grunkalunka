@@ -71,12 +71,10 @@ impl Lowering<'_, '_> {
             Some(RuntimeKey::Scalar {
                 numbers: self.stored.may_be_number(key.node_id()),
             })
-        } else if self.stored.scalar_string_operand(key.node_id()) {
-            Some(RuntimeKey::String)
         } else {
-            // Normalize the runtime value in guest Wasm rather than rejecting
-            // a computed key solely for lacking a source-kind proof.
-            Some(RuntimeKey::Value)
+            self.stored
+                .scalar_string_operand(key.node_id())
+                .then_some(RuntimeKey::String)
         }
     }
 
@@ -128,8 +126,21 @@ impl Lowering<'_, '_> {
             return None;
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        self.owned_key_kind(&member.object, receiver, &member.expression, depth, access)
-            .map(|kind| (Mode::managed(receiver), kind))
+        let kind = self
+            .owned_key_kind(&member.object, receiver, &member.expression, depth, access)
+            .or_else(|| {
+                // This fallback belongs to computed Get/Set, not the shared
+                // key classifier: patterns, delete, in, hasOwn and literals
+                // have separate completion and coercion contracts.
+                let supported_receiver = receiver == Type::ManagedObject
+                    && self.stored.dictionary(member.object.node_id());
+                let known_reference = matches!(
+                    self.managed_source_type(&member.expression, depth),
+                    Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                ) || self.stored.container(member.expression.node_id()).is_some();
+                (supported_receiver && !known_reference).then_some(RuntimeKey::Value)
+            })?;
+        Some((Mode::managed(receiver), kind))
     }
 
     pub(in crate::lower) fn owned_key_kind(
