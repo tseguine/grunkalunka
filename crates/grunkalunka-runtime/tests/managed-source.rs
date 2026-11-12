@@ -2782,3 +2782,21 @@ fn boxed_membership_keys_execute_in_null_prototype_dictionaries() {
     let ts = "export function run(a:number,b:number){const d=Object.create(null);d.x=b;const k=a?('x' as never):(b as never);return (k in d)===(!!a)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_runtime_dictionary_delete_matches_native_js() {
+    for body in [
+        "const d=Object.create(null);const k=a?'x':b;d[k]=b;const ok=delete d[k];return ok&&!Object.hasOwn(d,k)?1:0;",
+        "const d=Object.create(null);d.x=b;const k=a?'x':b;return (delete d[k])&&Object.hasOwn(d,'x')===(!a)?1:0;",
+        "const d=Object.create(null);d.true=b;const k=a?true:'true';return delete d[k]&&!Object.hasOwn(d,'true')?1:0;",
+        "const d=Object.create(null);d.null=b;const k=a?null:'null';return delete d[k]&&!Object.hasOwn(d,'null')?1:0;",
+        "const d=Object.create(null);d['__proto__']=b;const k=a?'__proto__':b;return delete d[k]&&Object.hasOwn(d,'__proto__')===(!a)?1:0;",
+        "const d=Object.create(null);d.x=b;const k=a?'x':b;let count=0;const removed=delete d[(count++,k)];return removed&&count===1?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);d.x=b;const k=a?'x':b;return delete d[k]&&Object.hasOwn(d,'x')===(!a)?1:0;}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);d.x=b;const k=a?('x' as never):(b as never);return delete d[k]&&Object.hasOwn(d,'x')===(!a)?1:0;}";
+    common::compare_sources(js, ts);
+}

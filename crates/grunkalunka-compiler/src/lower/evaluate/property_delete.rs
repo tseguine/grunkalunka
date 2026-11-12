@@ -80,7 +80,20 @@ impl Lowering<'_, '_> {
                 "delete requires a proven Number, Boolean, object or array receiver",
             ));
         }
-        let kind = dynamic.and_then(|key| self.runtime_key(key, member_depth + 1));
+        let kind = dynamic.and_then(|key| {
+            self.runtime_key(key, member_depth + 1).or_else(|| {
+                // Dynamic keys on null-prototype dictionaries use guest
+                // primitive/String normalization. Ordinary object and Array
+                // deletion retain their separate semantic guards.
+                let dictionary =
+                    ty == Some(Type::ManagedObject) && self.stored.dictionary(object.node_id());
+                let known_reference = matches!(
+                    self.managed_source_type(key, member_depth + 1),
+                    Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                ) || self.stored.container(key.node_id()).is_some();
+                (dictionary && !known_reference).then_some(dictionary::RuntimeKey::Value)
+            })
+        });
         if let Some(key) = dynamic
             && literal.is_none()
             && kind.is_none()
@@ -189,6 +202,37 @@ impl Lowering<'_, '_> {
         );
         values.push(Value::Predicate(result));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod boxed_dictionary_delete_tests {
+    #[test]
+    fn boxed_primitive_string_deletion_uses_guest_own_property_keys() {
+        for body in [
+            "const d=Object.create(null);const k=a?'x':b;d[k]=b;delete d[k];return Object.keys(d).length;",
+            "const d=Object.create(null);d.x=b;const k=a?'x':b;delete d[k];return Object.hasOwn(d,'x')?1:0;",
+            "const d=Object.create(null);d.true=b;const k=a?true:'true';delete d[k];return Object.keys(d).length;",
+            "const d=Object.create(null);d.null=b;const k=a?null:'null';delete d[k];return Object.keys(d).length;",
+            "const d=Object.create(null);d['__proto__']=b;const k=a?'__proto__':b;delete d[k];return Object.keys(d).length;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let result = crate::compile(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_delete_remains_guarded_on_reference_keys_and_array_length() {
+        for source in [
+            "export function run(a,b){const d=Object.create(null);const k={};delete d[k];return a;}",
+            "export function run(a,b){const xs=[a];const k=a?'length':b;delete xs[k];return a;}",
+            "export function run(a,b){const o={x:a};const k={};delete o[k];return a;}",
+        ] {
+            assert!(crate::compile(source, false).is_err(), "{source}");
+        }
     }
 }
 

@@ -63,3 +63,17 @@ semantics for runtime-dependent keys. Source-known object/function keys
 remain guarded pending ToPrimitive/completion support. JS/TS-vs-Wasm
 tests exercise mixed primitive/String keys, absent names, saved effects
 and identity-independent own-name lookup.
+
+## Boxed dictionary deletion
+
+The general String/primitive key operation now also feeds the existing
+`delete dictionary[key]` path when the receiver is a null-prototype
+dictionary. Stored data properties in this admitted domain are configurable,
+and an absent key returns true without changing unrelated fields. A write
+and subsequent delete of the same mixed-kind runtime key preserve receiver
+identity and source evaluation order entirely in guest Wasm.
+
+General object-key ToPrimitive, ordinary-object prototype behavior,
+non-configurable descriptors and dynamic Array length deletion remain outside
+this bounded operation; the existing source guards are retained. Tests
+compare unchanged JS and erased TypeScript against both Wasm engines.
