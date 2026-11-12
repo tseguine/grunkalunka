@@ -1069,3 +1069,18 @@ fn to_reversed_copies_dense_values_and_preserves_source_slots() {
         common::compare_sources(source, source);
     }
 }
+
+#[test]
+fn runtime_boxed_keys_select_array_indices_and_length_without_proof() {
+    for body in [
+        "const xs=[a,b];const k=a?1:'length';return xs[k]===(a?b:2)?1:0;",
+        "const xs=[b];const k=a?0:'0';return xs[k]===b?1:0;",
+        "const xs=[a,,b];const k=a?'length':2;return xs[k]===(a?3:b)?1:0;",
+        "const xs=[b];const k=a?true:'true';xs['true']=b;return xs[k]===b?1:0;",
+        "const xs=[b];const k=a?null:'null';xs['null']=b;return xs[k]===b?1:0;",
+        "const xs=[b];const k=a?'length':undefined;return xs[k]===(a?1:undefined)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+}
