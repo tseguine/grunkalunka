@@ -86,14 +86,7 @@ impl Lowering<'_, '_> {
                 // are configurable. Delete never consults inherited names.
                 // Array length still has its separate error contract.
                 let data_object = ty == Some(Type::ManagedObject);
-                let known_reference = self
-                    .stored
-                    .property_key_requires_to_primitive(key.node_id())
-                    || matches!(
-                        self.managed_source_type(key, member_depth + 1),
-                        Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                    )
-                    || self.stored.container(key.node_id()).is_some();
+                let known_reference = self.boxed_key_needs_to_primitive(key, member_depth + 1);
                 (data_object && !known_reference).then_some(dictionary::RuntimeKey::Value)
             })
         });
