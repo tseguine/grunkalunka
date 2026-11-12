@@ -107,3 +107,20 @@ Array deletion still requires a key proof that excludes the non-configurable
 `length` property, while object/Array/function key coercion still needs a
 fallible ToPrimitive operation. Added comparisons exercise missing/inherited
 keys, aliases, evaluation order and TypeScript erasure.
+
+## Optional computed own-data reads
+
+The same guest-owned boxed-key normalization can now be selected for an
+optional computed member read when the non-nullish receiver is a proven
+null-prototype data dictionary or Array, even when the source key does not
+have a single provable kind. The owned expression cursor evaluates the
+receiver once and only evaluates/converts the key in the non-nullish branch.
+The general path is shared with ordinary computed own-property reads rather
+than maintained as another AST-specific converter.
+
+This does not add generic access to inherited properties, optional calls or
+object-valued keys requiring ToPrimitive. The existing positive-proof paths
+remain the preferred specialization. Rust admission/rejection tests and
+native-JS/Node-Wasm/Wasmtime checks cover sparse indices, Array length,
+nullish key suppression, mutation of the receiver during key evaluation,
+and TypeScript type-erasure behavior.

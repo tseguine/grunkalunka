@@ -150,17 +150,37 @@ impl Lowering<'_, '_> {
             return None;
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        let supported_receiver = (receiver == Type::ManagedObject
-            && self.stored.dictionary(member.object.node_id()))
+        let dictionary = self.stored.dictionary(member.object.node_id());
+        let kind = self.boxed_runtime_key_fallback(
+            &member.expression,
+            depth,
+            receiver,
+            dictionary,
+            access,
+        )?;
+        Some((Mode::managed(receiver), kind))
+    }
+
+    // Runtime key normalization is shared by direct and optional reads.
+    // The receiver and access checks keep Array length writes and ordinary
+    // prototype-bearing Get/Set outside this partial own-data operation.
+    pub(in crate::lower) fn boxed_runtime_key_fallback(
+        &self,
+        key: &Expression<'_>,
+        depth: usize,
+        receiver: Type,
+        dictionary: bool,
+        access: KeyAccess,
+    ) -> Option<RuntimeKey> {
+        let supported_receiver = (receiver == Type::ManagedObject && dictionary)
             || (receiver == Type::ManagedArray && access == KeyAccess::Read);
-        // A source-proven reference key needs fallible ToPrimitive, not
-        // a runtime trap disguised by a TypeScript type assertion.
+        // Known reference keys need user-visible ToPrimitive completions,
+        // not an internal trap or a TypeScript annotation-based coercion.
         let known_reference = matches!(
-            self.managed_source_type(&member.expression, depth),
+            self.managed_source_type(key, depth),
             Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-        ) || self.stored.container(member.expression.node_id()).is_some();
-        (supported_receiver && !known_reference)
-            .then_some((Mode::managed(receiver), RuntimeKey::Value))
+        ) || self.stored.container(key.node_id()).is_some();
+        (supported_receiver && !known_reference).then_some(RuntimeKey::Value)
     }
 
     pub(in crate::lower) fn owned_key_kind(
