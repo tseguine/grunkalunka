@@ -481,6 +481,54 @@ fn earlier_truthiness<'n, 'a>(
     }
 }
 
+// Homogeneous logical operations are associative under the existing, pure
+// source-proven operand contract. Flatten either nesting direction iteratively
+// so a default such as x ?? (backup ?? fallback) remains lazy at every step.
+fn earlier_homogeneous_logical_chain<'n, 'a>(
+    expression: &'n Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<(
+    DefaultOperand<'n, 'a>,
+    Vec<(LogicalOperator, DefaultOperand<'n, 'a>)>,
+)> {
+    let (root, _) = closures::unwrapped_at(expression, 0)?;
+    let Expression::LogicalExpression(root) = root else {
+        return None;
+    };
+    let operator = root.operator;
+    let mut pending = vec![(expression, 0usize)];
+    let mut operands = Vec::new();
+    while let Some((current, depth)) = pending.pop() {
+        let (node, depth) = closures::unwrapped_at(current, depth)?;
+        if depth > 128 {
+            return None;
+        }
+        if let Expression::LogicalExpression(logical) = node
+            && logical.operator == operator
+        {
+            pending.push((&logical.right, depth + 1));
+            pending.push((&logical.left, depth + 1));
+            continue;
+        }
+        operands.push(pure_operand(expression, node, semantic)?);
+        if operands.len() > 128 {
+            return None;
+        }
+    }
+    let mut operands = operands.into_iter();
+    let original = operands.next()?;
+    if !matches!(
+        &original,
+        DefaultOperand::Earlier(_) | DefaultOperand::Field { .. }
+    ) {
+        return None;
+    }
+    Some((
+        original,
+        operands.map(|operand| (operator, operand)).collect(),
+    ))
+}
+
 // Source-order logical default chains model common A1 policy precedence:
 // value ?? override ?? fallback and enabled && flag && value. Each right
 // operand is a pure constant or a resolved earlier parameter. Only the
@@ -492,6 +540,9 @@ fn earlier_logical_chain<'n, 'a>(
     DefaultOperand<'n, 'a>,
     Vec<(LogicalOperator, DefaultOperand<'n, 'a>)>,
 )> {
+    if let Some(chain) = earlier_homogeneous_logical_chain(expression, semantic) {
+        return Some(chain);
+    }
     let mut node = expression;
     let mut depth = 0;
     let mut steps = Vec::new();
