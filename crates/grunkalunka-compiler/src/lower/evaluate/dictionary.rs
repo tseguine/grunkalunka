@@ -150,15 +150,14 @@ impl Lowering<'_, '_> {
             return None;
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        let supported_receiver = receiver == Type::ManagedObject
-            && self.stored.dictionary(member.object.node_id());
+        let supported_receiver =
+            receiver == Type::ManagedObject && self.stored.dictionary(member.object.node_id());
         // A source-proven reference key needs fallible ToPrimitive, not
         // a runtime trap disguised by a TypeScript type assertion.
-        let known_reference =
-            matches!(
-                self.managed_source_type(&member.expression, depth),
-                Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-            ) || self.stored.container(member.expression.node_id()).is_some();
+        let known_reference = matches!(
+            self.managed_source_type(&member.expression, depth),
+            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+        ) || self.stored.container(member.expression.node_id()).is_some();
         (supported_receiver && !known_reference)
             .then_some((Mode::managed(receiver), RuntimeKey::Value))
     }
@@ -225,7 +224,8 @@ impl Lowering<'_, '_> {
         let Expression::ComputedMemberExpression(member) = node else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Read)
+        let Some((mode, kind)) =
+            self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Read)
         else {
             return Ok(false);
         };
@@ -253,7 +253,8 @@ impl Lowering<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some((mode, kind)) = self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Write)
+        let Some((mode, kind)) =
+            self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Write)
         else {
             return Ok(false);
         };
