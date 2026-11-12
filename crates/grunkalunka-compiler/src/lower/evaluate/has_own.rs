@@ -297,7 +297,7 @@ mod boxed_in_key_tests {
         for source in [
             "export function run(a,b){const d=Object.create(null);const k={};return k in d?1:0;}",
             "export function run(a,b){const o={x:a};const k={};return k in o?1:0;}",
-            "export function run(a,b){const xs=[a];const k=a?'length':b;return k in xs?1:0;}",
+            "export function run(a,b){const xs=[a];const k={};return k in xs?1:0;}",
         ] {
             assert!(crate::compile(source, false).is_err(), "{source}");
         }
