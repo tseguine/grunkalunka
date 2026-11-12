@@ -12,6 +12,7 @@ pub(in crate::lower) enum RuntimeKey {
     Uint32,
     Scalar { numbers: bool },
     String,
+    Value,
 }
 
 impl RuntimeKey {
@@ -20,6 +21,7 @@ impl RuntimeKey {
             Self::Uint32 => ir::ManagedKey::Uint32(input),
             Self::Scalar { numbers } => ir::ManagedKey::Scalar { input, numbers },
             Self::String => ir::ManagedKey::String(input),
+            Self::Value => ir::ManagedKey::Value(input),
         }
     }
 }
@@ -69,10 +71,12 @@ impl Lowering<'_, '_> {
             Some(RuntimeKey::Scalar {
                 numbers: self.stored.may_be_number(key.node_id()),
             })
+        } else if self.stored.scalar_string_operand(key.node_id()) {
+            Some(RuntimeKey::String)
         } else {
-            self.stored
-                .scalar_string_operand(key.node_id())
-                .then_some(RuntimeKey::String)
+            // Normalize the runtime value in guest Wasm rather than rejecting
+            // a computed key solely for lacking a source-kind proof.
+            Some(RuntimeKey::Value)
         }
     }
 
@@ -87,6 +91,7 @@ impl Lowering<'_, '_> {
             RuntimeKey::Uint32 => Mode::Number,
             RuntimeKey::Scalar { .. } => Mode::General,
             RuntimeKey::String => return self.schedule_string_operand(key, depth, work),
+            RuntimeKey::Value => Mode::Managed,
         };
         work.push(Work::Eval(key, depth, mode));
         Ok(())
@@ -104,7 +109,7 @@ impl Lowering<'_, '_> {
         let mode = match kind {
             RuntimeKey::Uint32 => Mode::Number,
             RuntimeKey::Scalar { .. } => Mode::General,
-            RuntimeKey::String => Mode::Managed,
+            RuntimeKey::String | RuntimeKey::Value => Mode::Managed,
         };
         Ok((EvaluationCursor::with_work(output, work), mode))
     }
@@ -154,6 +159,8 @@ impl Lowering<'_, '_> {
     ) -> Option<RuntimeKey> {
         let kind = self.runtime_key(key, depth)?;
         match (receiver, kind) {
+            // The receiver has no inherited setters or prototype properties.
+            (Type::ManagedObject, RuntimeKey::Value) if dictionary => Some(kind),
             (
                 Type::ManagedObject | Type::ManagedArray,
                 RuntimeKey::Uint32 | RuntimeKey::Scalar { .. },

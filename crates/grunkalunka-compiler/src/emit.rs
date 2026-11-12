@@ -1376,6 +1376,10 @@ impl Emitter<'_> {
         match key {
             ir::ManagedKey::Literal(units) => self.managed_key(units),
             ir::ManagedKey::String(input) => self.managed_key_value(*input),
+            ir::ManagedKey::Value(input) => {
+                self.get(*input);
+                self.output.push_str("call $gc_property_key\n");
+            }
             ir::ManagedKey::Scalar { input, numbers } => {
                 self.get(*input);
                 self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
@@ -1958,7 +1962,9 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
             matches!(
                 op,
                 Op::ManagedScalarString { .. } | Op::ManagedScalarAdd { .. }
-            ) || any_managed_key(op, |key| matches!(key, ir::ManagedKey::Scalar { .. }))
+            ) || any_managed_key(op, |key| {
+                matches!(key, ir::ManagedKey::Scalar { .. } | ir::ManagedKey::Value(_))
+            })
         })
     }) {
         output.push_str(include_str!("emit/scalar_string.wat"));
@@ -1970,13 +1976,23 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
                 Op::ManagedScalarString { numbers: true, .. }
                     | Op::ManagedScalarAdd { numbers: true, .. }
             ) || any_managed_key(op, |key| {
-                matches!(key, ir::ManagedKey::Scalar { numbers: true, .. })
+                matches!(
+                    key,
+                    ir::ManagedKey::Scalar { numbers: true, .. } | ir::ManagedKey::Value(_)
+                )
             })
         })
     }) {
         output.push_str(include_str!(concat!(env!("OUT_DIR"), "/ryu-tables.wat")));
         output.push_str(include_str!("emit/ryu.wat"));
         output.push_str(include_str!("emit/number_string.wat"));
+    }
+    if module.functions.iter().any(|function| {
+        ir::any_operation(&function.body, &mut |op| {
+            any_managed_key(op, |key| matches!(key, ir::ManagedKey::Value(_)))
+        })
+    }) {
+        output.push_str(include_str!("emit/property_key.wat"));
     }
     // Emit the decimal index formatter immediately before its first consumer.
     let mut emitted_index = false;
