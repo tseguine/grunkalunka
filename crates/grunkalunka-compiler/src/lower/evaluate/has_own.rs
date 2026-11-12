@@ -296,7 +296,7 @@ mod boxed_in_key_tests {
     fn boxed_in_does_not_expand_unproved_reference_or_prototype_semantics() {
         for source in [
             "export function run(a,b){const d=Object.create(null);const k={};return k in d?1:0;}",
-            "export function run(a,b){const o={x:a};const k=a?'x':b;return k in o?1:0;}",
+            "export function run(a,b){const o={x:a};const k={};return k in o?1:0;}",
             "export function run(a,b){const xs=[a];const k=a?'length':b;return k in xs?1:0;}",
         ] {
             assert!(crate::compile(source, false).is_err(), "{source}");
