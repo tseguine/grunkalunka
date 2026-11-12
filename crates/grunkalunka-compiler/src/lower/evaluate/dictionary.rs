@@ -60,6 +60,61 @@ pub(super) enum Task<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    // The provenance of a wrapper or a compound expression is not always
+    // attached to its outer NodeId. Check every value-producing alternative
+    // before falling back to primitive-only guest ToPropertyKey. Evaluation
+    // of conditions and sequence prefixes has effects but does not supply
+    // the property key. Keep this traversal iterative.
+    pub(in crate::lower) fn boxed_key_needs_to_primitive(
+        &self,
+        key: &Expression<'_>,
+        depth: usize,
+    ) -> bool {
+        let mut pending = vec![(key, depth)];
+        while let Some((key, depth)) = pending.pop() {
+            let Some((key, depth)) = closures::unwrapped_at(key, depth) else {
+                return true;
+            };
+            if self
+                .stored
+                .property_key_requires_to_primitive(key.node_id())
+                || matches!(
+                    self.managed_source_type(key, depth),
+                    Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                )
+                || self.stored.container(key.node_id()).is_some()
+            {
+                return true;
+            }
+            match key {
+                Expression::ObjectExpression(_)
+                | Expression::ArrayExpression(_)
+                | Expression::ArrowFunctionExpression(_)
+                | Expression::FunctionExpression(_) => return true,
+                Expression::ConditionalExpression(conditional) => {
+                    pending.push((&conditional.consequent, depth + 1));
+                    pending.push((&conditional.alternate, depth + 1));
+                }
+                Expression::LogicalExpression(logical) => {
+                    pending.push((&logical.left, depth + 1));
+                    pending.push((&logical.right, depth + 1));
+                }
+                Expression::SequenceExpression(sequence) => {
+                    if let Some(value) = sequence.expressions.last() {
+                        pending.push((value, depth + 1));
+                    }
+                }
+                Expression::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::Assign =>
+                {
+                    pending.push((&assignment.right, depth + 1));
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
     pub(in crate::lower) fn runtime_key(
         &self,
         key: &Expression<'_>,
@@ -176,14 +231,7 @@ impl Lowering<'_, '_> {
             || (receiver == Type::ManagedArray && access == KeyAccess::Read);
         // Known reference keys need user-visible ToPrimitive completions,
         // not an internal trap or a TypeScript annotation-based coercion.
-        let known_reference = self
-            .stored
-            .property_key_requires_to_primitive(key.node_id())
-            || matches!(
-                self.managed_source_type(key, depth),
-                Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-            )
-            || self.stored.container(key.node_id()).is_some();
+        let known_reference = self.boxed_key_needs_to_primitive(key, depth);
         (supported_receiver && !known_reference).then_some(RuntimeKey::Value)
     }
 
