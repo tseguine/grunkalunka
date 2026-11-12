@@ -77,3 +77,19 @@ General object-key ToPrimitive, ordinary-object prototype behavior,
 non-configurable descriptors and dynamic Array length deletion remain outside
 this bounded operation; the existing source guards are retained. Tests
 compare unchanged JS and erased TypeScript against both Wasm engines.
+
+## General boxed `in` with guest-owned prototype membership
+
+The existing `ManagedHasProperty` operation now accepts the shared
+`ManagedKey` carrier. Its emission preserves the existing proven String
+fast path exactly; the boxed-key fallback calls the same guest ToPropertyKey
+conversion used by Get/Set/Has/Delete. Runtime String keys then test both
+own properties and the guest's already-maintained intrinsic prototype-name
+tables on ordinary objects and Arrays. The same operation respects the
+null-prototype dictionary subtype, where inherited names remain absent.
+
+This removes the static key-kind requirement for `in` even when the
+primitive-or-String choice changes at runtime, without needing an alternative
+control-flow implementation or ambient host-JavaScript lookup. Known
+object/function keys still need fallible ToPrimitive/completions; arbitrary
+prototype mutation, accessors, Symbols and proxies are not claimed.

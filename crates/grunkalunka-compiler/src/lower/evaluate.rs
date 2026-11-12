@@ -1671,13 +1671,17 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 kind.finish(key),
                             );
                         }
-                        has_own::Membership::Prototype => {
+                        has_own::Membership::Prototype(kind) => {
                             let key = values.pop().expect("in key").id();
                             let result = self.value(Type::Predicate);
                             Self::push(
                                 regions.current(),
                                 node,
-                                Op::ManagedHasProperty { result, input, key },
+                                Op::ManagedHasProperty {
+                                    result,
+                                    input,
+                                    key: kind.finish(key),
+                                },
                             );
                             values.push(Value::Predicate(result));
                         }

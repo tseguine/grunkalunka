@@ -349,7 +349,7 @@ impl Emitter<'_> {
             }
             Op::ManagedHasProperty { result, input, key } => {
                 self.get(*input);
-                self.managed_key_value(*key);
+                self.property_key(key);
                 self.output
                     .push_str(if self.function.values[input.0] == Type::ManagedArray {
                         "call $gc_array_has_property\n"
@@ -1935,6 +1935,7 @@ fn any_managed_key(op: &Op, predicate: impl Fn(&ir::ManagedKey) -> bool) -> bool
     match op {
         Op::ManagedDeleteOwn { key, .. }
         | Op::ManagedHasOwn { key, .. }
+        | Op::ManagedHasProperty { key, .. }
         | Op::ManagedSetOwnDynamic { key, .. }
         | Op::ManagedGetOwnDynamic { key, .. } => predicate(key),
         Op::ManagedObjectRest { excluded, .. } => excluded.iter().any(predicate),
