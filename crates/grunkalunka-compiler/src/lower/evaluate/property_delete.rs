@@ -82,16 +82,15 @@ impl Lowering<'_, '_> {
         }
         let kind = dynamic.and_then(|key| {
             self.runtime_key(key, member_depth + 1).or_else(|| {
-                // Dynamic keys on null-prototype dictionaries use guest
-                // primitive/String normalization. Ordinary object and Array
-                // deletion retain their separate semantic guards.
-                let dictionary =
-                    ty == Some(Type::ManagedObject) && self.stored.dictionary(object.node_id());
+                // Own data fields on both ordinary objects and dictionaries
+                // are configurable. Delete never consults inherited names.
+                // Array length still has its separate error contract.
+                let data_object = ty == Some(Type::ManagedObject);
                 let known_reference = matches!(
                     self.managed_source_type(key, member_depth + 1),
                     Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
                 ) || self.stored.container(key.node_id()).is_some();
-                (dictionary && !known_reference).then_some(dictionary::RuntimeKey::Value)
+                (data_object && !known_reference).then_some(dictionary::RuntimeKey::Value)
             })
         });
         if let Some(key) = dynamic
@@ -215,6 +214,24 @@ mod boxed_dictionary_delete_tests {
             "const d=Object.create(null);d.true=b;const k=a?true:'true';delete d[k];return Object.keys(d).length;",
             "const d=Object.create(null);d.null=b;const k=a?null:'null';delete d[k];return Object.keys(d).length;",
             "const d=Object.create(null);d['__proto__']=b;const k=a?'__proto__':b;delete d[k];return Object.keys(d).length;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let result = crate::compile(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_keys_delete_configurable_own_data_on_ordinary_objects() {
+        for body in [
+            "const o={x:b};const k=a?'x':b;return delete o[k]&&!Object.hasOwn(o,k)?1:0;",
+            "const o={x:b};const k=a?'constructor':b;return delete o[k]&&('constructor' in o)?1:0;",
+            "const o={x:b};const k=a?'__proto__':b;return delete o[k]&&(o instanceof Object)?1:0;",
+            "const o={x:b};const k=a?null:'null';o.null=b;delete o[k];return Object.keys(o).length;",
+            "const o={x:b};const k=a?true:'true';o.true=b;delete o[k];return Object.keys(o).length;",
+            "const o={x:b};const k=a?'x':b;const alias=o;delete o[k];return Object.hasOwn(alias,'x')===(!a)?1:0;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for ts in [false, true] {
