@@ -22,3 +22,12 @@ executing programs in the lowering-coverage census.
 
 Source-backed compiler checks and native-JS/Node-Wasm/Wasmtime comparisons cover
 mixed primitive/String keys, effects and TypeScript erasure.
+
+## Boxed Array reads
+
+A follow-up routes runtime-boxed primitive/String keys to the existing
+sparse-Array getter, including canonical numeric indices and `length`.
+It preserves source order and boxed values without a static key-kind proof.
+Dynamic Array writes are still guarded until the guest has catchable
+length-error semantics. Ordinary-object prototype Get/Set and accessors
+require a separate fallible general operation and are not claimed here.

@@ -150,8 +150,9 @@ impl Lowering<'_, '_> {
             return None;
         }
         let receiver = self.receiver_type(&member.object, depth)?;
-        let supported_receiver =
-            receiver == Type::ManagedObject && self.stored.dictionary(member.object.node_id());
+        let supported_receiver = (receiver == Type::ManagedObject
+            && self.stored.dictionary(member.object.node_id()))
+            || (receiver == Type::ManagedArray && access == KeyAccess::Read);
         // A source-proven reference key needs fallible ToPrimitive, not
         // a runtime trap disguised by a TypeScript type assertion.
         let known_reference = matches!(
