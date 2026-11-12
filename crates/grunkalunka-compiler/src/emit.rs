@@ -1963,7 +1963,10 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
                 op,
                 Op::ManagedScalarString { .. } | Op::ManagedScalarAdd { .. }
             ) || any_managed_key(op, |key| {
-                matches!(key, ir::ManagedKey::Scalar { .. } | ir::ManagedKey::Value(_))
+                matches!(
+                    key,
+                    ir::ManagedKey::Scalar { .. } | ir::ManagedKey::Value(_)
+                )
             })
         })
     }) {
