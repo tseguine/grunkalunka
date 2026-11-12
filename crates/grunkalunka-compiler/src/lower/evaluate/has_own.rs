@@ -66,7 +66,8 @@ impl Lowering<'_, '_> {
                     // Coerce the represented primitive/String at runtime.
                     // Ordinary receivers use existing own+prototype membership;
                     // null-prototype dictionaries need only their own fields.
-                    let known_reference = self.boxed_key_needs_to_primitive(&binary.left, depth + 1);
+                    let known_reference =
+                        self.boxed_key_needs_to_primitive(&binary.left, depth + 1);
                     (!known_reference).then_some(dictionary::RuntimeKey::Value)
                 })
                 .ok_or_else(|| {
