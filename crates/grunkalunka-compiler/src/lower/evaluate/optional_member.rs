@@ -532,10 +532,10 @@ mod tests {
     #[test]
     fn optional_boxed_keys_use_the_general_guest_getter_on_known_receivers() {
         for body in [
-            "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;return +(row?.[k]??7);",
-            "const xs=a?[b,,a]:null;const k=b?'length':a;return +(xs?.[k]??7);",
-            "const xs=a?[b]:null;let n=0;const value=xs?.[(n++,b?'length':0)];return n===(a?1:0)?+(value??9):99;",
-            "const d=Object.create(null);d.x=b;let row=a?d:null;const value=row?.[(row=null,b?'x':0)];return +(value??7);",
+            "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;return row?.[k]===(a&&b?b:undefined)?1:0;",
+            "const xs=a?[b,,a]:null;const k=b?'length':0;return xs?.[k]===(a?(b?3:b):undefined)?1:0;",
+            "const xs=a?[b]:null;let n=0;const value=xs?.[(n++,b?'length':0)];return n===(a?1:0)&&value===(a?(b?1:b):undefined)?1:0;",
+            "const d=Object.create(null);d.x=b;let row=a?d:null;const value=row?.[(row=null,b?'x':0)];return value===(a&&b?b:undefined)?1:0;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
