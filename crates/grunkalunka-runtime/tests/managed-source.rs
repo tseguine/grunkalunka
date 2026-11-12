@@ -2853,7 +2853,8 @@ fn optional_boxed_keys_preserve_nullish_skip_and_saved_receiver() {
         let source = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&source, &source);
     }
-    let js = "export function run(a,b){const xs=a?[b]:null;const k=b?'length':a;return +(xs?.[k]??7);}";
+    let js =
+        "export function run(a,b){const xs=a?[b]:null;const k=b?'length':a;return +(xs?.[k]??7);}";
     let ts = "export function run(a:number,b:number){const xs=a?[b]:null;const k=b?('length' as never):(a as never);return +(xs?.[k]??7);}";
     common::compare_sources(js, ts);
 }
