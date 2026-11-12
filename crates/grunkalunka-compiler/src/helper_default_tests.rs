@@ -676,6 +676,50 @@ fn earlier_parameter_logical_chains_admit_policy_precedence() {
 }
 
 #[test]
+fn right_nested_logical_defaults_admit_pure_homogeneous_chains() {
+    for expression in [
+        "x??(backup??alt)",
+        "x||(backup||alt)",
+        "x&&(backup&&alt)",
+        "(x??backup)??(alt??'missing')",
+        "x??(backup??(alt??'missing'))",
+        "x||(backup||'missing')",
+        "x&&(backup&&'enabled')",
+    ] {
+        for source in [
+            format!(
+                "function f(x,backup,alt,result={expression}){{return result===undefined?0:1;}}export function run(a,b){{return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const f=(x,backup,alt,result={expression})=>result===undefined?0:1;return f(a,b,3);}}"
+            ),
+            format!(
+                "export function run(a,b){{const o={{f:(x,backup,alt,result={expression})=>result===undefined?0:1}};return o.f(a,b,3);}}"
+            ),
+        ] {
+            for ts in [false, true] {
+                let result = crate::compile_value(&source, ts);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+}
+
+#[test]
+fn right_nested_logical_defaults_guard_effects_scope_and_mixed_operators() {
+    for source in [
+        "function f(x,y,z=x??(y??g())){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x||(y||missing)){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x&&(y&&z)){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x??(y??later),later=1){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x??(y||x)){return z;}export function run(a,b){return f(a,b);}",
+        "function f(x,y,z=x||(y&&x)){return z;}export function run(a,b){return f(a,b);}",
+    ] {
+        assert!(crate::compile_value(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn earlier_parameter_logical_chains_reject_hidden_reads_and_effects() {
     for source in [
         "function f(x,y=x??x??g()){return y;}export function run(a,b){return f(a);}",

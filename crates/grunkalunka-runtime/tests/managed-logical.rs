@@ -1110,6 +1110,28 @@ fn earlier_parameter_logical_chains_match_native_js_and_ts() {
 }
 
 #[test]
+fn right_nested_homogeneous_logical_defaults_match_native_js_and_ts() {
+    for body in [
+        "function f(x,y,z,v=x??(y??z)){return v;}return f(null,null,b)===b?a:b;",
+        "function f(x,y,z,v=x??(y??z)){return v;}return f(0,b,7)===0?a:b;",
+        "function f(x,y,z,v=x||(y||z)){return v;}return f(0,0,b)===b?a:b;",
+        "function f(x,y,z,v=x&&(y&&z)){return v;}return f(0,b,7)===0?a:b;",
+        "function f(x,y,z,v=x&&(y&&z)){return v;}return f(1,0,7)===0?a:b;",
+        "function f(x,y,z,v=(x??y)??(z??'last')){return v;}return f(null,null,null)==='last'?a:b;",
+        "function f(x,y,z,v=x??(y??z)){return v;}return f(null,null,b,9)===9?a:b;",
+        "function f(x,y,z,v=x??(y??z)){return v;}const obj={value:a};return f(null,null,obj)===obj?a:b;",
+        "const f=(x,y,z,v=x??(y??z))=>v;return f(null,b,7)===b?a:b;",
+        "const o={f:(x,y,z,v=x||(y||z))=>v};return o.f(0,0,b)===b?a:b;",
+    ] {
+        let source = source_with_module_helper(body);
+        common::compare_sources(&source, &source);
+    }
+    let js = "function f(x,y,z=x??(y??'last')){return z;}export function run(a,b){return f(null,b)===b?a:b;}";
+    let ts = "function f(x:unknown,y:unknown,z:unknown=(x as never)??((y as never)??'last')){return z;}export function run(a:number,b:number):number{return f(null,b)===b?a:b;}";
+    common::compare_sources(js, ts);
+}
+
+#[test]
 fn numeric_defaults_match_native_js_for_helpers_arrows_and_stored_calls() {
     for body in [
         "function f(x,d,y=x+d){return y;}return f(a,b);",

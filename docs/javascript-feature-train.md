@@ -741,3 +741,15 @@ reference identity and JS truthiness stay unchanged. The compiler still rejects
 effectful tests, later/self/outer parameter reads, unproven property receivers,
 unsupported coercion and async/public parameter defaults. Native JS/TS-versus-
 Wasm and admission/rejection tests cover the admitted forms.
+
+### Right-nested homogeneous logical parameter defaults
+
+Pure private helper/arrow defaults now accept parenthesized right-nested
+`??`, `||` or `&&` chains, such as `result=primary??(backup??'missing')`.
+The source-verified operand tree is flattened iteratively only when its
+logical operators are identical. This preserves short-circuit evaluation
+and the original operand values while reusing the existing lazy `If` regions.
+Mixed-operator right-nesting, effects, unresolved/later parameter reads and
+unproven operands remain guarded; existing left-associated mixed chains
+continue to work. Admission/guard tests and differential JS/TS fixtures
+cover named helpers, arrows, stored calls, identity and explicit overrides.
