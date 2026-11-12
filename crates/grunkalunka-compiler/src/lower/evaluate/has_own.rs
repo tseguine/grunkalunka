@@ -63,10 +63,11 @@ impl Lowering<'_, '_> {
                     // A null-prototype receiver has only own data properties.
                     // Other receivers still need complete inherited-property
                     // semantics for dynamic, potentially coercive keys.
-                    let known_reference = matches!(
-                        self.managed_source_type(&binary.left, depth + 1),
-                        Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                    ) || self.stored.container(binary.left.node_id()).is_some();
+                    let known_reference =
+                        matches!(
+                            self.managed_source_type(&binary.left, depth + 1),
+                            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                        ) || self.stored.container(binary.left.node_id()).is_some();
                     (dictionary && !known_reference).then_some(dictionary::RuntimeKey::Value)
                 })
                 .ok_or_else(|| {
