@@ -9,6 +9,10 @@ boundaries, and the [research roadmap](roadmap.md) for longer-term questions.
 
 ## Compiler and runtime
 
+- [Accepted ADR 0022: general JS/TS lowering first](adr/0022-general-js-ts-lowering-first.md):
+  coverage of valid JS/TS source and workable Wasm execution comes before
+  exhaustive compliance or further optimization. The historical feature train
+  remains useful implementation evidence, not the governing compiler priority.
 - [Compiler/source admission](compiler.md) and [typed region IR](ir.md): admitted
   JS/TS profiles, diagnostics, verifier and backend.
 - [Managed values and source data objects](managed-values.md) and
