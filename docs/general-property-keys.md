@@ -124,3 +124,18 @@ remain the preferred specialization. Rust admission/rejection tests and
 native-JS/Node-Wasm/Wasmtime checks cover sparse indices, Array length,
 nullish key suppression, mutation of the receiver during key evaluation,
 and TypeScript type-erasure behavior.
+
+## Computed object-binding keys
+
+The same boxed runtime key selector is now reused by computed object binding
+patterns over source-known data dictionaries and Arrays with safe own keys. It supplies the
+already-existing managed selection and default/rest machinery rather than
+requiring a separate source-kind proof before the pattern can be lowered.
+Saved receivers, computed-key evaluation order and exclusions from object
+rest continue through the typed IR.
+
+Array intrinsic names, prototype-bearing ordinary objects, coercion of object/function keys,
+unresolved receivers, and user-defined accessors retain their previous
+guards. Source and native-JS-vs-Wasm tests cover sparse Array and length
+names, mixed primitive/String choices, defaults, rest exclusion, effects
+and TypeScript erasure.
