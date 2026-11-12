@@ -2839,3 +2839,21 @@ fn boxed_ordinary_object_delete_uses_own_data_keys_without_prototype_effects() {
     let ts = "export function run(a:number,b:number){const o={x:b};const k=a?('x' as never):(b as never);delete o[k];return Object.hasOwn(o,'x')===(!a)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn optional_boxed_keys_preserve_nullish_skip_and_saved_receiver() {
+    for body in [
+        "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;return row?.[k]===(a&&b?b:undefined)?1:0;",
+        "const xs=a?[b,,a]:null;const k=b?'length':0;return xs?.[k]===(a?(b?3:b):undefined)?1:0;",
+        "const xs=a?[b]:null;let n=0;const value=xs?.[(n++,b?'length':0)];return n===(a?1:0)&&value===(a?(b?1:b):undefined)?1:0;",
+        "const d=Object.create(null);d.x=b;let row=a?d:null;const value=row?.[(row=null,b?'x':0)];return value===(a&&b?b:undefined)?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':b;d[k]=b;return d?.[k]===b?1:0;",
+        "const xs=[b];const k=a?'length':b;return xs?.[k]===(a?1:b===0?b:undefined)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const xs=a?[b]:null;const k=b?'length':0;return xs?.[k]===(a?(b?1:b):undefined)?1:0;}";
+    let ts = "export function run(a:number,b:number){const xs=a?[b]:null;const k=b?('length' as never):(0 as never);return xs?.[k]===(a?(b?1:b):undefined)?1:0;}";
+    common::compare_sources(js, ts);
+}

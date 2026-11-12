@@ -129,7 +129,17 @@ impl Lowering<'_, '_> {
             Key::Runtime(expr) if !string => {
                 let kind = match receiver {
                     Some(ty) => {
-                        self.binding_key_kind(ty, dictionary, expr, depth + 2, KeyAccess::Read)
+                        let known =
+                            self.binding_key_kind(ty, dictionary, expr, depth + 2, KeyAccess::Read);
+                        known.or_else(|| {
+                            self.boxed_runtime_key_fallback(
+                                expr,
+                                depth + 2,
+                                ty,
+                                dictionary,
+                                KeyAccess::Read,
+                            )
+                        })
                     }
                     None => self.runtime_key(expr, depth + 2),
                 };
@@ -516,6 +526,34 @@ mod tests {
             "export function run(a,b){const d=Object.create(null);return +(d?.[({} as unknown as string)]);}",
         ] {
             assert!(crate::compile(source, true).is_err(), "{source}");
+        }
+    }
+
+    #[test]
+    fn optional_boxed_keys_use_the_general_guest_getter_on_known_receivers() {
+        for body in [
+            "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;return row?.[k]===(a&&b?b:undefined)?1:0;",
+            "const xs=a?[b,,a]:null;const k=b?'length':0;return xs?.[k]===(a?(b?3:b):undefined)?1:0;",
+            "const xs=a?[b]:null;let n=0;const value=xs?.[(n++,b?'length':0)];return n===(a?1:0)&&value===(a?(b?1:b):undefined)?1:0;",
+            "const d=Object.create(null);d.x=b;let row=a?d:null;const value=row?.[(row=null,b?'x':0)];return value===(a&&b?b:undefined)?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn optional_boxed_keys_keep_reference_and_prototype_guards() {
+        for body in [
+            "const d=Object.create(null);const row=a?d:null;const k={};return +(row?.[k]??7);",
+            "const xs=a?[b]:null;const k={};return +(xs?.[k]??7);",
+            "const o=a?{x:b}:null;const k=b?'constructor':'x';return +(o?.[k]??7);",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
         }
     }
 

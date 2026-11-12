@@ -66,11 +66,14 @@ impl Lowering<'_, '_> {
                     // Coerce the represented primitive/String at runtime.
                     // Ordinary receivers use existing own+prototype membership;
                     // null-prototype dictionaries need only their own fields.
-                    let known_reference =
-                        matches!(
+                    let known_reference = self
+                        .stored
+                        .property_key_requires_to_primitive(binary.left.node_id())
+                        || matches!(
                             self.managed_source_type(&binary.left, depth + 1),
                             Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                        ) || self.stored.container(binary.left.node_id()).is_some();
+                        )
+                        || self.stored.container(binary.left.node_id()).is_some();
                     (!known_reference).then_some(dictionary::RuntimeKey::Value)
                 })
                 .ok_or_else(|| {
@@ -204,10 +207,14 @@ impl Lowering<'_, '_> {
                 // can use the general guest ToPropertyKey operation without
                 // introducing prototype Get/Set semantics.
                 let kind = self.runtime_key(arg, depth).or_else(|| {
-                    let known_reference = matches!(
-                        self.managed_source_type(arg, depth),
-                        Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
-                    ) || self.stored.container(arg.node_id()).is_some();
+                    let known_reference = self
+                        .stored
+                        .property_key_requires_to_primitive(arg.node_id())
+                        || matches!(
+                            self.managed_source_type(arg, depth),
+                            Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
+                        )
+                        || self.stored.container(arg.node_id()).is_some();
                     (!known_reference).then_some(dictionary::RuntimeKey::Value)
                 });
                 let kind = kind.ok_or_else(|| {
@@ -309,6 +316,26 @@ mod boxed_in_key_tests {
             "export function run(a,b){const xs=[a];const k={};return k in xs?1:0;}",
         ] {
             assert!(crate::compile(source, false).is_err(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod boxed_mixed_reference_key_tests {
+    #[test]
+    fn mixed_reference_and_number_keys_do_not_bypass_guest_toprimitive_guards() {
+        for body in [
+            "return (a?{}:b) in Object.create(null)?1:0;",
+            "return Object.hasOwn(Object.create(null),a?{}:b)?1:0;",
+            "const d=Object.create(null);delete d[a?{}:b];return a;",
+            "const d=Object.create(null);d[a?{}:b]=b;return a;",
+            "const d=Object.create(null);return d[a?{}:b]===undefined?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_err(), "{source}: unexpected admission");
+            }
         }
     }
 }

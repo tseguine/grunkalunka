@@ -395,6 +395,15 @@ impl Fields {
         })
     }
 
+    // A static union containing an object, Array, callable or unknown
+    // reference cannot use the primitive-only guest ToPropertyKey subset.
+    // Unlike container(), this rejects mixed object/scalar alternatives.
+    pub(super) fn property_key_requires_to_primitive(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.iter().any(|origin| !origin.scalar()))
+    }
+
     pub(super) fn may_be_string(&self, node: NodeId) -> bool {
         self.values
             .get(&node)
