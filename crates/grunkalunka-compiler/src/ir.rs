@@ -787,7 +787,7 @@ pub(crate) enum Op {
     ManagedHasProperty {
         result: ValueId,
         input: ValueId,
-        key: ValueId,
+        key: ManagedKey,
     },
     // A boxed receiver is source-proven to be a String; the backend checks its tag.
     ManagedHasOwn {
@@ -1720,7 +1720,7 @@ impl Verifier<'_> {
                     .filter(|ty| matches!(ty, Type::ManagedObject | Type::ManagedArray))
                     .ok_or_else(|| invalid(span, "in requires an object or array receiver"))?;
                 self.value(*input, ty, visible, span)?;
-                self.value(*key, Type::ManagedValue, visible, span)?;
+                self.managed_key(key, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::ManagedDeleteOwn { result, input, key } => {

@@ -6,7 +6,7 @@ pub(super) enum Membership {
     OwnLiteral(Vec<u16>),
     OwnRuntime(dictionary::RuntimeKey),
     Inherited,
-    Prototype,
+    Prototype(dictionary::RuntimeKey),
 }
 
 pub(super) struct Task<'e, 'a> {
@@ -50,7 +50,10 @@ impl Lowering<'_, '_> {
             if inherited && !known_prototype {
                 // The live object may be a null-prototype dictionary. Use the
                 // same runtime prototype query as for a computed String name.
-                (Membership::Prototype, Some(dictionary::RuntimeKey::String))
+                (
+                    Membership::Prototype(dictionary::RuntimeKey::String),
+                    Some(dictionary::RuntimeKey::String),
+                )
             } else if inherited {
                 (Membership::Inherited, None)
             } else {
@@ -60,15 +63,15 @@ impl Lowering<'_, '_> {
             let kind = self
                 .runtime_key(&binary.left, depth + 1)
                 .or_else(|| {
-                    // A null-prototype receiver has only own data properties.
-                    // Other receivers still need complete inherited-property
-                    // semantics for dynamic, potentially coercive keys.
+                    // Coerce the represented primitive/String at runtime.
+                    // Ordinary receivers use existing own+prototype membership;
+                    // null-prototype dictionaries need only their own fields.
                     let known_reference =
                         matches!(
                             self.managed_source_type(&binary.left, depth + 1),
                             Some(Type::ManagedObject | Type::ManagedArray | Type::Closure(_))
                         ) || self.stored.container(binary.left.node_id()).is_some();
-                    (dictionary && !known_reference).then_some(dictionary::RuntimeKey::Value)
+                    (!known_reference).then_some(dictionary::RuntimeKey::Value)
                 })
                 .ok_or_else(|| {
                     unsupported(
@@ -76,11 +79,18 @@ impl Lowering<'_, '_> {
                         "in requires a represented primitive/String key",
                     )
                 })?;
-            // Non-String primitive names never match pristine prototype properties.
-            let membership = if dictionary || !matches!(kind, dictionary::RuntimeKey::String) {
+            // Numeric/Boolean/Null/Undefined keys cannot name any pristine
+            // intrinsic prototype property. Runtime-boxed keys may also be
+            // Strings, so normalize before testing the own+prototype tables.
+            let membership = if dictionary
+                || matches!(
+                    kind,
+                    dictionary::RuntimeKey::Uint32 | dictionary::RuntimeKey::Scalar { .. }
+                )
+            {
                 Membership::OwnRuntime(kind)
             } else {
-                Membership::Prototype
+                Membership::Prototype(kind)
             };
             (membership, Some(kind))
         };

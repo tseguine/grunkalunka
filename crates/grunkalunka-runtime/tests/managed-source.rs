@@ -2800,3 +2800,22 @@ fn boxed_runtime_dictionary_delete_matches_native_js() {
     let ts = "export function run(a:number,b:number){const d=Object.create(null);d.x=b;const k=a?('x' as never):(b as never);return delete d[k]&&Object.hasOwn(d,'x')===(!a)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_runtime_in_uses_guest_prototype_membership_for_objects_and_arrays() {
+    for body in [
+        "const o={x:b};const k=a?'x':b;return (k in o)===(!!a)?1:0;",
+        "const o={};const k=a?'constructor':b;return (k in o)===(!!a)?1:0;",
+        "const o={x:b};const k=a?'hasOwnProperty':b;return (k in o)===(!!a)?1:0;",
+        "const xs=[a];const k=a?'length':b;return (k in xs)===(!!a||b===0)?1:0;",
+        "const xs=[a];const k=a?'map':b;return ((k in xs)&&!Object.hasOwn(xs,k))===(!!a)?1:0;",
+        "const d=Object.create(null);const k=a?'constructor':b;return k in d?0:1;",
+        "const o={};let n=0;const k=a?'constructor':b;const found=(n++,k) in o;return n===1&&found===(!!a)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o={};const k=a?'constructor':b;return k in o?1:0;}";
+    let ts = "export function run(a:number,b:number){const o={};const k=a?('constructor' as never):(b as never);return k in o?1:0;}";
+    common::compare_sources(js, ts);
+}
