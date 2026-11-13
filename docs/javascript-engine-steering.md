@@ -17,6 +17,38 @@ coherent in-flight work, the existing owned source cursor/IR/runtime, and the
 independent workstream/PR coordination contracts. Dated evidence below remains
 valid for its inspected revisions.
 
+## Current steering (2026-11-13)
+
+Read this section first; where older text below disagrees with it, this wins.
+Rules: [AGENTS.md](../AGENTS.md), [ADR 0022](adr/0022-general-js-ts-lowering-first.md)
+and the [PoC change policy, ADR 0023](adr/0023-poc-change-policy-and-gap-tests.md).
+
+A review at master [`d8147cd`](https://github.com/tseguine/grunkalunka/commit/d8147cd372c3d629e43f80f140246d148357a67b)
+found that what the compiler accepts runs correctly, but that acceptance still
+depends on the syntactic context consuming a value, not on the value. For
+example `return d[k] + 1` compiled while `return d[k]` was rejected, and
+`let v = b > 0 ? "s" : a` compiled while `let v = a; if (b > 0) v = "s"` was
+rejected. Work after ADR 0022 extended one operation (primitive property keys)
+one source site per PR and kept a source-proven receiver requirement. That
+pattern is not the intended reading of ADR 0022.
+
+- **Stop** rolling single operations out per syntactic site, and stop adding
+  recognizers that admit one more source shape.
+- **Measure first.** Build the advisory coverage census of unchanged, complete
+  programs with a structured rejection reason per failure, and rank causes of
+  rejection by how many programs they block. Rejections are currently plain
+  strings, and about half of a small review sample shared one catch-all message.
+- **Largest causes seen in that sample:** the single `export function run(a, b)`
+  entry and module model (module-level bindings, several exports and classes
+  are all rejected), calls and methods without a source-proven target, and
+  boxed values reaching a context that expects a proven kind.
+- **Open design decision, owned by the maintainer:** the general value, call
+  and completion path that ADR 0022 left unselected. The review's proposal,
+  not yet accepted, is two invariants: every expression can be lowered to a
+  boxed value, and every consumer can take a boxed value through a
+  runtime-checked conversion, with the existing typed paths kept as
+  optimizations. Nothing below forbids proposing such a mechanism.
+
 ## What is currently established
 
 - The maintained Oxc frontend lowers selected JS/TS through verified structured IR to real portable Wasm. Numeric and primitive-return profiles retain their contracts and specialized f64 paths.
@@ -40,8 +72,8 @@ These are **different bounded execution profiles**, not a claim of general ECMAS
 
 These remaining boundaries explain current capability, not a new assignment or
 an indefinite issue backlog. Closed implementation proofs and retired proposals
-have different meanings. Continue the maintainer's assigned feature train and
-independent workstreams; define new work in concrete reviewable units.
+have different meanings. Follow the current steering section above, not the retired
+feature train; define new work in concrete reviewable units.
 
 ## Source-lowering architecture: completed base and remaining work
 
@@ -260,11 +292,27 @@ lowering refactor implicitly claim or block them.
 
 ## Runtime semantics and source proofs
 
-Preserve the existing specialized numeric, typed closure and known own-property paths. But a source-flow proof is optimization/admission evidence for an implemented subset, not an alternative definition of JavaScript. The next architecture should expose semantic Get/Set/Call/ToPropertyKey and normal/throw behavior independently of known-operand fast paths, incrementally and only as needed by executed programs.
+A source-flow proof is evidence for an optimization, not a definition of
+JavaScript and not a condition for compiling. When a kind, receiver, key or
+callee is unknown, lower to the general runtime operation. Keep the specialized
+numeric, typed-closure and known-own-property paths where they are correct, and
+keep proven f64 arithmetic unboxed, but remove or rework them when they stand in
+the way of the general path.
 
-**Do not silently** translate arbitrary property access into own-only lookup, remove receiver/coercion effects, assume a positive constructor fact excludes unknown alternatives, or report a source TypeError as a Wasm trap. Incorrect private projections may still trap on *invalid IR*; ordinary admitted source operations need catchable abrupt completions. Preserve native source order, saved snapshots, actual call targets and handler/finalizer precedence. The first proof need not implement full prototypes, proxies or all built-ins; unsupported valid forms must remain explicit rejections until semantics are correct.
+**Do not silently** translate arbitrary property access into own-only lookup,
+remove receiver or coercion effects, assume a positive constructor fact excludes
+unknown alternatives, or report a source TypeError as a Wasm trap. Ordinary
+source operations need catchable abrupt completions. A general operation may
+start incomplete, provided its divergence from JavaScript is written down and
+it is not an unconditional trap. Valid source whose general operation does not
+exist yet is a census gap, not a rejection to be tested.
 
-The current structured IR and WasmGC choice do not need reversal. Keep proven f64 arithmetic unboxed. Introduce a broader CFG, universal dynamic-call ABI or object shapes/caches only on measured or demonstrated needs; avoid building a second language interpreter by default. Relevant proposed boundary documents ([ADRs 0011](adr/0011-semantic-values-and-lifetime-boundaries.md), [0012](adr/0012-guest-runtime-and-host-capabilities.md), [0013](adr/0013-async-job-and-activation-ownership.md)) stay **proposed**.
+The structured IR and the WasmGC choice do not need reversal. A general object
+model, dynamic-call convention or completion mechanism is expected work under
+ADR 0022; record the chosen design in an ADR. Proposed boundary documents
+([ADRs 0011](adr/0011-semantic-values-and-lifetime-boundaries.md),
+[0012](adr/0012-guest-runtime-and-host-capabilities.md),
+[0013](adr/0013-async-job-and-activation-ownership.md)) stay **proposed**.
 
 ## Managed suspension and runtime lifetime
 

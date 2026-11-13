@@ -11,6 +11,12 @@ source admission. Track lowering coverage, semantic compliance and optimization
 separately. The [earlier feature train](javascript-feature-train.md) and dated
 milestone receipts retain their evidence; coherent in-flight work can finish.
 
+**Working rules, updated 2026-11-13:** this is a PoC without compatibility
+obligations; see [ADR 0023](adr/0023-poc-change-policy-and-gap-tests.md) and the
+current steering at the top of the [engine steering review](javascript-engine-steering.md).
+Statements below that an existing profile, ABI, artifact or rejection "remains"
+or is "retained" record what was true then; they are not requirements.
+
 ## Current status (2026-11-06)
 
 **The language milestones L3/L4/L5 remain in progress.** The planned

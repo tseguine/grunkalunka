@@ -197,6 +197,13 @@ The aspiration of "essentially every valid program" is a product goal, not
 permission to claim 100% coverage from a small test corpus or to ignore
 legitimate syntactic and environmental constraints.
 
+**Amendment, 2026-11-13.** The paragraph above asks that a universal call
+convention, generic object model or similar mechanism get its own decision. That
+is a request to record the design, not a reason to avoid one: such a mechanism
+is expected work under this ADR. [ADR 0023](0023-poc-change-policy-and-gap-tests.md)
+also removes the obligation to keep existing profiles, ABIs, artifacts and
+gap rejections intact while doing it.
+
 ## Alternatives considered
 
 - **Continue static-proof-first feature admission.** Preserves narrow,

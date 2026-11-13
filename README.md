@@ -13,17 +13,23 @@ applications on that platform.
 The maintained implementation is at development version **0.0.1**. The project is
 still in PoC development: useful pieces are implemented and tested directly in
 the main workspace, while unresolved design questions may use disposable spikes.
-Compilation is deliberately profile-scoped: numeric and four-kind primitive
+Compilation is currently split into narrow profiles: numeric and four-kind primitive
 entry points, experimental async/closure paths, and a
 [WasmGC-backed managed-value path](docs/managed-values.md). Managed objects,
 sparse arrays and lossless UTF-16 Strings compose with checked helpers,
 closures, nested binding patterns, collection operations and String processing.
 Engine-traced references survive supported awaits and related child activations
-within one generated instance. See the [current feature train](docs/javascript-feature-train.md)
-for the admitted combinations and their remaining limits.
+within one generated instance. See the [feature train](docs/javascript-feature-train.md)
+for the combinations admitted so far.
 Known Number operations retain direct f64 execution and public exports retain
 the current numeric/primitive contracts. This is **not** full JavaScript/TypeScript,
 a general object/prototype implementation, browser APIs, or Node compatibility.
+
+This is a proof of concept with no compatibility guarantees. The current
+priority is [general JS/TS lowering](docs/adr/0022-general-js-ts-lowering-first.md);
+the narrow profiles above are where the implementation stands, not the intended
+product. Working rules are in [AGENTS.md](AGENTS.md) and the
+[PoC change policy](docs/adr/0023-poc-change-policy-and-gap-tests.md).
 
 ## Build and run
 
