@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [master, ci/nextest-eval-1113]
+    branches: [master, ci/nextest-eval-1113, ci/nextest-smoke-1113]
   workflow_dispatch:
 
 permissions:
@@ -163,7 +163,7 @@ jobs:
   # the full workspace is compiled for the one-time A/B experiment.
   nextest-cli-smoke:
     name: Nextest CLI smoke (${{ matrix.platform }})
-    if: github.event_name == 'push' && github.ref == 'refs/heads/ci/nextest-eval-1113'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/ci/nextest-eval-1113' || github.ref == 'refs/heads/ci/nextest-smoke-1113')
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 8
     strategy:
