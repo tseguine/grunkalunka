@@ -434,6 +434,13 @@ impl Lowering<'_, '_> {
                                     })
                                 }
                                 Some(Type::ManagedValue) if self.string_own_key(key, depth + 1) => Some(dictionary::RuntimeKey::String),
+                                Some(Type::ManagedValue)
+                                    if self.stored.primitive(key.node_id())
+                                        && !self.stored.uint32_keys.contains(key, depth + 1)
+                                        && !self.boxed_key_needs_to_primitive(key, depth + 1) =>
+                                {
+                                    Some(dictionary::RuntimeKey::Value)
+                                }
                                 _ if self.stored.uint32_keys.contains(key, depth + 1) => Some(dictionary::RuntimeKey::Uint32),
                                 _ => None,
                             }.ok_or_else(|| unsupported(node, "computed assignment source requires a supported own property key"))?;
@@ -1576,7 +1583,8 @@ mod string_computed_selection_tests {
             ),
             ("let x;({[a>>>0]:x}='123');return +x;", false),
             ("let x='';({[a>>>0]:x}='text');return x.length;", false),
-            ("let x;({[a]:x}='text');return a;", false),
+            // A numeric source key now uses the guest ToPropertyKey path.
+            ("let x;({[a]:x}='text');return a;", true),
             ("const k='0';let x;({[k]:x}='text');return a;", true),
             ("let x;({[a>>>0]:x}=(a?'text':null));return a;", false),
             ("let x;({[a>>>0]:x}=a);return a;", true),
@@ -1742,6 +1750,38 @@ mod boxed_assignment_destination_tests {
             "const d=Object.create(null);const k=a?[]:b;({value:d[k]}={value:b});return a;",
             "const xs=[a];const k=a?'length':b;[xs[k]]=[b];return a;",
             "const o={};const k=a?'constructor':b;[o[k]]=[b];return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod boxed_string_assignment_key_tests {
+    #[test]
+    fn computed_string_assignment_sources_accept_boxed_primitive_keys() {
+        for body in [
+            "const k=a?0:false;let ch;({[k]:ch}='ab');return ch===(a?'a':undefined)?1:0;",
+            "const k=a?1:null;let ch;({[k]:ch='?'}='ab');return ch===(a?'b':'?')?1:0;",
+            "const k=a?true:0;let ch;({[k]:ch='?'}='ab');return ch===(a?'?':'a')?1:0;",
+            "const k=a?0:false;let ch,rest={};({[k]:ch,...rest}='ab');return Object.keys(rest).length===(a?1:2)?1:0;",
+            "const k=a?undefined:1;let n=0,ch;({[(n++,k)]:ch='?'}='ab');return n===1&&ch===(a?'?':'b')?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn computed_string_assignment_keys_keep_own_data_guards() {
+        for body in [
+            "const k=a?{}:0;let value;({[k]:value}='ab');return a;",
+            "const k=a?[]:0;let value;({[k]:value}='ab');return a;",
+            "const k=a?'constructor':false;let value;({[k]:value}='ab');return a;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             assert!(crate::compile(&source, false).is_err(), "{source}");
