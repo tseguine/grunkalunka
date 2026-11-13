@@ -170,3 +170,18 @@ The extension keeps array length, inherited object properties, and reference
 keys needing ToPrimitive outside the partial operation. Native JavaScript,
 Node-Wasm and Wasmtime differential tests cover mixed key kinds, assignment
 operators, side effects and TypeScript erasure.
+
+## Optional delete with boxed object keys
+
+Optional computed deletion on known data objects can now select a boxed
+primitive/String key at runtime. The key is normalized only after the receiver
+passes the nullish check, and only once, using the same guest operation as
+non-optional object deletion. The saved receiver is used even if evaluating
+the key mutates its source binding; deletion of missing or inherited names
+returns true without a prototype lookup.
+
+Array length remains non-configurable, so unproven Array keys still cannot
+take this fallback. Reference-valued keys requiring fallible ToPrimitive
+also remain guarded. Compiler and native-JS/Wasm differential tests cover
+nullish short-circuiting, key effects, ordinary and null-prototype objects,
+and TypeScript erasure.
