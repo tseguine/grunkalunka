@@ -139,3 +139,19 @@ unresolved receivers, and user-defined accessors retain their previous
 guards. Source and native-JS-vs-Wasm tests cover sparse Array and length
 names, mixed primitive/String choices, defaults, rest exclusion, effects
 and TypeScript erasure.
+
+## Logical writes with boxed dictionary keys
+
+Null-prototype data dictionaries now use the same guest-owned boxed runtime
+key normalization for computed `&&=`, `||=` and `??=` as for plain assignment.
+The existing logical-write cursor snapshots the receiver and key once, reads
+the old own value, and evaluates the right-hand expression only when selected.
+Undefined, Null, Boolean, Number and String keys can alternate at runtime
+without a single source-proven kind. Both key conversion and the conditional
+write remain in guest Wasm.
+
+Ordinary objects still require their existing proof for property lookup,
+and Arrays retain the length-write restriction. Keys that can be objects,
+Arrays or functions are not admitted by this primitive-only conversion.
+Source admission tests and JS/TS differential runtime comparisons cover
+the operators, saved key effects and source-reference guards.
