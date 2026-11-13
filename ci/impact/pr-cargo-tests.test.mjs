@@ -136,14 +136,21 @@ test('checked-in classification accounts for every current runtime integration s
   ];
   const result = plan({ metadata: actualMetadata, classification: policy, packages: [runtime] });
   const runtimeCommands = result.commands.filter(command => command.phase === 'test');
-  assert.equal(runtimeCommands.length, 2, '22 fast tests should fit two bounded runs');
-  assert.equal(result.commands.length, 4, 'compile each bounded group first');
-  assert.deepEqual(runtimeCommands.map(command => command.timeoutMs), [120_000, 120_000]);
+  assert.equal(runtimeCommands.length, 3, 'isolate compiled-values in a bounded run');
+  assert.equal(result.commands.length, 6, 'compile every runtime batch before execution');
+  assert.deepEqual(runtimeCommands.map(command => command.timeoutMs),
+    [120_000, 120_000, 120_000]);
   assert.ok(runtimeCommands[0].args.includes('--lib'));
-  assert.ok(!runtimeCommands[1].args.includes('--lib'));
-  const selected = runtimeCommands.flatMap(command => command.args
-    .filter((_, index, args) => args[index - 1] === '--test'));
-  assert.deepEqual(selected, policy.fast.targets, 'every fast target runs once in stable order');
+  assert.ok(runtimeCommands.slice(1).every(command => !command.args.includes('--lib')));
+  const targets = command => command.args.filter((_, index, args) => args[index - 1] === '--test');
+  const ordinary = policy.fast.targets.filter(name => name !== 'compiled-values');
+  const split = Math.ceil(ordinary.length / 2);
+  assert.deepEqual(runtimeCommands.map(targets), [
+    ordinary.slice(0, split), ['compiled-values'], ordinary.slice(split),
+  ], 'heavyweight integration and ordinary targets have deterministic batches');
+  const selected = runtimeCommands.flatMap(targets);
+  assert.deepEqual([...selected].sort(), [...policy.fast.targets].sort(),
+    'every fast target runs exactly once');
   assert.equal(new Set(selected).size, selected.length, 'no duplicate fast targets');
 });
 
@@ -201,10 +208,11 @@ test('production helper bounds discovery, compilation and execution, and fails o
     assert.ok(line, result.stdout + result.stderr);
     const calls = JSON.parse(line.slice('CARGO SPAWNS '.length));
     const expectedCount = failure === 'metadata' ? 1
-      : failure === 'compile' ? 2 : failure === 'none' ? 5 : 4;
+      : failure === 'compile' ? 2 : failure === 'none' ? 7 : 5;
     assert.equal(calls.length, expectedCount);
     assert.deepEqual(calls.map(call => call.timeout),
-      [30_000, 600_000, 600_000, 120_000, 120_000].slice(0, expectedCount));
+      [30_000, 600_000, 600_000, 600_000, 120_000, 120_000, 120_000]
+        .slice(0, expectedCount));
     assert.ok(calls.every(call => call.killSignal === 'SIGKILL'));
     assert.deepEqual(calls[0].args,
       ['metadata', '--format-version', '1', '--no-deps', '--locked', '--offline']);
