@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 import { commandTimeoutMs, loadCanonicalCommands, projectPrCommands } from '../../scripts/check-catalog.mjs';
 import { planImpact } from './impact.mjs';
+import { MASTER_GROUPS } from '../../scripts/master-check-groups.mjs';
 
 const read = path => readFileSync(new URL('../../' + path, import.meta.url), 'utf8')
   .replace(/\r\n/g, '\n');
