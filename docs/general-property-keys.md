@@ -243,3 +243,17 @@ Keys possibly containing objects/functions or inherited String names remain
 guarded until the guest implements fallible ToPrimitive and prototype Get.
 Compiler and fast PR runtime checks cover the nullish boundary and key effects;
 full JS/TS-versus-Wasm comparisons cover the admitted key combinations.
+
+## Boxed primitive keys in String destructuring declarations
+
+Object binding patterns over source-proven Strings now share the guest
+ToPropertyKey path used by computed String own-property reads. Runtime
+Number, Boolean, Null and Undefined keys can select UTF-16 indices and
+length without a single static key-kind proof. The binding cursor still
+evaluates computed keys in source order, applies defaults lazily, and
+excludes their normalized property names from object-rest copies.
+
+The existing string-only proven-own-key and Uint32 fast paths are retained.
+Potential String prototype names and reference-valued keys requiring
+ToPrimitive remain guarded. Fast PR runtime and full JS/TS differential
+tests exercise sparse selections, rest exclusions and key effects.
