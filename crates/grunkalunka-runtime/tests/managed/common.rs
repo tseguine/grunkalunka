@@ -3,7 +3,7 @@ use grunkalunka_runtime::NumericInstance;
 use std::{
     io::{BufRead, BufReader, Write},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{mpsc, Mutex, OnceLock},
+    sync::{Mutex, OnceLock, mpsc},
     time::Duration,
 };
 
