@@ -14,5 +14,6 @@
     "warnings"
   ],
   "dependsOn": [],
-  "scope": "workspace"
+  "scope": "workspace",
+  "masterGroup": "style"
 }

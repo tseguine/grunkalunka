@@ -15,5 +15,6 @@
   ],
   "dependsOn": [
     "test:frontend-spike-contracts"
-  ]
+  ],
+  "masterGroup": "style"
 }

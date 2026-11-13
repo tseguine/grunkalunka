@@ -14,5 +14,6 @@
   "pr": {
     "reason": "The full interaction replay and detached-package scenarios run in full verification; PRs retain source-build and native integration smoke coverage.",
     "commands": []
-  }
+  },
+  "masterGroup": "applications"
 }

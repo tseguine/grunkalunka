@@ -16,5 +16,6 @@
   "paths": [
     "tests/applications/a1-session-unit.test.mjs",
     "tests/applications/a1-async-session-unit.test.mjs"
-  ]
+  ],
+  "masterGroup": "applications"
 }
