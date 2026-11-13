@@ -2073,6 +2073,7 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     }
     output.push_str(string_concat::runtime(module));
     output.push_str(string_methods::runtime(module));
+    output.push_str(string_methods::key_runtime(module));
     output.push_str(string_methods::repeat_runtime(module));
     output.push_str(string_methods::iteration_runtime(module));
     indexed(output, string_methods::spread_runtime(module));
