@@ -23,7 +23,7 @@ pub(super) fn string_field_read(result: ValueId, input: ValueId, key: ir::Manage
         },
         ir::ManagedKey::String(key) | ir::ManagedKey::Value(key) => {
             Op::ManagedStringGetKey { result, input, key }
-        },
+        }
         _ => unreachable!("planned computed String property"),
     }
 }
