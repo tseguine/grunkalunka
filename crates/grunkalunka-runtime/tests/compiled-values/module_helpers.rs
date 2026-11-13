@@ -622,3 +622,12 @@ fn optional_string_primitive_keys_keep_nullish_skip_on_fast_pr_profile() {
         "export function run(a,b){const s=a?'ab':undefined;const k=b?1:null;return s?.[k]===(a&&b?'b':undefined);}",
     ]);
 }
+
+#[test]
+fn boxed_primitive_string_destructuring_runs_on_fast_pr_profile() {
+    compare_helpers(&[
+        "export function run(a,b){const k=a?0:false;const {[k]:ch}='ab';return ch===(a?'a':undefined);}",
+        "export function run(a,b){const k=a?1:null;const {[k]:ch='?'}='ab';return ch===(a?'b':'?');}",
+        "export function run(a,b){const k=a?0:false;const {[k]:ch,...rest}='ab';return Object.keys(rest).length===(a?1:2);}",
+    ]);
+}

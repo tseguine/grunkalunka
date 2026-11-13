@@ -21,7 +21,9 @@ pub(super) fn string_field_read(result: ValueId, input: ValueId, key: ir::Manage
             input,
             index,
         },
-        ir::ManagedKey::String(key) => Op::ManagedStringGetKey { result, input, key },
+        ir::ManagedKey::String(key) | ir::ManagedKey::Value(key) => {
+            Op::ManagedStringGetKey { result, input, key }
+        },
         _ => unreachable!("planned computed String property"),
     }
 }
@@ -358,10 +360,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                         )
                                     }
                                 })
-                            } else if receiver == Type::ManagedValue
-                                && self.string_own_key(key, depth)
-                            {
-                                Some(evaluate::RuntimeKey::String)
+                            } else if receiver == Type::ManagedValue {
+                                if self.string_own_key(key, depth) {
+                                    Some(evaluate::RuntimeKey::String)
+                                } else if self.stored.uint32_keys.contains(key, depth) {
+                                    Some(evaluate::RuntimeKey::Uint32)
+                                } else if self.stored.primitive(key.node_id())
+                                    && !self.boxed_key_needs_to_primitive(key, depth)
+                                {
+                                    Some(evaluate::RuntimeKey::Value)
+                                } else {
+                                    None
+                                }
                             } else {
                                 self.stored
                                     .uint32_keys
@@ -586,5 +596,37 @@ mod primitive_object_binding_tests {
             )
             .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod boxed_string_binding_key_tests {
+    #[test]
+    fn string_binding_patterns_use_guest_primitive_key_normalization() {
+        for body in [
+            "const k=a?0:false;const {[k]:ch}='ab';return ch===(a?'a':undefined)?1:0;",
+            "const k=a?1:null;const {[k]:ch='?'}='ab';return ch===(a?'b':'?')?1:0;",
+            "const k=a?true:0;const {[k]:ch='?'}='ab';return ch===(a?'?':'a')?1:0;",
+            "const k=a?0:false;const {[k]:ch,...rest}='ab';return Object.keys(rest).length===(a?1:2)?1:0;",
+            "const k=a?undefined:1;let n=0;const {[(n++,k)]:ch='?'}='ab';return n===1&&ch===(a?'?':'b')?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn string_boxed_binding_keys_keep_reference_and_prototype_guards() {
+        for body in [
+            "const k=a?{}:0;const {[k]:value}='ab';return a;",
+            "const k=a?[]:0;const {[k]:value}='ab';return a;",
+            "const k=a?'constructor':false;const {[k]:value}='ab';return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
     }
 }
