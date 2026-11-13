@@ -592,3 +592,16 @@ fn intrinsic_and_void_parameter_defaults_keep_tags_resolution_and_selection() {
         "export function run(a,b){const f=(x=Infinity)=>x;return f.length;}",
     ]);
 }
+
+#[test]
+fn boxed_key_guest_operations_execute_on_fast_pr_profile() {
+    // Full managed-source oracle sweeps run on master. Exercise one real
+    // Wasm-backed witness for each shared boxed-key lowering on PRs too.
+    compare_helpers(&[
+        "export function run(a,b){const d=Object.create(null);const k=a?'x':b;return d[k]??=b;}",
+        "export function run(a,b){const d=Object.create(null);const k=a?'x':b;d[k]=b;return ++d[k];}",
+        "export function run(a,b){const d=Object.create(null);d.x=b;const row=a?d:null;const k=a?'x':b;return delete row?.[k];}",
+        "export function run(a,b){const d=Object.create(null);d.x=b;const k=a?'x':b;let v;({[k]:v}=d);return v;}",
+        "export function run(a,b){const d=Object.create(null);const k=a?'x':b;[d[k]]=[b];return d[k];}",
+    ]);
+}

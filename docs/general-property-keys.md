@@ -199,3 +199,18 @@ Array source keys retain the same inherited-name guard as binding declarations.
 Ordinary prototype-bearing objects and keys needing fallible ToPrimitive remain
 outside this partial own-data operation. Compiler and unchanged native-JS versus
 Wasm comparisons cover defaults, rest, key effects and TypeScript erasure.
+
+## Computed assignment destinations
+
+Object and Array assignment patterns can also write to a computed member
+destination on a proven null-prototype dictionary when its key alternates
+between primitive and String values. The planner now carries the validated
+runtime key kind with the destination instead of re-inferring a narrower kind
+when executing the saved assignment. The receiver and key are evaluated once,
+in the original assignment order, and the selected value is written using
+the same guest-owned dynamic Set operation as plain assignment.
+
+This does not enable unchecked Array length assignment or arbitrary prototype
+writes, and source-proven object/function key alternatives still require a
+fallible ToPrimitive path. Compiler and JS/TS differential tests cover dynamic
+destination keys, defaults, object patterns, effects and reference guards.

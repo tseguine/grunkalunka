@@ -2945,3 +2945,20 @@ fn boxed_assignment_source_keys_preserve_key_order_and_rest_exclusions() {
     let ts = "export function run(a:number,b:number){const d=Object.create(null);d.x=b;const k=a?('x' as never):(b as never);let v;({[k]:v}=d);return v===(a?b:undefined)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_assignment_destinations_preserve_source_order_and_write_keys() {
+    for body in [
+        "const d=Object.create(null);const k=a?'x':b;[d[k]]=[b];return d[k]===b?1:0;",
+        "const d=Object.create(null);const k=a?'x':b;({value:d[k]}={value:b});return d[k]===b?1:0;",
+        "const d=Object.create(null);const k=a?true:'true';[d[k]]=[b];return d.true===b?1:0;",
+        "const d=Object.create(null);const k=a?null:'null';[d[k]=b]=[];return d[k]===b?1:0;",
+        "const d=Object.create(null);const k=a?'x':b;let n=0;[d[(n++,k)]]=[b];return n===1&&d[k]===b?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);const k=a?'x':b;[d[k]]=[b];return d[k]===b?1:0;}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):(b as never);[d[k]]=[b];return d[k]===b?1:0;}";
+    common::compare_sources(js, ts);
+}
