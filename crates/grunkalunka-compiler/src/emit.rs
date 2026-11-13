@@ -1963,12 +1963,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
             matches!(
                 op,
                 Op::ManagedScalarString { .. } | Op::ManagedScalarAdd { .. }
-            ) || any_managed_key(op, |key| {
-                matches!(
-                    key,
-                    ir::ManagedKey::Scalar { .. } | ir::ManagedKey::Value(_)
-                )
-            })
+            ) || matches!(op, Op::ManagedStringGetKey { .. })
+                || any_managed_key(op, |key| {
+                    matches!(
+                        key,
+                        ir::ManagedKey::Scalar { .. } | ir::ManagedKey::Value(_)
+                    )
+                })
         })
     }) {
         output.push_str(include_str!("emit/scalar_string.wat"));
@@ -1979,12 +1980,13 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
                 op,
                 Op::ManagedScalarString { numbers: true, .. }
                     | Op::ManagedScalarAdd { numbers: true, .. }
-            ) || any_managed_key(op, |key| {
-                matches!(
-                    key,
-                    ir::ManagedKey::Scalar { numbers: true, .. } | ir::ManagedKey::Value(_)
-                )
-            })
+            ) || matches!(op, Op::ManagedStringGetKey { .. })
+                || any_managed_key(op, |key| {
+                    matches!(
+                        key,
+                        ir::ManagedKey::Scalar { numbers: true, .. } | ir::ManagedKey::Value(_)
+                    )
+                })
         })
     }) {
         output.push_str(include_str!(concat!(env!("OUT_DIR"), "/ryu-tables.wat")));
@@ -1993,7 +1995,8 @@ fn emit_managed_helpers(module: &ir::Module, output: &mut String) {
     }
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
-            any_managed_key(op, |key| matches!(key, ir::ManagedKey::Value(_)))
+            matches!(op, Op::ManagedStringGetKey { .. })
+                || any_managed_key(op, |key| matches!(key, ir::ManagedKey::Value(_)))
         })
     }) {
         output.push_str(include_str!("emit/property_key.wat"));

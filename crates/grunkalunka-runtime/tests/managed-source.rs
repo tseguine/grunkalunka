@@ -2962,3 +2962,20 @@ fn boxed_assignment_destinations_preserve_source_order_and_write_keys() {
     let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):(b as never);[d[k]]=[b];return d[k]===b?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn primitive_mixed_keys_read_string_own_properties_through_guest_coercion() {
+    for body in [
+        "const s='ab';const k=a?0:false;return s[k]===(a?'a':undefined)?1:0;",
+        "const s='ab';const k=a?1:null;return s[k]===(a?'b':undefined)?1:0;",
+        "const s='ab';const k=a?true:0;return s[k]===(a?undefined:'a')?1:0;",
+        "const s='ab';const k=a?undefined:1;return s[k]===(a?undefined:'b')?1:0;",
+        "const s='ab';const k=a?b:false;return s[k]==='a'?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const s='ab';const k=a?0:false;return s[k]===(a?'a':undefined)?1:0;}";
+    let ts = "export function run(a:number,b:number){const s='ab';const k=a?(0 as never):(false as never);return s[k]===(a?'a':undefined)?1:0;}";
+    common::compare_sources(js, ts);
+}
