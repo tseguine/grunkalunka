@@ -301,11 +301,11 @@ mod boxed_optional_delete_tests {
     #[test]
     fn computed_optional_delete_accepts_boxed_keys_on_object_receivers() {
         for body in [
-            "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;return delete row?.[k]?1:0;",
-            "const o=a?{x:b}:null;const k=b?'x':a;return delete o?.[k]?1:0;",
-            "const o=a?{x:b}:null;const k=b?'constructor':a;return delete o?.[k]?1:0;",
-            "const d=Object.create(null);d.x=b;let row=a?d:null;const k=b?'x':a;return delete row?.[(row=null,k)]?1:0;",
-            "const d=Object.create(null);const row=a?d:null;let n=0;const k=b?'x':a;const ok=delete row?.[(n++,k)];return ok&&n===(a?1:0)?1:0;",
+            "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;delete row?.[k];return Object.hasOwn(d,'x')?1:0;",
+            "const o=a?{x:b}:null;const k=b?'x':a;delete o?.[k];return o===null?2:Object.hasOwn(o,'x')?1:0;",
+            "const o=a?{x:b}:null;const k=b?'constructor':a;return delete o?.[k]&&(o===null||Object.hasOwn(o,'x'))?1:0;",
+            "const d=Object.create(null);d.x=b;let row=a?d:null;const k=b?'x':a;const ok=delete row?.[(row=null,k)];return ok&&row===null?(Object.hasOwn(d,'x')?1:0):-1;",
+            "const d=Object.create(null);d.x=b;const row=a?d:null;let n=0;const k=b?'x':a;delete row?.[(n++,k)];return n===(a?1:0)?(Object.hasOwn(d,'x')?1:0):-1;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typed in [false, true] {
