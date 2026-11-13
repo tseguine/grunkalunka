@@ -1583,7 +1583,8 @@ mod string_computed_selection_tests {
             ),
             ("let x;({[a>>>0]:x}='123');return +x;", false),
             ("let x='';({[a>>>0]:x}='text');return x.length;", false),
-            ("let x;({[a]:x}='text');return a;", false),
+            // A numeric source key now uses the guest ToPropertyKey path.
+            ("let x;({[a]:x}='text');return a;", true),
             ("const k='0';let x;({[k]:x}='text');return a;", true),
             ("let x;({[a>>>0]:x}=(a?'text':null));return a;", false),
             ("let x;({[a>>>0]:x}=a);return a;", true),

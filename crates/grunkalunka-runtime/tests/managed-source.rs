@@ -3029,3 +3029,9 @@ fn string_destructuring_assignments_preserve_guest_coerced_key_effects() {
     let ts = "export function run(a:number,b:number){const k=a?(0 as never):(false as never);let ch;({[k]:ch}='ab');return ch===(a?'a':undefined)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn numeric_string_assignment_source_original_rejection_executes() {
+    let source = "export function run(a,b){let x;({[a]:x}='text');return x===(a===0?'t':undefined)?1:0;}";
+    common::compare_sources(source, source);
+}
