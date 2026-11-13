@@ -407,7 +407,11 @@ impl Lowering<'_, '_> {
                                         // Array methods. Keep the same key-domain
                                         // exclusion used by binding declarations.
                                         if ty == Type::ManagedArray
-                                            && !self.stored.record_names.domain(key, depth + 1).array_own_names()
+                                            && !self
+                                                .stored
+                                                .record_names
+                                                .domain(key, depth + 1)
+                                                .array_own_names()
                                         {
                                             None
                                         } else {
