@@ -155,3 +155,18 @@ and Arrays retain the length-write restriction. Keys that can be objects,
 Arrays or functions are not admitted by this primitive-only conversion.
 Source admission tests and JS/TS differential runtime comparisons cover
 the operators, saved key effects and source-reference guards.
+
+## Numeric compound updates with boxed dictionary keys
+
+Numeric property updates on null-prototype data dictionaries now use the same
+boxed runtime key operation as direct Get/Set and logical assignment. Prefix
+and postfix updates, and the existing numeric compound operators, snapshot
+the receiver and key exactly once before reading the old numeric value.
+The compiler retains positive primitive-value and arithmetic admission
+checks; a runtime-selected primitive/String key alone does not imply that
+the stored field has safe numeric coercion.
+
+The extension keeps array length, inherited object properties, and reference
+keys needing ToPrimitive outside the partial operation. Native JavaScript,
+Node-Wasm and Wasmtime differential tests cover mixed key kinds, assignment
+operators, side effects and TypeScript erasure.

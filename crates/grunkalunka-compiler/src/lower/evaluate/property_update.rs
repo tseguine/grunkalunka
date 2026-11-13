@@ -90,7 +90,7 @@ impl Lowering<'_, '_> {
                 if let Some(key) = key {
                     (&member.object, Key::Literal(key))
                 } else if let Some((_, kind)) =
-                    self.runtime_member_receiver(member, depth + 2, KeyAccess::Write)
+                    self.runtime_member_receiver_with_fallback(member, depth + 2, KeyAccess::Write)
                 {
                     (&member.object, Key::Runtime(&member.expression, kind))
                 } else {
@@ -484,6 +484,39 @@ mod tests {
                 let result = crate::compile(&source, typed);
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod boxed_numeric_property_update_tests {
+    #[test]
+    fn numeric_updates_accept_boxed_keys_on_null_prototype_dictionaries() {
+        for body in [
+            "const d=Object.create(null);const k=a?'x':b;return d[k]++;",
+            "const d=Object.create(null);const k=a?'x':b;d[k]=a;return ++d[k];",
+            "const d=Object.create(null);const k=a?true:'true';d[k]=b;return d[k]-=a;",
+            "const d=Object.create(null);const k=a?null:'null';d[k]=b;return d[k]>>>=a;",
+            "const d=Object.create(null);const k=a?'x':b;let n=0;d[(n++,k)]=b;const value=(d[(n++,k)]+=a);return n===2?value:-1;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_numeric_updates_reject_reference_keys_and_unimplemented_receivers() {
+        for body in [
+            "const d=Object.create(null);const k=a?{}:b;return d[k]++;",
+            "const d=Object.create(null);const k=a?[]:b;return d[k]-=a;",
+            "const xs=[a];const k=a?'length':b;return xs[k]++;",
+            "const o={x:a};const k=b?'x':'constructor';return o[k]++;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
         }
     }
 }
