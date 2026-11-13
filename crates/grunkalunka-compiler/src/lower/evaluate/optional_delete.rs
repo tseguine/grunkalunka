@@ -9,6 +9,7 @@ pub(super) enum Task<'e, 'a> {
         key: Key<'e, 'a>,
         receiver: Option<Type>,
         depth: usize,
+        kind: Option<dictionary::RuntimeKey>,
     },
     Key {
         node: &'e Expression<'a>,
@@ -43,19 +44,31 @@ impl Lowering<'_, '_> {
                 "optional delete requires a proven object, array or nullish receiver",
             ));
         }
-        if let Key::Runtime(key) = &key {
-            let kind = self
-                .runtime_key(key, depth + 2)
-                .ok_or_else(|| unsupported(node, "optional delete requires a primitive key"))?;
-            if receiver == Some(Type::ManagedArray)
-                && matches!(kind, dictionary::RuntimeKey::String)
-            {
-                return Err(unsupported(
-                    node,
-                    "deleting non-configurable array length requires a source TypeError",
-                ));
+        let kind = match &key {
+            Key::Literal(_) => None,
+            Key::Uint32(_) => Some(dictionary::RuntimeKey::Uint32),
+            Key::Runtime(key) => {
+                let kind = self.runtime_key(key, depth + 2).or_else(|| {
+                    // Optional delete observes only configurable own data.
+                    // Array length is non-configurable; object receivers can
+                    // use the shared primitive/String key normalizer.
+                    let safe_receiver = receiver != Some(Type::ManagedArray);
+                    (safe_receiver && !self.boxed_key_needs_to_primitive(key, depth + 2))
+                        .then_some(dictionary::RuntimeKey::Value)
+                });
+                let kind = kind
+                    .ok_or_else(|| unsupported(node, "optional delete requires a primitive key"))?;
+                if receiver == Some(Type::ManagedArray)
+                    && matches!(kind, dictionary::RuntimeKey::String)
+                {
+                    return Err(unsupported(
+                        node,
+                        "deleting non-configurable array length requires a source TypeError",
+                    ));
+                }
+                Some(kind)
             }
-        }
+        };
         if receiver == Some(Type::ManagedArray)
             && let Key::Literal(key) = &key
             && key.as_slice() == [108, 101, 110, 103, 116, 104]
@@ -72,6 +85,7 @@ impl Lowering<'_, '_> {
                 key,
                 receiver,
                 depth,
+                kind,
             },
         )));
         work.push(Work::Eval(object, depth + 2, Mode::Managed));
@@ -85,13 +99,14 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        let (node, key, receiver, depth) = match task {
+        let (node, key, receiver, depth, kind) = match task {
             Task::Receiver {
                 node,
                 key,
                 receiver,
                 depth,
-            } => (node, key, receiver, depth),
+                kind,
+            } => (node, key, receiver, depth, kind),
             Task::Key {
                 node,
                 input,
@@ -147,9 +162,7 @@ impl Lowering<'_, '_> {
                 self.finish_optional_delete(node, condition, skipped, selected, regions, values);
             }
             Key::Uint32(key) | Key::Runtime(key) => {
-                let kind = self
-                    .runtime_key(key, depth + 2)
-                    .expect("validated optional delete key");
+                let kind = kind.expect("validated optional delete key");
                 regions.children.push(selected);
                 work.push(Work::PropertyDelete(property_delete::Task::Optional(
                     Task::Key {
@@ -280,5 +293,37 @@ mod tests {
                 }
             }
         }).unwrap().join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod boxed_optional_delete_tests {
+    #[test]
+    fn computed_optional_delete_accepts_boxed_keys_on_object_receivers() {
+        for body in [
+            "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;delete row?.[k];return Object.hasOwn(d,'x')?1:0;",
+            "const o=a?{x:b}:null;const k=b?'x':a;delete o?.[k];return o===null?2:Object.hasOwn(o,'x')?1:0;",
+            "const o=a?{x:b}:null;const k=b?'constructor':a;return delete o?.[k]&&(o===null||Object.hasOwn(o,'x'))?1:0;",
+            "const d=Object.create(null);d.x=b;let row=a?d:null;const k=b?'x':a;const ok=delete row?.[(row=null,k)];return ok&&row===null?(Object.hasOwn(d,'x')?1:0):-1;",
+            "const d=Object.create(null);d.x=b;const row=a?d:null;let n=0;const k=b?'x':a;delete row?.[(n++,k)];return n===(a?1:0)?(Object.hasOwn(d,'x')?1:0):-1;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn computed_optional_delete_retains_reference_and_array_length_guards() {
+        for body in [
+            "const d=Object.create(null);const row=a?d:null;const k=a?{}:b;return delete row?.[k]?1:0;",
+            "const o=a?{x:b}:null;const k=a?[]:b;return delete o?.[k]?1:0;",
+            "const xs=a?[b]:null;const k=a?'length':b;return delete xs?.[k]?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
     }
 }

@@ -2911,3 +2911,20 @@ fn boxed_numeric_property_updates_use_the_shared_guest_key_path() {
     let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):(b as never);d[k]=a;return ++d[k];}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_optional_delete_preserves_nullish_skip_and_saved_receiver() {
+    for body in [
+        "const d=Object.create(null);d.x=b;const row=a?d:null;const k=b?'x':a;delete row?.[k];return Object.hasOwn(d,'x')?1:0;",
+        "const o=a?{x:b}:null;const k=b?'x':a;delete o?.[k];return o===null?2:Object.hasOwn(o,'x')?1:0;",
+        "const o=a?{x:b}:null;const k=b?'constructor':a;return delete o?.[k]&&(o===null||Object.hasOwn(o,'x'))?1:0;",
+        "const d=Object.create(null);d.x=b;let row=a?d:null;const k=b?'x':a;const ok=delete row?.[(row=null,k)];return ok&&row===null?(Object.hasOwn(d,'x')?1:0):-1;",
+        "const d=Object.create(null);d.x=b;const row=a?d:null;let n=0;const k=b?'x':a;delete row?.[(n++,k)];return n===(a?1:0)?(Object.hasOwn(d,'x')?1:0):-1;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const o=a?{x:b}:null;const k=b?'x':a;delete o?.[k];return o===null?2:Object.hasOwn(o,'x')?1:0;}";
+    let ts = "export function run(a:number,b:number){const o=a?{x:b}:null;const k=b?('x' as never):(a as never);delete o?.[k];return o===null?2:Object.hasOwn(o,'x')?1:0;}";
+    common::compare_sources(js, ts);
+}
