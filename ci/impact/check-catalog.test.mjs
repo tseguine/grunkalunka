@@ -189,6 +189,13 @@ test('parallel master groups partition the entire canonical inventory exactly on
   assert.equal(grouped.size, 4);
   for (const checks of grouped.values()) assert.ok(checks.length > 0);
   assert.ok(grouped.get('rust-tests').some(c => c.command === 'cargo' && c.args[0] === 'test'));
+  const rust = grouped.get('rust-tests');
+  const spikeFetch = rust.findIndex(c => c.command === 'cargo' && c.args[0] === 'fetch'
+    && c.args.includes('spikes/004-tsrs-type-query/Cargo.toml'));
+  const spikeTests = rust.findIndex(c => c.command === 'cargo' && c.args[0] === 'test'
+    && c.args.includes('spikes/004-tsrs-type-query/Cargo.toml'));
+  assert.ok(spikeFetch >= 0 && spikeTests > spikeFetch,
+    'offline spike tests must fetch their own dependencies first');
   assert.ok(grouped.get('style').some(c => c.command === 'cargo' && c.args[0] === 'clippy'));
   assert.ok(grouped.get('applications').some(c => c.args[0] === 'scripts/poc.mjs'));
   assert.ok(grouped.get('applications').some(c =>

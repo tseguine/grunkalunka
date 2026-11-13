@@ -9,5 +9,6 @@
   ],
   "dependsOn": [
     "test:type-query-contracts"
-  ]
+  ],
+  "masterGroup": "rust-tests"
 }
