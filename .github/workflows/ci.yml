@@ -145,7 +145,7 @@ jobs:
             spikes/001-frontend-semantics -> target
           cache-bin: 'false'
           # PRs reuse base-branch caches without creating a cache per PR.
-          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && matrix.group == 'rust-tests' }}
 
       - name: Fetch locked dependencies for both workspaces
         run: |
