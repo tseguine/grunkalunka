@@ -3032,6 +3032,7 @@ fn string_destructuring_assignments_preserve_guest_coerced_key_effects() {
 
 #[test]
 fn numeric_string_assignment_source_original_rejection_executes() {
-    let source = "export function run(a,b){let x;({[a]:x}='text');return x===(a===0?'t':undefined)?1:0;}";
+    let source =
+        "export function run(a,b){let x;({[a]:x}='text');return x===(a===0?'t':undefined)?1:0;}";
     common::compare_sources(source, source);
 }
