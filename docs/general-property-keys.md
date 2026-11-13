@@ -257,3 +257,16 @@ The existing string-only proven-own-key and Uint32 fast paths are retained.
 Potential String prototype names and reference-valued keys requiring
 ToPrimitive remain guarded. Fast PR runtime and full JS/TS differential
 tests exercise sparse selections, rest exclusions and key effects.
+
+## Boxed primitive String destructuring assignment keys
+
+Object **assignment** patterns reading a proven String now reuse the same
+computed guest key normalizer as binding declarations. A runtime Number,
+Boolean, Null or Undefined key can select own UTF-16 indices and length
+without an exclusive source key-kind proof. The existing assignment cursor
+retains its original String receiver, key evaluation order, selected defaults,
+and object-rest exclusions.
+
+The inherited-name and reference-key guards remain, and the original
+source's assignment result is unchanged. Compiler, PR-fast and full JS/TS
+differential regressions exercise changing primitive keys and side effects.

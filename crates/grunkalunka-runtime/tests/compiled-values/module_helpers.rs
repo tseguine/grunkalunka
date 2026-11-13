@@ -631,3 +631,11 @@ fn boxed_primitive_string_destructuring_runs_on_fast_pr_profile() {
         "export function run(a,b){const k=a?0:false;const {[k]:ch,...rest}='ab';return Object.keys(rest).length===(a?1:2);}",
     ]);
 }
+
+#[test]
+fn boxed_string_destructuring_assignments_run_in_fast_pr_profile() {
+    compare_helpers(&[
+        "export function run(a,b){const k=a?0:false;let ch;({[k]:ch}='ab');return ch===(a?'a':undefined);}",
+        "export function run(a,b){const k=a?1:null;let ch;({[k]:ch='?'}='ab');return ch===(a?'b':'?');}",
+    ]);
+}

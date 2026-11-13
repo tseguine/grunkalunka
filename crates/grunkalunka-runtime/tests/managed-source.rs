@@ -3012,3 +3012,20 @@ fn string_object_binding_patterns_accept_guest_coerced_primitive_keys() {
     let ts = "export function run(a:number,b:number){const k=a?(0 as never):(false as never);const {[k]:ch}='ab';return ch===(a?'a':undefined)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn string_destructuring_assignments_preserve_guest_coerced_key_effects() {
+    for body in [
+        "const k=a?0:false;let ch;({[k]:ch}='ab');return ch===(a?'a':undefined)?1:0;",
+        "const k=a?1:null;let ch;({[k]:ch='?'}='ab');return ch===(a?'b':'?')?1:0;",
+        "const k=a?true:0;let ch;({[k]:ch='?'}='ab');return ch===(a?'?':'a')?1:0;",
+        "const k=a?0:false;let ch,rest={};({[k]:ch,...rest}='ab');return Object.keys(rest).length===(a?1:2)?1:0;",
+        "const k=a?undefined:1;let n=0,ch;({[(n++,k)]:ch='?'}='ab');return n===1&&ch===(a?'?':'b')?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const k=a?0:false;let ch;({[k]:ch}='ab');return ch===(a?'a':undefined)?1:0;}";
+    let ts = "export function run(a:number,b:number){const k=a?(0 as never):(false as never);let ch;({[k]:ch}='ab');return ch===(a?'a':undefined)?1:0;}";
+    common::compare_sources(js, ts);
+}
