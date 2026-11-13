@@ -25,5 +25,6 @@
   },
   "paths": [
     "scripts/pr-cargo-tests.mjs"
-  ]
+  ],
+  "masterGroup": "rust-tests"
 }

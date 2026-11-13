@@ -9,6 +9,7 @@ import {
   commandTimeoutMs, loadCanonicalCommands, parseCheckProfile, projectPrCommands,
 } from '../../scripts/check-catalog.mjs';
 import { verifyCanonicalChecks, verifyPrChecks } from './canonical.mjs';
+import { loadMasterCheckGroups, partitionMasterChecks } from '../../scripts/master-check-groups.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const catalogDirectory = fileURLToPath(new URL('../../scripts/checks/', import.meta.url));
@@ -177,4 +178,30 @@ test('PR test budgets are short and compilation or exact bounded aggregates are 
     assert.equal(commandTimeoutMs(command, args), 0, 'full profile keeps its original child execution policy');
   }
   assert.throws(() => commandTimeoutMs('node', ['x.mjs'], 'unknown'), /unknown canonical check profile/);
+});
+
+
+test('parallel master groups partition the entire canonical inventory exactly once', () => {
+  const canonical = loadCanonicalCommands();
+  const grouped = loadMasterCheckGroups(canonical);
+  const keys = commands => commands.map(command => JSON.stringify([command.command, ...command.args]));
+  assert.deepEqual(keys([...grouped.values()].flat()).sort(), keys(canonical).sort());
+  assert.equal(grouped.size, 4);
+  for (const checks of grouped.values()) assert.ok(checks.length > 0);
+  assert.ok(grouped.get('rust-tests').some(c => c.command === 'cargo' && c.args[0] === 'test'));
+  assert.ok(grouped.get('style').some(c => c.command === 'cargo' && c.args[0] === 'clippy'));
+  assert.ok(grouped.get('applications').some(c => c.args[0] === 'scripts/poc.mjs'));
+  assert.ok(grouped.get('applications').some(c =>
+    c.args.some(arg => arg.startsWith('tests/applications/'))));
+});
+
+test('master check partition refuses stale descriptors and unknown group tags', () => {
+  const canonical = loadCanonicalCommands();
+  const directory = fileURLToPath(new URL('./checks/', import.meta.url));
+  const descriptors = readdirSync(directory).map(file =>
+    JSON.parse(readFileSync(join(directory, file), 'utf8')));
+  assert.throws(() => partitionMasterChecks(canonical, descriptors.slice(1)), /stale|unmapped/);
+  const bad = structuredClone(descriptors);
+  bad.find(d => d.id === 'check:workspace-tests').masterGroup = 'omitted';
+  assert.throws(() => partitionMasterChecks(canonical, bad), /unknown master CI group/);
 });

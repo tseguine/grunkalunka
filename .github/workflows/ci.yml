@@ -27,11 +27,12 @@ env:
 
 jobs:
   checks:
+    if: github.event_name == 'pull_request'
     name: Checks (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     # The full serial suite can exceed an hour on slower hosted runners.
     # Leave room for its complete integration tail; keep the fast PR cap.
-    timeout-minutes: ${{ github.event_name == 'pull_request' && 15 || 90 }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -85,16 +86,6 @@ jobs:
           cargo fetch --locked
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
 
-      # Linux/Windows verify all checks on master and manually dispatched CI.
-      # PRs use the bounded fast profile, selected by validated dependencies.
-      - name: Build the workspace offline (full verification)
-        if: github.event_name != 'pull_request'
-        run: cargo build --workspace --locked --offline -j 4
-
-      - name: Run the canonical checks (full verification)
-        if: github.event_name != 'pull_request'
-        run: node scripts/check.mjs
-
       # Linux/Windows PRs use the same dependency graph, not a path allowlist.
       # Unknown/unsafe plans run the complete fast PR profile on that host.
       # Disable all-platform selective PR verification with PARTIAL_PR_CI='false'.
@@ -103,6 +94,69 @@ jobs:
         env:
           PARTIAL_PR_CI: 'true'
         run: node ci/impact/pr-gate.mjs
+
+  full-checks:
+    if: github.event_name != 'pull_request'
+    name: Full ${{ matrix.group }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    # The full serial suite can exceed an hour on slower hosted runners.
+    # Leave room for its complete integration tail; keep the fast PR cap.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [Linux, Windows]
+        group: [rust-tests, style, applications, remaining]
+        include:
+          - platform: Linux
+            runner: ubuntu-24.04
+          - platform: Windows
+            runner: windows-2025
+    steps:
+      - name: Check out the tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Each PR runner needs merge-base history for independent impact planning.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Exact patch version on every host for reproducibility.
+          node-version: '24.21.0'
+          package-manager-cache: false
+
+      - name: Install the repository Rust toolchain and Wasm target
+        run: |
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+          rustc --version --verbose
+          cargo --version
+          node --version
+          node -e 'require("node:assert/strict").equal(process.version, "v24.21.0")'
+
+      - name: Restore Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.runner }}
+          workspaces: |
+            . -> target
+            spikes/001-frontend-semantics -> target
+          cache-bin: 'false'
+          # PRs reuse base-branch caches without creating a cache per PR.
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+
+      - name: Fetch locked dependencies for both workspaces
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
+
+      - name: Build the workspace offline (full verification)
+        run: cargo build --workspace --locked --offline -j 4
+
+      - name: Run the canonical group (full verification)
+        run: node scripts/check.mjs --master-group=${{ matrix.group }}
 
   macos-probe:
     name: macOS baseline lookup (Linux)

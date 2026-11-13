@@ -10,5 +10,6 @@
   ],
   "paths": [
     "tests/applications/a1-session-transport.test.mjs"
-  ]
+  ],
+  "masterGroup": "applications"
 }
