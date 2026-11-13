@@ -1,5 +1,12 @@
 # External tests and benchmarks
 
+> **Policy change, 2026-11-13.** Under [ADR 0023](adr/0023-poc-change-policy-and-gap-tests.md)
+> a rejection is a build-failing test only for invalid source, explicit resource
+> limits and denied capabilities. Rejections of valid but unimplemented source
+> described on this page are known gaps: advisory, free to delete or convert
+> when they block a change, and not to be extended. Text below that says such
+> input "must" be rejected or keep its diagnostic describes the old practice.
+
 ## PR and master execution policy (2026-11-05)
 
 `node scripts/check.mjs` runs the complete master/manual suite.

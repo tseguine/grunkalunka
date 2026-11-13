@@ -9,6 +9,12 @@ boundaries, and the [research roadmap](roadmap.md) for longer-term questions.
 
 ## Compiler and runtime
 
+- [Accepted ADR 0023: PoC change policy and advisory gap tracking](adr/0023-poc-change-policy-and-gap-tests.md):
+  no backward compatibility during the PoC, executed programs stay correct,
+  rejection tests only for permanent rejections. The
+  [engine steering review](javascript-engine-steering.md) opens with the
+  current steering and the open general-value design decision.
+
 - [Accepted ADR 0022: general JS/TS lowering first](adr/0022-general-js-ts-lowering-first.md):
   coverage of valid JS/TS source and workable Wasm execution comes before
   exhaustive compliance or further optimization. The historical feature train
@@ -68,7 +74,7 @@ boundaries, and the [research roadmap](roadmap.md) for longer-term questions.
   dated experiment log; read current headings before interpreting old counts.
 - [External tests and benchmarks](testing.md),
   [P1 portability/cost evidence](p1-evidence.md), and
-  [CI](ci.md) with [impact selection](../ci/impact/README.md): how evidence is
+  [CI](ci.md), the [CI change policy](ci-policy.md) and [impact selection](../ci/impact/README.md): how evidence is
   generated and which platforms/revisions it covers.
 - [Agent coordination](../AGENTS.md) and the [ADR directory](adr/) hold working
   conventions and recorded decisions. Read each ADR's **status**; proposals do

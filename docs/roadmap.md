@@ -8,6 +8,11 @@ proofs. The [November 3 impact-ordered feature train](javascript-feature-train.m
 remains historical implementation evidence, not the default priority for new
 compiler work. Its in-flight, coherent PR units may finish normally.
 
+**Working rules (2026-11-13):** [ADR 0023](adr/0023-poc-change-policy-and-gap-tests.md)
+removes backward-compatibility obligations for the PoC and makes known gaps
+advisory. The [engine steering review](javascript-engine-steering.md) opens
+with the current steering.
+
 The maintained JS/TS compiler uses Oxc semantics and a verified structured IR.
 Its independent numeric, primitive, bounded async and managed-value
 profiles are executable in the supported subset, not a full JavaScript engine.

@@ -1,5 +1,12 @@
 # Numeric compiler and runtime
 
+> **Policy change, 2026-11-13.** Under [ADR 0023](adr/0023-poc-change-policy-and-gap-tests.md)
+> a rejection is a build-failing test only for invalid source, explicit resource
+> limits and denied capabilities. Rejections of valid but unimplemented source
+> described on this page are known gaps: advisory, free to delete or convert
+> when they block a change, and not to be extended. Text below that says such
+> input "must" be rejected or keep its diagnostic describes the old practice.
+
 The separate [experimental async profile](async.md) preserves represented values
 through await continuations and host Promise jobs. Its traced managed storage
 also retains objects, arrays, Strings, functions and captured cells across
