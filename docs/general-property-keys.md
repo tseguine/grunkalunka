@@ -230,3 +230,16 @@ Objects/functions as keys still require guest-visible ToPrimitive
 completions, and are not admitted by this step. Compiler guards, PR-fast
 Wasm smoke cases and full differential JS/TS versus Wasm cases exercise
 mixed primitives and boundary behavior.
+
+## Optional String own reads with boxed primitive keys
+
+The same guest ToPropertyKey operation now handles optional String computed
+reads when the key may be a Number, Boolean, Null or Undefined. A nullish
+receiver skips key evaluation and conversion entirely; otherwise the saved
+String receiver is read using the existing UTF-16 own-key getter.
+Numeric-only keys retain their direct-index specialization.
+
+Keys possibly containing objects/functions or inherited String names remain
+guarded until the guest implements fallible ToPrimitive and prototype Get.
+Compiler and fast PR runtime checks cover the nullish boundary and key effects;
+full JS/TS-versus-Wasm comparisons cover the admitted key combinations.

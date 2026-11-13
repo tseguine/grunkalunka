@@ -126,6 +126,15 @@ impl Lowering<'_, '_> {
             Key::Runtime(expr) if string && self.string_own_key(expr, depth + 2) => {
                 Some(Computed::StringKey)
             }
+            Key::Runtime(expr)
+                if string
+                    && self.stored.primitive(expr.node_id())
+                    && !self.boxed_key_needs_to_primitive(expr, depth + 2) =>
+            {
+                // Reuse the guest String key normalizer for mixed
+                // non-String primitives, but not inherited String names.
+                Some(Computed::StringKey)
+            }
             Key::Runtime(expr) if !string => {
                 let kind = match receiver {
                     Some(ty) => {
@@ -747,5 +756,36 @@ mod tests {
             crate::compile(ts, true).unwrap().wasm
         );
         assert!(crate::compile("export function run(a,b){return (a as any)?.x;}", true).is_err());
+    }
+}
+
+#[cfg(test)]
+mod boxed_optional_string_keys_tests {
+    #[test]
+    fn optional_string_reads_accept_guest_coerced_primitive_keys() {
+        for body in [
+            "const s=a?'ab':null;const k=b?0:false;return s?.[k]===(a&&b?'a':undefined)?1:0;",
+            "const s=a?'ab':undefined;const k=b?1:null;return s?.[k]===(a&&b?'b':undefined)?1:0;",
+            "const s=a?'ab':null;const k=b?true:0;return s?.[k]===(a?(b?undefined:'a'):undefined)?1:0;",
+            "const s=a?'ab':null;let n=0;const k=b?0:false;const ch=s?.[(n++,k)];return n===(a?1:0)&&ch===(a&&b?'a':undefined)?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn optional_string_boxed_keys_retain_to_primitive_and_prototype_guards() {
+        for body in [
+            "const s=a?'ab':null;const k=b?{}:0;return s?.[k]===undefined?1:0;",
+            "const s=a?'ab':null;const k=b?[]:0;return s?.[k]===undefined?1:0;",
+            "const s=a?'ab':null;const k=b?'constructor':false;return s?.[k]===undefined?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
     }
 }
