@@ -25,13 +25,19 @@ original complete catalog.
 
 The PR executor projects the workspace-test command through
 `scripts/pr-cargo-tests.mjs`. It keeps all selected non-runtime package tests,
-runtime library tests and 21 fast runtime integration targets. All runtime
+runtime library tests and 22 fast runtime integration targets. All runtime
 integration targets are partitioned explicitly into PR or full-only lists and
 checked against live Cargo metadata. The classification lives in
 `ci/impact/pr-cargo-tests.json`. Unknown, removed or duplicated target
 classifications fail; new tests cannot silently disappear. Compilation uses
 `--no-run` with a ten-minute budget before test execution's two-minute budget.
 The original `cargo test --workspace` remains in full master/manual verification.
+For PRs, the runtime executor keeps `compiled-values` in its own two-minute
+execution batch instead of running it concurrently with unrelated integration
+targets. The remaining fast targets are split into two deterministic batches;
+library tests execute exactly once. All batches are compiled before testing.
+This preserves coverage and timeouts while avoiding Windows contention observed
+in the first group of runtime integration tests.
 
 This preview alone does not prove equivalence between `--workspace` and
 several `-p` invocations. Keep auditing dev/build dependencies, features,
