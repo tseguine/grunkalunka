@@ -30,8 +30,7 @@ jobs:
     if: github.event_name == 'pull_request'
     name: Checks (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    # The full serial suite can exceed an hour on slower hosted runners.
-    # Leave room for its complete integration tail; keep the fast PR cap.
+    # Keep the existing bounded selective PR gate.
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -99,8 +98,7 @@ jobs:
     if: github.event_name != 'pull_request'
     name: Full ${{ matrix.group }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    # The full serial suite can exceed an hour on slower hosted runners.
-    # Leave room for its complete integration tail; keep the fast PR cap.
+    # Each independent full group retains the original 90-minute watchdog.
     timeout-minutes: 90
     strategy:
       fail-fast: false
