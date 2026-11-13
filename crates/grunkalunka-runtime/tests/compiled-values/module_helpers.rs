@@ -614,3 +614,11 @@ fn string_primitive_keys_use_guest_topropertykey_in_fast_pr_smoke() {
         "export function run(a,b){const s='ab';const k=a?true:0;return s[k]===(a?undefined:'a');}",
     ]);
 }
+
+#[test]
+fn optional_string_primitive_keys_keep_nullish_skip_on_fast_pr_profile() {
+    compare_helpers(&[
+        "export function run(a,b){const s=a?'ab':null;const k=b?0:false;return s?.[k]===(a&&b?'a':undefined);}",
+        "export function run(a,b){const s=a?'ab':undefined;const k=b?1:null;return s?.[k]===(a&&b?'b':undefined);}",
+    ]);
+}
