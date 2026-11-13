@@ -214,3 +214,19 @@ This does not enable unchecked Array length assignment or arbitrary prototype
 writes, and source-proven object/function key alternatives still require a
 fallible ToPrimitive path. Compiler and JS/TS differential tests cover dynamic
 destination keys, defaults, object patterns, effects and reference guards.
+
+## Guest-coerced primitive keys on String reads
+
+Computed String own-property reads now also accept runtime keys whose
+source alternatives are represented non-String primitives, even when the
+key changes between Number, Boolean, Null or Undefined. The shared guest
+ToPropertyKey helper supplies JavaScript property-name spelling, then the
+existing UTF-16 String own getter selects a canonical index or length.
+Known Number-only inputs retain their direct numeric-index fast path.
+
+String-valued runtime keys still require a proven own-property name:
+inherited String prototype methods cannot be modeled by the own getter.
+Objects/functions as keys still require guest-visible ToPrimitive
+completions, and are not admitted by this step. Compiler guards, PR-fast
+Wasm smoke cases and full differential JS/TS versus Wasm cases exercise
+mixed primitives and boundary behavior.

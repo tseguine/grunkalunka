@@ -1707,7 +1707,14 @@ impl Lowering<'_, '_> {
             ManagedWork::StringIndexReceiver { node, index, depth } => {
                 let input = values.pop().expect("String index receiver").id();
                 work.push(Work::Managed(ManagedWork::StringIndex { node, input }));
-                let mode = if self.string_own_key(index, depth) {
+                let mode = if self.string_own_key(index, depth)
+                    || (self.stored.primitive(index.node_id())
+                        && !self.stored.number(index.node_id())
+                        && !self.boxed_key_needs_to_primitive(index, depth))
+                {
+                    // The String own getter can normalize mixed Number,
+                    // Boolean and nullish keys in guest Wasm. Keep the
+                    // direct Number index path when the kind is known.
                     Mode::Managed
                 } else {
                     Mode::Number
@@ -2089,5 +2096,37 @@ impl Lowering<'_, '_> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod boxed_string_property_key_tests {
+    #[test]
+    fn string_computed_reads_accept_mixed_primitive_key_kinds() {
+        for body in [
+            "const s='ab';const k=a?0:false;return s[k]===(a?'a':undefined)?1:0;",
+            "const s='ab';const k=a?1:null;return s[k]===(a?'b':undefined)?1:0;",
+            "const s='ab';const k=a?true:0;return s[k]===(a?undefined:'a')?1:0;",
+            "const s='ab';const k=a?undefined:1;return s[k]===(a?undefined:'b')?1:0;",
+            "const s='ab';const k=a?b:false;return s[k]==='a'?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn string_boxed_keys_reject_references_and_inherited_names() {
+        for body in [
+            "const s='ab';const k=a?{}:0;return s[k]===undefined?1:0;",
+            "const s='ab';const k=a?[]:0;return s[k]===undefined?1:0;",
+            "const s='ab';const k=a?'constructor':0;return s[k]===undefined?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
     }
 }

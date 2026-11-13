@@ -605,3 +605,12 @@ fn boxed_key_guest_operations_execute_on_fast_pr_profile() {
         "export function run(a,b){const d=Object.create(null);const k=a?'x':b;[d[k]]=[b];return d[k];}",
     ]);
 }
+
+#[test]
+fn string_primitive_keys_use_guest_topropertykey_in_fast_pr_smoke() {
+    compare_helpers(&[
+        "export function run(a,b){const s='ab';const k=a?0:false;return s[k]===(a?'a':undefined);}",
+        "export function run(a,b){const s='ab';const k=a?1:null;return s[k]===(a?'b':undefined);}",
+        "export function run(a,b){const s='ab';const k=a?true:0;return s[k]===(a?undefined:'a');}",
+    ]);
+}
