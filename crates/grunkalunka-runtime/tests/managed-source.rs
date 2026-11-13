@@ -2928,3 +2928,20 @@ fn boxed_optional_delete_preserves_nullish_skip_and_saved_receiver() {
     let ts = "export function run(a:number,b:number){const o=a?{x:b}:null;const k=b?('x' as never):(a as never);delete o?.[k];return o===null?2:Object.hasOwn(o,'x')?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_assignment_source_keys_preserve_key_order_and_rest_exclusions() {
+    for body in [
+        "const d=Object.create(null);d.x=b;const k=a?'x':b;let v;({[k]:v}=d);return v===(a?b:undefined)?1:0;",
+        "const d=Object.create(null);d.true=b;const k=a?true:'true';let v;({[k]:v}=d);return v===b?1:0;",
+        "const d=Object.create(null);d.x=b;d.y=a;const k=a?'x':b;let v;let rest={};({[k]:v,...rest}=d);return Object.keys(rest).length===(a?1:2)?1:0;",
+        "const xs=[a,b];const k=a?'length':'0';let v;({[k]:v}=xs);return v===(a?2:a)?1:0;",
+        "const d=Object.create(null);d.x=b;const k=a?'x':b;let v;let n=0;({[(n++,k)]:v}=d);return n===1&&v===(a?b:undefined)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);d.x=b;const k=a?'x':b;let v;({[k]:v}=d);return v===(a?b:undefined)?1:0;}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);d.x=b;const k=a?('x' as never):(b as never);let v;({[k]:v}=d);return v===(a?b:undefined)?1:0;}";
+    common::compare_sources(js, ts);
+}
