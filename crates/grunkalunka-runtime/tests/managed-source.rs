@@ -2894,3 +2894,20 @@ fn boxed_dictionary_logical_assignments_preserve_key_identity_and_short_circuiti
     let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):(b as never);return (d[k]??=b)===b?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_numeric_property_updates_use_the_shared_guest_key_path() {
+    for body in [
+        "const d=Object.create(null);const k=a?'x':b;return d[k]++;",
+        "const d=Object.create(null);const k=a?'x':b;d[k]=a;return ++d[k];",
+        "const d=Object.create(null);const k=a?true:'true';d[k]=b;return d[k]-=a;",
+        "const d=Object.create(null);const k=a?null:'null';d[k]=b;return d[k]>>>=a;",
+        "const d=Object.create(null);const k=a?'x':b;let n=0;d[(n++,k)]=b;const value=(d[(n++,k)]+=a);return n===2?value:-1;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);const k=a?'x':b;d[k]=a;return ++d[k];}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):(b as never);d[k]=a;return ++d[k];}";
+    common::compare_sources(js, ts);
+}
