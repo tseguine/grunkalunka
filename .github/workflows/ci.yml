@@ -158,8 +158,41 @@ jobs:
 
 
   # One-time benchmark on the dedicated branch; master/PR checks are unchanged.
+
+  # A cheap syntax and execution control must pass on BOTH hosts before
+  # the full workspace is compiled for the one-time A/B experiment.
+  nextest-cli-smoke:
+    name: Nextest CLI smoke (${{ matrix.platform }})
+    if: github.event_name == 'push' && github.ref == 'refs/heads/ci/nextest-eval-1113'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux
+            runner: ubuntu-24.04
+          - platform: Windows
+            runner: windows-2025
+    steps:
+      - name: Install pinned Nextest
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: nextest@0.9.149
+          fallback: none
+
+      - name: Execute exact Nextest options against an isolated tiny crate
+        run: |
+          smoke="$RUNNER_TEMP/nextest-argument-smoke"
+          mkdir -p "$smoke/src"
+          printf '[package]\nname = "nextest-argument-smoke"\nversion = "0.0.0"\nedition = "2024"\n' > "$smoke/Cargo.toml"
+          printf '#[test]\nfn the_cli_runs_tests() { assert_eq!(2 + 2, 4); }\n' > "$smoke/src/lib.rs"
+          cargo generate-lockfile --manifest-path "$smoke/Cargo.toml" --offline
+          cargo nextest run --manifest-path "$smoke/Cargo.toml" --workspace --bins --lib --tests --examples --locked --offline --no-fail-fast --test-threads 2
+
   nextest-evaluation:
     name: Nextest A/B (${{ matrix.platform }})
+    needs: nextest-cli-smoke
     if: github.event_name == 'push' && github.ref == 'refs/heads/ci/nextest-eval-1113'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -199,17 +232,17 @@ jobs:
           cache-bin: 'false'
           save-if: 'false'
 
-      - name: Fetch and compile exact workspace test binaries
-        run: |
-          cargo fetch --locked
-          cargo build --workspace --locked --offline -j 4
-          cargo test --workspace --bins --lib --tests --examples --locked --offline -j 4 --no-run
-
       - name: Install pinned Nextest
         uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: nextest@0.9.149
           fallback: none
+
+      - name: Fetch and compile exact workspace test binaries
+        run: |
+          cargo fetch --locked
+          cargo build --workspace --locked --offline -j 4
+          cargo test --workspace --bins --lib --tests --examples --locked --offline -j 4 --no-run
 
       - name: Measure Cargo test execution (no doctests)
         run: |
@@ -220,7 +253,7 @@ jobs:
       - name: Measure Nextest execution (same target classes)
         run: |
           start=$SECONDS
-          cargo nextest run --workspace --bins --lib --tests --examples --locked --offline -j 4 --no-fail-fast --test-threads 2
+          cargo nextest run --workspace --bins --lib --tests --examples --locked --offline --no-fail-fast --test-threads 2
           echo "MEASURE NEXTEST_BINARIES_SECONDS=$((SECONDS - start))" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Run doctests separately (not supported by Nextest)
