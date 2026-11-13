@@ -144,8 +144,8 @@ fn distributed_line_spacing_uses_outer_gaps_and_retains_safe_overflow() {
     for mode in [FlexAlignContent::SpaceAround, FlexAlignContent::SpaceEvenly] {
         blocks[0].style.align_content = mode;
         let frame = layout(&blocks, 20, 110).unwrap();
-        for node in 1..=3 {
-            assert_eq!(frame.boxes[node].unwrap().content.y, 0);
+        for item in frame.boxes.iter().take(4).skip(1) {
+            assert_eq!(item.as_ref().unwrap().content.y, 0);
         }
     }
 }
