@@ -69,18 +69,38 @@ function activeRuns(job, context) {
 const verificationRuns = runs => runs.filter(line =>
   /^(?:node (?:scripts\/check\.mjs|ci\/impact\/pr-gate\.mjs)|cargo test)(?:\s|$)/.test(line));
 
-test('Linux and Windows PRs have a bounded fast gate and no full-test route', () => {
-  const checks = block(read('.github/workflows/ci.yml'), '  checks:');
-  const timeout = scalar(checks, 'timeout-minutes', 4);
-  const prLimit = evaluate(timeout, { eventName: 'pull_request' });
-  const fullLimit = evaluate(timeout, { eventName: 'push' });
+test('Linux and Windows keep the bounded PR gate and full master groups', () => {
+  const ci = read('.github/workflows/ci.yml');
+  const checks = block(ci, '  checks:');
+  const fullChecks = block(ci, '  full-checks:');
+
+  const prLimit = evaluate(scalar(checks, 'timeout-minutes', 4), { eventName: 'pull_request' });
+  const fullLimit = evaluate(scalar(fullChecks, 'timeout-minutes', 4), { eventName: 'push' });
   assert.ok(Number.isSafeInteger(prLimit) && prLimit > 0, 'PR job must be bounded');
   assert.ok(Number.isSafeInteger(fullLimit) && fullLimit >= prLimit,
     'the full job must not have a smaller budget than the fast PR job');
+
+  // Do not mistake one group for full coverage: every named group must be
+  // included for both hosts, with the selected PR route disabled on master.
+  assert.equal(scalar(fullChecks, 'platform', 8), '[Linux, Windows]');
+  const groupMatrix = scalar(fullChecks, 'group', 8);
+  assert.match(groupMatrix, /^\[[a-z, -]+\]$/, 'explicit full-group matrix');
+  assert.deepEqual(groupMatrix.slice(1, -1).split(',').map(group => group.trim()), MASTER_GROUPS);
+
   for (const eventName of ['pull_request', 'push', 'workflow_dispatch']) {
-    assert.deepEqual(verificationRuns(activeRuns(checks, { eventName })),
-      [eventName === 'pull_request' ? 'node ci/impact/pr-gate.mjs' : 'node scripts/check.mjs'],
-      `verification route for ${eventName}`);
+    const context = { eventName };
+    const prActive = evaluate(scalar(checks, 'if', 4), context);
+    const fullActive = evaluate(scalar(fullChecks, 'if', 4), context);
+    assert.equal(prActive, eventName === 'pull_request', 'selected PR job condition');
+    assert.equal(fullActive, eventName !== 'pull_request', 'full job condition');
+    const actual = [
+      ...(prActive ? verificationRuns(activeRuns(checks, context)) : []),
+      ...(fullActive ? verificationRuns(activeRuns(fullChecks, context)) : []),
+    ];
+    const expected = [eventName === 'pull_request'
+      ? 'node ci/impact/pr-gate.mjs'
+      : 'node scripts/check.mjs --master-group=${{ matrix.group }}'];
+    assert.deepEqual(actual, expected, `verification route for ${eventName}`);
   }
 });
 
