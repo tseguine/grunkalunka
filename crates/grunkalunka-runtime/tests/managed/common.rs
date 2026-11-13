@@ -76,11 +76,12 @@ impl NodeOracle {
     fn evaluate(&mut self, script: &str, source: &str) -> String {
         // Encode the complete script as one line without a new Rust dependency
         // or a size limit on wasm bytes/source contents.
-        let request: String = script
-            .as_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut request = String::with_capacity(script.len() * 2);
+        for &byte in script.as_bytes() {
+            request.push(HEX[usize::from(byte >> 4)] as char);
+            request.push(HEX[usize::from(byte & 0x0f)] as char);
+        }
         self.stdin.write_all(request.as_bytes()).unwrap();
         self.stdin.write_all(b"\n").unwrap();
         self.stdin.flush().unwrap();
