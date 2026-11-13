@@ -15,7 +15,7 @@ pub(super) enum Destination<'e, 'a> {
     Slot(SlotId),
     Member {
         object: &'e Expression<'a>,
-        key: iteration::PropertyKey<'e, 'a>,
+        key: property_update::Key<'e, 'a>,
         ty: Type,
     },
 }
@@ -65,7 +65,7 @@ pub(super) enum Task<'e, 'a> {
     Receiver {
         state: Box<State<'e, 'a>>,
         selection: Selection<'e, 'a>,
-        key: iteration::PropertyKey<'e, 'a>,
+        key: property_update::Key<'e, 'a>,
         default: Option<&'e Expression<'a>>,
     },
     Key {
@@ -114,7 +114,7 @@ impl Lowering<'_, '_> {
                             "assignment patterns cannot set unchecked Array length",
                         ));
                     }
-                    iteration::PropertyKey::Literal(managed::member_key(
+                    property_update::Key::Literal(managed::member_key(
                         target,
                         key,
                         ty == Type::ManagedArray,
@@ -122,16 +122,24 @@ impl Lowering<'_, '_> {
                     )?)
                 }
                 iteration::PropertyKey::Runtime(key) => {
-                    if self
+                    let kind = self
                         .owned_key_kind(object, ty, key, depth, KeyAccess::Write)
-                        .is_none()
-                    {
-                        return Err(unsupported(
-                            target,
-                            "assignment member runtime keys require an unsigned index or a proven own String key",
-                        ));
-                    }
-                    iteration::PropertyKey::Runtime(key)
+                        .or_else(|| {
+                            self.boxed_runtime_key_fallback(
+                                key,
+                                depth,
+                                ty,
+                                self.stored.dictionary(object.node_id()),
+                                KeyAccess::Write,
+                            )
+                        })
+                        .ok_or_else(|| {
+                            unsupported(
+                                target,
+                                "assignment member runtime keys require a supported own data key",
+                            )
+                        })?;
+                    property_update::Key::Runtime(key, kind)
                 }
             };
             return Ok(Destination::Member { object, key, ty });
@@ -515,7 +523,7 @@ impl Lowering<'_, '_> {
             } => {
                 let object = values.pop().expect("assignment member receiver").id();
                 match key {
-                    iteration::PropertyKey::Literal(key) => {
+                    property_update::Key::Literal(key) => {
                         state.pending = Some((
                             selection,
                             SavedDestination::Member {
@@ -526,11 +534,8 @@ impl Lowering<'_, '_> {
                         ));
                         state
                     }
-                    iteration::PropertyKey::Runtime(key) => {
+                    property_update::Key::Runtime(key, kind) => {
                         let depth = state.depth;
-                        let kind = self
-                            .runtime_key(key, depth)
-                            .expect("validated assignment destination");
                         work.push(Work::Destructure(Task::Key {
                             state,
                             selection,
@@ -1704,6 +1709,39 @@ mod boxed_object_assignment_key_tests {
             "const d=Object.create(null);let v;({[a?[]:b]:v}=d);return a;",
             "const xs=[a,b];const k=a?'map':b;let v;({[k]:v}=xs);return a;",
             "const o={x:b};const k=a?'constructor':b;let v;({[k]:v}=o);return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod boxed_assignment_destination_tests {
+    #[test]
+    fn assignment_patterns_save_boxed_destination_keys_once() {
+        for body in [
+            "const d=Object.create(null);const k=a?'x':b;[d[k]]=[b];return d[k]===b?1:0;",
+            "const d=Object.create(null);const k=a?'x':b;({value:d[k]}={value:b});return d[k]===b?1:0;",
+            "const d=Object.create(null);const k=a?true:'true';[d[k]]=[b];return d.true===b?1:0;",
+            "const d=Object.create(null);const k=a?null:'null';[d[k]=b]=[];return d[k]===b?1:0;",
+            "const d=Object.create(null);const k=a?'x':b;let n=0;[d[(n++,k)]]=[b];return n===1&&d[k]===b?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_assignment_destinations_reject_reference_keys_and_unchecked_array_writes() {
+        for body in [
+            "const d=Object.create(null);const k=a?{}:b;[d[k]]=[b];return a;",
+            "const d=Object.create(null);const k=a?[]:b;({value:d[k]}={value:b});return a;",
+            "const xs=[a];const k=a?'length':b;[xs[k]]=[b];return a;",
+            "const o={};const k=a?'constructor':b;[o[k]]=[b];return a;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             assert!(crate::compile(&source, false).is_err(), "{source}");

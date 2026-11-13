@@ -1661,14 +1661,22 @@ fn numeric_string_index_requires_number_and_keeps_missing_results() {
     for body in [
         "return 'abc'[a].length;",
         "return 'abc'[a].trim().length;",
-        "return 'abc'[null]===undefined?1:0;",
-        "return 'abc'[true]===undefined?1:0;",
         "const s=a?'abc':null;return s[0]===undefined?1:0;",
     ] {
         assert!(
             crate::lower_source(&format!("export function run(a,b){{{body}}}"), false).is_err(),
             "{body}"
         );
+    }
+    // Boxed primitive keys now use the guest-owned ToPropertyKey subset.
+    // Preserve the original sources as positive compiler witnesses rather
+    // than retaining stale expected rejections after that lowering graduated.
+    for body in [
+        "return 'abc'[null]===undefined?1:0;",
+        "return 'abc'[true]===undefined?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(crate::compile(&source, false).is_ok(), "{source}");
     }
 }
 

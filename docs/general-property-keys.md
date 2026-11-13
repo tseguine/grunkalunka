@@ -199,3 +199,34 @@ Array source keys retain the same inherited-name guard as binding declarations.
 Ordinary prototype-bearing objects and keys needing fallible ToPrimitive remain
 outside this partial own-data operation. Compiler and unchanged native-JS versus
 Wasm comparisons cover defaults, rest, key effects and TypeScript erasure.
+
+## Computed assignment destinations
+
+Object and Array assignment patterns can also write to a computed member
+destination on a proven null-prototype dictionary when its key alternates
+between primitive and String values. The planner now carries the validated
+runtime key kind with the destination instead of re-inferring a narrower kind
+when executing the saved assignment. The receiver and key are evaluated once,
+in the original assignment order, and the selected value is written using
+the same guest-owned dynamic Set operation as plain assignment.
+
+This does not enable unchecked Array length assignment or arbitrary prototype
+writes, and source-proven object/function key alternatives still require a
+fallible ToPrimitive path. Compiler and JS/TS differential tests cover dynamic
+destination keys, defaults, object patterns, effects and reference guards.
+
+## Guest-coerced primitive keys on String reads
+
+Computed String own-property reads now also accept runtime keys whose
+source alternatives are represented non-String primitives, even when the
+key changes between Number, Boolean, Null or Undefined. The shared guest
+ToPropertyKey helper supplies JavaScript property-name spelling, then the
+existing UTF-16 String own getter selects a canonical index or length.
+Known Number-only inputs retain their direct numeric-index fast path.
+
+String-valued runtime keys still require a proven own-property name:
+inherited String prototype methods cannot be modeled by the own getter.
+Objects/functions as keys still require guest-visible ToPrimitive
+completions, and are not admitted by this step. Compiler guards, PR-fast
+Wasm smoke cases and full differential JS/TS versus Wasm cases exercise
+mixed primitives and boundary behavior.
