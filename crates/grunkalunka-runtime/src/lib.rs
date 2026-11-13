@@ -12,15 +12,25 @@ pub use asynchronous::{AsyncInstance, AsyncState, PreparedAsyncModule, PromiseNo
 /// Current execution budget, renewed before each call.
 pub const FUEL_PER_CALL: u64 = 10_000;
 
+fn shared_engine() -> wasmtime::Result<&'static Engine> {
+    static ENGINE: std::sync::OnceLock<wasmtime::Result<Engine>> = std::sync::OnceLock::new();
+    match ENGINE.get_or_init(|| {
+        let mut config = Config::new();
+        config.consume_fuel(true);
+        Engine::new(&config)
+    }) {
+        Ok(engine) => Ok(engine),
+        Err(error) => wasmtime::bail!("shared Wasmtime Engine initialization failed: {error}"),
+    }
+}
+
 fn instantiate(wasm: &[u8], fuel: u64) -> wasmtime::Result<(Store<()>, Instance)> {
-    let mut config = Config::new();
-    config.consume_fuel(true);
-    let engine = Engine::new(&config)?;
-    let module = Module::from_binary(&engine, wasm)?;
+    let engine = shared_engine()?;
+    let module = Module::from_binary(engine, wasm)?;
     if module.imports().len() != 0 {
         wasmtime::bail!("this experiment admits no module imports");
     }
-    let mut store = Store::new(&engine, ());
+    let mut store = Store::new(engine, ());
     store.set_fuel(fuel)?;
     let instance = Instance::new(&mut store, &module, &[])?;
     Ok((store, instance))
