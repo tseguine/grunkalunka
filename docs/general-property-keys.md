@@ -185,3 +185,17 @@ take this fallback. Reference-valued keys requiring fallible ToPrimitive
 also remain guarded. Compiler and native-JS/Wasm differential tests cover
 nullish short-circuiting, key effects, ordinary and null-prototype objects,
 and TypeScript erasure.
+
+## Computed keys in object assignment patterns
+
+Object assignment patterns now share the boxed runtime key selector used by
+object binding declarations. A computed source key may select between supported
+primitive/String kinds at runtime when the right-hand source is a proven
+null-prototype data dictionary. The saved source object, ordered key evaluation,
+assignment destination and object-rest exclusion remain on the existing
+owned cursor; key conversion is guest-owned.
+
+Array source keys retain the same inherited-name guard as binding declarations.
+Ordinary prototype-bearing objects and keys needing fallible ToPrimitive remain
+outside this partial own-data operation. Compiler and unchanged native-JS versus
+Wasm comparisons cover defaults, rest, key effects and TypeScript erasure.

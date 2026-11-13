@@ -394,8 +394,37 @@ impl Lowering<'_, '_> {
                         }
                         iteration::PropertyKey::Runtime(key) => {
                             let kind = match receiver {
-                                Some(ty @ (Type::ManagedObject | Type::ManagedArray)) =>
-                                    self.owned_key_kind(&assignment.right, ty, key, depth + 1, KeyAccess::Read),
+                                Some(ty @ (Type::ManagedObject | Type::ManagedArray)) => {
+                                    self.owned_key_kind(
+                                        &assignment.right,
+                                        ty,
+                                        key,
+                                        depth + 1,
+                                        KeyAccess::Read,
+                                    )
+                                    .or_else(|| {
+                                        // The own-data getter cannot model inherited
+                                        // Array methods. Keep the same key-domain
+                                        // exclusion used by binding declarations.
+                                        if ty == Type::ManagedArray
+                                            && !self
+                                                .stored
+                                                .record_names
+                                                .domain(key, depth + 1)
+                                                .array_own_names()
+                                        {
+                                            None
+                                        } else {
+                                            self.boxed_runtime_key_fallback(
+                                                key,
+                                                depth + 1,
+                                                ty,
+                                                dictionary,
+                                                KeyAccess::Read,
+                                            )
+                                        }
+                                    })
+                                }
                                 Some(Type::ManagedValue) if self.string_own_key(key, depth + 1) => Some(dictionary::RuntimeKey::String),
                                 _ if self.stored.uint32_keys.contains(key, depth + 1) => Some(dictionary::RuntimeKey::Uint32),
                                 _ => None,
@@ -1646,5 +1675,38 @@ let source=format!("export function run(a,b){{let x,rest={{}};({{[{}a>>>0{}]:x,.
 for ts in [false,true] {let r=crate::compile(&source,ts);assert_eq!(r.is_ok(),ok,"{n}: {:?}",r.err());}
 }
 }).unwrap().join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod boxed_object_assignment_key_tests {
+    #[test]
+    fn assignment_patterns_reuse_guest_boxed_keys_from_data_sources() {
+        for body in [
+            "const d=Object.create(null);d.x=b;const k=a?'x':b;let v;({[k]:v}=d);return v===(a?b:undefined)?1:0;",
+            "const d=Object.create(null);d.true=b;const k=a?true:'true';let v;({[k]:v}=d);return v===b?1:0;",
+            "const d=Object.create(null);d.x=b;d.y=a;const k=a?'x':b;let v;let rest={};({[k]:v,...rest}=d);return Object.keys(rest).length===(a?1:2)?1:0;",
+            "const xs=[a,b];const k=a?'length':'0';let v;({[k]:v}=xs);return v===(a?2:a)?1:0;",
+            "const d=Object.create(null);d.x=b;const k=a?'x':b;let v;let n=0;({[(n++,k)]:v}=d);return n===1&&v===(a?b:undefined)?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_assignment_source_keys_keep_reference_and_inherited_array_guards() {
+        for body in [
+            "const d=Object.create(null);let v;({[a?{}:b]:v}=d);return a;",
+            "const d=Object.create(null);let v;({[a?[]:b]:v}=d);return a;",
+            "const xs=[a,b];const k=a?'map':b;let v;({[k]:v}=xs);return a;",
+            "const o={x:b};const k=a?'constructor':b;let v;({[k]:v}=o);return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
+        }
     }
 }
