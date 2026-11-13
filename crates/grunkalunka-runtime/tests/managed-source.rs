@@ -2876,3 +2876,21 @@ fn boxed_computed_binding_keys_use_guest_own_property_selection() {
     let ts = "export function run(a:number,b:number){const xs=[a,b];const k=a?('length' as never):('0' as never);const {[k]:v=7}=xs;return v===(a?2:a)?1:0;}";
     common::compare_sources(js, ts);
 }
+
+#[test]
+fn boxed_dictionary_logical_assignments_preserve_key_identity_and_short_circuiting() {
+    for body in [
+        "const d=Object.create(null);const k=a?'x':b;return (d[k]??=b)===b?1:0;",
+        "const d=Object.create(null);const k=a?'x':b;d[k]=0;return (d[k]||=b)===b?1:0;",
+        "const d=Object.create(null);const k=a?null:'null';d[k]=a;return (d[k]&&=b)===(a?b:a)?1:0;",
+        "const d=Object.create(null);const k=a?true:'true';d[k]=a;return (d[k]&&=b)===(a?b:a)?1:0;",
+        "const d=Object.create(null);let n=0;const k=a?'x':b;const v=(d[(n++,k)]??=(n++,b));return n===2&&v===b?1:0;",
+        "const d=Object.create(null);const k=a?'__proto__':b;d[k]=b;const v=(d[k]&&=a);return v===a&&Object.hasOwn(d,k)?1:0;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&source, &source);
+    }
+    let js = "export function run(a,b){const d=Object.create(null);const k=a?'x':b;return (d[k]??=b)===b?1:0;}";
+    let ts = "export function run(a:number,b:number){const d=Object.create(null);const k=a?('x' as never):(b as never);return (d[k]??=b)===b?1:0;}";
+    common::compare_sources(js, ts);
+}

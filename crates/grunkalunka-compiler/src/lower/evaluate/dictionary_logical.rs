@@ -56,7 +56,7 @@ impl Lowering<'_, '_> {
             return Ok(false);
         };
         let Some((receiver_mode, kind)) =
-            self.runtime_member_receiver(member, depth + 1, KeyAccess::Write)
+            self.runtime_member_receiver_with_fallback(member, depth + 1, KeyAccess::Write)
         else {
             return Ok(false);
         };
@@ -231,6 +231,35 @@ mod tests {
                 let result = crate::compile(&source, typed);
                 assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
             }
+        }
+    }
+
+    #[test]
+    fn logical_dictionary_writes_accept_shared_boxed_primitive_keys() {
+        for body in [
+            "const d=Object.create(null);const k=a?'x':b;return (d[k]??=b)===b?1:0;",
+            "const d=Object.create(null);const k=a?'x':b;d[k]=0;return (d[k]||=b)===b?1:0;",
+            "const d=Object.create(null);const k=a?null:'null';d[k]=a;return (d[k]&&=b)===(a?b:a)?1:0;",
+            "const d=Object.create(null);const k=a?true:'true';d[k]=a;return (d[k]&&=b)===(a?b:a)?1:0;",
+            "const d=Object.create(null);let n=0;const k=a?'x':b;const v=(d[(n++,k)]??=(n++,b));return n===2&&v===b?1:0;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typed in [false, true] {
+                let result = crate::compile(&source, typed);
+                assert!(result.is_ok(), "{source}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
+    fn boxed_logical_keys_retain_reference_and_array_length_guards() {
+        for body in [
+            "const d=Object.create(null);const k=a?{}:b;d[k]??=b;return a;",
+            "const d=Object.create(null);const k=a?[]:b;d[k]||=b;return a;",
+            "const xs=[a];const k=a?'length':b;xs[k]??=b;return a;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(crate::compile(&source, false).is_err(), "{source}");
         }
     }
 }

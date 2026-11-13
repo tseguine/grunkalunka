@@ -185,10 +185,10 @@ impl Lowering<'_, '_> {
             .map(|kind| (Mode::managed(receiver), kind))
     }
 
-    // Only direct computed Get/Set calls can use the current partial key
-    // normalizer. Logical writes, patterns and other callers retain their
-    // separate semantic admission checks.
-    fn runtime_member_receiver_with_fallback(
+    // Shared by ordinary computed Get/Set and logical dictionary assignments.
+    // Array length writes and prototype-bearing ordinary Get/Set still need
+    // guest-visible completion and prototype semantics.
+    pub(in crate::lower) fn runtime_member_receiver_with_fallback(
         &self,
         member: &oxc_ast::ast::ComputedMemberExpression<'_>,
         depth: usize,
