@@ -1,13 +1,15 @@
 use grunkalunka_compiler::compile;
 use grunkalunka_runtime::NumericInstance;
 use std::{
+    cell::RefCell,
     io::{BufRead, BufReader, Write},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{Mutex, OnceLock, mpsc},
+    sync::mpsc,
     time::Duration,
 };
 
-// One Node oracle per test binary, not one process per source or TypeScript variant.
+// One Node oracle per libtest thread, not one process per source or TypeScript variant.
+// This preserves concurrent test execution without starting Node for every case.
 // A fresh VM context per request retains the previous process-isolation semantics.
 const NODE_WORKER: &str = r#"const vm = require('node:vm');
 const {createInterface} = require('node:readline');
@@ -97,9 +99,8 @@ impl NodeOracle {
     }
 }
 
-fn node_oracle() -> &'static Mutex<NodeOracle> {
-    static ORACLE: OnceLock<Mutex<NodeOracle>> = OnceLock::new();
-    ORACLE.get_or_init(|| Mutex::new(NodeOracle::new()))
+thread_local! {
+    static NODE_ORACLE: RefCell<NodeOracle> = RefCell::new(NodeOracle::new());
 }
 
 pub fn compare_sources(js: &str, ts: &str) {
@@ -147,7 +148,7 @@ return expected.join(',');"#,
             native = format!("{};return run;", js.replace("export function", "function")),
             wasm = artifact.wasm
         );
-        let output = node_oracle().lock().unwrap().evaluate(&script, source);
+        let output = NODE_ORACLE.with(|oracle| oracle.borrow_mut().evaluate(&script, source));
         let mut expected = output.split(',');
         let mut run: Box<dyn FnMut(f64, f64) -> wasmtime::Result<f64>> = if let Some(fuel) = fuel {
             let mut config = wasmtime::Config::new();
