@@ -194,8 +194,7 @@ fn node_oracle_pool_reuses_bounded_workers_across_test_threads() {
         threads.push(std::thread::spawn(move || {
             let mut pids = Vec::new();
             for iteration in 0..4 {
-                let script =
-                    format!("return require('node:process').pid + ':{task}:{iteration}';");
+                let script = format!("return require('node:process').pid + ':{task}:{iteration}';");
                 let result = pool.evaluate(&script, "oracle pool smoke");
                 let (pid, marker) = result.split_once(':').unwrap();
                 assert_eq!(marker, format!("{task}:{iteration}"));
