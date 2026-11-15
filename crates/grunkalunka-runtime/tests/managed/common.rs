@@ -1,16 +1,14 @@
 use grunkalunka_compiler::compile;
 use grunkalunka_runtime::NumericInstance;
 use std::{
-    cell::RefCell,
     io::{BufRead, BufReader, Write},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc,
+    sync::{Condvar, Mutex, OnceLock, mpsc},
     time::Duration,
 };
 
-// One Node oracle per libtest thread, not one process per source or TypeScript variant.
-// This preserves concurrent test execution without starting Node for every case.
-// A fresh VM context per request retains the previous process-isolation semantics.
+// Libtest uses short-lived test threads. Reuse a bounded pool of Node processes,
+// while keeping one fresh VM context per request for isolation.
 const NODE_WORKER: &str = r#"const vm = require('node:vm');
 const {createInterface} = require('node:readline');
 createInterface({input: process.stdin, crlfDelay: Infinity}).on('line', hex => {
@@ -100,8 +98,122 @@ impl NodeOracle {
     }
 }
 
-thread_local! {
-    static NODE_ORACLE: RefCell<NodeOracle> = RefCell::new(NodeOracle::new());
+// The mutex only protects checkout/return. Executing an oracle request never
+// holds the pool lock, so independent tests can run concurrently.
+struct NodeOraclePool {
+    state: Mutex<NodeOraclePoolState>,
+    available: Condvar,
+    limit: usize,
+}
+
+#[derive(Default)]
+struct NodeOraclePoolState {
+    idle: Vec<NodeOracle>,
+    live: usize,
+}
+
+struct NodeOracleLease<'a> {
+    pool: &'a NodeOraclePool,
+    oracle: Option<NodeOracle>,
+    reusable: bool,
+}
+
+impl NodeOraclePool {
+    fn new(limit: usize) -> Self {
+        assert!(limit > 0);
+        Self {
+            state: Mutex::new(NodeOraclePoolState::default()),
+            available: Condvar::new(),
+            limit,
+        }
+    }
+
+    fn acquire(&self) -> NodeOracleLease<'_> {
+        let mut state = self.state.lock().unwrap();
+        loop {
+            if let Some(oracle) = state.idle.pop() {
+                return NodeOracleLease {
+                    pool: self,
+                    oracle: Some(oracle),
+                    reusable: false,
+                };
+            }
+            if state.live < self.limit {
+                // Reserve a slot, but spawn Node outside the mutex.
+                state.live += 1;
+                return NodeOracleLease {
+                    pool: self,
+                    oracle: None,
+                    reusable: false,
+                };
+            }
+            state = self.available.wait(state).unwrap();
+        }
+    }
+
+    fn evaluate(&self, script: &str, source: &str) -> String {
+        let mut lease = self.acquire();
+        let output = lease
+            .oracle
+            .get_or_insert_with(NodeOracle::new)
+            .evaluate(script, source);
+        // An evaluation that panics discards its worker and frees the slot.
+        lease.reusable = true;
+        output
+    }
+}
+
+impl Drop for NodeOracleLease<'_> {
+    fn drop(&mut self) {
+        let mut state = self.pool.state.lock().unwrap();
+        if self.reusable {
+            state.idle.push(self.oracle.take().unwrap());
+        } else {
+            state.live -= 1;
+        }
+        self.pool.available.notify_one();
+    }
+}
+
+fn node_oracle_pool() -> &'static NodeOraclePool {
+    static POOL: OnceLock<NodeOraclePool> = OnceLock::new();
+    POOL.get_or_init(|| {
+        let parallelism = std::thread::available_parallelism().map_or(2, |n| n.get());
+        NodeOraclePool::new(parallelism.min(4))
+    })
+}
+
+#[test]
+fn node_oracle_pool_reuses_bounded_workers_across_test_threads() {
+    use std::{collections::HashSet, sync::Arc};
+
+    let pool = Arc::new(NodeOraclePool::new(2));
+    let mut threads = Vec::new();
+    for task in 0..6 {
+        let pool = Arc::clone(&pool);
+        threads.push(std::thread::spawn(move || {
+            let mut pids = Vec::new();
+            for iteration in 0..4 {
+                let script =
+                    format!("return require('node:process').pid + ':{task}:{iteration}';");
+                let result = pool.evaluate(&script, "oracle pool smoke");
+                let (pid, marker) = result.split_once(':').unwrap();
+                assert_eq!(marker, format!("{task}:{iteration}"));
+                pids.push(pid.to_owned());
+            }
+            pids
+        }));
+    }
+    let mut pids = HashSet::new();
+    for thread in threads {
+        for pid in thread.join().unwrap() {
+            pids.insert(pid);
+        }
+    }
+    assert!(!pids.is_empty() && pids.len() <= 2);
+    let state = pool.state.lock().unwrap();
+    assert_eq!(state.live, state.idle.len());
+    assert_eq!(state.live, pids.len());
 }
 
 pub fn compare_sources(js: &str, ts: &str) {
@@ -149,7 +261,7 @@ return expected.join(',');"#,
             native = format!("{};return run;", js.replace("export function", "function")),
             wasm = artifact.wasm
         );
-        let output = NODE_ORACLE.with(|oracle| oracle.borrow_mut().evaluate(&script, source));
+        let output = node_oracle_pool().evaluate(&script, source);
         let mut expected = output.split(',');
         let mut run: Box<dyn FnMut(f64, f64) -> wasmtime::Result<f64>> = if let Some(fuel) = fuel {
             let mut config = wasmtime::Config::new();
