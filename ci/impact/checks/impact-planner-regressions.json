@@ -11,5 +11,8 @@
     "check:a1-live-application",
     "check:workspace-tests"
   ],
-  "buildDependsOn": []
+  "buildDependsOn": [],
+  "paths": [
+    "scripts/master-check-groups.mjs"
+  ]
 }

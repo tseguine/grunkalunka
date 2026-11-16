@@ -14,8 +14,9 @@ Ubuntu macOS baseline probe. A healthy recent native baseline skips macOS on
 the PR. A stale, missing, failed or uncheckable baseline **automatically
 triggers a real native macOS build and the complete fast PR profile** on that PR's
 merge revision. The final macOS gate succeeds if the baseline was green or
-the native fallback passed. Linux and Windows execute full canonical checks
-on `master` pushes and manual CI runs. PRs use the bounded **PR profile**; unsafe
+the native fallback passed. Linux and Windows execute every full canonical check
+on `master` pushes and manual CI runs, partitioned across four parallel groups
+per host (Rust tests, style, Node applications and remaining checks). PRs use the bounded **PR profile**; unsafe
 dependency selection runs that entire profile on the same host. Exhaustive tests
 do not return to PRs merely because a changed path is unknown.
 
@@ -42,6 +43,8 @@ runner contention can still delay the next build.
 | --- | --- | --- |
 | `Checks (Linux)` | `ubuntu-24.04` | x64 |
 | `Checks (Windows)` | `windows-2025` | x64 |
+| `Full <group> (Linux)` | `ubuntu-24.04` | x64; master/manual four-group matrix |
+| `Full <group> (Windows)` | `windows-2025` | x64; master/manual four-group matrix |
 | `macOS baseline lookup (Linux)` | `ubuntu-24.04` | checks reference; decides whether fallback is needed |
 | `macOS verification (baseline or native fallback)` | `ubuntu-24.04` | final PR gate |
 | `Native macOS fallback` (conditional), master-push/manual native macOS | `macos-15` | arm64, native Apple Silicon |
@@ -59,9 +62,10 @@ queuing: a previous 15-minute job limit canceled a fallback before any runner wa
 assigned. Once scheduled, the fallback workspace build has a 10-minute step limit
 and the fast PR check has a separate 15-minute step limit. Full Linux/Windows
 jobs have a 90-minute envelope, and full native macOS jobs retain 65 minutes.
-The full Linux/Windows envelope includes setup, compilation and the serial
-canonical suite. It leaves room for the complete integration tail when slower
-hosted execution pushes the aggregate beyond an hour. These are watchdogs, not
+The full Linux/Windows envelope applies independently to each of the four groups.
+Each group builds the full workspace before running its assigned canonical checks;
+the complete suite is the union of those groups with no skipped commands.
+The longest group determines check wall time when runners are available. These are watchdogs, not
 performance targets; the fast PR command and job budgets are separate.
 Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
 Switching runner architecture does not establish support until its actual checks pass.
@@ -93,7 +97,9 @@ runner's native OS. A planner error falls back to the complete fast PR profile;
 a **failing selected test fails the job** rather than triggering a full retry.
 This is offline Cargo verification after setup, not a network-isolated sandbox.
 
-In full mode the workspace is built before `node scripts/check.mjs`; early
+In full mode each matrix group builds the workspace before
+`node scripts/check.mjs --master-group=<group>`. The ungrouped
+`node scripts/check.mjs` remains the complete serial local command; early
 kernel tests have short build watchdogs that must not include a cold dependency
 build. PR partial mode prebuilds the packages selected by the dependency graph.
 The complete PR fallback builds the workspace, then runs

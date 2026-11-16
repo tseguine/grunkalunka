@@ -46,5 +46,6 @@
         ]
       }
     ]
-  }
+  },
+  "masterGroup": "rust-tests"
 }

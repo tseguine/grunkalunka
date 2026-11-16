@@ -10,5 +10,6 @@
   ],
   "paths": [
     "tests/applications/a1-ui-service.test.mjs"
-  ]
+  ],
+  "masterGroup": "applications"
 }

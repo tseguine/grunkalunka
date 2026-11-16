@@ -14,5 +14,6 @@
   "pr": {
     "reason": "Repeated native service interaction scenarios run in full verification; the PR profile retains native UI/WIT and HTTP integration smoke tests.",
     "commands": []
-  }
+  },
+  "masterGroup": "applications"
 }
